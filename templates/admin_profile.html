@@ -1,0 +1,282 @@
+{% extends 'base.html' %}
+
+{% block title %}Change Password - SPARK{% endblock %}
+
+{% block styles %}
+{# Theme CSS loaded by theme-loader.js #}
+<style>
+    .password-requirements {
+        font-size: 0.85rem;
+        color: #72767d;
+    }
+    .password-requirements li {
+        margin-bottom: 0.25rem;
+    }
+    .password-requirements li.valid {
+        color: #43b581;
+    }
+    .password-requirements li.valid::before {
+        content: '\f00c';
+        font-family: 'Font Awesome 6 Free';
+        font-weight: 900;
+        margin-right: 0.5rem;
+    }
+    .password-requirements li.invalid::before {
+        content: '\f00d';
+        font-family: 'Font Awesome 6 Free';
+        font-weight: 900;
+        margin-right: 0.5rem;
+        color: #ed4245;
+    }
+    .password-match {
+        font-size: 0.85rem;
+        margin-top: 0.5rem;
+    }
+    .password-match.match {
+        color: #43b581;
+    }
+    .password-match.no-match {
+        color: #ed4245;
+    }
+    .btn-show-password {
+        background-color: #40444b;
+        border-color: #40444b;
+        color: #fff;
+    }
+    .btn-show-password:hover {
+        background-color: #4f545c;
+        border-color: #4f545c;
+        color: #fff;
+    }
+</style>
+{% endblock %}
+
+{% block page_title %}Change Password{% endblock %}
+
+{% block back_url %}/{% endblock %}
+
+{% block toolbar %}{% endblock %}
+
+{% block content %}
+<form id="change-password-form">
+    <!-- Current Password Section -->
+    <div class="section-container">
+        <div class="section-title"><i class="fas fa-lock me-2"></i>Current Password</div>
+        <div class="flex-row">
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label for="old-password" class="form-label">Enter your current password</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="old-password" name="old_password" required>
+                        <button class="btn btn-show-password" type="button" onclick="togglePassword('old-password', this)">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                    <small class="form-text text-muted">Required to verify your identity</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Password Section -->
+    <div class="section-container">
+        <div class="section-title"><i class="fas fa-lock-open me-2"></i>New Password</div>
+        <div class="flex-row">
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label for="new-password" class="form-label">New Password</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="new-password" name="new_password"
+                               required minlength="6" oninput="checkPasswordStrength()">
+                        <button class="btn btn-show-password" type="button" onclick="togglePassword('new-password', this)">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                    <ul class="password-requirements mt-2 list-unstyled">
+                        <li id="req-length" class="invalid">At least 6 characters</li>
+                        <li id="req-different" class="invalid">Different from current password</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label for="confirm-password" class="form-label">Confirm New Password</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="confirm-password"
+                               required oninput="checkPasswordMatch()">
+                        <button class="btn btn-show-password" type="button" onclick="togglePassword('confirm-password', this)">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                    <div id="password-match-status" class="password-match"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error/Success Messages -->
+    <div id="error-message" class="alert alert-danger" style="display: none;">
+        <i class="fas fa-exclamation-circle me-2"></i><span id="error-text"></span>
+    </div>
+    <div id="success-message" class="alert alert-success" style="display: none;">
+        <i class="fas fa-check-circle me-2"></i><span id="success-text"></span>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary" id="submit-btn">
+            <i class="fas fa-save me-1"></i> Change Password
+        </button>
+        <a href="/" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Back to Chat
+        </a>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    function togglePassword(inputId, button) {
+        const input = document.getElementById(inputId);
+        const icon = button.querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+    }
+
+    function checkPasswordStrength() {
+        const newPassword = document.getElementById('new-password').value;
+        const oldPassword = document.getElementById('old-password').value;
+
+        // Check length
+        const reqLength = document.getElementById('req-length');
+        if (newPassword.length >= 6) {
+            reqLength.classList.remove('invalid');
+            reqLength.classList.add('valid');
+        } else {
+            reqLength.classList.remove('valid');
+            reqLength.classList.add('invalid');
+        }
+
+        // Check different from old
+        const reqDifferent = document.getElementById('req-different');
+        if (newPassword && oldPassword && newPassword !== oldPassword) {
+            reqDifferent.classList.remove('invalid');
+            reqDifferent.classList.add('valid');
+        } else if (newPassword && oldPassword && newPassword === oldPassword) {
+            reqDifferent.classList.remove('valid');
+            reqDifferent.classList.add('invalid');
+        }
+
+        checkPasswordMatch();
+    }
+
+    function checkPasswordMatch() {
+        const newPassword = document.getElementById('new-password').value;
+        const confirmPassword = document.getElementById('confirm-password').value;
+        const statusDiv = document.getElementById('password-match-status');
+
+        if (!confirmPassword) {
+            statusDiv.textContent = '';
+            statusDiv.className = 'password-match';
+            return;
+        }
+
+        if (newPassword === confirmPassword) {
+            statusDiv.innerHTML = '<i class="fas fa-check me-1"></i>Passwords match';
+            statusDiv.className = 'password-match match';
+        } else {
+            statusDiv.innerHTML = '<i class="fas fa-times me-1"></i>Passwords do not match';
+            statusDiv.className = 'password-match no-match';
+        }
+    }
+
+    document.getElementById('old-password').addEventListener('input', checkPasswordStrength);
+
+    document.getElementById('change-password-form').addEventListener('submit', async function(event) {
+        event.preventDefault();
+
+        const oldPassword = document.getElementById('old-password').value;
+        const newPassword = document.getElementById('new-password').value;
+        const confirmPassword = document.getElementById('confirm-password').value;
+        const errorDiv = document.getElementById('error-message');
+        const errorText = document.getElementById('error-text');
+        const successDiv = document.getElementById('success-message');
+        const successText = document.getElementById('success-text');
+        const submitBtn = document.getElementById('submit-btn');
+
+        // Hide previous messages
+        errorDiv.style.display = 'none';
+        successDiv.style.display = 'none';
+
+        // Validation
+        if (newPassword !== confirmPassword) {
+            errorText.textContent = 'Passwords do not match.';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        if (newPassword.length < 6) {
+            errorText.textContent = 'Password must be at least 6 characters.';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        if (newPassword === oldPassword) {
+            errorText.textContent = 'New password must be different from current password.';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        // Disable button during request
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Changing...';
+
+        try {
+            const formData = new URLSearchParams();
+            formData.append('old_password', oldPassword);
+            formData.append('new_password', newPassword);
+
+            const response = await fetch('/api/change-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: formData
+            });
+
+            if (response.ok) {
+                successText.textContent = 'Password changed successfully! Redirecting...';
+                successDiv.style.display = 'block';
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 1500);
+            } else {
+                const data = await response.json();
+                if (response.status === 400 && data.detail === "Current password is incorrect") {
+                    errorText.textContent = 'Current password is incorrect.';
+                } else if (data.detail) {
+                    errorText.textContent = data.detail;
+                } else {
+                    errorText.textContent = 'Error changing password. Please try again.';
+                }
+                errorDiv.style.display = 'block';
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-save me-1"></i> Change Password';
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            errorText.textContent = 'An unexpected error occurred. Please try again.';
+            errorDiv.style.display = 'block';
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-save me-1"></i> Change Password';
+        }
+    });
+</script>
+{% endblock %}

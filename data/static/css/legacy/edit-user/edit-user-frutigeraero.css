@@ -1,0 +1,601 @@
+/*
+ * Theme Name: Frutiger Aero - Edit Different User
+ * Description: A glossy, sky-blue theme inspired by Windows Vista/7 Aero aesthetics
+ * Author: Inspired by Frutiger Aero design
+ * Version: 1.0
+ */
+
+/* ==========================================================
+   Variables and Base Styles
+   ========================================================== */
+
+:root {
+    /* Frutiger Aero Color Palette */
+    --fa-bg-primary: #e0f7ff;
+    --fa-bg-secondary: #f0fff0;
+    --fa-sidebar-bg: linear-gradient(135deg, #cceeff, #e0f7fa);
+    --fa-header-bg: linear-gradient(to bottom, #a0e0ff, #87cefa);
+    --fa-input-bg: #ffffff;
+    --fa-text-primary: #33475b;
+    --fa-text-secondary: #5a7a9a;
+    --fa-text-light: #ffffff;
+    --fa-accent-blue: #00bfff;
+    --fa-accent-green: #76ff03;
+    --fa-border-color: #b0d8ff;
+    --fa-border-color-light: #d0eaff;
+    --fa-glow-color: rgba(135, 206, 250, 0.5);
+    --fa-button-bg: linear-gradient(to bottom, #87cefa, #6495ed);
+    --fa-button-hover-bg: linear-gradient(to bottom, #a7ddff, #7ca8f0);
+    --fa-danger-bg: #ff7b7b;
+    --fa-danger-hover-bg: #ff5252;
+    --fa-danger-text: #a94442;
+    --fa-success: #2ecc71;
+    --fa-warning-bg: #fff3cd;
+    --fa-warning-text: #856404;
+    --fa-warning-border: #ffeeba;
+    --fa-info-bg: #d1ecf1;
+    --fa-info-text: #0c5460;
+    --fa-info-border: #bee5eb;
+    --fa-border-radius-small: 8px;
+    --fa-border-radius-medium: 12px;
+    --fa-border-radius-large: 18px;
+    --fa-box-shadow-light: 0 2px 5px rgba(0, 100, 150, 0.1);
+    --fa-box-shadow-glass: inset 0 1px 1px rgba(255, 255, 255, 0.6), 0 2px 3px rgba(0, 100, 150, 0.15);
+    --fa-font-family: 'Segoe UI', 'Frutiger', 'Helvetica Neue', Arial, sans-serif;
+}
+
+body {
+    background: linear-gradient(135deg, var(--fa-bg-primary), var(--fa-bg-secondary));
+    color: var(--fa-text-primary);
+    font-family: var(--fa-font-family);
+    min-height: 100vh;
+}
+
+/* ==========================================================
+   Design System - Layout Styles
+   ========================================================== */
+
+/* Main Container */
+.main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 30px 20px;
+}
+
+/* Page Header */
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #0078d4;
+}
+
+.page-header-text {
+    flex: 1;
+}
+
+/* Page Toolbar (Tabs + Actions) */
+.page-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    gap: 16px;
+}
+
+.page-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.page-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+/* Hide toolbar when both sides are empty */
+.page-toolbar:has(.page-toolbar-left:empty):has(.page-toolbar-right:empty) {
+    display: none;
+}
+
+/* Back Button */
+.btn-back {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(232, 244, 252, 0.8));
+    border: 1px solid #b8d4e8;
+    color: #1a1a1a;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    box-shadow: var(--fa-box-shadow-glass);
+}
+
+.btn-back:hover {
+    background: var(--fa-button-bg);
+    border-color: #0078d4;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 0 15px var(--fa-glow-color), var(--fa-box-shadow-glass);
+}
+
+/* Page Title */
+.page-title {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: #1a1a1a;
+    text-shadow: 0 2px 4px rgba(0, 100, 150, 0.1);
+}
+
+.page-subtitle {
+    margin: 4px 0 0 0;
+    color: #666666;
+    font-size: 0.9rem;
+}
+
+/* ==========================================================
+   Design System - Responsive Layout
+   ========================================================== */
+@media (max-width: 768px) {
+    .main-container {
+        padding: 15px 10px;
+    }
+
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .page-toolbar {
+        flex-wrap: wrap;
+    }
+
+    .page-title {
+        font-size: 1.4rem;
+    }
+
+    .btn-back {
+        width: 38px;
+        height: 38px;
+    }
+}
+
+@media (max-width: 480px) {
+    .page-title {
+        font-size: 1.2rem;
+    }
+}
+
+/* ==========================================================
+   Section Containers
+   ========================================================== */
+
+.section-container {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(240, 250, 255, 0.8));
+    border: 1px solid var(--fa-border-color-light);
+    box-shadow: var(--fa-box-shadow-glass);
+    transition: transform 0.2s ease-in-out, box-shadow 0.3s ease;
+    border-radius: var(--fa-border-radius-medium);
+    backdrop-filter: blur(5px);
+    padding: 25px;
+    margin-bottom: 25px;
+    animation: fadeInUp 0.5s ease-out;
+    position: relative;
+}
+
+.section-container::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg,
+                rgba(255, 255, 255, 0.1),
+                rgba(224, 247, 255, 0.05));
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: -1;
+}
+
+.section-container:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px var(--fa-glow-color), var(--fa-box-shadow-glass);
+}
+
+.section-title {
+    color: var(--fa-text-primary);
+    font-size: 1.4em;
+    font-weight: 600;
+    margin-bottom: 20px;
+    border-bottom: 2px solid var(--fa-accent-blue);
+    padding-bottom: 10px;
+    text-shadow: 0 1px 2px rgba(0, 100, 150, 0.1);
+}
+
+/* ==========================================================
+   Layout
+   ========================================================== */
+
+.flex-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 30px;
+}
+
+.flex-column {
+    flex: 1;
+    min-width: 280px;
+}
+
+/* ==========================================================
+   Form Controls
+   ========================================================== */
+
+.form-label {
+    color: var(--fa-text-primary);
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+.form-control {
+    background-color: rgba(255, 255, 255, 0.9);
+    border: 1px solid var(--fa-border-color);
+    color: var(--fa-text-primary);
+    border-radius: var(--fa-border-radius-small);
+    padding: 10px 15px;
+    transition: all 0.3s ease;
+    box-shadow: inset 0 1px 2px rgba(0, 100, 150, 0.05);
+}
+
+.form-control:focus {
+    background-color: var(--fa-input-bg);
+    border-color: var(--fa-accent-blue);
+    box-shadow: 0 0 0 0.25rem rgba(0, 191, 255, 0.15),
+                0 0 10px var(--fa-glow-color);
+    color: var(--fa-text-primary);
+    outline: none;
+    animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.form-control::placeholder {
+    color: var(--fa-text-secondary);
+}
+
+.form-select {
+    background-color: rgba(255, 255, 255, 0.9);
+    border: 1px solid var(--fa-border-color);
+    color: var(--fa-text-primary);
+    border-radius: var(--fa-border-radius-small);
+    padding: 10px 15px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: inset 0 1px 2px rgba(0, 100, 150, 0.05);
+}
+
+.form-select:focus {
+    background-color: var(--fa-input-bg);
+    border-color: var(--fa-accent-blue);
+    box-shadow: 0 0 0 0.25rem rgba(0, 191, 255, 0.15),
+                0 0 10px var(--fa-glow-color);
+    outline: none;
+    animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.form-check-input {
+    background-color: rgba(255, 255, 255, 0.9);
+    border: 1px solid var(--fa-border-color);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.form-check-input:checked {
+    background-color: var(--fa-accent-blue);
+    border-color: var(--fa-accent-blue);
+    box-shadow: 0 0 8px var(--fa-glow-color);
+}
+
+.form-check-input:focus {
+    box-shadow: 0 0 0 0.25rem rgba(0, 191, 255, 0.15);
+    border-color: var(--fa-accent-blue);
+}
+
+.form-check-label {
+    color: var(--fa-text-primary);
+}
+
+/* ==========================================================
+   Password Container
+   ========================================================== */
+
+.password-container {
+    position: relative;
+}
+
+.password-container .copy-icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    z-index: 10;
+    color: var(--fa-text-secondary);
+    transition: color 0.3s ease;
+}
+
+.password-container .copy-icon:hover {
+    color: var(--fa-accent-blue);
+}
+
+.password-container input[type="password"],
+.password-container input[type="text"] {
+    padding-left: 35px;
+}
+
+#generatePasswordBtn {
+    margin-top: 5px;
+    font-size: 0.9em;
+}
+
+/* ==========================================================
+   Buttons
+   ========================================================== */
+
+.btn-primary {
+    background: var(--fa-button-bg);
+    color: var(--fa-text-light);
+    border: none;
+    border-radius: var(--fa-border-radius-medium);
+    padding: 10px 24px;
+    font-weight: 500;
+    box-shadow: var(--fa-box-shadow-glass);
+    transition: all 0.3s ease;
+    background-size: 200% auto;
+    background-image: linear-gradient(
+        to right,
+        #87cefa 0%,
+        #6495ed 30%,
+        #87cefa 60%,
+        #6495ed 100%
+    );
+}
+
+.btn-primary:hover {
+    background: var(--fa-button-hover-bg);
+    box-shadow: 0 0 15px var(--fa-glow-color), var(--fa-box-shadow-glass);
+    transform: translateY(-2px);
+    color: var(--fa-text-light);
+    animation: shine 1s linear infinite;
+}
+
+.btn-secondary {
+    background: linear-gradient(to bottom, #b0c4de, #a0b4ce);
+    color: var(--fa-text-primary);
+    border: none;
+    border-radius: var(--fa-border-radius-medium);
+    padding: 10px 24px;
+    font-weight: 500;
+    box-shadow: var(--fa-box-shadow-glass);
+    transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+    background: linear-gradient(to bottom, #c0d4ee, #b0c4de);
+    box-shadow: 0 0 10px rgba(176, 196, 222, 0.5), var(--fa-box-shadow-glass);
+    transform: translateY(-2px);
+    color: var(--fa-text-primary);
+}
+
+.btn-outline-secondary {
+    color: var(--fa-text-primary);
+    border: 1px solid var(--fa-border-color);
+    background: transparent;
+    border-radius: var(--fa-border-radius-small);
+    transition: all 0.3s ease;
+}
+
+.btn-outline-secondary:hover {
+    background: rgba(255, 255, 255, 0.5);
+    border-color: var(--fa-accent-blue);
+    color: var(--fa-text-primary);
+    box-shadow: 0 0 8px var(--fa-glow-color);
+}
+
+.btn-outline-danger {
+    color: var(--fa-danger-text);
+    border-color: var(--fa-danger-bg);
+    background: transparent;
+    transition: all 0.3s ease;
+}
+
+.btn-outline-danger:hover {
+    color: var(--fa-text-light);
+    background-color: var(--fa-danger-hover-bg);
+    border-color: var(--fa-danger-hover-bg);
+    box-shadow: 0 0 10px rgba(255, 82, 82, 0.4);
+}
+
+/* ==========================================================
+   Alerts
+   ========================================================== */
+
+.alert-danger {
+    background: linear-gradient(135deg, rgba(255, 123, 123, 0.9), rgba(255, 82, 82, 0.8));
+    border: 1px solid var(--fa-danger-bg);
+    color: var(--fa-text-light);
+    border-radius: var(--fa-border-radius-small);
+    box-shadow: var(--fa-box-shadow-glass);
+}
+
+.alert-info {
+    background: linear-gradient(135deg, rgba(209, 236, 241, 0.95), rgba(190, 229, 235, 0.9));
+    border: 1px solid var(--fa-info-border);
+    color: var(--fa-info-text);
+    border-radius: var(--fa-border-radius-small);
+    box-shadow: var(--fa-box-shadow-glass);
+}
+
+.alert-warning {
+    background: linear-gradient(135deg, rgba(255, 243, 205, 0.95), rgba(255, 238, 186, 0.9));
+    border: 1px solid var(--fa-warning-border);
+    color: var(--fa-warning-text);
+    border-radius: var(--fa-border-radius-small);
+    box-shadow: var(--fa-box-shadow-glass);
+}
+
+/* ==========================================================
+   Navbar
+   ========================================================== */
+
+.navbar {
+    background: var(--fa-header-bg) !important;
+    border-bottom: 1px solid var(--fa-border-color);
+    margin-bottom: 30px;
+    box-shadow: 0 2px 10px rgba(135, 206, 250, 0.2);
+}
+
+.navbar-brand,
+.nav-link {
+    color: var(--fa-text-light) !important;
+    text-shadow: 0 1px 2px rgba(0, 100, 150, 0.2);
+    transition: all 0.2s ease;
+}
+
+.navbar-brand:hover,
+.nav-link:hover {
+    color: #ffffff !important;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+.navbar-toggler {
+    border-color: rgba(255, 255, 255, 0.5);
+    background-color: transparent;
+}
+
+.navbar-toggler-icon {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
+}
+
+/* ==========================================================
+   Error and Validation States
+   ========================================================== */
+
+.form-control.is-invalid {
+    border-color: var(--fa-danger-bg);
+    background-color: rgba(255, 220, 220, 0.2);
+    box-shadow: 0 0 5px rgba(255, 123, 123, 0.3);
+}
+
+.invalid-feedback {
+    color: var(--fa-danger-text);
+    text-shadow: 0 1px 2px rgba(255, 123, 123, 0.2);
+}
+
+.text-muted {
+    color: var(--fa-text-secondary) !important;
+}
+
+.text-danger {
+    color: var(--fa-danger-text) !important;
+}
+
+/* ==========================================================
+   Scrollbar Styling
+   ========================================================== */
+
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: linear-gradient(to bottom, var(--fa-bg-primary), var(--fa-bg-secondary));
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--fa-button-bg);
+    border-radius: 5px;
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.5);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--fa-button-hover-bg);
+}
+
+/* ==========================================================
+   Animations
+   ========================================================== */
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes glow-pulse {
+    0% {
+        box-shadow: 0 0 5px var(--fa-glow-color);
+    }
+    50% {
+        box-shadow: 0 0 20px var(--fa-glow-color), 0 0 30px var(--fa-glow-color);
+    }
+    100% {
+        box-shadow: 0 0 5px var(--fa-glow-color);
+    }
+}
+
+@keyframes shine {
+    to {
+        background-position: 200% center;
+    }
+}
+
+/* ==========================================================
+   Responsive Design
+   ========================================================== */
+
+@media (max-width: 768px) {
+    .section-container {
+        padding: 20px;
+        border-radius: var(--fa-border-radius-small);
+    }
+
+    .section-title {
+        font-size: 1.2em;
+    }
+
+    .flex-row {
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .flex-column {
+        min-width: 100%;
+    }
+
+    .btn {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    .btn-primary,
+    .btn-secondary {
+        padding: 12px 20px;
+    }
+}

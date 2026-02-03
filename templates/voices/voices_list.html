@@ -1,0 +1,114 @@
+{% extends 'base_admin.html' %}
+
+{% block title %}Voice Management - SPARK{% endblock %}
+
+{% block styles %}
+<style>
+    /* Page-specific styles that override or extend admin CSS */
+    .voice-code {
+        font-family: monospace;
+        font-size: 0.85rem;
+    }
+</style>
+{% endblock %}
+
+{% block page_title %}Voice Management{% endblock %}
+
+{% block page_subtitle %}
+<p class="page-subtitle">Manage all TTS voices available in your application</p>
+{% endblock %}
+
+{% block page_actions %}
+<a href="/admin/voices/new" class="btn btn-success">
+    <i class="fas fa-plus me-1"></i>Add New Voice
+</a>
+{% endblock %}
+
+{% block tabs %}
+<div class="internal-tabs">
+    <a href="/admin/voices" class="internal-tab active">All Voices</a>
+    <a href="/admin/elevenlabs-voices" class="internal-tab">
+        <i class="fas fa-sync me-1"></i> ElevenLabs Sync
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Stats -->
+<div class="stats-row">
+    <span class="stat-badge">
+        <i class="fas fa-microphone"></i> <strong id="totalCount">{{ voices|length }}</strong> Total Voices
+    </span>
+</div>
+
+<!-- Voices Table Section -->
+<div class="section-container">
+    <div class="section-title">
+        <i class="fas fa-list"></i> All Voices
+    </div>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Voice Name</th>
+                    <th>Voice Code</th>
+                    <th>TTS Service</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="voicesTableBody">
+                {% for voice in voices %}
+                <tr class="voice-row" data-voice-id="{{ voice[0] }}">
+                    <td><strong>{{ voice[1] }}</strong></td>
+                    <td><code class="voice-code">{{ voice[2] }}</code></td>
+                    <td>
+                        <span class="badge provider-badge provider-{{ voice[3] }}">{{ voice[3] }}</span>
+                    </td>
+                    <td class="text-end table-actions">
+                        {% if voice[3] != 'TTS-ELEVENLABS' %}
+                        <a href="/admin/voices/edit/{{ voice[0] }}" class="btn btn-sm btn-outline-primary" title="Edit" data-bs-toggle="tooltip">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                        <button onclick="deleteVoice({{ voice[0] }})" class="btn btn-sm btn-outline-danger" title="Delete" data-bs-toggle="tooltip">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        {% else %}
+                        <span class="badge bg-secondary" title="Manage via ElevenLabs Sync" data-bs-toggle="tooltip">
+                            <i class="fas fa-sync-alt me-1"></i>Synced
+                        </span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    function deleteVoice(voiceId) {
+        if (confirm('Are you sure you want to delete this voice?')) {
+            fetch(`/admin/voices/delete/${voiceId}`, {
+                method: 'DELETE'
+            }).then(response => {
+                if (response.ok) {
+                    const row = document.querySelector(`tr[data-voice-id="${voiceId}"]`);
+                    if (row) {
+                        row.remove();
+                        updateStats();
+                    }
+                } else {
+                    NotificationModal.error('Delete Failed', 'Failed to delete voice.');
+                }
+            }).catch(error => console.error('Error:', error));
+        }
+    }
+
+    function updateStats() {
+        const rows = document.querySelectorAll('.voice-row');
+        document.getElementById('totalCount').textContent = rows.length;
+    }
+</script>
+{% endblock %}

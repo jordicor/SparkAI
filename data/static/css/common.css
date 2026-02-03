@@ -1,0 +1,508 @@
+/**
+ * Common CSS - Base structural styles shared across all pages
+ *
+ * This file defines foundational classes for consistent UI components:
+ * - Section containers (card-like boxes)
+ * - Table wrappers
+ * - Stats badges
+ * - Flex layouts
+ * - Filters sections
+ * - Table toolbars
+ *
+ * Themes can override these by:
+ * 1. Redefining the CSS variables (--common-*)
+ * 2. Overriding the classes directly (theme CSS loads after this)
+ *
+ * Load order: Bootstrap -> common.css -> theme CSS
+ */
+
+/* ==========================================================
+   CSS Variables - Base Theme (Dark)
+   Themes override these variables to customize appearance
+   ========================================================== */
+:root {
+    /* Backgrounds */
+    --bg-primary: #36393f;
+    --bg-secondary: #2f3136;
+    --bg-tertiary: #202225;
+
+    /* Text */
+    --text-primary: #ffffff;
+    --text-secondary: #b9bbbe;
+    --text-muted: #72767d;
+
+    /* Borders */
+    --border-color: #40444b;
+    --border-radius: 8px;
+
+    /* Accent color */
+    --accent: #7289da;
+    --accent-hover: #5b6eae;
+
+    /* Shadows */
+    --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.2);
+    --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.3);
+
+    /* Status colors */
+    --success: #43b581;
+    --danger: #ed4245;
+    --warning: #faa61a;
+    --info: #00b0f4;
+}
+
+/* ==========================================================
+   Section Container (Card-like boxes)
+   ========================================================== */
+.section-container {
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    padding: 25px;
+    margin-bottom: 25px;
+    box-shadow: var(--shadow-soft);
+    transition: all 0.2s ease;
+    border: 1px solid var(--border-color);
+}
+
+.section-container:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-hover);
+}
+
+/* Section Title (header inside section-container) */
+.section-title {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 14px;
+    margin-bottom: 22px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.section-title i {
+    color: var(--accent);
+}
+
+/* ==========================================================
+   Table Wrapper (contains tables with proper styling)
+   ========================================================== */
+.table-wrapper {
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+/* Table base styles inside wrapper */
+.table-wrapper .table {
+    margin: 0;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.table-wrapper .table th,
+.table-wrapper .table td {
+    border-color: var(--border-color);
+    padding: 12px 16px;
+    vertical-align: middle;
+}
+
+.table-wrapper .table thead th {
+    background-color: var(--bg-tertiary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.table-wrapper .table tbody td {
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.table-wrapper .table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.table-wrapper .table tbody tr:hover {
+    background-color: var(--bg-tertiary);
+}
+
+/* ==========================================================
+   Stats Row (Summary statistics badges)
+   ========================================================== */
+.stats-row {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+}
+
+.stat-badge {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    padding: 10px 18px;
+    border-radius: 25px;
+    font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: var(--shadow-soft);
+    color: var(--text-secondary);
+}
+
+.stat-badge i {
+    color: var(--accent);
+    font-size: 1rem;
+}
+
+.stat-badge strong {
+    color: var(--accent);
+}
+
+/* Stat badge variants */
+.stat-badge.stat-active,
+.stat-badge.stat-public {
+    background: rgba(67, 181, 129, 0.15);
+    border-color: rgba(67, 181, 129, 0.3);
+}
+
+.stat-badge.stat-active strong,
+.stat-badge.stat-public strong {
+    color: var(--success);
+}
+
+.stat-badge.stat-expired,
+.stat-badge.stat-private {
+    background: rgba(237, 66, 69, 0.15);
+    border-color: rgba(237, 66, 69, 0.3);
+}
+
+.stat-badge.stat-expired strong {
+    color: var(--danger);
+}
+
+.stat-badge.stat-private strong {
+    color: var(--text-muted);
+}
+
+/* ==========================================================
+   Filters Section (special section-container for filters)
+   ========================================================== */
+.filters-section {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.filters-section .section-title {
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+}
+
+.filters-section .section-title .btn {
+    margin-left: auto;
+}
+
+/* ==========================================================
+   Table Toolbar (Select all + Actions above table)
+   ========================================================== */
+.table-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    background-color: var(--bg-tertiary);
+    border-radius: var(--border-radius);
+}
+
+.toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.toolbar-left .form-check-label {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* ==========================================================
+   Flex Layout (Responsive columns)
+   ========================================================== */
+.flex-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.flex-column {
+    flex: 1;
+    min-width: 200px;
+}
+
+/* ==========================================================
+   Table Actions (Buttons in table rows)
+   ========================================================== */
+.table-actions {
+    white-space: nowrap;
+}
+
+.table-actions .btn {
+    padding: 7px 11px;
+    margin-left: 6px;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.table-actions .btn:first-child {
+    margin-left: 0;
+}
+
+.table-actions .btn:hover {
+    transform: translateY(-2px);
+}
+
+/* ==========================================================
+   Sortable Table Headers
+   ========================================================== */
+.table thead th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s ease;
+}
+
+.table thead th.sortable:hover {
+    background-color: var(--bg-primary);
+}
+
+.table thead th.sortable::after {
+    content: '';
+    margin-left: 6px;
+    opacity: 0.3;
+}
+
+.table thead th.sort-asc::after {
+    content: '\25B2';
+    opacity: 1;
+    color: var(--accent);
+}
+
+.table thead th.sort-desc::after {
+    content: '\25BC';
+    opacity: 1;
+    color: var(--accent);
+}
+
+/* ==========================================================
+   Status Indicators
+   ========================================================== */
+.status-active {
+    color: var(--success);
+}
+
+.status-expired {
+    color: var(--danger);
+}
+
+.status-public,
+.status-private {
+    white-space: nowrap;
+    font-size: 0.875rem;
+}
+
+.status-public {
+    color: var(--success);
+}
+
+.status-private {
+    color: var(--text-muted);
+}
+
+/* ==========================================================
+   Responsive Adjustments
+   ========================================================== */
+@media (max-width: 992px) {
+    .flex-column {
+        min-width: calc(50% - 10px);
+        flex: 0 0 calc(50% - 10px);
+    }
+}
+
+@media (max-width: 768px) {
+    .section-container {
+        padding: 15px;
+    }
+
+    .section-title {
+        font-size: 1rem;
+        padding-bottom: 10px;
+        margin-bottom: 15px;
+    }
+
+    .stats-row {
+        gap: 10px;
+    }
+
+    .stat-badge {
+        flex: 1;
+        justify-content: center;
+        padding: 8px 12px;
+        font-size: 0.85rem;
+    }
+
+    .flex-column {
+        min-width: 100%;
+        flex: 0 0 100%;
+    }
+
+    .table-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .toolbar-left,
+    .toolbar-right {
+        justify-content: center;
+    }
+
+    .toolbar-right {
+        flex-wrap: wrap;
+    }
+
+    .table-wrapper {
+        border-radius: 6px;
+    }
+}
+
+@media (max-width: 480px) {
+    .section-container {
+        padding: 12px;
+        margin-bottom: 15px;
+    }
+
+    .filters-section .section-title {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .filters-section .section-title .btn {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .toolbar-right .btn {
+        flex: 1;
+    }
+}
+
+/* ==========================================================
+   Generic Modal Styling
+   ========================================================== */
+.modal-content {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.modal-header {
+    background-color: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-title {
+    color: var(--text-primary);
+}
+
+.modal-body {
+    color: var(--text-secondary);
+}
+
+.modal-footer {
+    background-color: var(--bg-tertiary);
+    border-top: 1px solid var(--border-color);
+}
+
+.modal-header .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+/* ==========================================================
+   Navbar Z-Index Fix
+   Ensures navbar dropdowns appear above page content
+   ========================================================== */
+.navbar {
+    position: relative;
+    z-index: 1030;
+}
+
+/* Theme submenu needs to be above all page content */
+.theme-submenu {
+    z-index: 1060 !important;
+}
+
+/* Ensure dropdowns in navbar have high z-index */
+.navbar .dropdown-menu {
+    z-index: 1050;
+}
+
+/* ==========================================================
+   Locked Conversations
+   ========================================================== */
+.conversation-locked {
+    opacity: 0.7;
+}
+
+.conversation-locked .chat-name {
+    color: var(--text-muted, #72767d);
+}
+
+.chat-name i.fa-comment-slash {
+    margin-right: 6px;
+    color: var(--warning, #faa61a);
+    font-size: 0.85em;
+}
+
+/* Locked conversation banner - centered above input */
+#locked-conversation-banner {
+    position: absolute;
+    bottom: 120px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 700px;
+    width: calc(100% - 40px);
+    z-index: 100;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    white-space: nowrap;
+    /* Solid background for visibility over messages */
+    background: linear-gradient(135deg, #e65100 0%, #ff6d00 100%);
+    border: 2px solid #bf360c;
+    box-shadow: 0 4px 20px rgba(230, 81, 0, 0.4);
+}
+
+#locked-conversation-banner .api-keys-banner-content {
+    justify-content: center;
+    color: #fff;
+    font-weight: 500;
+}
+
+#locked-conversation-banner .api-keys-banner-content i {
+    color: #fff;
+}
+

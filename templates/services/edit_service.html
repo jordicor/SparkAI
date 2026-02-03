@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block title %}Edit Service - SPARK{% endblock %}
+
+{% block styles %}
+{# Theme CSS loaded by theme-loader.js #}
+{% endblock %}
+
+{% block page_title %}Edit Service - ID: {{ service_id }}{% endblock %}
+
+{% block back_url %}/admin/services{% endblock %}
+
+{% block back_title %}Back to Services{% endblock %}
+
+{% block content %}
+<div class="section-container">
+    <form action="/admin/services/update/{{ service_id }}" method="post">
+        <div class="mb-3">
+            <label for="name" class="form-label">Service Name</label>
+            <input type="text" class="form-control" id="name" name="name" value="{{ service_name }}" required>
+        </div>
+        <div class="mb-3">
+            <label for="unit" class="form-label">Unit</label>
+            <input type="text" class="form-control" id="unit" name="unit" value="{{ service_unit }}" required>
+        </div>
+        <div class="mb-3">
+            <label for="cost_per_unit" class="form-label">Cost per Unit</label>
+            <input type="number" step="any" class="form-control" id="cost_per_unit" name="cost_per_unit" value="{{ service_cost_per_unit }}" required>
+        </div>
+        <div class="mb-3">
+            <label for="type" class="form-label">Type</label>
+            <select class="form-control" id="type" name="type" required>
+                <option value="" {% if service_type is none %}selected{% endif %}></option>
+                {% for service_type_option in service_types %}
+                    <option value="{{ service_type_option }}" {% if service_type_option == service_type %}selected{% endif %}>{{ service_type_option }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Update Service</button>
+    </form>
+</div>
+{% endblock %}

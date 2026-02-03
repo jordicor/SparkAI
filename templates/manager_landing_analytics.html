@@ -1,0 +1,409 @@
+{% extends 'base.html' %}
+
+{% block title %}Landing Page Analytics{% endblock %}
+
+{% block styles %}
+{# Theme CSS loaded by theme-loader.js #}
+<style>
+    /* Stat cards - subtle accent borders instead of colorful backgrounds */
+    .stat-card {
+        background: var(--bg-secondary, #2f3136);
+        border: 1px solid var(--border-color, #40444b);
+        border-radius: 12px;
+        padding: 1.25rem;
+        height: 100%;
+        border-left: 3px solid var(--accent, #5865f2);
+    }
+    .stat-card.primary { border-left-color: var(--accent, #5865f2); }
+    .stat-card.info { border-left-color: var(--info, #3498db); }
+    .stat-card.success { border-left-color: var(--success, #43b581); }
+    .stat-card.warning { border-left-color: var(--warning, #faa61a); }
+    .stat-card .amount {
+        font-size: 1.75rem;
+        font-weight: bold;
+        color: var(--text-primary, #dcddde);
+    }
+    .stat-card .label {
+        font-size: 0.85rem;
+        color: var(--text-secondary, #b9bbbe);
+        margin-bottom: 0.25rem;
+    }
+    .stat-card .sublabel {
+        font-size: 0.75rem;
+        color: var(--text-muted, #72767d);
+    }
+    /* Conversion badges */
+    .conversion-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .conversion-high { background-color: rgba(67, 181, 129, 0.2); color: var(--success, #43b581); }
+    .conversion-medium { background-color: rgba(250, 166, 26, 0.2); color: var(--warning, #faa61a); }
+    .conversion-low { background-color: rgba(240, 71, 71, 0.2); color: var(--danger, #f04747); }
+    /* Chart elements */
+    .referrer-bar {
+        height: 8px;
+        background: var(--accent, #5865f2);
+        border-radius: 4px;
+    }
+    .chart-container {
+        height: 200px;
+        position: relative;
+    }
+    .chart-bar {
+        display: inline-block;
+        width: 6%;
+        margin: 0 0.5%;
+        background: var(--accent, #5865f2);
+        border-radius: 4px 4px 0 0;
+        vertical-align: bottom;
+    }
+    .chart-label {
+        font-size: 10px;
+        color: var(--text-muted, #72767d);
+        text-align: center;
+    }
+    /* Links */
+    .prompt-link {
+        color: var(--accent, #5865f2);
+        text-decoration: none;
+    }
+    .prompt-link:hover {
+        color: var(--accent-light, #7289da);
+        text-decoration: underline;
+    }
+</style>
+{% endblock %}
+
+{% block page_title %}Landing Page Analytics{% endblock %}
+{% block page_subtitle %}<p class="text-muted mb-0">Track visits and conversions for your landing pages.</p>{% endblock %}
+
+{% block back_url %}/{% endblock %}
+
+{% block page_actions %}
+<div class="text-muted">
+    <i class="fas fa-sync-alt me-1 refresh-btn" onclick="loadAnalytics()" style="cursor: pointer;" title="Refresh"></i>
+    Last 30 days
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Stats Cards -->
+<div class="row">
+    <div class="col-md-3 mb-4">
+        <div class="stat-card primary">
+            <div class="label"><i class="fas fa-eye me-1"></i>Today</div>
+            <div class="amount" id="todayVisitors">0</div>
+            <div class="sublabel">Unique visitors</div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-4">
+        <div class="stat-card info">
+            <div class="label"><i class="fas fa-calendar-week me-1"></i>This Week</div>
+            <div class="amount" id="weekVisitors">0</div>
+            <div class="sublabel">Unique visitors</div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-4">
+        <div class="stat-card success">
+            <div class="label"><i class="fas fa-calendar-alt me-1"></i>This Month</div>
+            <div class="amount" id="monthVisitors">0</div>
+            <div class="sublabel">Unique visitors</div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-4">
+        <div class="stat-card warning">
+            <div class="label"><i class="fas fa-user-plus me-1"></i>Conversions</div>
+            <div class="amount" id="totalConversions">0</div>
+            <div class="sublabel">Registrations this month</div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Visits Chart -->
+    <div class="col-lg-8">
+        <div class="section-container">
+            <div class="section-title"><i class="fas fa-chart-bar me-2"></i>Daily Visits (Last 14 Days)</div>
+            <div class="chart-container" id="visitsChart">
+                <div class="text-center text-muted py-5">
+                    <i class="fas fa-spinner fa-spin me-1"></i> Loading chart...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Referrers -->
+    <div class="col-lg-4">
+        <div class="section-container">
+            <div class="section-title"><i class="fas fa-link me-2"></i>Top Referrers</div>
+            <div id="referrersList">
+                <div class="text-center text-muted py-3">
+                    <i class="fas fa-spinner fa-spin me-1"></i> Loading...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Prompts Table -->
+<div class="section-container">
+    <div class="section-title"><i class="fas fa-file-alt me-2"></i>Analytics by Landing Page</div>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Landing Page</th>
+                    <th class="text-center">Today</th>
+                    <th class="text-center">Week</th>
+                    <th class="text-center">Month</th>
+                    <th class="text-center">Conversions</th>
+                    <th class="text-center">Rate</th>
+                </tr>
+            </thead>
+            <tbody id="promptsTableBody">
+                <tr>
+                    <td colspan="6" class="text-center text-muted">
+                        <i class="fas fa-spinner fa-spin me-1"></i> Loading...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <div id="noPromptsMessage" style="display: none;" class="text-center text-muted py-4">
+        <i class="fas fa-info-circle me-1"></i>
+        No landing pages found. <a href="/prompts/new">Create your first prompt</a> to start tracking.
+    </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-chart-line me-2"></i><span id="modalPromptName">Loading...</span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="modalContent">
+                <div class="text-center py-4">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    let analyticsData = null;
+
+    document.addEventListener('DOMContentLoaded', loadAnalytics);
+
+    async function loadAnalytics() {
+        try {
+            const response = await fetch('/api/manager/landing-analytics');
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to load analytics');
+            }
+
+            analyticsData = data;
+
+            // Update summary cards
+            document.getElementById('todayVisitors').textContent = data.summary.today_visitors;
+            document.getElementById('weekVisitors').textContent = data.summary.week_visitors;
+            document.getElementById('monthVisitors').textContent = data.summary.month_visitors;
+            document.getElementById('totalConversions').textContent = data.summary.total_conversions;
+
+            // Update prompts table
+            updatePromptsTable(data.prompts);
+
+            // Update chart
+            updateChart(data.daily_visits);
+
+            // Update referrers
+            updateReferrers(data.top_referrers);
+
+        } catch (error) {
+            console.error('Error loading analytics:', error);
+            document.getElementById('promptsTableBody').innerHTML = `
+                <tr><td colspan="6" class="text-center text-danger">
+                    <i class="fas fa-exclamation-triangle me-1"></i>Failed to load: ${error.message}
+                </td></tr>`;
+        }
+    }
+
+    function updatePromptsTable(prompts) {
+        const tbody = document.getElementById('promptsTableBody');
+        const noPrompts = document.getElementById('noPromptsMessage');
+
+        if (!prompts || prompts.length === 0) {
+            tbody.innerHTML = '';
+            noPrompts.style.display = 'block';
+            return;
+        }
+
+        noPrompts.style.display = 'none';
+
+        tbody.innerHTML = prompts.map(p => {
+            const rateClass = p.conversion_rate >= 5 ? 'conversion-high' :
+                              p.conversion_rate >= 2 ? 'conversion-medium' : 'conversion-low';
+            return `
+                <tr class="prompt-row">
+                    <td>
+                        <a href="#" class="prompt-link" onclick="showPromptDetail(${p.id}, '${escapeHtml(p.name)}'); return false;">
+                            <i class="fas fa-file-alt me-1"></i>${escapeHtml(p.name)}
+                        </a>
+                    </td>
+                    <td class="text-center">${p.today_visitors}</td>
+                    <td class="text-center">${p.week_visitors}</td>
+                    <td class="text-center">${p.month_visitors}</td>
+                    <td class="text-center">${p.conversions}</td>
+                    <td class="text-center">
+                        <span class="conversion-badge ${rateClass}">${p.conversion_rate}%</span>
+                    </td>
+                </tr>`;
+        }).join('');
+    }
+
+    function updateChart(dailyVisits) {
+        const container = document.getElementById('visitsChart');
+
+        if (!dailyVisits || dailyVisits.length === 0) {
+            container.innerHTML = '<div class="text-center text-muted py-5">No visit data yet</div>';
+            return;
+        }
+
+        const maxVisits = Math.max(...dailyVisits.map(d => d.visits), 1);
+
+        let html = '<div style="display: flex; align-items: flex-end; height: 180px; padding-bottom: 20px;">';
+
+        dailyVisits.forEach(d => {
+            const height = (d.visits / maxVisits) * 150;
+            const date = new Date(d.date);
+            const label = `${date.getMonth()+1}/${date.getDate()}`;
+            html += `
+                <div style="flex: 1; text-align: center;">
+                    <div class="chart-bar" style="height: ${Math.max(height, 4)}px;" title="${d.visits} visits on ${d.date}"></div>
+                    <div class="chart-label">${label}</div>
+                </div>`;
+        });
+
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    function updateReferrers(referrers) {
+        const container = document.getElementById('referrersList');
+
+        if (!referrers || referrers.length === 0) {
+            container.innerHTML = '<div class="text-muted text-center py-3">No referrer data yet</div>';
+            return;
+        }
+
+        const maxCount = referrers[0].count;
+
+        container.innerHTML = referrers.map(r => {
+            const width = (r.count / maxCount) * 100;
+            return `
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between mb-1">
+                        <small class="text-truncate" style="max-width: 200px;" title="${escapeHtml(r.referrer)}">${escapeHtml(r.referrer)}</small>
+                        <small class="text-muted">${r.count}</small>
+                    </div>
+                    <div class="referrer-bar" style="width: ${width}%;"></div>
+                </div>`;
+        }).join('');
+    }
+
+    async function showPromptDetail(promptId, promptName) {
+        document.getElementById('modalPromptName').textContent = promptName;
+        document.getElementById('modalContent').innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+        const modal = new bootstrap.Modal(document.getElementById('detailModal'));
+        modal.show();
+
+        try {
+            const response = await fetch(`/api/manager/landing-analytics/${promptId}`);
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to load details');
+            }
+
+            const rateClass = data.stats.conversion_rate >= 5 ? 'conversion-high' :
+                              data.stats.conversion_rate >= 2 ? 'conversion-medium' : 'conversion-low';
+
+            let html = `
+                <div class="row mb-4">
+                    <div class="col-md-3 text-center">
+                        <h3 class="mb-0">${data.stats.total_visits}</h3>
+                        <small class="text-muted">Total Visits</small>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <h3 class="mb-0">${data.stats.unique_visitors}</h3>
+                        <small class="text-muted">Unique Visitors</small>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <h3 class="mb-0">${data.stats.conversions}</h3>
+                        <small class="text-muted">Conversions</small>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <h3 class="mb-0"><span class="conversion-badge ${rateClass}">${data.stats.conversion_rate}%</span></h3>
+                        <small class="text-muted">Conversion Rate</small>
+                    </div>
+                </div>
+
+                <h6><i class="fas fa-calendar me-1"></i>Daily Breakdown</h6>
+                <div class="table-responsive mb-4">
+                    <table class="table table-sm">
+                        <thead><tr><th>Date</th><th class="text-center">Visits</th><th class="text-center">Visitors</th><th class="text-center">Conversions</th></tr></thead>
+                        <tbody>
+                            ${data.daily.slice(0, 7).map(d => `
+                                <tr>
+                                    <td>${d.date}</td>
+                                    <td class="text-center">${d.visits}</td>
+                                    <td class="text-center">${d.visitors}</td>
+                                    <td class="text-center">${d.conversions}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+
+                <h6><i class="fas fa-link me-1"></i>Top Referrers</h6>
+                <ul class="list-group">
+                    ${data.referrers.length > 0 ?
+                        data.referrers.slice(0, 5).map(r => `
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span class="text-truncate" style="max-width: 80%;">${escapeHtml(r.referrer)}</span>
+                                <span class="badge bg-primary">${r.count}</span>
+                            </li>
+                        `).join('') :
+                        '<li class="list-group-item text-muted">No referrer data</li>'
+                    }
+                </ul>
+            `;
+
+            document.getElementById('modalContent').innerHTML = html;
+
+        } catch (error) {
+            document.getElementById('modalContent').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    Failed to load details: ${error.message}
+                </div>`;
+        }
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+{% endblock %}

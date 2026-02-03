@@ -1,0 +1,479 @@
+{% extends 'base.html' %}
+
+{% block title %}White-Label Branding Settings{% endblock %}
+
+{% block styles %}
+{# Theme CSS loaded by theme-loader.js #}
+<style>
+    /* Color picker */
+    .color-picker-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .color-picker-wrapper input[type="color"] {
+        width: 50px;
+        height: 38px;
+        padding: 0;
+        border: 1px solid var(--border-color, #40444b);
+        border-radius: 4px;
+        cursor: pointer;
+        background: var(--bg-tertiary, #202225);
+    }
+    .color-picker-wrapper input[type="text"] {
+        width: 120px;
+        font-family: monospace;
+    }
+    /* Preview card - this intentionally uses custom colors for branding preview */
+    .preview-card {
+        background: linear-gradient(135deg, var(--preview-primary, #6366f1) 0%, var(--preview-secondary, #10B981) 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 2rem;
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+    .preview-card .logo-preview {
+        max-width: 150px;
+        max-height: 80px;
+        margin-bottom: 1rem;
+        border-radius: 8px;
+        background: white;
+        padding: 8px;
+    }
+    .preview-card .company-name {
+        font-size: 1.5rem;
+        font-weight: bold;
+    }
+    /* Email preview - uses theme colors for better integration */
+    .preview-email {
+        border: 1px solid var(--border-color, #40444b);
+        border-radius: 8px;
+        padding: 1.5rem;
+        background: var(--bg-secondary, #2f3136);
+        color: var(--text-primary, #ffffff);
+    }
+    .preview-email .email-header {
+        text-align: center;
+        border-bottom: 2px solid var(--preview-primary, #6366f1);
+        padding-bottom: 1rem;
+        margin-bottom: 1rem;
+    }
+    .preview-email .email-header h3 {
+        color: var(--preview-primary, #6366f1);
+        margin: 0;
+    }
+    .preview-email .email-body {
+        color: var(--text-primary, #ffffff);
+    }
+    .preview-email .email-button {
+        display: inline-block;
+        padding: 12px 24px;
+        background: var(--preview-primary, #6366f1);
+        color: white;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: bold;
+    }
+    .preview-email .email-footer {
+        text-align: center;
+        border-top: 1px solid var(--border-color, #40444b);
+        padding-top: 1rem;
+        margin-top: 1rem;
+        color: var(--text-muted, rgba(255,255,255,0.55));
+        font-size: 12px;
+    }
+    .powered-by {
+        font-size: 11px;
+        color: var(--text-muted, rgba(255,255,255,0.55));
+    }
+    /* Theme selector */
+    .theme-selector {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 10px;
+    }
+    .theme-option {
+        border: 2px solid var(--border-color, #40444b);
+        border-radius: 8px;
+        padding: 10px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: var(--bg-tertiary, #202225);
+    }
+    .theme-option:hover {
+        border-color: var(--accent, #5865f2);
+    }
+    .theme-option.selected {
+        border-color: var(--accent, #5865f2);
+        background: rgba(88, 101, 242, 0.15);
+    }
+    .theme-option .theme-preview {
+        width: 100%;
+        height: 40px;
+        border-radius: 4px;
+        margin-bottom: 5px;
+    }
+    .theme-option .theme-name {
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: var(--text-primary, #dcddde);
+    }
+    .toggle-switch {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block page_title %}White-Label Branding{% endblock %}
+{% block page_subtitle %}<p class="text-muted mb-0">Customize your brand appearance for users you create.</p>{% endblock %}
+
+{% block back_url %}/{% endblock %}
+
+{% block page_actions %}
+<button class="btn btn-primary" onclick="saveBranding()" id="saveBtn">
+    <i class="fas fa-save me-1"></i>Save Changes
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Left Column: Settings -->
+    <div class="col-lg-7">
+        <!-- Company Information -->
+        <div class="section-container">
+            <div class="section-title"><i class="fas fa-building me-2"></i>Company Information</div>
+            <div class="mb-3">
+                <label class="form-label">Company Name</label>
+                <input type="text" class="form-control" id="companyName" placeholder="Your Company Name" maxlength="100">
+                <small class="text-muted">Shown in emails and as page title for your users</small>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Logo URL</label>
+                <input type="url" class="form-control" id="logoUrl" placeholder="https://example.com/logo.png">
+                <small class="text-muted">Direct link to your logo image (PNG, JPG, SVG)</small>
+            </div>
+        </div>
+
+        <!-- Brand Colors -->
+        <div class="section-container">
+            <div class="section-title"><i class="fas fa-fill-drip me-2"></i>Brand Colors</div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Primary Color</label>
+                    <div class="color-picker-wrapper">
+                        <input type="color" id="colorPrimary" value="#6366f1" onchange="updateColorText('primary')">
+                        <input type="text" class="form-control" id="colorPrimaryText" value="#6366f1" onchange="updateColorPicker('primary')">
+                    </div>
+                    <small class="text-muted">Used for buttons, headers, accents</small>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Secondary Color</label>
+                    <div class="color-picker-wrapper">
+                        <input type="color" id="colorSecondary" value="#10B981" onchange="updateColorText('secondary')">
+                        <input type="text" class="form-control" id="colorSecondaryText" value="#10B981" onchange="updateColorPicker('secondary')">
+                    </div>
+                    <small class="text-muted">Used for gradients, highlights</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Email Customization -->
+        <div class="section-container">
+            <div class="section-title"><i class="fas fa-envelope me-2"></i>Email Customization</div>
+            <div class="mb-3">
+                <label class="form-label">Footer Text</label>
+                <textarea class="form-control" id="footerText" rows="2" placeholder="Custom footer message for emails" maxlength="500"></textarea>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Email Signature</label>
+                <textarea class="form-control" id="emailSignature" rows="2" placeholder="Your Company Team" maxlength="200"></textarea>
+            </div>
+            <div class="toggle-switch">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="hideSparkBranding">
+                    <label class="form-check-label" for="hideSparkBranding">Hide "Powered by SparkAI" branding</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Theme Enforcement -->
+        <div class="section-container">
+            <div class="section-title"><i class="fas fa-paint-brush me-2"></i>Theme Enforcement</div>
+            <p class="text-muted">Force your users to use a specific theme, or let them choose their own.</p>
+
+            <div class="mb-3 toggle-switch">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="disableThemeSelector" onchange="toggleThemeOptions()">
+                    <label class="form-check-label" for="disableThemeSelector">Lock theme for all my users</label>
+                </div>
+            </div>
+
+            <div id="themeOptions" style="display: none;">
+                <label class="form-label">Select Forced Theme</label>
+                <div class="theme-selector" id="themeSelector">
+                    <div class="theme-option" data-theme="default" onclick="selectTheme('default')">
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #6366f1, #8b5cf6);"></div>
+                        <div class="theme-name">Default</div>
+                    </div>
+                    <div class="theme-option" data-theme="dark" onclick="selectTheme('dark')">
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #1f2937, #374151);"></div>
+                        <div class="theme-name">Dark</div>
+                    </div>
+                    <div class="theme-option" data-theme="light" onclick="selectTheme('light')">
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #f3f4f6, #e5e7eb);"></div>
+                        <div class="theme-name">Light</div>
+                    </div>
+                    <div class="theme-option" data-theme="writer" onclick="selectTheme('writer')">
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #fef3c7, #fde68a);"></div>
+                        <div class="theme-name">Writer</div>
+                    </div>
+                    <div class="theme-option" data-theme="terminal" onclick="selectTheme('terminal')">
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #000000, #1a1a1a);"></div>
+                        <div class="theme-name">Terminal</div>
+                    </div>
+                    <div class="theme-option" data-theme="coder" onclick="selectTheme('coder')">
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #1e1e2e, #313244);"></div>
+                        <div class="theme-name">Coder</div>
+                    </div>
+                    <div class="theme-option" data-theme="katarishoji" onclick="selectTheme('katarishoji')">
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #0c1445, #d4af37);"></div>
+                        <div class="theme-name">Katarishoji</div>
+                    </div>
+                    <div class="theme-option" data-theme="neumorphism" onclick="selectTheme('neumorphism')">
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #e0e5ec, #d1d9e6);"></div>
+                        <div class="theme-name">Neumorphism</div>
+                    </div>
+                    <div class="theme-option" data-theme="memphis" onclick="selectTheme('memphis')">
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #ff6b6b, #feca57);"></div>
+                        <div class="theme-name">Memphis</div>
+                    </div>
+                    <div class="theme-option" data-theme="eink" onclick="selectTheme('eink')">
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #f5f5f0, #e8e8e3);"></div>
+                        <div class="theme-name">E-Ink</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Preview -->
+    <div class="col-lg-5">
+        <div class="section-container position-sticky" style="top: 20px;">
+            <div class="section-title"><i class="fas fa-eye me-2"></i>Live Preview</div>
+
+            <!-- Brand Card Preview -->
+            <div class="preview-card" id="brandPreview">
+                <img id="logoPreview" class="logo-preview" src="" alt="Logo" style="display: none;">
+                <div class="company-name" id="companyNamePreview">Your Company</div>
+            </div>
+
+            <!-- Email Preview -->
+            <h6 class="mb-2"><i class="fas fa-envelope me-1"></i>Email Preview</h6>
+            <div class="preview-email" id="emailPreview">
+                <div class="email-header">
+                    <h3 id="emailTitlePreview">Welcome to Your Company</h3>
+                </div>
+                <div class="email-body text-center">
+                    <p>Thank you for signing up!</p>
+                    <p>Click the button below to verify your email:</p>
+                    <a href="#" class="email-button" id="emailButtonPreview">Verify Email</a>
+                </div>
+                <div class="email-footer">
+                    <p id="footerPreview"></p>
+                    <p id="signaturePreview"></p>
+                    <p class="powered-by" id="poweredByPreview">Powered by SparkAI</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    let selectedTheme = null;
+
+    // Load existing branding on page load
+    document.addEventListener('DOMContentLoaded', loadBranding);
+
+    async function loadBranding() {
+        try {
+            const response = await fetch('/api/my-branding');
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to load branding');
+            }
+
+            const branding = data.branding;
+
+            // Populate form fields
+            document.getElementById('companyName').value = branding.company_name || '';
+            document.getElementById('logoUrl').value = branding.logo_url || '';
+            document.getElementById('colorPrimary').value = branding.brand_color_primary || '#6366f1';
+            document.getElementById('colorPrimaryText').value = branding.brand_color_primary || '#6366f1';
+            document.getElementById('colorSecondary').value = branding.brand_color_secondary || '#10B981';
+            document.getElementById('colorSecondaryText').value = branding.brand_color_secondary || '#10B981';
+            document.getElementById('footerText').value = branding.footer_text || '';
+            document.getElementById('emailSignature').value = branding.email_signature || '';
+            document.getElementById('hideSparkBranding').checked = branding.hide_spark_branding || false;
+            document.getElementById('disableThemeSelector').checked = branding.disable_theme_selector || false;
+
+            if (branding.forced_theme) {
+                selectedTheme = branding.forced_theme;
+                selectTheme(branding.forced_theme);
+            }
+
+            toggleThemeOptions();
+            updatePreview();
+
+        } catch (error) {
+            console.error('Error loading branding:', error);
+        }
+    }
+
+    async function saveBranding() {
+        const btn = document.getElementById('saveBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Saving...';
+
+        try {
+            const data = {
+                company_name: document.getElementById('companyName').value || null,
+                logo_url: document.getElementById('logoUrl').value || null,
+                brand_color_primary: document.getElementById('colorPrimaryText').value,
+                brand_color_secondary: document.getElementById('colorSecondaryText').value,
+                footer_text: document.getElementById('footerText').value || null,
+                email_signature: document.getElementById('emailSignature').value || null,
+                hide_spark_branding: document.getElementById('hideSparkBranding').checked,
+                forced_theme: document.getElementById('disableThemeSelector').checked ? selectedTheme : null,
+                disable_theme_selector: document.getElementById('disableThemeSelector').checked
+            };
+
+            const response = await fetch('/api/my-branding', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Failed to save branding');
+            }
+
+            btn.innerHTML = '<i class="fas fa-check me-1"></i>Saved!';
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-success');
+
+            setTimeout(() => {
+                btn.innerHTML = '<i class="fas fa-save me-1"></i>Save Changes';
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-primary');
+                btn.disabled = false;
+            }, 2000);
+
+        } catch (error) {
+            console.error('Error saving branding:', error);
+            btn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Error';
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-danger');
+
+            setTimeout(() => {
+                btn.innerHTML = '<i class="fas fa-save me-1"></i>Save Changes';
+                btn.classList.remove('btn-danger');
+                btn.classList.add('btn-primary');
+                btn.disabled = false;
+            }, 2000);
+
+            NotificationModal.error('Save Error', 'Error saving: ' + error.message);
+        }
+    }
+
+    function updateColorText(type) {
+        const picker = document.getElementById(type === 'primary' ? 'colorPrimary' : 'colorSecondary');
+        const text = document.getElementById(type === 'primary' ? 'colorPrimaryText' : 'colorSecondaryText');
+        text.value = picker.value.toUpperCase();
+        updatePreview();
+    }
+
+    function updateColorPicker(type) {
+        const picker = document.getElementById(type === 'primary' ? 'colorPrimary' : 'colorSecondary');
+        const text = document.getElementById(type === 'primary' ? 'colorPrimaryText' : 'colorSecondaryText');
+        if (/^#[0-9A-Fa-f]{6}$/.test(text.value)) {
+            picker.value = text.value;
+            updatePreview();
+        }
+    }
+
+    function updatePreview() {
+        const primary = document.getElementById('colorPrimaryText').value;
+        const secondary = document.getElementById('colorSecondaryText').value;
+        const companyName = document.getElementById('companyName').value || 'Your Company';
+        const logoUrl = document.getElementById('logoUrl').value;
+        const footerText = document.getElementById('footerText').value;
+        const signature = document.getElementById('emailSignature').value;
+        const hidePowered = document.getElementById('hideSparkBranding').checked;
+
+        // Update CSS variables
+        document.documentElement.style.setProperty('--preview-primary', primary);
+        document.documentElement.style.setProperty('--preview-secondary', secondary);
+
+        // Update preview card
+        const previewCard = document.getElementById('brandPreview');
+        previewCard.style.background = `linear-gradient(135deg, ${primary} 0%, ${secondary} 100%)`;
+
+        // Update company name
+        document.getElementById('companyNamePreview').textContent = companyName;
+
+        // Update logo
+        const logoPreview = document.getElementById('logoPreview');
+        if (logoUrl) {
+            logoPreview.src = logoUrl;
+            logoPreview.style.display = 'block';
+            logoPreview.onerror = () => { logoPreview.style.display = 'none'; };
+        } else {
+            logoPreview.style.display = 'none';
+        }
+
+        // Update email preview
+        document.getElementById('emailTitlePreview').textContent = `Welcome to ${companyName}`;
+        document.getElementById('emailTitlePreview').style.color = primary;
+
+        const headerEl = document.querySelector('.preview-email .email-header');
+        headerEl.style.borderBottomColor = primary;
+
+        const buttonEl = document.getElementById('emailButtonPreview');
+        buttonEl.style.background = primary;
+
+        document.getElementById('footerPreview').textContent = footerText || '';
+        document.getElementById('signaturePreview').textContent = signature || '';
+        document.getElementById('poweredByPreview').style.display = hidePowered ? 'none' : 'block';
+    }
+
+    function toggleThemeOptions() {
+        const disabled = document.getElementById('disableThemeSelector').checked;
+        document.getElementById('themeOptions').style.display = disabled ? 'block' : 'none';
+    }
+
+    function selectTheme(theme) {
+        selectedTheme = theme;
+        document.querySelectorAll('.theme-option').forEach(opt => {
+            opt.classList.remove('selected');
+        });
+        const selected = document.querySelector(`.theme-option[data-theme="${theme}"]`);
+        if (selected) {
+            selected.classList.add('selected');
+        }
+    }
+
+    // Auto-update preview on input changes
+    document.querySelectorAll('input, textarea').forEach(el => {
+        el.addEventListener('input', updatePreview);
+    });
+</script>
+{% endblock %}

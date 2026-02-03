@@ -1,0 +1,992 @@
+/* prompt-list-neumorphism.css */
+
+:root {
+    --main-bg-color: #e0e5ec;
+    --text-color: #4d5562;
+    --text-color-light: #7a8499;
+    --shadow-light: #ffffff;
+    --shadow-dark: #a3b1c6;
+    --accent-color: #4a90e2;
+    --error-color: #e74c3c;
+    --success-color: #43b581;
+    --muted-color: #7a8499;
+}
+
+body {
+    background-color: var(--main-bg-color);
+    color: var(--text-color);
+    font-family: 'Poppins', sans-serif;
+}
+
+/* ==========================================================
+   Design System - Layout Styles
+   ========================================================== */
+
+/* Main Container */
+.main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 30px 20px;
+}
+
+/* Page Header */
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #6c63ff;
+}
+
+.page-header-text {
+    flex: 1;
+}
+
+/* Page Toolbar (Tabs + Actions) */
+.page-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    gap: 16px;
+}
+
+.page-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.page-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+/* Hide toolbar when both sides are empty */
+.page-toolbar:has(.page-toolbar-left:empty):has(.page-toolbar-right:empty) {
+    display: none;
+}
+
+/* Back Button */
+.btn-back {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--main-bg-color);
+    border: none;
+    color: #333333;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    box-shadow:
+        5px 5px 10px var(--shadow-dark),
+        -5px -5px 10px var(--shadow-light);
+}
+
+.btn-back:hover {
+    color: #6c63ff;
+    box-shadow:
+        inset 3px 3px 6px var(--shadow-dark),
+        inset -3px -3px 6px var(--shadow-light);
+}
+
+/* Page Title */
+.page-title {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: #333333;
+}
+
+.page-subtitle {
+    margin: 4px 0 0 0;
+    color: #666666;
+    font-size: 0.9rem;
+}
+
+/* ==========================================================
+   Design System - Responsive Layout
+   ========================================================== */
+@media (max-width: 768px) {
+    .main-container {
+        padding: 15px 10px;
+    }
+
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .page-toolbar {
+        flex-wrap: wrap;
+    }
+
+    .page-title {
+        font-size: 1.4rem;
+    }
+
+    .btn-back {
+        width: 38px;
+        height: 38px;
+    }
+}
+
+@media (max-width: 480px) {
+    .page-title {
+        font-size: 1.2rem;
+    }
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color: var(--text-color);
+    text-align: center;
+    margin-bottom: 2rem;
+    padding: 1rem;
+    border-radius: 10px;
+    box-shadow:
+        inset 3px 3px 6px var(--shadow-dark),
+        inset -3px -3px 6px var(--shadow-light);
+}
+
+.table-container {
+    background-color: var(--main-bg-color);
+    border-radius: 20px;
+    padding: 20px;
+    margin: 20px 0;
+    box-shadow:
+        8px 8px 16px var(--shadow-dark),
+        -8px -8px 16px var(--shadow-light);
+    max-height: 65vh;
+    overflow-y: auto;
+}
+
+.table {
+    color: var(--text-color) !important;
+    background-color: var(--main-bg-color) !important;
+}
+
+.table > thead > tr > th {
+    background-color: var(--main-bg-color) !important;
+    color: var(--text-color) !important;
+    border: none !important;
+    padding: 15px !important;
+    font-weight: 600 !important;
+}
+
+.table > tbody > tr > td {
+    background-color: var(--main-bg-color) !important;
+    border: none !important;
+    padding: 15px !important;
+    color: var(--text-color) !important;
+    vertical-align: middle !important;
+}
+
+.table > tbody > tr {
+    transition: all 0.3s ease !important;
+}
+
+.table > tbody > tr:hover {
+    box-shadow:
+        inset 3px 3px 6px var(--shadow-dark),
+        inset -3px -3px 6px var(--shadow-light);
+}
+
+/* ==========================================================
+   Prompt Checkbox
+   ========================================================== */
+.prompt-checkbox {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
+    background-color: var(--main-bg-color);
+    cursor: pointer;
+    box-shadow:
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+    margin-right: 10px;
+}
+
+.prompt-checkbox:checked {
+    background-color: var(--accent-color);
+    box-shadow:
+        2px 2px 4px var(--shadow-dark),
+        -2px -2px 4px var(--shadow-light);
+}
+
+/* ==========================================================
+   Prompt Name Cell with Avatar
+   ========================================================== */
+.prompt-name-cell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.prompt-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    object-fit: cover;
+    cursor: pointer;
+    flex-shrink: 0;
+    box-shadow:
+        3px 3px 6px var(--shadow-dark),
+        -3px -3px 6px var(--shadow-light);
+    transition: all 0.3s ease;
+}
+
+.prompt-avatar:hover {
+    transform: scale(1.1);
+    box-shadow:
+        4px 4px 8px var(--shadow-dark),
+        -4px -4px 8px var(--shadow-light);
+}
+
+.prompt-avatar-placeholder {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--main-bg-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-color-light);
+    font-size: 0.85rem;
+    flex-shrink: 0;
+    box-shadow:
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+}
+
+/* ==========================================================
+   Prompt Name Link
+   ========================================================== */
+.prompt-name {
+    color: #6c63ff;
+    cursor: pointer;
+    font-weight: 600;
+    transition: color 0.3s ease;
+}
+
+.prompt-name:hover {
+    color: #5a52e0;
+    text-decoration: underline;
+}
+
+/* ==========================================================
+   Status Indicators - Public/Private
+   ========================================================== */
+.status-public {
+    color: var(--success-color);
+}
+
+.status-private {
+    color: var(--muted-color);
+}
+
+/* ==========================================================
+   Prompt Thumbnail
+   ========================================================== */
+.prompt-thumbnail {
+    max-height: 40px;
+    width: auto;
+    border-radius: 8px;
+    object-fit: cover;
+    box-shadow:
+        3px 3px 6px var(--shadow-dark),
+        -3px -3px 6px var(--shadow-light);
+    transition: all 0.3s ease;
+}
+
+.prompt-thumbnail:hover {
+    transform: scale(1.05);
+    box-shadow:
+        4px 4px 8px var(--shadow-dark),
+        -4px -4px 8px var(--shadow-light);
+}
+
+/* Image Cell */
+.image-cell {
+    text-align: center;
+    vertical-align: middle !important;
+}
+
+/* No Image Placeholder */
+.no-image {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: var(--main-bg-color);
+    color: var(--text-color-light);
+    font-size: 0.75rem;
+    box-shadow:
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+}
+
+/* ==========================================================
+   Category Badge
+   ========================================================== */
+.category-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    background: var(--main-bg-color);
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-color);
+    box-shadow:
+        2px 2px 4px var(--shadow-dark),
+        -2px -2px 4px var(--shadow-light);
+    transition: all 0.2s ease;
+    margin: 2px;
+}
+
+.category-badge:hover {
+    box-shadow:
+        inset 1px 1px 2px var(--shadow-dark),
+        inset -1px -1px 2px var(--shadow-light);
+}
+
+/* Categories Cell */
+.categories-cell {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    max-width: 200px;
+}
+
+/* No Category Placeholder */
+.no-category {
+    color: var(--text-color-light);
+    font-size: 0.8rem;
+    font-style: italic;
+}
+
+/* ==========================================================
+   Description Cell
+   ========================================================== */
+.description-cell {
+    max-width: 250px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-color);
+}
+
+/* ==========================================================
+   Form Controls and Inputs
+   ========================================================== */
+.input-group {
+    background-color: var(--main-bg-color);
+    border-radius: 10px;
+    overflow: visible !important;
+    box-shadow: none !important;
+}
+
+.form-control {
+    background-color: var(--main-bg-color) !important;
+    border: none !important;
+    color: var(--text-color) !important;
+    padding: 12px !important;
+}
+
+.form-control:focus {
+    box-shadow: none !important;
+    background-color: var(--main-bg-color) !important;
+    color: var(--text-color) !important;
+}
+
+/* ==========================================================
+   Buttons
+   ========================================================== */
+.btn {
+    border: none;
+    padding: 10px 20px;
+    border-radius: 10px;
+    color: var(--text-color);
+    background-color: var(--main-bg-color);
+    transition: all 0.3s ease;
+    box-shadow:
+        3px 3px 6px var(--shadow-dark),
+        -3px -3px 6px var(--shadow-light);
+}
+
+.btn:hover {
+    color: var(--accent-color);
+    box-shadow:
+        2px 2px 4px var(--shadow-dark),
+        -2px -2px 4px var(--shadow-light);
+}
+
+.btn:active {
+    box-shadow:
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+}
+
+.btn-danger {
+    color: var(--error-color) !important;
+}
+
+.btn-danger:hover {
+    color: var(--error-color) !important;
+}
+
+.btn-primary {
+    color: var(--accent-color) !important;
+}
+
+.btn-primary:hover {
+    color: var(--accent-color) !important;
+}
+
+.edit-button {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    color: var(--accent-color) !important;
+    background-color: var(--main-bg-color) !important;
+    box-shadow:
+        3px 3px 6px var(--shadow-dark),
+        -3px -3px 6px var(--shadow-light);
+}
+
+.edit-button:hover {
+    color: var(--accent-color) !important;
+    background-color: var(--main-bg-color) !important;
+    box-shadow:
+        inset 3px 3px 6px var(--shadow-dark),
+        inset -3px -3px 6px var(--shadow-light);
+}
+
+tr:hover .edit-button {
+    opacity: 1;
+    visibility: visible;
+}
+
+.btn-outline-danger {
+    color: var(--error-color) !important;
+    border: 2px solid var(--error-color) !important;
+    background-color: var(--main-bg-color) !important;
+    box-shadow:
+        3px 3px 6px var(--shadow-dark),
+        -3px -3px 6px var(--shadow-light);
+}
+
+.btn-outline-danger:hover {
+    color: var(--error-color) !important;
+    background-color: var(--main-bg-color) !important;
+    box-shadow:
+        inset 3px 3px 6px var(--shadow-dark),
+        inset -3px -3px 6px var(--shadow-light);
+}
+
+/* Edit button */
+.btn-edit {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8rem;
+}
+
+/* ==========================================================
+   Navbar
+   ========================================================== */
+.navbar {
+    background-color: var(--main-bg-color) !important;
+    padding: 1rem;
+    box-shadow:
+        0 5px 15px rgba(163,177,198,0.5),
+        0 -5px 15px rgba(255,255,255,0.5);
+}
+
+.navbar-brand,
+.nav-link {
+    color: var(--text-color) !important;
+    transition: color 0.3s ease;
+}
+
+.navbar-brand:hover,
+.nav-link:hover {
+    color: var(--accent-color) !important;
+}
+
+.navbar-toggler {
+    border: none;
+    padding: 0.5rem;
+    border-radius: 10px;
+    box-shadow:
+        3px 3px 6px var(--shadow-dark),
+        -3px -3px 6px var(--shadow-light);
+}
+
+th.edit-column {
+    font-size: 0 !important;
+}
+
+/* ==========================================================
+   Prompt List Specific Styles
+   ========================================================== */
+
+.table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--main-bg-color);
+    z-index: 10;
+    box-shadow:
+        3px 3px 6px var(--shadow-dark),
+        -3px -3px 6px var(--shadow-light);
+}
+
+.table td, .table th {
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+/* Stats cards */
+.stats-card {
+    background: var(--main-bg-color);
+    border-radius: 15px;
+    padding: 1rem 1.5rem;
+    text-align: center;
+    box-shadow:
+        5px 5px 10px var(--shadow-dark),
+        -5px -5px 10px var(--shadow-light);
+}
+
+.stats-card .stats-number {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: #6c63ff;
+}
+
+.stats-card .stats-label {
+    font-size: 0.85rem;
+    color: var(--text-color-light);
+}
+
+/* Action buttons container */
+.action-buttons {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+/* Select all container */
+.select-all-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--main-bg-color);
+    border-radius: 10px;
+    margin-bottom: 1rem;
+    box-shadow:
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+}
+
+/* ==========================================================
+   Stats Row - Horizontal badges with neumorphic styling
+   ========================================================== */
+.stats-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: var(--main-bg-color);
+    border-radius: 15px;
+    box-shadow:
+        5px 5px 10px var(--shadow-dark),
+        -5px -5px 10px var(--shadow-light);
+}
+
+.stat-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: var(--main-bg-color);
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-color);
+    box-shadow:
+        3px 3px 6px var(--shadow-dark),
+        -3px -3px 6px var(--shadow-light);
+    transition: all 0.3s ease;
+}
+
+.stat-badge:hover {
+    box-shadow:
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+}
+
+.stat-public {
+    color: var(--success-color);
+}
+
+.stat-public::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: var(--success-color);
+    border-radius: 50%;
+}
+
+.stat-private {
+    color: var(--muted-color);
+}
+
+.stat-private::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: var(--muted-color);
+    border-radius: 50%;
+}
+
+/* ==========================================================
+   Filters Section
+   ========================================================== */
+.filters-section {
+    background: var(--main-bg-color);
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow:
+        5px 5px 10px var(--shadow-dark),
+        -5px -5px 10px var(--shadow-light);
+}
+
+.filters-section .section-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--shadow-dark);
+    color: var(--text-color);
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.filters-section .section-title button {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    background: var(--main-bg-color);
+    border: none;
+    border-radius: 8px;
+    color: var(--accent-color);
+    cursor: pointer;
+    box-shadow:
+        2px 2px 4px var(--shadow-dark),
+        -2px -2px 4px var(--shadow-light);
+    transition: all 0.3s ease;
+}
+
+.filters-section .section-title button:hover {
+    box-shadow:
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+}
+
+.flex-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.flex-column {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-width: 150px;
+}
+
+.flex-column label {
+    font-size: 0.85rem;
+    color: var(--text-color-light);
+    font-weight: 500;
+}
+
+.flex-column select,
+.flex-column input {
+    padding: 10px 12px;
+    background: var(--main-bg-color);
+    border: none;
+    border-radius: 10px;
+    color: var(--text-color);
+    font-size: 0.9rem;
+    box-shadow:
+        inset 3px 3px 6px var(--shadow-dark),
+        inset -3px -3px 6px var(--shadow-light);
+    transition: all 0.3s ease;
+}
+
+.flex-column select:focus,
+.flex-column input:focus {
+    outline: none;
+    box-shadow:
+        inset 4px 4px 8px var(--shadow-dark),
+        inset -4px -4px 8px var(--shadow-light);
+}
+
+/* ==========================================================
+   Table Toolbar
+   ========================================================== */
+.table-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 15px;
+    padding: 12px 15px;
+    background: var(--main-bg-color);
+    border-radius: 12px;
+    box-shadow:
+        3px 3px 6px var(--shadow-dark),
+        -3px -3px 6px var(--shadow-light);
+}
+
+.toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* ==========================================================
+   Sortable Headers
+   ========================================================== */
+.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: 20px !important;
+    transition: color 0.2s ease;
+}
+
+.sortable:hover {
+    color: var(--accent-color) !important;
+}
+
+.sortable::after {
+    content: '';
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.7rem;
+    color: var(--text-color-light);
+    opacity: 0.4;
+}
+
+.sortable:hover::after {
+    opacity: 0.7;
+}
+
+.sort-asc::after {
+    content: '\25B2';
+    opacity: 1 !important;
+    color: var(--accent-color);
+}
+
+.sort-desc::after {
+    content: '\25BC';
+    opacity: 1 !important;
+    color: var(--accent-color);
+}
+
+/* ==========================================================
+   Actions Column
+   ========================================================== */
+.th-actions {
+    width: 70px;
+    min-width: 70px;
+    max-width: 70px;
+    text-align: center;
+}
+
+.actions-cell {
+    width: 70px;
+    min-width: 70px;
+    max-width: 70px;
+    text-align: center;
+    padding: 8px !important;
+}
+
+.actions-cell .btn {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+}
+
+/* ==========================================================
+   Fullsize Image Overlay
+   ========================================================== */
+.fullsize-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.fullsize-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.fullsize-overlay img {
+    max-width: 90%;
+    max-height: 90%;
+    border-radius: 15px;
+    box-shadow:
+        10px 10px 20px rgba(0, 0, 0, 0.5),
+        -10px -10px 20px rgba(255, 255, 255, 0.1);
+}
+
+.fullsize-overlay .close-btn {
+    position: absolute;
+    top: 20px;
+    right: 30px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: var(--main-bg-color);
+    border: none;
+    color: var(--text-color);
+    font-size: 1.5rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow:
+        5px 5px 10px var(--shadow-dark),
+        -5px -5px 10px var(--shadow-light);
+    transition: all 0.3s ease;
+}
+
+.fullsize-overlay .close-btn:hover {
+    box-shadow:
+        inset 3px 3px 6px var(--shadow-dark),
+        inset -3px -3px 6px var(--shadow-light);
+}
+
+/* ==========================================================
+   Responsive adjustments
+   ========================================================== */
+@media (max-width: 768px) {
+    .table-container {
+        padding: 10px;
+    }
+
+    .btn {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+
+    .table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+
+    .stats-row {
+        padding: 10px;
+        gap: 8px;
+    }
+
+    .stat-badge {
+        padding: 8px 12px;
+        font-size: 0.8rem;
+    }
+
+    .filters-section {
+        padding: 15px;
+    }
+
+    .flex-row {
+        flex-direction: column;
+    }
+
+    .flex-column {
+        min-width: 100%;
+    }
+
+    .table-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .toolbar-left,
+    .toolbar-right {
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .th-actions,
+    .actions-cell {
+        width: 60px;
+        min-width: 60px;
+        max-width: 60px;
+    }
+
+    .categories-cell {
+        max-width: 150px;
+    }
+
+    .description-cell {
+        max-width: 150px;
+    }
+
+    .prompt-thumbnail {
+        max-height: 32px;
+    }
+}
+
+@media (max-width: 480px) {
+    .categories-cell {
+        max-width: 100px;
+    }
+
+    .description-cell {
+        max-width: 100px;
+    }
+
+    .category-badge {
+        padding: 2px 6px;
+        font-size: 0.7rem;
+    }
+}

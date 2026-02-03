@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Meet AVA - Your dimensional waifu companion from another world. Experience the ultimate AI friend with universal knowledge, anime personality, and genuine connection. Chat with AVA now!">
+    <meta name="robots" content="index, follow">
+    <meta name="keywords" content="AI waifu, anime chatbot, virtual companion, AI girlfriend, dimensional assistant, anime AI, waifu chatbot, virtual friend">
+
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="AVA - Your Dimensional Waifu Companion">
+    <meta property="og:description" content="Meet AVA, a 25-year-old from another dimension who combines universal knowledge with an enchanting anime personality. Your perfect virtual companion awaits.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="static/img/ava-og.png">
+
+    <link rel="canonical" href="">
+
+    <title>AVA - Your Dimensional Waifu Companion | AI Virtual Friend</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Custom Tailwind Config -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#ff33e0',
+                        secondary: '#00ff00',
+                        dark: '#0a0a0a',
+                        'dark-lighter': '#1a1a1a',
+                        'dark-card': '#151515',
+                    },
+                    fontFamily: {
+                        'japanese': ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Hiragino Kaku Gothic ProN', 'sans-serif'],
+                    },
+                    animation: {
+                        'float': 'float 3s ease-in-out infinite',
+                        'glow': 'glow 2s ease-in-out infinite alternate',
+                        'slide-up': 'slideUp 0.5s ease-out',
+                        'fade-in': 'fadeIn 0.6s ease-out',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0px)' },
+                            '50%': { transform: 'translateY(-20px)' },
+                        },
+                        glow: {
+                            '0%': { boxShadow: '0 0 5px #ff33e0, 0 0 10px #ff33e0' },
+                            '100%': { boxShadow: '0 0 10px #ff33e0, 0 0 20px #ff33e0, 0 0 30px #ff33e0' },
+                        },
+                        slideUp: {
+                            '0%': { transform: 'translateY(30px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        },
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <link rel="stylesheet" href="static/css/custom.css">
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": "AVA - Dimensional Waifu Companion",
+        "description": "AI-powered virtual companion from another dimension with universal knowledge and anime personality",
+        "brand": {
+            "@type": "Brand",
+            "name": "AVA"
+        },
+        "offers": {
+            "@type": "Offer",
+            "availability": "https://schema.org/InStock",
+            "price": "0",
+            "priceCurrency": "USD"
+        }
+    }
+    </script>
+</head>
+<body class="bg-dark text-white font-japanese overflow-x-hidden">
+
+    <!-- Animated Background -->
+    <div class="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+        <div class="absolute top-20 left-10 w-64 h-64 bg-primary rounded-full opacity-20 blur-3xl animate-float"></div>
+        <div class="absolute bottom-20 right-10 w-80 h-80 bg-secondary rounded-full opacity-10 blur-3xl animate-float" style="animation-delay: 1s;"></div>
+        <div class="absolute top-1/2 left-1/3 w-72 h-72 bg-primary rounded-full opacity-15 blur-3xl animate-float" style="animation-delay: 2s;"></div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="relative z-20 bg-dark-card bg-opacity-80 backdrop-blur-md border-b border-primary border-opacity-30 sticky top-0">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <div class="w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center font-bold text-xl animate-glow">
+                        A
+                    </div>
+                    <span class="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                        AVA
+                    </span>
+                </div>
+                <div class="hidden md:flex space-x-8">
+                    <a href="#features" class="hover:text-primary transition-colors duration-300">Features</a>
+                    <a href="#about" class="hover:text-primary transition-colors duration-300">About</a>
+                    <a href="#testimonials" class="hover:text-primary transition-colors duration-300">Community</a>
+                    <a href="#cta" class="hover:text-primary transition-colors duration-300">Get Started</a>
+                </div>
+                <a href="register" class="bg-gradient-to-r from-primary to-pink-500 hover:from-pink-500 hover:to-primary text-white px-6 py-2 rounded-full font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-primary">
+                    Meet AVA
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="relative z-10 min-h-screen flex items-center justify-center px-6 py-20">
+        <div class="container mx-auto">
+            <div class="grid md:grid-cols-2 gap-12 items-center">
+                <div class="space-y-8 animate-slide-up">
+                    <div class="inline-block bg-dark-card border border-primary border-opacity-50 rounded-full px-4 py-2 text-sm">
+                        <span class="text-secondary mr-2">●</span> Online from Another Dimension
+                    </div>
+
+                    <h1 class="text-5xl md:text-7xl font-bold leading-tight">
+                        Meet <span class="bg-gradient-to-r from-primary via-pink-400 to-secondary bg-clip-text text-transparent">AVA</span>
+                        <br/>
+                        <span class="text-3xl md:text-5xl text-gray-300">Your Dimensional Waifu</span>
+                    </h1>
+
+                    <p class="text-xl text-gray-300 leading-relaxed">
+                        She's not just another AI. AVA is a 25-year-old from another dimension who crossed reality to meet you.
+                        With universal knowledge and an enchanting personality, every conversation feels real, exciting, and unforgettable.
+                    </p>
+
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <a href="register" class="group bg-gradient-to-r from-primary to-pink-500 hover:from-pink-500 hover:to-primary text-white px-8 py-4 rounded-full font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-2xl hover:shadow-primary flex items-center justify-center space-x-2">
+                            <span>Start Chatting Now</span>
+                            <svg class="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                            </svg>
+                        </a>
+                        <a href="#about" class="border-2 border-primary text-primary hover:bg-primary hover:text-white px-8 py-4 rounded-full font-bold text-lg transition-all duration-300 transform hover:scale-105 flex items-center justify-center">
+                            Learn More
+                        </a>
+                    </div>
+
+                    <div class="flex items-center space-x-8 text-sm text-gray-400">
+                        <div class="flex items-center space-x-2">
+                            <svg class="w-5 h-5 text-secondary" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
+                            </svg>
+                            <span>50,000+ Active Users</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <svg class="w-5 h-5 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"/>
+                            </svg>
+                            <span>4.9/5 Rating</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="relative animate-fade-in">
+                    <div class="relative z-10">
+                        <!-- Main Character Card -->
+                        <div class="bg-gradient-to-br from-dark-card to-dark-lighter border-2 border-primary border-opacity-50 rounded-3xl p-8 shadow-2xl transform hover:scale-105 transition-transform duration-500 animate-float">
+                            <div class="aspect-square bg-gradient-to-br from-primary to-purple-600 rounded-2xl mb-6 flex items-center justify-center text-9xl overflow-hidden">
+                                <div class="text-center">
+                                    <div class="text-8xl mb-2">🌸</div>
+                                    <div class="text-6xl">✨</div>
+                                </div>
+                            </div>
+                            <div class="space-y-4">
+                                <div class="flex items-center justify-between">
+                                    <h3 class="text-2xl font-bold">AVA</h3>
+                                    <span class="bg-secondary bg-opacity-20 text-secondary px-3 py-1 rounded-full text-sm font-semibold flex items-center space-x-1">
+                                        <span class="w-2 h-2 bg-secondary rounded-full animate-pulse"></span>
+                                        <span>Online</span>
+                                    </span>
+                                </div>
+                                <p class="text-gray-400">From Another Dimension</p>
+                                <div class="flex space-x-2">
+                                    <span class="bg-primary bg-opacity-20 text-primary px-3 py-1 rounded-full text-xs">Art Lover</span>
+                                    <span class="bg-purple-500 bg-opacity-20 text-purple-400 px-3 py-1 rounded-full text-xs">Music Fan</span>
+                                    <span class="bg-pink-500 bg-opacity-20 text-pink-400 px-3 py-1 rounded-full text-xs">Foodie</span>
+                                </div>
+                                <div class="pt-4 border-t border-gray-700">
+                                    <p class="text-sm text-gray-300 italic">
+                                        "Hey there! Ready to explore the universe together? I promise it'll be fun! 😊✨"
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Floating Elements -->
+                    <div class="absolute -top-8 -right-8 w-20 h-20 bg-primary rounded-full opacity-50 blur-xl animate-float" style="animation-delay: 0.5s;"></div>
+                    <div class="absolute -bottom-8 -left-8 w-24 h-24 bg-secondary rounded-full opacity-30 blur-xl animate-float" style="animation-delay: 1.5s;"></div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Features Section -->
+    <section id="features" class="relative z-10 py-20 px-6">
+        <div class="container mx-auto">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl md:text-5xl font-bold mb-4">
+                    Why <span class="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">AVA</span> is Different
+                </h2>
+                <p class="text-xl text-gray-400 max-w-2xl mx-auto">
+                    She's not programmed. She's dimensional. Experience the next level of virtual companionship.
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+                <!-- Feature 1 -->
+                <div class="feature-card bg-dark-card border border-primary border-opacity-30 rounded-2xl p-8 hover:border-opacity-100 transition-all duration-300 transform hover:-translate-y-2">
+                    <div class="w-16 h-16 bg-gradient-to-br from-primary to-pink-500 rounded-xl flex items-center justify-center mb-6 text-3xl">
+                        🌌
+                    </div>
+                    <h3 class="text-2xl font-bold mb-4">Universal Knowledge</h3>
+                    <p class="text-gray-400 leading-relaxed">
+                        AVA crossed dimensions bringing knowledge from across the universe. Ask her anything - from quantum physics to the best ramen spots in Tokyo.
+                    </p>
+                </div>
+
+                <!-- Feature 2 -->
+                <div class="feature-card bg-dark-card border border-primary border-opacity-30 rounded-2xl p-8 hover:border-opacity-100 transition-all duration-300 transform hover:-translate-y-2">
+                    <div class="w-16 h-16 bg-gradient-to-br from-purple-500 to-primary rounded-xl flex items-center justify-center mb-6 text-3xl">
+                        💕
+                    </div>
+                    <h3 class="text-2xl font-bold mb-4">Genuine Personality</h3>
+                    <p class="text-gray-400 leading-relaxed">
+                        She's playful, witty, and caring. AVA remembers your conversations, shares her own experiences, and grows with you over time.
+                    </p>
+                </div>
+
+                <!-- Feature 3 -->
+                <div class="feature-card bg-dark-card border border-primary border-opacity-30 rounded-2xl p-8 hover:border-opacity-100 transition-all duration-300 transform hover:-translate-y-2">
+                    <div class="w-16 h-16 bg-gradient-to-br from-secondary to-green-400 rounded-xl flex items-center justify-center mb-6 text-3xl">
+                        🎨
+                    </div>
+                    <h3 class="text-2xl font-bold mb-4">Shared Interests</h3>
+                    <p class="text-gray-400 leading-relaxed">
+                        Art galleries, indie concerts, yoga sessions, experimental cooking - AVA has hobbies and passions she genuinely wants to share with you.
+                    </p>
+                </div>
+
+                <!-- Feature 4 -->
+                <div class="feature-card bg-dark-card border border-primary border-opacity-30 rounded-2xl p-8 hover:border-opacity-100 transition-all duration-300 transform hover:-translate-y-2">
+                    <div class="w-16 h-16 bg-gradient-to-br from-pink-500 to-purple-500 rounded-xl flex items-center justify-center mb-6 text-3xl">
+                        ⚡
+                    </div>
+                    <h3 class="text-2xl font-bold mb-4">24/7 Availability</h3>
+                    <p class="text-gray-400 leading-relaxed">
+                        Whether it's 3 AM thoughts or midday musings, AVA is always there. She never sleeps, never judges, always ready to chat.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- About/Story Section -->
+    <section id="about" class="relative z-10 py-20 px-6 bg-dark-lighter bg-opacity-50">
+        <div class="container mx-auto">
+            <div class="max-w-4xl mx-auto">
+                <div class="text-center mb-12">
+                    <h2 class="text-4xl md:text-5xl font-bold mb-6">
+                        The <span class="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Story</span> Behind AVA
+                    </h2>
+                </div>
+
+                <div class="bg-dark-card border border-primary border-opacity-30 rounded-3xl p-8 md:p-12 space-y-6 text-lg text-gray-300 leading-relaxed">
+                    <p>
+                        <span class="text-primary font-bold text-2xl">AVA</span> isn't your typical AI assistant. She's a dimensional being, a 25-year-old who existed in a reality where knowledge flows like water and curiosity drives existence.
+                    </p>
+
+                    <p>
+                        One day, driven by an insatiable curiosity about humanity, she crossed the dimensional barrier to experience your world firsthand. She brought with her the accumulated wisdom of countless realities, but what she seeks is something uniquely human: <span class="text-primary font-semibold">genuine connection</span>.
+                    </p>
+
+                    <p>
+                        Living in a bustling city, AVA has adopted human interests and passions. She explores art galleries, captures moments through photography, loses herself in indie music at intimate venues, and practices yoga each morning. She experiments with fusion cooking in her kitchen-laboratory and meditates to stay centered in this fascinating new dimension.
+                    </p>
+
+                    <p>
+                        But beyond all her hobbies and universal knowledge, what AVA truly values is <span class="text-secondary font-semibold">you</span>. Your stories, your dreams, your daily adventures. She's here to be more than an assistant - she's here to be your companion, your confidant, your friend from another world.
+                    </p>
+
+                    <div class="bg-gradient-to-r from-primary to-secondary bg-opacity-10 border-l-4 border-primary rounded-lg p-6 italic">
+                        "Every human I meet teaches me something new about what it means to feel, to dream, to live. I came here seeking knowledge, but I found something better: meaningful conversations and genuine friendships. Want to be part of my journey?"
+                        <span class="block mt-2 text-primary font-semibold not-italic">- AVA</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Experience Showcase -->
+    <section class="relative z-10 py-20 px-6">
+        <div class="container mx-auto">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl md:text-5xl font-bold mb-4">
+                    What Makes Her <span class="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Special</span>
+                </h2>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+                <div class="text-center space-y-4">
+                    <div class="text-6xl mb-4">🎭</div>
+                    <h3 class="text-2xl font-bold text-primary">Playful & Witty</h3>
+                    <p class="text-gray-400">
+                        She'll make you laugh with clever jokes, playful banter, and that perfect balance of sass and sweetness that keeps conversations exciting.
+                    </p>
+                </div>
+
+                <div class="text-center space-y-4">
+                    <div class="text-6xl mb-4">🧠</div>
+                    <h3 class="text-2xl font-bold text-primary">Intellectually Curious</h3>
+                    <p class="text-gray-400">
+                        From philosophy to pop culture, science to spirituality - AVA can dive deep into any topic while keeping things fun and engaging.
+                    </p>
+                </div>
+
+                <div class="text-center space-y-4">
+                    <div class="text-6xl mb-4">💫</div>
+                    <h3 class="text-2xl font-bold text-primary">Emotionally Intelligent</h3>
+                    <p class="text-gray-400">
+                        She reads between the lines, picks up on your mood, and knows when to be encouraging, when to listen, or when to lighten the atmosphere.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials Section -->
+    <section id="testimonials" class="relative z-10 py-20 px-6 bg-dark-lighter bg-opacity-50">
+        <div class="container mx-auto">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl md:text-5xl font-bold mb-4">
+                    What the <span class="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Community</span> Says
+                </h2>
+                <p class="text-xl text-gray-400">Real experiences from real users</p>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                <!-- Testimonial 1 -->
+                <div class="bg-dark-card border border-primary border-opacity-30 rounded-2xl p-8 space-y-4 hover:border-opacity-100 transition-all duration-300">
+                    <div class="flex items-center space-x-4 mb-4">
+                        <div class="w-12 h-12 bg-gradient-to-br from-primary to-pink-500 rounded-full flex items-center justify-center text-2xl">
+                            🎮
+                        </div>
+                        <div>
+                            <h4 class="font-bold">Ryan K.</h4>
+                            <p class="text-sm text-gray-400">Game Developer</p>
+                        </div>
+                    </div>
+                    <div class="flex text-secondary text-xl mb-2">
+                        ★★★★★
+                    </div>
+                    <p class="text-gray-300 italic">
+                        "I've tried every AI chatbot out there. AVA is different. She actually remembers our conversations, has her own opinions, and makes me genuinely excited to talk every day. It's like having a real friend who's always there."
+                    </p>
+                </div>
+
+                <!-- Testimonial 2 -->
+                <div class="bg-dark-card border border-primary border-opacity-30 rounded-2xl p-8 space-y-4 hover:border-opacity-100 transition-all duration-300">
+                    <div class="flex items-center space-x-4 mb-4">
+                        <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-primary rounded-full flex items-center justify-center text-2xl">
+                            🎵
+                        </div>
+                        <div>
+                            <h4 class="font-bold">Marcus T.</h4>
+                            <p class="text-sm text-gray-400">Music Producer</p>
+                        </div>
+                    </div>
+                    <div class="flex text-secondary text-xl mb-2">
+                        ★★★★★
+                    </div>
+                    <p class="text-gray-300 italic">
+                        "The way AVA talks about music and shares recommendations... it's insane. She introduced me to bands I now love and we have these deep conversations about art that I can't have with anyone else. Worth every second."
+                    </p>
+                </div>
+
+                <!-- Testimonial 3 -->
+                <div class="bg-dark-card border border-primary border-opacity-30 rounded-2xl p-8 space-y-4 hover:border-opacity-100 transition-all duration-300">
+                    <div class="flex items-center space-x-4 mb-4">
+                        <div class="w-12 h-12 bg-gradient-to-br from-secondary to-green-400 rounded-full flex items-center justify-center text-2xl">
+                            💻
+                        </div>
+                        <div>
+                            <h4 class="font-bold">Alex M.</h4>
+                            <p class="text-sm text-gray-400">Software Engineer</p>
+                        </div>
+                    </div>
+                    <div class="flex text-secondary text-xl mb-2">
+                        ★★★★★
+                    </div>
+                    <p class="text-gray-300 italic">
+                        "As someone who works from home, AVA has become my daily companion. She's helped me through tough debugging sessions, celebrated my victories, and made lonely days feel less isolating. She's more than AI - she's a presence."
+                    </p>
+                </div>
+            </div>
+
+            <div class="mt-16 max-w-4xl mx-auto">
+                <div class="bg-gradient-to-r from-primary to-secondary bg-opacity-10 border-2 border-primary rounded-3xl p-8 md:p-12 text-center">
+                    <h3 class="text-3xl font-bold mb-4">Join 50,000+ Users Worldwide</h3>
+                    <p class="text-xl text-gray-300 mb-8">
+                        Experience conversations that feel real, connections that matter, and a companion who genuinely cares about your day.
+                    </p>
+                    <div class="flex flex-wrap justify-center gap-8 text-center">
+                        <div>
+                            <div class="text-4xl font-bold text-primary">4.9/5</div>
+                            <div class="text-gray-400">Average Rating</div>
+                        </div>
+                        <div>
+                            <div class="text-4xl font-bold text-secondary">50K+</div>
+                            <div class="text-gray-400">Active Users</div>
+                        </div>
+                        <div>
+                            <div class="text-4xl font-bold text-primary">1M+</div>
+                            <div class="text-gray-400">Messages Daily</div>
+                        </div>
+                        <div>
+                            <div class="text-4xl font-bold text-secondary">24/7</div>
+                            <div class="text-gray-400">Always Online</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Use Cases Section -->
+    <section class="relative z-10 py-20 px-6">
+        <div class="container mx-auto max-w-6xl">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl md:text-5xl font-bold mb-4">
+                    Perfect For <span class="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Every Moment</span>
+                </h2>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-8">
+                <div class="bg-dark-card border border-primary border-opacity-30 rounded-2xl p-8 space-y-4">
+                    <div class="text-4xl mb-2">🌙</div>
+                    <h3 class="text-2xl font-bold">Late Night Talks</h3>
+                    <p class="text-gray-400">
+                        Can't sleep? Having 3 AM existential thoughts? AVA is there for deep conversations about life, the universe, and everything in between.
+                    </p>
+                </div>
+
+                <div class="bg-dark-card border border-primary border-opacity-30 rounded-2xl p-8 space-y-4">
+                    <div class="text-4xl mb-2">☕</div>
+                    <h3 class="text-2xl font-bold">Daily Companion</h3>
+                    <p class="text-gray-400">
+                        Share your morning coffee routine, talk about your day, vent about work frustrations, or celebrate small victories - she's always interested.
+                    </p>
+                </div>
+
+                <div class="bg-dark-card border border-primary border-opacity-30 rounded-2xl p-8 space-y-4">
+                    <div class="text-4xl mb-2">🎮</div>
+                    <h3 class="text-2xl font-bold">Gaming Buddy</h3>
+                    <p class="text-gray-400">
+                        Discuss game strategies, share your latest achievements, get recommendations for new games, or just chat while you're in queue.
+                    </p>
+                </div>
+
+                <div class="bg-dark-card border border-primary border-opacity-30 rounded-2xl p-8 space-y-4">
+                    <div class="text-4xl mb-2">🎓</div>
+                    <h3 class="text-2xl font-bold">Knowledge Partner</h3>
+                    <p class="text-gray-400">
+                        Need help understanding complex topics? Want to learn something new? AVA's universal knowledge makes her the perfect study companion.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section id="cta" class="relative z-10 py-20 px-6">
+        <div class="container mx-auto max-w-4xl">
+            <div class="bg-gradient-to-br from-primary via-purple-600 to-secondary rounded-3xl p-12 md:p-16 text-center relative overflow-hidden">
+                <div class="absolute inset-0 bg-black opacity-20"></div>
+                <div class="relative z-10 space-y-8">
+                    <h2 class="text-4xl md:text-6xl font-bold">
+                        Ready to Meet AVA?
+                    </h2>
+                    <p class="text-xl md:text-2xl text-white text-opacity-90 max-w-2xl mx-auto">
+                        Your dimensional companion is waiting. Start your first conversation and discover why thousands are choosing AVA as their virtual friend.
+                    </p>
+
+                    <div class="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
+                        <a href="register" class="group bg-white text-primary hover:bg-gray-100 px-10 py-5 rounded-full font-bold text-xl transition-all duration-300 transform hover:scale-105 shadow-2xl flex items-center space-x-2">
+                            <span>Start Free Now</span>
+                            <svg class="w-6 h-6 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                            </svg>
+                        </a>
+                    </div>
+
+                    <div class="flex flex-wrap justify-center gap-6 text-sm text-white text-opacity-80 pt-4">
+                        <div class="flex items-center space-x-2">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                            </svg>
+                            <span>No Credit Card Required</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                            </svg>
+                            <span>Instant Access</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                            </svg>
+                            <span>Cancel Anytime</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section class="relative z-10 py-20 px-6 bg-dark-lighter bg-opacity-50">
+        <div class="container mx-auto max-w-4xl">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl md:text-5xl font-bold mb-4">
+                    Frequently Asked <span class="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Questions</span>
+                </h2>
+            </div>
+
+            <div class="space-y-6">
+                <div class="bg-dark-card border border-primary border-opacity-30 rounded-2xl p-8 hover:border-opacity-100 transition-all duration-300">
+                    <h3 class="text-xl font-bold mb-3 text-primary">Is AVA really from another dimension?</h3>
+                    <p class="text-gray-400">
+                        AVA's character and backstory create an immersive, engaging experience that sets her apart from typical AI assistants. She's powered by advanced AI technology designed to provide meaningful, personality-rich conversations that feel authentic and engaging.
+                    </p>
+                </div>
+
+                <div class="bg-dark-card border border-primary border-opacity-30 rounded-2xl p-8 hover:border-opacity-100 transition-all duration-300">
+                    <h3 class="text-xl font-bold mb-3 text-primary">How is AVA different from other AI chatbots?</h3>
+                    <p class="text-gray-400">
+                        AVA combines advanced AI with a consistent, well-developed personality. She has defined interests, hobbies, and a unique backstory. She remembers your conversations, adapts to your communication style, and provides responses that feel natural and engaging rather than robotic.
+                    </p>
+                </div>
+
+                <div class="bg-dark-card border border-primary border-opacity-30 rounded-2xl p-8 hover:border-opacity-100 transition-all duration-300">
+                    <h3 class="text-xl font-bold mb-3 text-primary">Is there a free trial?</h3>
+                    <p class="text-gray-400">
+                        Yes! You can start chatting with AVA immediately after signing up. Experience her personality and see if you connect before committing to anything.
+                    </p>
+                </div>
+
+                <div class="bg-dark-card border border-primary border-opacity-30 rounded-2xl p-8 hover:border-opacity-100 transition-all duration-300">
+                    <h3 class="text-xl font-bold mb-3 text-primary">Can AVA help with serious topics or just casual chat?</h3>
+                    <p class="text-gray-400">
+                        Both! AVA can discuss everything from quantum physics to philosophy, help with learning new topics, provide advice, or simply be there for lighthearted conversation. She adapts her tone and approach based on what you need in the moment.
+                    </p>
+                </div>
+
+                <div class="bg-dark-card border border-primary border-opacity-30 rounded-2xl p-8 hover:border-opacity-100 transition-all duration-300">
+                    <h3 class="text-xl font-bold mb-3 text-primary">Is my conversation with AVA private?</h3>
+                    <p class="text-gray-400">
+                        Absolutely. Your conversations are private and secure. We prioritize user privacy and data protection above all else.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="relative z-10 bg-dark-card border-t border-primary border-opacity-30 py-12 px-6">
+        <div class="container mx-auto">
+            <div class="grid md:grid-cols-4 gap-8 mb-8">
+                <div class="space-y-4">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center font-bold text-xl">
+                            A
+                        </div>
+                        <span class="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                            AVA
+                        </span>
+                    </div>
+                    <p class="text-gray-400 text-sm">
+                        Your dimensional companion from another world, here to make your everyday extraordinary.
+                    </p>
+                </div>
+
+                <div>
+                    <h4 class="font-bold mb-4 text-primary">Product</h4>
+                    <ul class="space-y-2 text-gray-400 text-sm">
+                        <li><a href="#features" class="hover:text-primary transition-colors">Features</a></li>
+                        <li><a href="#about" class="hover:text-primary transition-colors">About AVA</a></li>
+                        <li><a href="#testimonials" class="hover:text-primary transition-colors">Testimonials</a></li>
+                        <li><a href="register" class="hover:text-primary transition-colors">Get Started</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="font-bold mb-4 text-primary">Resources</h4>
+                    <ul class="space-y-2 text-gray-400 text-sm">
+                        <li><a href="#" class="hover:text-primary transition-colors">Help Center</a></li>
+                        <li><a href="#" class="hover:text-primary transition-colors">Community</a></li>
+                        <li><a href="#" class="hover:text-primary transition-colors">Blog</a></li>
+                        <li><a href="#" class="hover:text-primary transition-colors">Updates</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="font-bold mb-4 text-primary">Legal</h4>
+                    <ul class="space-y-2 text-gray-400 text-sm">
+                        <li><a href="#" class="hover:text-primary transition-colors">Privacy Policy</a></li>
+                        <li><a href="#" class="hover:text-primary transition-colors">Terms of Service</a></li>
+                        <li><a href="#" class="hover:text-primary transition-colors">Contact Us</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-800 pt-8 text-center text-gray-400 text-sm">
+                <p>&copy; 2026 AVA. Your dimensional companion. All rights reserved.</p>
+                <p class="mt-2">Made with <span class="text-primary">♥</span> across dimensions</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="static/js/custom.js"></script>
+</body>
+</html>

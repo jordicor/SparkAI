@@ -1,0 +1,354 @@
+{% extends 'base.html' %}
+
+{% block title %}Team Consumption Dashboard{% endblock %}
+
+{% block styles %}
+{# Theme CSS loaded by theme-loader.js #}
+<style>
+    /* Stat cards - subtle accent borders */
+    .stat-card {
+        background: var(--bg-secondary, #2f3136);
+        border: 1px solid var(--border-color, #40444b);
+        border-radius: 12px;
+        padding: 1.25rem;
+        height: 100%;
+        border-left: 3px solid var(--accent, #5865f2);
+    }
+    .stat-card.primary { border-left-color: var(--accent, #5865f2); }
+    .stat-card.success { border-left-color: var(--success, #43b581); }
+    .stat-card.info { border-left-color: var(--info, #3498db); }
+    .stat-card .amount {
+        font-size: 1.75rem;
+        font-weight: bold;
+        color: var(--text-primary, #dcddde);
+    }
+    .stat-card .label {
+        font-size: 0.85rem;
+        color: var(--text-secondary, #b9bbbe);
+        margin-bottom: 0.25rem;
+    }
+    .stat-card .sublabel {
+        font-size: 0.75rem;
+        color: var(--text-muted, #72767d);
+    }
+    /* Status badges - theme-aware colors */
+    .status-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .status-active {
+        background-color: rgba(var(--success-rgb, 67, 181, 129), 0.2);
+        color: var(--success, #43b581);
+    }
+    .status-at-limit {
+        background-color: rgba(var(--warning-rgb, 250, 166, 26), 0.2);
+        color: var(--warning, #faa61a);
+    }
+    .status-blocked {
+        background-color: rgba(var(--danger-rgb, 237, 66, 69), 0.2);
+        color: var(--danger, #ed4245);
+    }
+    .status-over-limit {
+        background-color: rgba(var(--warning-rgb, 250, 166, 26), 0.25);
+        color: var(--warning, #faa61a);
+    }
+    /* Activity items */
+    .activity-item {
+        border-left: 3px solid var(--border-color, #40444b);
+        padding-left: 1rem;
+        margin-bottom: 0.75rem;
+    }
+    .activity-item .date {
+        font-size: 0.8rem;
+        color: var(--text-muted, #72767d);
+    }
+    .activity-item .cost {
+        font-weight: bold;
+        color: var(--danger, #ed4245);
+    }
+</style>
+{% endblock %}
+
+{% block page_title %}Team Consumption Dashboard{% endblock %}
+{% block page_subtitle %}<p class="text-muted mb-0">Monitor AI usage for users under your enterprise billing.</p>{% endblock %}
+
+{% block back_url %}/{% endblock %}
+
+{% block page_actions %}
+<div class="text-muted">
+    <i class="fas fa-calendar me-1"></i>
+    <span id="currentMonth"></span>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Stats Cards -->
+<div class="row">
+    <div class="col-md-4 mb-4">
+        <div class="stat-card primary">
+            <div class="label"><i class="fas fa-wallet me-1"></i>My Balance</div>
+            <div class="amount" id="myBalance">$0.00</div>
+            <div class="sublabel">Available for team usage</div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="stat-card success">
+            <div class="label"><i class="fas fa-chart-bar me-1"></i>Team Spending</div>
+            <div class="amount" id="teamSpending">$0.00</div>
+            <div class="sublabel">This month | <span id="lastMonthSpending">$0.00 last month</span></div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="stat-card info">
+            <div class="label"><i class="fas fa-user-friends me-1"></i>Team Users</div>
+            <div class="amount" id="teamUserCount">0</div>
+            <div class="sublabel">Under enterprise billing</div>
+        </div>
+    </div>
+</div>
+
+<!-- Users Under Billing -->
+<div class="section-container">
+    <div class="section-title"><i class="fas fa-users me-2"></i>Users Under My Billing</div>
+    <div class="table-responsive">
+        <table class="table consumption-table">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Status</th>
+                    <th>This Month</th>
+                    <th>Limit</th>
+                    <th>Action</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="usersTableBody">
+                <tr>
+                    <td colspan="6" class="text-center text-muted">
+                        <i class="fas fa-spinner fa-spin me-1"></i> Loading...
+                    </td>
+                </tr>
+            </tbody>
+            <tfoot id="usersTableFoot" style="display: none;">
+                <tr class="table-light">
+                    <th colspan="2">Subtotal</th>
+                    <th id="totalSpent">$0.00</th>
+                    <th colspan="3">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="exportCSV()">
+                            <i class="fas fa-download me-1"></i>Export CSV
+                        </button>
+                    </th>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    <div id="noUsersMessage" style="display: none;" class="text-center text-muted py-4">
+        <i class="fas fa-info-circle me-1"></i>
+        No users are currently under your enterprise billing.
+        <a href="/create-user">Create a user</a> with "I pay for this user" enabled.
+    </div>
+</div>
+
+<!-- Spending by Prompt -->
+<div class="section-container">
+    <div class="section-title"><i class="fas fa-robot me-2"></i>Spending Breakdown by Prompt</div>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Prompt</th>
+                    <th>Users</th>
+                    <th>Messages</th>
+                    <th>Tokens (M)</th>
+                    <th>Cost</th>
+                </tr>
+            </thead>
+            <tbody id="promptsTableBody">
+                <tr>
+                    <td colspan="5" class="text-center text-muted">
+                        <i class="fas fa-spinner fa-spin me-1"></i> Loading...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="section-container">
+    <div class="section-title"><i class="fas fa-history me-2"></i>Recent Activity</div>
+    <div id="activityList">
+        <div class="text-center text-muted">
+            <i class="fas fa-spinner fa-spin me-1"></i> Loading...
+        </div>
+    </div>
+    <div id="noActivityMessage" style="display: none;" class="text-center text-muted py-3">
+        No recent activity.
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    // Set current month
+    document.getElementById('currentMonth').textContent = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+    // Load data on page load
+    document.addEventListener('DOMContentLoaded', loadDashboardData);
+
+    async function loadDashboardData() {
+        try {
+            const response = await fetch('/api/manager/team-billing');
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.detail || 'Failed to load data');
+            }
+
+            // Update summary cards
+            document.getElementById('myBalance').textContent = formatCurrency(data.summary.my_balance);
+            document.getElementById('teamSpending').textContent = formatCurrency(data.summary.team_spending_this_month);
+            document.getElementById('lastMonthSpending').textContent = formatCurrency(data.summary.team_spending_last_month) + ' last month';
+            document.getElementById('teamUserCount').textContent = data.summary.team_user_count;
+
+            // Update users table
+            updateUsersTable(data.users);
+
+            // Update prompts table
+            updatePromptsTable(data.by_prompt);
+
+            // Update activity list
+            updateActivityList(data.recent_activity);
+
+        } catch (error) {
+            console.error('Error loading dashboard:', error);
+            document.getElementById('usersTableBody').innerHTML = `
+                <tr><td colspan="6" class="text-center text-danger">
+                    <i class="fas fa-exclamation-triangle me-1"></i>Failed to load data: ${error.message}
+                </td></tr>`;
+        }
+    }
+
+    function formatCurrency(amount) {
+        return '$' + (parseFloat(amount) || 0).toFixed(2);
+    }
+
+    function updateUsersTable(users) {
+        const tbody = document.getElementById('usersTableBody');
+        const tfoot = document.getElementById('usersTableFoot');
+        const noUsersMsg = document.getElementById('noUsersMessage');
+
+        if (!users || users.length === 0) {
+            tbody.innerHTML = '';
+            tfoot.style.display = 'none';
+            noUsersMsg.style.display = 'block';
+            return;
+        }
+
+        noUsersMsg.style.display = 'none';
+        tfoot.style.display = '';
+
+        let totalSpent = 0;
+        tbody.innerHTML = users.map(user => {
+            totalSpent += parseFloat(user.this_month_spent) || 0;
+            const statusClass = getStatusClass(user.status);
+            const limitDisplay = user.limit ? formatCurrency(user.limit) : 'Unlimited';
+            const actionDisplay = user.limit ? user.limit_action : '-';
+
+            return `
+                <tr>
+                    <td>
+                        <strong>${escapeHtml(user.username)}</strong>
+                        ${user.email ? `<br><small class="text-muted">${escapeHtml(user.email)}</small>` : ''}
+                    </td>
+                    <td><span class="status-badge status-${statusClass}">${user.status}</span></td>
+                    <td>${formatCurrency(user.this_month_spent)}</td>
+                    <td>${limitDisplay}</td>
+                    <td>${actionDisplay}</td>
+                    <td>
+                        <a href="/edit-user/${encodeURIComponent(user.username)}" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                    </td>
+                </tr>`;
+        }).join('');
+
+        document.getElementById('totalSpent').textContent = formatCurrency(totalSpent);
+    }
+
+    function getStatusClass(status) {
+        switch(status.toLowerCase()) {
+            case 'active': return 'active';
+            case 'at limit': return 'at-limit';
+            case 'blocked': return 'blocked';
+            case 'over limit': return 'over-limit';
+            default: return 'active';
+        }
+    }
+
+    function updatePromptsTable(prompts) {
+        const tbody = document.getElementById('promptsTableBody');
+
+        if (!prompts || prompts.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No prompt usage data this month.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = prompts.map(p => `
+            <tr>
+                <td>${escapeHtml(p.prompt_name)}</td>
+                <td>${p.user_count}</td>
+                <td>${p.message_count}</td>
+                <td>${(p.tokens / 1000000).toFixed(2)}</td>
+                <td>${formatCurrency(p.cost)}</td>
+            </tr>`).join('');
+    }
+
+    function updateActivityList(activities) {
+        const list = document.getElementById('activityList');
+        const noActivity = document.getElementById('noActivityMessage');
+
+        if (!activities || activities.length === 0) {
+            list.innerHTML = '';
+            noActivity.style.display = 'block';
+            return;
+        }
+
+        noActivity.style.display = 'none';
+        list.innerHTML = activities.map(a => `
+            <div class="activity-item">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>${escapeHtml(a.username)}</strong>
+                        <span class="text-muted">used</span>
+                        <strong>${escapeHtml(a.prompt_name)}</strong>
+                    </div>
+                    <span class="cost">-${formatCurrency(a.cost)}</span>
+                </div>
+                <div class="date">${formatDate(a.timestamp)}</div>
+            </div>`).join('');
+    }
+
+    function formatDate(timestamp) {
+        const date = new Date(timestamp);
+        return date.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function exportCSV() {
+        window.location.href = '/api/manager/team-billing?format=csv';
+    }
+</script>
+{% endblock %}

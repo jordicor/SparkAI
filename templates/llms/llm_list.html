@@ -1,0 +1,243 @@
+{% extends 'base_admin.html' %}
+
+{% block title %}LLM Management - SPARK{% endblock %}
+
+{% block styles %}
+<style>
+    /* Page-specific styles that override or extend admin CSS */
+    .price-cell {
+        font-family: monospace;
+        font-size: 0.85rem;
+    }
+</style>
+{% endblock %}
+
+{% block page_title %}LLM Management{% endblock %}
+
+{% block page_subtitle %}
+<p class="page-subtitle">Manage language models available in your application</p>
+{% endblock %}
+
+{% block page_actions %}
+<a href="/admin/llm/new" class="btn btn-success">
+    <i class="fas fa-plus me-1"></i>Add New Model
+</a>
+{% endblock %}
+
+{% block tabs %}
+<div class="internal-tabs">
+    <a href="/admin/llms" class="internal-tab active">All Models</a>
+    <a href="/admin/openrouter" class="internal-tab">
+        <i class="fas fa-sync me-1"></i> OpenRouter Sync
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Stats -->
+<div class="stats-row">
+    <span class="stat-badge">
+        <i class="fas fa-robot"></i> <strong id="totalCount">{{ llms|length }}</strong> Total Models
+    </span>
+    <span class="stat-badge" id="statsFiltered" style="display: none;">
+        <i class="fas fa-filter"></i> <strong id="filteredCount">0</strong> Shown
+    </span>
+    {% set vision_count = llms|selectattr('5')|list|length %}
+    <span class="stat-badge">
+        <i class="fas fa-eye"></i> <strong>{{ vision_count }}</strong> Vision Models
+    </span>
+</div>
+
+<!-- Filters Section -->
+<div class="section-container">
+    <div class="section-title">
+        <i class="fas fa-filter"></i> Filters
+    </div>
+    <div class="flex-row">
+        <div class="flex-column">
+            <div class="mb-3">
+                <label class="form-label">Provider</label>
+                <select class="form-select" id="providerFilter" onchange="applyFilters()">
+                    <option value="">All Providers</option>
+                    {% for provider in providers %}
+                    <option value="{{ provider }}">{{ provider }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="flex-column">
+            <div class="mb-3">
+                <label class="form-label">Search</label>
+                <input type="text" class="form-control" id="searchFilter" placeholder="Search by model name..." oninput="applyFilters()">
+            </div>
+        </div>
+        <div class="flex-column">
+            <div class="mb-3">
+                <label class="form-label">Vision Capability</label>
+                <select class="form-select" id="visionFilter" onchange="applyFilters()">
+                    <option value="">All Models</option>
+                    <option value="yes">Vision Only</option>
+                    <option value="no">No Vision</option>
+                </select>
+            </div>
+        </div>
+        <div class="flex-column">
+            <div class="mb-3">
+                <label class="form-label">Sort By</label>
+                <select class="form-select" id="sortBy" onchange="applyFilters()">
+                    <option value="model">Model Name (A-Z)</option>
+                    <option value="model-desc">Model Name (Z-A)</option>
+                    <option value="provider">Provider</option>
+                    <option value="input-price">Input Price (Low-High)</option>
+                    <option value="output-price">Output Price (Low-High)</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Models Table Section -->
+<div class="section-container">
+    <div class="section-title">
+        <i class="fas fa-list"></i> Language Models
+    </div>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Provider</th>
+                    <th>Model</th>
+                    <th>Input Cost ($/1M)</th>
+                    <th>Output Cost ($/1M)</th>
+                    <th>Vision</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="llmTableBody">
+                {% for llm in llms %}
+                <tr class="llm-row"
+                    data-provider="{{ llm[1] }}"
+                    data-model="{{ llm[2]|lower }}"
+                    data-vision="{{ 'yes' if llm[5] else 'no' }}"
+                    data-input-price="{{ llm[3] }}"
+                    data-output-price="{{ llm[4] }}">
+                    <td>
+                        <span class="badge provider-badge provider-{{ llm[1] }}">{{ llm[1] }}</span>
+                    </td>
+                    <td><strong>{{ llm[2] }}</strong></td>
+                    <td class="price-cell">${{ "%.4f"|format(llm[3]) }}</td>
+                    <td class="price-cell">${{ "%.4f"|format(llm[4]) }}</td>
+                    <td>
+                        {% if llm[5] %}
+                        <span class="vision-badge"><i class="fas fa-eye me-1"></i>Vision</span>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end table-actions">
+                        <a href="/admin/llm/edit/{{ llm[0] }}" class="btn btn-sm btn-outline-primary" title="Edit" data-bs-toggle="tooltip">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                        <button onclick="deleteLlm({{ llm[0] }})" class="btn btn-sm btn-outline-danger" title="Delete" data-bs-toggle="tooltip">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    function deleteLlm(llmId) {
+        if (confirm('Are you sure you want to delete this LLM?')) {
+            fetch(`/admin/llm/delete/${llmId}`, {
+                method: 'DELETE'
+            }).then(response => {
+                if (response.ok) {
+                    const row = document.querySelector(`tr button[onclick="deleteLlm(${llmId})"]`).closest('tr');
+                    row.remove();
+                    updateStats();
+                } else {
+                    NotificationModal.error('Delete Failed', 'Failed to delete LLM. Please try again.');
+                }
+            }).catch(error => console.error('Error:', error));
+        }
+    }
+
+    function applyFilters() {
+        const providerFilter = document.getElementById('providerFilter').value;
+        const searchFilter = document.getElementById('searchFilter').value.toLowerCase();
+        const visionFilter = document.getElementById('visionFilter').value;
+        const sortBy = document.getElementById('sortBy').value;
+
+        const rows = Array.from(document.querySelectorAll('.llm-row'));
+        let visibleCount = 0;
+
+        // Filter
+        rows.forEach(row => {
+            const provider = row.dataset.provider;
+            const model = row.dataset.model;
+            const vision = row.dataset.vision;
+
+            let visible = true;
+            if (providerFilter && provider !== providerFilter) visible = false;
+            if (searchFilter && !model.includes(searchFilter)) visible = false;
+            if (visionFilter && vision !== visionFilter) visible = false;
+
+            row.style.display = visible ? '' : 'none';
+            if (visible) visibleCount++;
+        });
+
+        // Sort visible rows
+        const tbody = document.getElementById('llmTableBody');
+        const visibleRows = rows.filter(r => r.style.display !== 'none');
+
+        visibleRows.sort((a, b) => {
+            switch (sortBy) {
+                case 'model':
+                    return a.dataset.model.localeCompare(b.dataset.model);
+                case 'model-desc':
+                    return b.dataset.model.localeCompare(a.dataset.model);
+                case 'provider':
+                    return a.dataset.provider.localeCompare(b.dataset.provider) ||
+                           a.dataset.model.localeCompare(b.dataset.model);
+                case 'input-price':
+                    return parseFloat(a.dataset.inputPrice) - parseFloat(b.dataset.inputPrice);
+                case 'output-price':
+                    return parseFloat(a.dataset.outputPrice) - parseFloat(b.dataset.outputPrice);
+                default:
+                    return 0;
+            }
+        });
+
+        // Re-append in order
+        visibleRows.forEach(row => tbody.appendChild(row));
+        rows.filter(r => r.style.display === 'none').forEach(row => tbody.appendChild(row));
+
+        // Update stats
+        const totalCount = rows.length;
+        const statsFiltered = document.getElementById('statsFiltered');
+        if (visibleCount !== totalCount) {
+            statsFiltered.style.display = 'inline-flex';
+            document.getElementById('filteredCount').textContent = visibleCount;
+        } else {
+            statsFiltered.style.display = 'none';
+        }
+    }
+
+    function updateStats() {
+        const rows = document.querySelectorAll('.llm-row');
+        document.getElementById('totalCount').textContent = rows.length;
+        applyFilters();
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        applyFilters();
+    });
+</script>
+{% endblock %}

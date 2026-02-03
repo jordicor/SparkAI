@@ -1,0 +1,567 @@
+{% extends 'base.html' %}
+
+{% block title %}Edit User{% endblock %}
+
+{% block styles %}
+{# Theme CSS loaded by theme-loader.js #}
+<style>
+    .password-container {
+        position: relative;
+    }
+    .password-container .btn-copy {
+        position: absolute;
+        right: 0;
+        top: 0;
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
+    }
+    .btn-show-password {
+        background-color: #40444b;
+        border-color: #40444b;
+        color: #fff;
+    }
+    .btn-show-password:hover {
+        background-color: #4f545c;
+        border-color: #4f545c;
+        color: #fff;
+    }
+    .user-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background-color: rgba(114, 137, 218, 0.2);
+        border: 1px solid #7289da;
+        border-radius: 20px;
+        margin-bottom: 1rem;
+    }
+    .user-badge i {
+        color: #7289da;
+    }
+</style>
+{% endblock %}
+
+{% block page_title %}<i class="fas fa-user-edit me-2"></i>Edit User{% endblock %}
+
+{% block back_url %}/users-list{% endblock %}
+
+{% block content %}
+        {% if error %}
+        <div class="alert alert-danger" role="alert">
+            <i class="fas fa-exclamation-circle me-2"></i>{{ error }}
+        </div>
+        {% endif %}
+
+        <!-- User Badge -->
+        <div class="user-badge">
+            <i class="fas fa-user-circle fa-lg"></i>
+            <span>Editing: <strong>{{ user_data.username }}</strong></span>
+        </div>
+
+        <form id="editUserForm" action="/edit-user" method="post">
+            <input type="hidden" name="username" value="{{ user_data.username }}">
+
+            <!-- Section 1: User Credentials -->
+            <div class="section-container">
+                <div class="section-title"><i class="fas fa-id-card me-2"></i>User Credentials</div>
+                <div class="flex-row">
+                    <div class="flex-column">
+                        <div class="mb-3">
+                            <label for="new_username" class="form-label">Username</label>
+                            <input type="text" class="form-control" id="new_username" name="new_username" value="{{ user_data.username }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email Address</label>
+                            <input type="email" class="form-control" id="email" name="email" value="{{ user_data.email or '' }}">
+                            <small class="form-text text-muted">Required for magic link recovery</small>
+                        </div>
+                    </div>
+                    <div class="flex-column">
+                        <div class="mb-3">
+                            <label for="phone_number" class="form-label">Phone Number</label>
+                            <input type="tel" class="form-control" id="phone_number" name="phone_number" value="{{ user_data.phone_number }}" inputmode="tel" oninput="this.value = this.value.replace(/[^0-9+\-() ]/g, '')">
+                        </div>
+                        <div class="mb-3">
+                            <label for="new_password" class="form-label">New Password</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="new_password" name="new_password" placeholder="Leave blank to keep current">
+                                <button class="btn btn-show-password" type="button" onclick="togglePassword()">
+                                    <i class="fas fa-eye" id="toggleIcon"></i>
+                                </button>
+                                <button class="btn btn-secondary" type="button" id="copyBtn" onclick="copyPassword()" title="Copy password">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                            <button type="button" class="btn btn-outline-secondary btn-sm mt-2" id="generatePasswordBtn">
+                                <i class="fas fa-key me-1"></i> Generate Strong Password
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 2: AI Configuration -->
+            <div class="section-container">
+                <div class="section-title"><i class="fas fa-robot me-2"></i>AI Configuration</div>
+                <div class="flex-row">
+                    <div class="flex-column">
+                        <div class="mb-3">
+                            <label for="promptDropdown" class="form-label">Default Prompt</label>
+                            <select class="form-select" id="promptDropdown" name="prompt_id" required>
+                                {% for prompt in prompts %}
+                                    <option value="{{ prompt.id }}" {% if prompt.id == user_data.current_prompt_id %}selected{% endif %}>
+                                        {{ prompt.text }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex-column">
+                        <div class="mb-3">
+                            <label for="machineDropdown" class="form-label">Default LLM Model</label>
+                            <select class="form-select" id="machineDropdown" name="machine" required>
+                                {% for model in llm_models %}
+                                    <option value="{{ model[0] }}" data-vision="{{ model[3] }}" {% if model[0] == user_data.llm_id %}selected{% endif %}>
+                                        {{ model[1] }} - {{ model[2] }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 3: Account Settings -->
+            <div class="section-container">
+                <div class="section-title"><i class="fas fa-cog me-2"></i>Account Settings</div>
+                <div class="flex-row">
+                    <div class="flex-column">
+                        <div class="mb-3">
+                            <label for="balance" class="form-label">Balance ($0 - $500)</label>
+                            <div class="input-group">
+                                <span class="input-group-text input-group-text-themed">$</span>
+                                <input type="text" class="form-control" id="balance" name="balance" value="{{ user_data.balance }}" inputmode="decimal" pattern="[0-9]*\.?[0-9]*" oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-column">
+                        <div class="mb-3">
+                            <label for="apiKeyMode" class="form-label">API Key Mode</label>
+                            <select class="form-select" id="apiKeyMode" name="api_key_mode">
+                                <option value="both_prefer_own" {% if user_data.api_key_mode == 'both_prefer_own' %}selected{% endif %}>
+                                    Both (Prefer Own Keys)
+                                </option>
+                                <option value="system_only" {% if user_data.api_key_mode == 'system_only' %}selected{% endif %}>
+                                    System Keys Only
+                                </option>
+                                <option value="own_only" {% if user_data.api_key_mode == 'own_only' %}selected{% endif %}>
+                                    Own Keys Only (BYOK)
+                                </option>
+                                <option value="both_prefer_system" {% if user_data.api_key_mode == 'both_prefer_system' %}selected{% endif %}>
+                                    Both (Prefer System Keys)
+                                </option>
+                            </select>
+                            <small class="form-text text-muted">Controls which API keys this user can use for AI services.</small>
+                        </div>
+                        {% if user_data.has_own_api_keys %}
+                        <div class="alert alert-info mb-0">
+                            <i class="fas fa-key me-2"></i>This user has configured their own API keys.
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 4: User Role (Admin only) -->
+            {% if is_admin %}
+            <div class="section-container">
+                <div class="section-title"><i class="fas fa-user-shield me-2"></i>User Role</div>
+                <div class="flex-row">
+                    <div class="flex-column">
+                        <div class="mb-3">
+                            <label for="userRoleId" class="form-label">Role</label>
+                            <select class="form-select" id="userRoleId" name="user_role_id">
+                                {% for role in user_roles %}
+                                <option value="{{ role.id }}" {% if role.id == user_data.role_id %}selected{% endif %}>
+                                    {{ role.name|capitalize }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">
+                                <strong>Admin:</strong> Full access to all features and users.<br>
+                                <strong>Manager:</strong> Can create and manage their own users.<br>
+                                <strong>User:</strong> Regular user with no admin capabilities.
+                            </small>
+                        </div>
+                    </div>
+                    <div class="flex-column">
+                        <div class="mb-3">
+                            <label class="form-label">Current Role</label>
+                            <div class="mt-2">
+                                <span class="badge {% if user_data.role_name == 'admin' %}bg-danger{% elif user_data.role_name == 'manager' %}bg-primary{% else %}bg-secondary{% endif %} fs-6">
+                                    <i class="fas {% if user_data.role_name == 'admin' %}fa-crown{% elif user_data.role_name == 'manager' %}fa-user-tie{% else %}fa-user{% endif %} me-1"></i>
+                                    {{ user_data.role_name|capitalize }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Section 5: Permissions -->
+            <div class="section-container">
+                <div class="section-title"><i class="fas fa-shield-alt me-2"></i>Permissions</div>
+                <div class="flex-row">
+                    <div class="flex-column">
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="allowFileUpload" name="allow_file_upload" {% if user_data.allow_file_upload %}checked{% endif %}>
+                            <label class="form-check-label" for="allowFileUpload">
+                                <i class="fas fa-file-upload me-1 text-muted"></i> Allow file upload to the AI
+                            </label>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="allowImageGeneration" name="allow_image_generation" {% if user_data.allow_image_generation %}checked{% endif %}>
+                            <label class="form-check-label" for="allowImageGeneration">
+                                <i class="fas fa-image me-1 text-muted"></i> Allow AI to generate images
+                            </label>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="canChangePassword" name="can_change_password" {% if user_data.can_change_password %}checked{% endif %}>
+                            <label class="form-check-label" for="canChangePassword">
+                                <i class="fas fa-key me-1 text-muted"></i> User can change password
+                            </label>
+                        </div>
+                    </div>
+                    <div class="flex-column">
+                        {% if is_admin %}
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="publicPromptsAccess" name="public_prompts_access" {% if user_data.public_prompts_access %}checked{% endif %}>
+                            <label class="form-check-label" for="publicPromptsAccess">
+                                <i class="fas fa-globe me-1 text-muted"></i> Allow access to public prompts
+                            </label>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="allPromptsAccess" name="all_prompts_access" {% if user_data.all_prompts_access %}checked{% endif %}>
+                            <label class="form-check-label" for="allPromptsAccess">
+                                <i class="fas fa-list-alt me-1 text-muted"></i> Allow access to all prompts
+                            </label>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 6: Category Access (visible when public prompts enabled) -->
+            <div class="section-container" id="categoryAccessSection" style="{% if not user_data.public_prompts_access %}display: none;{% endif %}">
+                <div class="section-title"><i class="fas fa-tags me-2"></i>Category Access (Curator Mode)</div>
+                <p class="text-muted small mb-3">Select which categories of public prompts this user can access. Leave "All Categories" checked to give access to all.</p>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="allowAllCategories" name="allow_all_categories" {% if not user_data.category_access %}checked{% endif %} onchange="toggleCategorySelection()">
+                    <label class="form-check-label" for="allowAllCategories"><strong>All Categories</strong> (no restriction)</label>
+                </div>
+                <div id="categoryCheckboxes" style="{% if not user_data.category_access %}display: none;{% endif %}">
+                    <div class="row">
+                        {% for cat in categories %}
+                        <div class="col-md-4 col-sm-6 mb-2">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input category-checkbox" name="category_ids" value="{{ cat.id }}" id="cat_{{ cat.id }}"
+                                    {% if user_data.category_access and cat.id|string in user_data.category_access %}checked{% endif %}>
+                                <label class="form-check-label" for="cat_{{ cat.id }}">
+                                    <i class="fas {{ cat.icon }} me-1"></i>{{ cat.name }}
+                                    {% if cat.is_age_restricted %}
+                                    <span class="badge bg-danger ms-1" style="font-size: 0.65rem;">18+</span>
+                                    {% endif %}
+                                </label>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllCategories()">Select All</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="deselectAllCategories()">Deselect All</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 7: Billing Mode (Enterprise) -->
+            <div class="section-container" id="billingModeSection">
+                <div class="section-title"><i class="fas fa-credit-card me-2"></i>Billing Mode (Enterprise)</div>
+                <p class="text-muted small mb-3">Choose who pays for this user's AI consumption.</p>
+
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input type="radio" class="form-check-input" name="billing_mode" value="user_pays" id="billingUserPays" {% if not user_data.billing_account_id %}checked{% endif %} onchange="toggleBillingOptions()">
+                        <label class="form-check-label" for="billingUserPays">
+                            <strong>User pays their own balance</strong>
+                            <br><small class="text-muted">User must add balance to their account to use the platform.</small>
+                        </label>
+                    </div>
+                    <div class="form-check mt-2">
+                        <input type="radio" class="form-check-input" name="billing_mode" value="manager_pays" id="billingManagerPays" {% if user_data.billing_account_id %}checked{% endif %} onchange="toggleBillingOptions()">
+                        <label class="form-check-label" for="billingManagerPays">
+                            <strong>I pay for this user (Enterprise Mode)</strong>
+                            <br><small class="text-muted">All AI costs will be charged to YOUR balance.</small>
+                        </label>
+                    </div>
+                </div>
+
+                <div id="enterpriseBillingOptions" style="{% if not user_data.billing_account_id %}display: none;{% endif %}" class="border rounded p-3 bg-light">
+                    <div class="mb-3">
+                        <label class="form-label">Monthly Spending Limit</label>
+                        <div class="form-check">
+                            <input type="radio" class="form-check-input" name="billing_limit_type" value="unlimited" id="limitUnlimited" {% if not user_data.billing_limit %}checked{% endif %} onchange="toggleLimitInput()">
+                            <label class="form-check-label" for="limitUnlimited">No limit (unlimited)</label>
+                        </div>
+                        <div class="form-check mt-1">
+                            <input type="radio" class="form-check-input" name="billing_limit_type" value="limited" id="limitSet" {% if user_data.billing_limit %}checked{% endif %} onchange="toggleLimitInput()">
+                            <label class="form-check-label" for="limitSet">Set limit:</label>
+                            <div class="input-group mt-1" style="max-width: 240px;">
+                                <span class="input-group-text">$</span>
+                                <input type="text" class="form-control" id="billingLimitInput" name="billing_limit" value="{% if user_data.billing_limit %}{{ user_data.billing_limit }}{% endif %}" inputmode="decimal" pattern="[0-9]*\.?[0-9]*" oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')" {% if not user_data.billing_limit %}disabled{% endif %}>
+                                <span class="input-group-text">/month</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">When limit is reached:</label>
+                        <div class="form-check">
+                            <input type="radio" class="form-check-input" name="billing_limit_action" value="block" id="actionBlock" {% if user_data.billing_limit_action == 'block' or not user_data.billing_limit_action %}checked{% endif %} onchange="toggleAutoRefillSettings()">
+                            <label class="form-check-label" for="actionBlock">
+                                <strong>Block</strong> - User cannot send more messages
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input type="radio" class="form-check-input" name="billing_limit_action" value="notify" id="actionNotify" {% if user_data.billing_limit_action == 'notify' %}checked{% endif %} onchange="toggleAutoRefillSettings()">
+                            <label class="form-check-label" for="actionNotify">
+                                <strong>Notify</strong> - Send alert but allow user to continue
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input type="radio" class="form-check-input" name="billing_limit_action" value="auto_refill" id="actionAutoRefill" {% if user_data.billing_limit_action == 'auto_refill' %}checked{% endif %} onchange="toggleAutoRefillSettings()">
+                            <label class="form-check-label" for="actionAutoRefill">
+                                <strong>Auto-Refill</strong> - Automatically increase limit when reached
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="autoRefillSettings" style="display: {% if user_data.billing_limit_action == 'auto_refill' %}block{% else %}none{% endif %};" class="mb-3 ms-4 p-3 border rounded bg-light">
+                        <div class="mb-2">
+                            <label class="form-label small">Increment amount:</label>
+                            <div class="input-group" style="max-width: 200px;">
+                                <span class="input-group-text">$</span>
+                                <input type="number" class="form-control" name="billing_auto_refill_amount" value="{{ user_data.billing_auto_refill_amount or 10.0 }}" step="0.01" min="1">
+                            </div>
+                            <small class="text-muted">How much to increase the limit each time</small>
+                        </div>
+                        <div>
+                            <label class="form-label small">Maximum limit (optional):</label>
+                            <div class="input-group" style="max-width: 200px;">
+                                <span class="input-group-text">$</span>
+                                <input type="number" class="form-control" name="billing_max_limit" value="{% if user_data.billing_max_limit %}{{ user_data.billing_max_limit }}{% endif %}" placeholder="No cap" step="0.01" min="0">
+                            </div>
+                            <small class="text-muted">Leave empty for unlimited auto-refills</small>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info small mb-0">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Spending resets on the 1st of each month. You can view team billing in the <a href="/manager/team-billing">Team Billing dashboard</a>.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-1"></i> Update User
+                </button>
+                <a href="/users-list" class="btn btn-outline-secondary">
+                    <i class="fas fa-list me-1"></i> All Users
+                </a>
+            </div>
+        </form>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    // Password toggle
+    function togglePassword() {
+        const input = document.getElementById('new_password');
+        const icon = document.getElementById('toggleIcon');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+    }
+
+    // Copy password
+    function copyPassword() {
+        const input = document.getElementById('new_password');
+        const copyBtn = document.getElementById('copyBtn');
+        const originalType = input.type;
+
+        input.type = 'text';
+        input.select();
+        document.execCommand('copy');
+        input.type = originalType;
+
+        copyBtn.innerHTML = '<i class="fas fa-check"></i>';
+        setTimeout(() => {
+            copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
+        }, 2000);
+    }
+
+    // Generate strong password
+    document.getElementById('generatePasswordBtn')?.addEventListener('click', function() {
+        const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+        const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const numbers = '0123456789';
+        const symbols = '!@#$%^&*()_+-=[]{}|;:,.<>?';
+        const allChars = lowercase + uppercase + numbers + symbols;
+
+        let password = '';
+        password += lowercase[Math.floor(Math.random() * lowercase.length)];
+        password += uppercase[Math.floor(Math.random() * uppercase.length)];
+        password += numbers[Math.floor(Math.random() * numbers.length)];
+        password += symbols[Math.floor(Math.random() * symbols.length)];
+
+        for (let i = password.length; i < 16; i++) {
+            password += allChars[Math.floor(Math.random() * allChars.length)];
+        }
+
+        password = password.split('').sort(() => 0.5 - Math.random()).join('');
+
+        const input = document.getElementById('new_password');
+        input.value = password;
+        input.type = 'text';
+        document.getElementById('toggleIcon').classList.remove('fa-eye');
+        document.getElementById('toggleIcon').classList.add('fa-eye-slash');
+
+        setTimeout(() => {
+            input.type = 'password';
+            document.getElementById('toggleIcon').classList.remove('fa-eye-slash');
+            document.getElementById('toggleIcon').classList.add('fa-eye');
+        }, 5000);
+    });
+
+    // Edit form submit
+    document.getElementById('editUserForm')?.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const formData = new FormData(this);
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+
+        try {
+            const response = await secureFetch('/edit-user', {
+                method: 'POST',
+                body: formData
+            });
+            if (!response) return; // Session expired
+
+            const result = await response.json();
+            if (result.success) {
+                // Show success briefly then reload
+                submitBtn.innerHTML = '<i class="fas fa-check me-1"></i> Saved!';
+                submitBtn.classList.remove('btn-primary');
+                submitBtn.classList.add('btn-success');
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                NotificationModal.error('Update Failed', result.error || 'Error updating user');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            NotificationModal.error('Error', 'An error occurred while updating the user');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    });
+
+    // Category access handler (Reseller Mode)
+    const publicPromptsCheckbox = document.getElementById('publicPromptsAccess');
+    const categoryAccessSection = document.getElementById('categoryAccessSection');
+
+    if (publicPromptsCheckbox && categoryAccessSection) {
+        publicPromptsCheckbox.addEventListener('change', function() {
+            categoryAccessSection.style.display = this.checked ? 'block' : 'none';
+            if (!this.checked) {
+                // Reset category selection when disabling public prompts
+                document.getElementById('allowAllCategories').checked = true;
+                toggleCategorySelection();
+            }
+        });
+    }
+
+    // Category selection functions
+    function toggleCategorySelection() {
+        const allowAll = document.getElementById('allowAllCategories').checked;
+        const checkboxesDiv = document.getElementById('categoryCheckboxes');
+        checkboxesDiv.style.display = allowAll ? 'none' : 'block';
+
+        if (allowAll) {
+            // When "All Categories" is checked, uncheck individual categories
+            document.querySelectorAll('.category-checkbox').forEach(cb => cb.checked = false);
+        }
+    }
+
+    function selectAllCategories() {
+        document.querySelectorAll('.category-checkbox').forEach(cb => cb.checked = true);
+    }
+
+    function deselectAllCategories() {
+        document.querySelectorAll('.category-checkbox').forEach(cb => cb.checked = false);
+    }
+
+    // Make functions global for onclick handlers
+    window.toggleCategorySelection = toggleCategorySelection;
+    window.selectAllCategories = selectAllCategories;
+    window.deselectAllCategories = deselectAllCategories;
+
+    // Billing mode functions (Enterprise)
+    function toggleBillingOptions() {
+        const managerPays = document.getElementById('billingManagerPays').checked;
+        const optionsDiv = document.getElementById('enterpriseBillingOptions');
+        optionsDiv.style.display = managerPays ? 'block' : 'none';
+
+        if (!managerPays) {
+            // Reset to defaults when switching to user pays
+            document.getElementById('limitUnlimited').checked = true;
+            document.getElementById('billingLimitInput').disabled = true;
+            document.getElementById('billingLimitInput').value = '';
+            document.getElementById('actionBlock').checked = true;
+        }
+    }
+
+    function toggleLimitInput() {
+        const limitSet = document.getElementById('limitSet').checked;
+        const limitInput = document.getElementById('billingLimitInput');
+        limitInput.disabled = !limitSet;
+        if (!limitSet) {
+            limitInput.value = '';
+        }
+    }
+
+    function toggleAutoRefillSettings() {
+        const autoRefillSelected = document.getElementById('actionAutoRefill').checked;
+        const autoRefillSettings = document.getElementById('autoRefillSettings');
+        autoRefillSettings.style.display = autoRefillSelected ? 'block' : 'none';
+    }
+
+    // Make billing functions global
+    window.toggleBillingOptions = toggleBillingOptions;
+    window.toggleLimitInput = toggleLimitInput;
+    window.toggleAutoRefillSettings = toggleAutoRefillSettings;
+</script>
+{% endblock %}

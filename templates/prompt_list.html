@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+
+{% block title %}Prompt Management - SPARK{% endblock %}
+
+{% block styles %}
+{# Theme CSS loaded by theme-loader.js #}
+{% endblock %}
+
+{% block page_title %}Manage Prompts{% endblock %}
+
+{% block back_url %}/{% endblock %}
+
+{% block page_actions %}
+<a href="/admin/prompts/new" class="btn btn-success">Add New Prompt</a>
+{% endblock %}
+
+{% block content %}
+<table class="table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for prompt in prompts %}
+        <tr>
+            <td>{{ prompt[0] }}</td>
+            <td>{{ prompt[1] }}</td>
+            <td>
+                <a href="/admin/prompts/edit/{{ prompt[0] }}" class="btn btn-primary">Edit</a>
+                <a href="#" onclick="deletePrompt({{ prompt[0] }})" class="btn btn-danger">Delete</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    function deletePrompt(promptId) {
+        if (confirm('Are you sure you want to delete this prompt?')) {
+            fetch(`/admin/prompts/delete/${promptId}`, {
+                method: 'DELETE'
+            }).then(response => {
+                if (response.ok) {
+                    NotificationModal.success('Prompt Deleted', 'Prompt deleted successfully!');
+                    window.location.reload();
+                } else {
+                    NotificationModal.error('Delete Failed', 'Failed to delete prompt.');
+                }
+            }).catch(error => console.error('Error:', error));
+        }
+    }
+</script>
+{% endblock %}

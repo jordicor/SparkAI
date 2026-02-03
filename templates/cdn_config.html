@@ -1,0 +1,7 @@
+<!-- CDN Configuration for JavaScript -->
+<script>
+    window.CDN_CONFIG = {
+        enabled: {{ get_static_url('/static/').startswith('http')|tojson }},
+        baseUrl: "{{ get_static_url('/static/').rstrip('/') }}"
+    };
+</script>

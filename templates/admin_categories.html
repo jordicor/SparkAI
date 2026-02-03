@@ -1,0 +1,451 @@
+{% extends 'base_admin.html' %}
+
+{% block title %}Prompt Categories - SPARK{% endblock %}
+
+{% block styles %}
+<style>
+    /* Page-specific styles */
+    .category-icon {
+        font-size: 1.2rem;
+        width: 30px;
+        height: 30px;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        line-height: 1 !important;
+        vertical-align: middle;
+    }
+    .sortable-ghost {
+        opacity: 0.4;
+    }
+    .drag-handle {
+        cursor: grab;
+        color: var(--text-muted);
+    }
+    .drag-handle:hover {
+        color: var(--text-primary);
+    }
+    .age-restricted-badge {
+        font-size: 0.75rem;
+    }
+    .icon-picker-grid {
+        display: grid;
+        grid-template-columns: repeat(8, 1fr);
+        gap: 8px;
+        max-height: 200px;
+        overflow-y: auto;
+        padding: 10px;
+    }
+    .icon-picker-item {
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+    }
+    .icon-picker-item:hover {
+        background-color: var(--bg-tertiary);
+        border-color: var(--primary-color);
+    }
+    .icon-picker-item.selected {
+        background-color: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+    .selected-icon-preview {
+        font-size: 1.5rem;
+        width: 50px;
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid var(--border-color);
+        border-radius: 8px;
+        margin-right: 10px;
+        background: var(--bg-secondary);
+    }
+    .drag-info {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+    }
+</style>
+{% endblock %}
+
+{% block page_title %}Prompt Categories{% endblock %}
+
+{% block page_subtitle %}
+<p class="page-subtitle">Manage categories for organizing prompts</p>
+{% endblock %}
+
+{% block content %}
+<!-- Add/Edit Category Section -->
+<div class="section-container">
+    <div class="section-title" id="formCardHeader">
+        <i class="fas fa-plus-circle"></i> Add New Category
+    </div>
+    <form id="categoryForm">
+        <input type="hidden" id="editCategoryId" value="">
+
+        <div class="flex-row">
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label class="form-label" for="categoryName">Name *</label>
+                    <input class="form-control" id="categoryName" name="name" required maxlength="100">
+                </div>
+            </div>
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label class="form-label">Icon</label>
+                    <div class="d-flex align-items-center">
+                        <div class="selected-icon-preview" id="selectedIconPreview">
+                            <i class="fas fa-tag"></i>
+                        </div>
+                        <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#iconPickerModal">
+                            <i class="fas fa-icons me-1"></i> Choose Icon
+                        </button>
+                        <input type="hidden" id="categoryIcon" name="icon" value="fa-tag">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-row">
+            <div class="flex-column" style="flex: 2;">
+                <div class="mb-3">
+                    <label class="form-label" for="categoryDescription">Description</label>
+                    <textarea class="form-control" id="categoryDescription" name="description" rows="2" maxlength="500"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-row">
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label class="form-label" for="displayOrder">Display Order</label>
+                    <input type="number" class="form-control" id="displayOrder" name="display_order" value="0" min="0">
+                </div>
+            </div>
+            <div class="flex-column d-flex align-items-end">
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="isAgeRestricted" name="is_age_restricted">
+                        <label class="form-check-label" for="isAgeRestricted">
+                            <i class="fas fa-user-lock me-1"></i> Age Restricted (18+)
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="flex-column d-flex align-items-end justify-content-end">
+                <div class="mb-3">
+                    <button type="button" class="btn btn-secondary me-2" id="cancelEditBtn" style="display:none;" onclick="cancelEdit()">
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn btn-primary" id="submitBtn">
+                        <i class="fas fa-save me-1"></i> Save Category
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Categories List Section -->
+<div class="section-container">
+    <div class="section-title d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-list"></i> Categories</span>
+        <span class="drag-info"><i class="fas fa-grip-vertical me-1"></i> Drag to reorder</span>
+    </div>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="width: 40px;"></th>
+                    <th style="width: 50px;">Icon</th>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th style="width: 80px;" class="text-center">Prompts</th>
+                    <th style="width: 80px;" class="text-center">Order</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="categoriesTableBody">
+                {% for category in categories %}
+                <tr data-id="{{ category.id }}">
+                    <td>
+                        <i class="fas fa-grip-vertical drag-handle"></i>
+                    </td>
+                    <td>
+                        <i class="fas {{ category.icon }} category-icon"></i>
+                    </td>
+                    <td>
+                        <strong>{{ category.name }}</strong>
+                        {% if category.is_age_restricted %}
+                        <span class="badge bg-danger age-restricted-badge ms-1">18+</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-muted small">{{ category.description or '-' }}</td>
+                    <td class="text-center">
+                        <span class="badge bg-secondary">{{ category.prompt_count }}</span>
+                    </td>
+                    <td class="text-center">{{ category.display_order }}</td>
+                    <td class="text-end table-actions">
+                        <button class="btn btn-sm btn-outline-primary" onclick="editCategory({{ category.id }}, '{{ category.name }}', '{{ category.description|e }}', '{{ category.icon }}', {{ category.is_age_restricted|lower }}, {{ category.display_order }})" title="Edit" data-bs-toggle="tooltip">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteCategory({{ category.id }}, '{{ category.name }}')" title="Delete" data-bs-toggle="tooltip">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr id="emptyRow">
+                    <td colspan="7" class="text-center text-muted py-4">
+                        <i class="fas fa-folder-open fa-2x mb-2 d-block"></i>
+                        No categories found. Create one above!
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Icon Picker Modal -->
+<div class="modal fade" id="iconPickerModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-icons me-2"></i>Choose an Icon</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="iconSearch" placeholder="Search icons...">
+                </div>
+                <div class="icon-picker-grid" id="iconGrid">
+                    <!-- Icons will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    // Common FontAwesome icons for categories
+    const availableIcons = [
+        'fa-tag', 'fa-tags', 'fa-folder', 'fa-bullhorn', 'fa-briefcase', 'fa-code',
+        'fa-graduation-cap', 'fa-pen-fancy', 'fa-heart-pulse', 'fa-gamepad', 'fa-users',
+        'fa-user-lock', 'fa-wrench', 'fa-star', 'fa-fire', 'fa-bolt', 'fa-gem',
+        'fa-crown', 'fa-rocket', 'fa-lightbulb', 'fa-brain', 'fa-robot', 'fa-wand-magic-sparkles',
+        'fa-palette', 'fa-music', 'fa-film', 'fa-camera', 'fa-microphone', 'fa-book',
+        'fa-newspaper', 'fa-utensils', 'fa-plane', 'fa-car', 'fa-home', 'fa-building',
+        'fa-gift', 'fa-shopping-cart', 'fa-dollar-sign', 'fa-chart-line', 'fa-cog',
+        'fa-shield-halved', 'fa-lock', 'fa-globe', 'fa-language', 'fa-comments',
+        'fa-envelope', 'fa-phone', 'fa-calendar', 'fa-clock', 'fa-map', 'fa-compass',
+        'fa-sun', 'fa-moon', 'fa-cloud', 'fa-leaf', 'fa-tree', 'fa-paw', 'fa-dumbbell',
+        'fa-futbol', 'fa-basketball', 'fa-chess', 'fa-dice', 'fa-puzzle-piece',
+        'fa-masks-theater', 'fa-laugh', 'fa-smile', 'fa-heart', 'fa-thumbs-up',
+        'fa-award', 'fa-trophy', 'fa-medal', 'fa-certificate', 'fa-clipboard',
+        'fa-file-alt', 'fa-pencil', 'fa-pen', 'fa-marker', 'fa-highlighter',
+        'fa-terminal', 'fa-database', 'fa-server', 'fa-laptop-code', 'fa-mobile',
+        'fa-desktop', 'fa-keyboard', 'fa-mouse', 'fa-headphones', 'fa-tv',
+        'fa-wifi', 'fa-bluetooth', 'fa-battery-full', 'fa-plug', 'fa-tools'
+    ];
+
+    let selectedIcon = 'fa-tag';
+
+    // Populate icon grid
+    function populateIconGrid(filter = '') {
+        const grid = document.getElementById('iconGrid');
+        grid.innerHTML = '';
+
+        const filteredIcons = filter
+            ? availableIcons.filter(icon => icon.includes(filter.toLowerCase()))
+            : availableIcons;
+
+        filteredIcons.forEach(icon => {
+            const item = document.createElement('div');
+            item.className = 'icon-picker-item' + (icon === selectedIcon ? ' selected' : '');
+            item.innerHTML = `<i class="fas ${icon}"></i>`;
+            item.onclick = () => selectIcon(icon);
+            grid.appendChild(item);
+        });
+    }
+
+    function selectIcon(icon) {
+        selectedIcon = icon;
+        document.getElementById('categoryIcon').value = icon;
+        document.getElementById('selectedIconPreview').innerHTML = `<i class="fas ${icon}"></i>`;
+
+        // Update visual selection
+        document.querySelectorAll('.icon-picker-item').forEach(item => {
+            item.classList.remove('selected');
+            if (item.querySelector('i').classList.contains(icon)) {
+                item.classList.add('selected');
+            }
+        });
+
+        // Close modal
+        bootstrap.Modal.getInstance(document.getElementById('iconPickerModal')).hide();
+    }
+
+    // Icon search
+    document.getElementById('iconSearch').addEventListener('input', (e) => {
+        populateIconGrid(e.target.value);
+    });
+
+    // Initialize icon grid
+    populateIconGrid();
+
+    // Initialize Sortable for drag-and-drop reordering
+    const tableBody = document.getElementById('categoriesTableBody');
+    if (tableBody.children.length > 0 && !document.getElementById('emptyRow')) {
+        new Sortable(tableBody, {
+            handle: '.drag-handle',
+            animation: 150,
+            ghostClass: 'sortable-ghost',
+            onEnd: async function() {
+                const order = Array.from(tableBody.querySelectorAll('tr[data-id]'))
+                    .map(row => parseInt(row.dataset.id));
+
+                try {
+                    const response = await fetch('/api/categories/reorder', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ order })
+                    });
+
+                    if (response.ok) {
+                        showAlert('Categories reordered successfully', 'success');
+                        // Update display order numbers
+                        tableBody.querySelectorAll('tr[data-id]').forEach((row, idx) => {
+                            row.querySelector('td:nth-child(6)').textContent = idx + 1;
+                        });
+                    } else {
+                        showAlert('Failed to reorder categories', 'danger');
+                    }
+                } catch (error) {
+                    showAlert('Error: ' + error.message, 'danger');
+                }
+            }
+        });
+    }
+
+    function showAlert(message, type = 'success') {
+        const container = document.getElementById('alertContainer');
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} alert-dismissible fade show`;
+        alert.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        container.appendChild(alert);
+
+        setTimeout(() => alert.remove(), 5000);
+    }
+
+    // Form submission
+    document.getElementById('categoryForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const editId = document.getElementById('editCategoryId').value;
+        const isEdit = editId !== '';
+
+        const data = {
+            name: document.getElementById('categoryName').value,
+            description: document.getElementById('categoryDescription').value,
+            icon: document.getElementById('categoryIcon').value,
+            is_age_restricted: document.getElementById('isAgeRestricted').checked,
+            display_order: parseInt(document.getElementById('displayOrder').value) || 0
+        };
+
+        try {
+            const url = isEdit ? `/api/categories/${editId}` : '/api/categories';
+            const method = isEdit ? 'PUT' : 'POST';
+
+            const response = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                showAlert(result.message || 'Category saved successfully', 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showAlert(result.detail || 'Failed to save category', 'danger');
+            }
+        } catch (error) {
+            showAlert('Error: ' + error.message, 'danger');
+        }
+    });
+
+    function editCategory(id, name, description, icon, isAgeRestricted, displayOrder) {
+        document.getElementById('editCategoryId').value = id;
+        document.getElementById('categoryName').value = name;
+        document.getElementById('categoryDescription').value = description;
+        document.getElementById('categoryIcon').value = icon;
+        document.getElementById('selectedIconPreview').innerHTML = `<i class="fas ${icon}"></i>`;
+        document.getElementById('isAgeRestricted').checked = isAgeRestricted;
+        document.getElementById('displayOrder').value = displayOrder;
+
+        selectedIcon = icon;
+
+        document.getElementById('formCardHeader').innerHTML = '<i class="fas fa-edit"></i> Edit Category';
+        document.getElementById('submitBtn').innerHTML = '<i class="fas fa-save me-1"></i> Update Category';
+        document.getElementById('cancelEditBtn').style.display = 'inline-block';
+
+        // Scroll to form
+        document.getElementById('categoryForm').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function cancelEdit() {
+        document.getElementById('editCategoryId').value = '';
+        document.getElementById('categoryForm').reset();
+        document.getElementById('categoryIcon').value = 'fa-tag';
+        document.getElementById('selectedIconPreview').innerHTML = '<i class="fas fa-tag"></i>';
+        selectedIcon = 'fa-tag';
+
+        document.getElementById('formCardHeader').innerHTML = '<i class="fas fa-plus-circle"></i> Add New Category';
+        document.getElementById('submitBtn').innerHTML = '<i class="fas fa-save me-1"></i> Save Category';
+        document.getElementById('cancelEditBtn').style.display = 'none';
+    }
+
+    async function deleteCategory(id, name) {
+        if (!confirm(`Are you sure you want to delete the category "${name}"?\n\nThis will remove the category from all associated prompts.`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/categories/${id}`, {
+                method: 'DELETE'
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                showAlert('Category deleted successfully', 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showAlert(result.detail || 'Failed to delete category', 'danger');
+            }
+        } catch (error) {
+            showAlert('Error: ' + error.message, 'danger');
+        }
+    }
+</script>
+{% endblock %}

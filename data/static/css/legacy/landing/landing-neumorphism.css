@@ -1,0 +1,1424 @@
+/* landing-neumorphism.css
+ * Neumorphism theme for landing page configuration
+ * Soft UI design with raised/inset shadow effects
+ */
+
+/* ==========================================================
+   Root Variables - Neumorphism Color Palette
+   ========================================================== */
+:root {
+    --main-bg-color: #e0e5ec;
+    --text-color: #4d5562;
+    --text-color-light: #7a8499;
+    --shadow-light: #ffffff;
+    --shadow-dark: #a3b1c6;
+    --accent-color: #4a90e2;
+    --success-color: #27ae60;
+    --warning-color: #f39c12;
+    --danger-color: #e74c3c;
+    --info-color: #3498db;
+}
+
+/* ==========================================================
+   Base Styles
+   ========================================================== */
+body {
+    background-color: var(--main-bg-color);
+    color: var(--text-color);
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    min-height: 100vh;
+}
+
+/* ==========================================================
+   Design System - Layout Styles
+   ========================================================== */
+
+/* Main Container */
+.main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 30px 20px;
+}
+
+/* Page Header */
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: none;
+    box-shadow: 0 2px 4px var(--shadow-dark);
+}
+
+.page-header-text {
+    flex: 1;
+}
+
+/* Page Toolbar */
+.page-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    gap: 16px;
+}
+
+.page-toolbar:not(:has(*)) {
+    display: none;
+}
+
+.page-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.page-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+/* Back Button */
+.btn-back {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--main-bg-color);
+    border: none;
+    color: var(--text-color);
+    text-decoration: none;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+    box-shadow:
+        3px 3px 6px var(--shadow-dark),
+        -3px -3px 6px var(--shadow-light);
+}
+
+.btn-back:hover {
+    color: var(--accent-color);
+    box-shadow:
+        4px 4px 8px var(--shadow-dark),
+        -4px -4px 8px var(--shadow-light);
+    transform: translateY(-2px);
+}
+
+.btn-back:active {
+    box-shadow:
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+    transform: translateY(0);
+}
+
+/* Page Title */
+.page-title {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.page-subtitle {
+    margin: 4px 0 0 0;
+    color: var(--text-color-light);
+    font-size: 0.9rem;
+}
+
+/* Responsive Layout Styles */
+@media (max-width: 768px) {
+    .main-container {
+        padding: 20px 15px;
+    }
+
+    .page-header {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .page-toolbar {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .page-toolbar-right {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .page-title {
+        font-size: 1.5rem;
+    }
+
+    .btn-back {
+        width: 40px;
+        height: 40px;
+    }
+}
+
+@media (max-width: 480px) {
+    .main-container {
+        padding: 15px 10px;
+    }
+
+    .page-header {
+        gap: 10px;
+    }
+
+    .page-title {
+        font-size: 1.25rem;
+    }
+
+    .page-subtitle {
+        font-size: 0.85rem;
+    }
+
+    .btn-back {
+        width: 36px;
+        height: 36px;
+    }
+}
+
+.container {
+    padding: 2rem 1rem;
+}
+
+/* ==========================================================
+   Typography
+   ========================================================== */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--text-color);
+    font-weight: 600;
+}
+
+h2 {
+    margin-bottom: 0;
+}
+
+.text-muted {
+    color: var(--text-color-light) !important;
+}
+
+code {
+    background-color: var(--main-bg-color);
+    color: var(--accent-color);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.875em;
+    box-shadow:
+        inset 1px 1px 2px var(--shadow-dark),
+        inset -1px -1px 2px var(--shadow-light);
+}
+
+/* ==========================================================
+   Cards - Neumorphic Style
+   ========================================================== */
+.card {
+    background-color: var(--main-bg-color);
+    border: none;
+    border-radius: 20px;
+    box-shadow:
+        8px 8px 16px var(--shadow-dark),
+        -8px -8px 16px var(--shadow-light);
+    transition: all 0.3s ease;
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+}
+
+.card:hover {
+    transform: translateY(-3px);
+    box-shadow:
+        10px 10px 20px var(--shadow-dark),
+        -10px -10px 20px var(--shadow-light);
+}
+
+.card-header {
+    background-color: var(--main-bg-color);
+    color: var(--text-color);
+    border-bottom: none;
+    padding: 1.25rem 1.5rem;
+    font-weight: 600;
+    box-shadow:
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+}
+
+.card-header h5 {
+    margin-bottom: 0;
+    font-weight: 600;
+}
+
+.card-header small {
+    color: var(--text-color-light);
+}
+
+.card-body {
+    padding: 1.5rem;
+    background-color: var(--main-bg-color);
+}
+
+/* ==========================================================
+   Navigation Tabs - Neumorphic Style
+   ========================================================== */
+.nav-tabs {
+    border-bottom: none;
+    background-color: var(--main-bg-color);
+    border-radius: 15px;
+    padding: 8px;
+    box-shadow:
+        inset 3px 3px 6px var(--shadow-dark),
+        inset -3px -3px 6px var(--shadow-light);
+    margin-bottom: 1.5rem;
+}
+
+.nav-tabs .nav-item {
+    margin-right: 8px;
+}
+
+.nav-tabs .nav-item:last-child {
+    margin-right: 0;
+}
+
+.nav-tabs .nav-link {
+    color: var(--text-color-light);
+    border: none;
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    background-color: transparent;
+}
+
+.nav-tabs .nav-link:hover {
+    color: var(--accent-color);
+    background-color: var(--main-bg-color);
+    box-shadow:
+        2px 2px 4px var(--shadow-dark),
+        -2px -2px 4px var(--shadow-light);
+}
+
+.nav-tabs .nav-link.active {
+    color: var(--accent-color);
+    background-color: var(--main-bg-color);
+    font-weight: 600;
+    box-shadow:
+        3px 3px 6px var(--shadow-dark),
+        -3px -3px 6px var(--shadow-light);
+}
+
+.nav-tabs .nav-link i {
+    margin-right: 6px;
+}
+
+/* ==========================================================
+   Buttons - Neumorphic Style
+   ========================================================== */
+.btn {
+    border: none;
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    box-shadow:
+        3px 3px 6px var(--shadow-dark),
+        -3px -3px 6px var(--shadow-light);
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow:
+        4px 4px 8px var(--shadow-dark),
+        -4px -4px 8px var(--shadow-light);
+}
+
+.btn:active,
+.btn:focus {
+    transform: translateY(0);
+    box-shadow:
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+    outline: none;
+}
+
+/* Primary Button */
+.btn-primary {
+    background-color: var(--accent-color);
+    color: #ffffff;
+}
+
+.btn-primary:hover {
+    background-color: #357abd;
+    color: #ffffff;
+}
+
+.btn-primary:active,
+.btn-primary:focus {
+    background-color: var(--accent-color);
+    color: #ffffff;
+}
+
+/* Success Button */
+.btn-success {
+    background-color: var(--success-color);
+    color: #ffffff;
+}
+
+.btn-success:hover {
+    background-color: #219a52;
+    color: #ffffff;
+}
+
+/* Warning Button */
+.btn-warning {
+    background-color: var(--warning-color);
+    color: #ffffff;
+}
+
+.btn-warning:hover {
+    background-color: #d68910;
+    color: #ffffff;
+}
+
+/* Danger Button */
+.btn-danger {
+    background-color: var(--danger-color);
+    color: #ffffff;
+}
+
+.btn-danger:hover {
+    background-color: #c0392b;
+    color: #ffffff;
+}
+
+/* Secondary Button */
+.btn-secondary {
+    background-color: var(--main-bg-color);
+    color: var(--text-color);
+}
+
+.btn-secondary:hover {
+    background-color: var(--main-bg-color);
+    color: var(--text-color);
+}
+
+/* Outline Buttons */
+.btn-outline-primary {
+    background-color: var(--main-bg-color);
+    color: var(--accent-color);
+    border: none;
+}
+
+.btn-outline-primary:hover {
+    background-color: var(--main-bg-color);
+    color: var(--accent-color);
+}
+
+.btn-outline-secondary {
+    background-color: var(--main-bg-color);
+    color: var(--text-color);
+    border: none;
+}
+
+.btn-outline-secondary:hover {
+    background-color: var(--main-bg-color);
+    color: var(--text-color);
+}
+
+.btn-outline-success {
+    background-color: var(--main-bg-color);
+    color: var(--success-color);
+    border: none;
+}
+
+.btn-outline-success:hover {
+    background-color: var(--main-bg-color);
+    color: var(--success-color);
+}
+
+.btn-outline-warning {
+    background-color: var(--main-bg-color);
+    color: var(--warning-color);
+    border: none;
+}
+
+.btn-outline-warning:hover {
+    background-color: var(--main-bg-color);
+    color: var(--warning-color);
+}
+
+.btn-outline-danger {
+    background-color: var(--main-bg-color);
+    color: var(--danger-color);
+    border: none;
+}
+
+.btn-outline-danger:hover {
+    background-color: var(--main-bg-color);
+    color: var(--danger-color);
+}
+
+/* Small Buttons */
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 0.875rem;
+    border-radius: 8px;
+    box-shadow:
+        2px 2px 4px var(--shadow-dark),
+        -2px -2px 4px var(--shadow-light);
+}
+
+.btn-sm:hover {
+    box-shadow:
+        3px 3px 6px var(--shadow-dark),
+        -3px -3px 6px var(--shadow-light);
+}
+
+.btn-sm:active {
+    box-shadow:
+        inset 1px 1px 2px var(--shadow-dark),
+        inset -1px -1px 2px var(--shadow-light);
+}
+
+/* Large Buttons */
+.btn-lg {
+    padding: 14px 28px;
+    font-size: 1.1rem;
+    border-radius: 15px;
+    box-shadow:
+        5px 5px 10px var(--shadow-dark),
+        -5px -5px 10px var(--shadow-light);
+}
+
+.btn-lg:hover {
+    box-shadow:
+        6px 6px 12px var(--shadow-dark),
+        -6px -6px 12px var(--shadow-light);
+}
+
+/* Button Icon */
+.btn-icon {
+    padding: 6px 10px;
+    border-radius: 8px;
+}
+
+/* Button Group */
+.btn-group {
+    box-shadow: none;
+}
+
+.btn-group .btn {
+    box-shadow:
+        2px 2px 4px var(--shadow-dark),
+        -2px -2px 4px var(--shadow-light);
+}
+
+.btn-group .btn:not(:last-child) {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.btn-group .btn:not(:first-child) {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+
+/* Button Check (Radio/Checkbox Toggle) */
+.btn-check:checked + .btn-outline-primary,
+.btn-check:checked + .btn-outline-secondary {
+    background-color: var(--main-bg-color);
+    color: var(--accent-color);
+    box-shadow:
+        inset 3px 3px 6px var(--shadow-dark),
+        inset -3px -3px 6px var(--shadow-light);
+}
+
+/* ==========================================================
+   Forms - Neumorphic Style
+   ========================================================== */
+.form-control,
+.form-select {
+    background-color: var(--main-bg-color);
+    border: none;
+    border-radius: 10px;
+    padding: 12px 16px;
+    color: var(--text-color);
+    box-shadow:
+        inset 3px 3px 6px var(--shadow-dark),
+        inset -3px -3px 6px var(--shadow-light);
+    transition: all 0.3s ease;
+}
+
+.form-control:focus,
+.form-select:focus {
+    background-color: var(--main-bg-color);
+    border: none;
+    outline: none;
+    color: var(--text-color);
+    box-shadow:
+        inset 4px 4px 8px var(--shadow-dark),
+        inset -4px -4px 8px var(--shadow-light);
+}
+
+.form-control::placeholder {
+    color: var(--text-color-light);
+}
+
+.form-control-sm {
+    padding: 8px 12px;
+    font-size: 0.875rem;
+}
+
+.form-control-color {
+    padding: 6px;
+    width: 50px;
+    height: auto;
+    border-radius: 8px;
+}
+
+.form-label {
+    color: var(--text-color);
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.form-text {
+    color: var(--text-color-light);
+    font-size: 0.85rem;
+}
+
+/* Form Check (Checkbox/Radio) */
+.form-check-input {
+    background-color: var(--main-bg-color);
+    border: none;
+    width: 1.2em;
+    height: 1.2em;
+    box-shadow:
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+    cursor: pointer;
+}
+
+.form-check-input:checked {
+    background-color: var(--accent-color);
+    box-shadow:
+        2px 2px 4px var(--shadow-dark),
+        -2px -2px 4px var(--shadow-light);
+}
+
+.form-check-input:focus {
+    box-shadow:
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light),
+        0 0 0 2px rgba(74, 144, 226, 0.3);
+}
+
+.form-check-label {
+    color: var(--text-color);
+    cursor: pointer;
+}
+
+/* Input Group */
+.input-group {
+    background-color: var(--main-bg-color);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow:
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+}
+
+.input-group .form-control,
+.input-group .form-select {
+    box-shadow: none;
+    border-radius: 0;
+}
+
+.input-group .form-control:focus,
+.input-group .form-select:focus {
+    box-shadow: none;
+}
+
+.input-group-text {
+    background-color: transparent;
+    border: none;
+    color: var(--text-color-light);
+    padding: 12px 16px;
+}
+
+.input-group .btn {
+    box-shadow: none;
+    border-radius: 0;
+}
+
+.input-group .btn:hover {
+    transform: none;
+}
+
+.input-group .btn:last-child {
+    border-top-right-radius: 10px;
+    border-bottom-right-radius: 10px;
+}
+
+/* ==========================================================
+   Tables - Neumorphic Style
+   ========================================================== */
+.table {
+    background-color: transparent;
+    color: var(--text-color);
+    margin-bottom: 0;
+}
+
+.table thead th {
+    background-color: var(--main-bg-color);
+    color: var(--text-color);
+    font-weight: 600;
+    border-bottom: none;
+    padding: 1rem;
+    box-shadow:
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+}
+
+.table tbody td {
+    background-color: var(--main-bg-color);
+    border-bottom: 1px solid rgba(163, 177, 198, 0.3);
+    padding: 1rem;
+    vertical-align: middle;
+}
+
+.table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.table tbody tr:hover td {
+    background-color: rgba(74, 144, 226, 0.05);
+}
+
+.table-pages th {
+    background-color: var(--main-bg-color) !important;
+}
+
+/* ==========================================================
+   Badges - Neumorphic Style
+   ========================================================== */
+.badge {
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 20px;
+    box-shadow:
+        2px 2px 4px var(--shadow-dark),
+        -2px -2px 4px var(--shadow-light);
+}
+
+.badge.bg-primary {
+    background-color: var(--accent-color) !important;
+}
+
+.badge.bg-success {
+    background-color: var(--success-color) !important;
+}
+
+.badge.bg-warning {
+    background-color: var(--warning-color) !important;
+    color: var(--text-color) !important;
+}
+
+.badge.bg-danger {
+    background-color: var(--danger-color) !important;
+}
+
+.badge.bg-secondary {
+    background-color: var(--text-color-light) !important;
+}
+
+.badge.bg-info {
+    background-color: var(--info-color) !important;
+}
+
+.component-badge {
+    font-size: 0.75rem;
+    padding: 4px 8px;
+}
+
+/* ==========================================================
+   Alerts - Neumorphic Style
+   ========================================================== */
+.alert {
+    background-color: var(--main-bg-color);
+    border: none;
+    border-radius: 15px;
+    padding: 1rem 1.25rem;
+    box-shadow:
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+}
+
+.alert-info {
+    background-color: rgba(52, 152, 219, 0.1);
+    color: var(--info-color);
+    border-left: 4px solid var(--info-color);
+}
+
+.alert-warning {
+    background-color: rgba(243, 156, 18, 0.1);
+    color: #856404;
+    border-left: 4px solid var(--warning-color);
+}
+
+.alert-danger {
+    background-color: rgba(231, 76, 60, 0.1);
+    color: var(--danger-color);
+    border-left: 4px solid var(--danger-color);
+}
+
+.alert-success {
+    background-color: rgba(39, 174, 96, 0.1);
+    color: var(--success-color);
+    border-left: 4px solid var(--success-color);
+}
+
+.alert-secondary {
+    background-color: var(--main-bg-color);
+    color: var(--text-color);
+}
+
+/* ==========================================================
+   List Groups - Neumorphic Style
+   ========================================================== */
+.list-group {
+    border-radius: 15px;
+    overflow: hidden;
+}
+
+.list-group-item {
+    background-color: var(--main-bg-color);
+    border: none;
+    border-bottom: 1px solid rgba(163, 177, 198, 0.3);
+    color: var(--text-color);
+    padding: 1rem 1.25rem;
+    transition: all 0.3s ease;
+}
+
+.list-group-item:last-child {
+    border-bottom: none;
+}
+
+.list-group-item:hover {
+    background-color: var(--main-bg-color);
+    box-shadow:
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+}
+
+.list-group-item-action {
+    cursor: pointer;
+}
+
+.list-group-item-action:hover,
+.list-group-item-action:focus {
+    color: var(--accent-color);
+    background-color: var(--main-bg-color);
+}
+
+/* ==========================================================
+   Modals - Neumorphic Style
+   ========================================================== */
+.modal-content {
+    background-color: var(--main-bg-color);
+    border: none;
+    border-radius: 20px;
+    box-shadow:
+        15px 15px 30px var(--shadow-dark),
+        -15px -15px 30px var(--shadow-light);
+    overflow: hidden;
+}
+
+.modal-header {
+    border-bottom: none;
+    padding: 1.5rem;
+    box-shadow:
+        inset 2px 2px 4px rgba(0, 0, 0, 0.1),
+        inset -2px -2px 4px rgba(255, 255, 255, 0.2);
+}
+
+.modal-header.bg-primary {
+    background: linear-gradient(135deg, var(--accent-color), #357abd) !important;
+}
+
+.modal-header.bg-danger {
+    background: linear-gradient(135deg, var(--danger-color), #c0392b) !important;
+}
+
+.modal-header .modal-title {
+    font-weight: 600;
+}
+
+.modal-header .btn-close-white {
+    filter: brightness(0) invert(1);
+}
+
+.modal-body {
+    padding: 1.5rem;
+    background-color: var(--main-bg-color);
+}
+
+.modal-footer {
+    background-color: var(--main-bg-color);
+    border-top: none;
+    padding: 1rem 1.5rem;
+    box-shadow:
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+}
+
+/* Modal Backdrop */
+.modal-backdrop {
+    background-color: rgba(77, 85, 98, 0.5);
+    backdrop-filter: blur(4px);
+}
+
+/* ==========================================================
+   Public URL Box - Custom Component
+   ========================================================== */
+.public-url-box {
+    background-color: var(--main-bg-color);
+    border-radius: 12px;
+    padding: 16px 20px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow:
+        inset 3px 3px 6px var(--shadow-dark),
+        inset -3px -3px 6px var(--shadow-light);
+}
+
+.public-url-box .url-text {
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-color);
+}
+
+.public-url-box[style*="background-color: #d4edda"] {
+    background-color: var(--main-bg-color) !important;
+    border: 2px solid var(--success-color) !important;
+    box-shadow:
+        inset 3px 3px 6px var(--shadow-dark),
+        inset -3px -3px 6px var(--shadow-light),
+        0 0 0 2px rgba(39, 174, 96, 0.2);
+}
+
+/* ==========================================================
+   Image Grid & Cards - Custom Component
+   ========================================================== */
+.image-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 1rem;
+}
+
+.image-card {
+    background-color: var(--main-bg-color);
+    border: none;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow:
+        5px 5px 10px var(--shadow-dark),
+        -5px -5px 10px var(--shadow-light);
+    transition: all 0.3s ease;
+}
+
+.image-card:hover {
+    transform: translateY(-3px);
+    box-shadow:
+        7px 7px 14px var(--shadow-dark),
+        -7px -7px 14px var(--shadow-light);
+}
+
+.image-card img {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+}
+
+.image-card .image-name {
+    padding: 0.75rem;
+    font-size: 0.8rem;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    color: var(--text-color);
+    background-color: var(--main-bg-color);
+    box-shadow:
+        inset 1px 1px 2px var(--shadow-dark),
+        inset -1px -1px 2px var(--shadow-light);
+}
+
+/* ==========================================================
+   Custom Domain Details - Accordion Style
+   ========================================================== */
+.custom-domain-details {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.custom-domain-details summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 12px;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+.custom-domain-details summary:hover {
+    background-color: var(--main-bg-color);
+    box-shadow:
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+}
+
+.custom-domain-details summary::-webkit-details-marker {
+    display: none;
+}
+
+.custom-domain-details[open] summary .fa-chevron-down {
+    transform: rotate(180deg);
+}
+
+.custom-domain-details summary .fa-chevron-down {
+    transition: transform 0.3s ease;
+}
+
+/* ==========================================================
+   Borders & Dividers
+   ========================================================== */
+.border {
+    border-color: rgba(163, 177, 198, 0.3) !important;
+}
+
+.border-top {
+    border-top-color: rgba(163, 177, 198, 0.3) !important;
+}
+
+.border-bottom {
+    border-bottom-color: rgba(163, 177, 198, 0.3) !important;
+}
+
+.rounded {
+    border-radius: 12px !important;
+}
+
+hr {
+    border-color: rgba(163, 177, 198, 0.3);
+    opacity: 1;
+}
+
+/* ==========================================================
+   Spinner & Loading States
+   ========================================================== */
+.spinner-border {
+    color: var(--accent-color);
+}
+
+.spinner-border.text-primary {
+    color: var(--accent-color) !important;
+}
+
+/* ==========================================================
+   Navbar (if included)
+   ========================================================== */
+.navbar {
+    background-color: var(--main-bg-color);
+    box-shadow:
+        0 5px 15px rgba(163, 177, 198, 0.5),
+        0 -5px 15px rgba(255, 255, 255, 0.5);
+}
+
+.navbar-brand {
+    color: var(--text-color);
+    font-weight: 600;
+}
+
+.navbar-brand:hover {
+    color: var(--accent-color);
+}
+
+.nav-link {
+    color: var(--text-color);
+    transition: color 0.3s ease;
+}
+
+.nav-link:hover {
+    color: var(--accent-color);
+}
+
+.navbar-toggler {
+    border: none;
+    padding: 8px 12px;
+    border-radius: 10px;
+    box-shadow:
+        3px 3px 6px var(--shadow-dark),
+        -3px -3px 6px var(--shadow-light);
+}
+
+.navbar-toggler:focus {
+    box-shadow:
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+}
+
+/* ==========================================================
+   Scrollbar Styling
+   ========================================================== */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--main-bg-color);
+    border-radius: 4px;
+    box-shadow:
+        inset 1px 1px 2px var(--shadow-dark),
+        inset -1px -1px 2px var(--shadow-light);
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(45deg, var(--shadow-dark), var(--text-color-light));
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(45deg, var(--text-color), var(--accent-color));
+}
+
+/* ==========================================================
+   Selection Highlight
+   ========================================================== */
+::selection {
+    background-color: rgba(74, 144, 226, 0.3);
+    color: var(--text-color);
+}
+
+/* ==========================================================
+   Links
+   ========================================================== */
+a {
+    color: var(--accent-color);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+a:hover {
+    color: #357abd;
+    text-decoration: none;
+}
+
+/* ==========================================================
+   Dropdown Menus
+   ========================================================== */
+.dropdown-menu {
+    background-color: var(--main-bg-color);
+    border: none;
+    border-radius: 15px;
+    padding: 10px;
+    box-shadow:
+        8px 8px 16px var(--shadow-dark),
+        -8px -8px 16px var(--shadow-light);
+}
+
+.dropdown-item {
+    color: var(--text-color);
+    border-radius: 8px;
+    padding: 10px 16px;
+    transition: all 0.3s ease;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+    background-color: var(--main-bg-color);
+    color: var(--accent-color);
+    box-shadow:
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+}
+
+.dropdown-divider {
+    border-color: rgba(163, 177, 198, 0.3);
+}
+
+/* ==========================================================
+   Tooltip
+   ========================================================== */
+.tooltip-inner {
+    background-color: var(--text-color);
+    border-radius: 8px;
+    padding: 8px 12px;
+    box-shadow:
+        3px 3px 6px var(--shadow-dark),
+        -3px -3px 6px var(--shadow-light);
+}
+
+/* ==========================================================
+   Progress Indicator Sections
+   ========================================================== */
+#wizardProgress,
+#modifyProgress {
+    background-color: var(--main-bg-color);
+    border-radius: 15px;
+    padding: 2rem;
+    margin-top: 1rem;
+    box-shadow:
+        inset 3px 3px 6px var(--shadow-dark),
+        inset -3px -3px 6px var(--shadow-light);
+}
+
+#wizardProgress p,
+#modifyProgress p {
+    color: var(--text-color);
+}
+
+#wizardProgress small,
+#modifyProgress small {
+    color: var(--text-color-light);
+}
+
+/* ==========================================================
+   Registration Tab Specific Styles
+   ========================================================== */
+#regConfigForm h6 {
+    color: var(--text-color);
+}
+
+#regConfigForm h6 i {
+    color: var(--accent-color);
+}
+
+#regSummary {
+    background-color: rgba(52, 152, 219, 0.1);
+    color: var(--text-color);
+}
+
+/* Category Access Select */
+#categoryAccess {
+    background-color: var(--main-bg-color);
+    border-radius: 10px;
+}
+
+#categoryAccess option {
+    padding: 8px;
+    color: var(--text-color);
+}
+
+/* ==========================================================
+   Responsive Adjustments
+   ========================================================== */
+@media (max-width: 992px) {
+    .nav-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .nav-tabs .nav-item {
+        flex-shrink: 0;
+    }
+
+    .nav-tabs .nav-link {
+        padding: 8px 14px;
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .container {
+        padding: 1rem;
+    }
+
+    .card {
+        border-radius: 15px;
+        margin-bottom: 1rem;
+        box-shadow:
+            5px 5px 10px var(--shadow-dark),
+            -5px -5px 10px var(--shadow-light);
+    }
+
+    .card:hover {
+        transform: none;
+        box-shadow:
+            5px 5px 10px var(--shadow-dark),
+            -5px -5px 10px var(--shadow-light);
+    }
+
+    .card-header {
+        padding: 1rem;
+    }
+
+    .card-body {
+        padding: 1rem;
+    }
+
+    .btn {
+        padding: 8px 16px;
+    }
+
+    .btn-lg {
+        padding: 12px 24px;
+        font-size: 1rem;
+    }
+
+    .public-url-box {
+        flex-wrap: wrap;
+        padding: 12px 16px;
+    }
+
+    .public-url-box .url-text {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    .image-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 0.75rem;
+    }
+
+    .image-card img {
+        height: 80px;
+    }
+
+    .modal-content {
+        margin: 0.5rem;
+        border-radius: 15px;
+    }
+
+    .modal-header,
+    .modal-footer {
+        padding: 1rem;
+    }
+
+    .modal-body {
+        padding: 1rem;
+    }
+
+    .table th,
+    .table td {
+        padding: 0.75rem;
+    }
+
+    h2 {
+        font-size: 1.25rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .d-flex.align-items-center.mb-4 {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .d-flex.align-items-center.mb-4 h2 {
+        width: 100%;
+        margin-top: 0.5rem;
+    }
+
+    .btn-group.d-flex {
+        flex-direction: column;
+    }
+
+    .btn-group.d-flex .btn {
+        border-radius: 10px !important;
+        margin-bottom: 8px;
+    }
+
+    .row.mb-4 > .col-6 {
+        width: 100%;
+        margin-bottom: 1rem;
+    }
+}
+
+/* ==========================================================
+   Animations
+   ========================================================== */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow:
+            5px 5px 10px var(--shadow-dark),
+            -5px -5px 10px var(--shadow-light);
+    }
+    50% {
+        box-shadow:
+            8px 8px 16px var(--shadow-dark),
+            -8px -8px 16px var(--shadow-light);
+    }
+    100% {
+        box-shadow:
+            5px 5px 10px var(--shadow-dark),
+            -5px -5px 10px var(--shadow-light);
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* Tab content animation */
+.tab-pane.fade {
+    transition: opacity 0.3s ease;
+}
+
+.tab-pane.show {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* ==========================================================
+   Focus States for Accessibility
+   ========================================================== */
+.btn:focus-visible,
+.form-control:focus-visible,
+.form-select:focus-visible,
+.form-check-input:focus-visible,
+.nav-link:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+/* ==========================================================
+   Print Styles
+   ========================================================== */
+@media print {
+    body {
+        background-color: white;
+        color: black;
+    }
+
+    .card {
+        box-shadow: none;
+        border: 1px solid #ddd;
+    }
+
+    .btn {
+        box-shadow: none;
+        border: 1px solid #ddd;
+    }
+
+    .nav-tabs {
+        display: none;
+    }
+}

@@ -1,0 +1,1203 @@
+/* landing-xmas.css
+ * Christmas theme for the Landing Page Configuration panel
+ * Colors: Green (#1a472a, #146b3a), Red (#d3212f), Gold (#ffd700), Dark (#0f0d0e)
+ */
+
+/* ==========================================================
+   CSS Variables (Christmas Theme)
+   ========================================================== */
+:root {
+    --landing-bg-color: #0f0d0e;
+    --landing-card-bg: #1a472a;
+    --landing-card-bg-light: #146b3a;
+    --landing-border-color: #5d9b84;
+    --landing-text-primary: #ffffff;
+    --landing-text-secondary: #a0c4b0;
+    --landing-text-muted: #7da892;
+    --landing-accent-color: #d3212f;
+    --landing-accent-hover: #ff4d4d;
+    --landing-success-color: #1e8b4a;
+    --landing-warning-color: #ffd700;
+    --landing-danger-color: #ff4d4d;
+    --landing-info-color: #5d9b84;
+    --landing-gold: #ffd700;
+}
+
+/* ==========================================================
+   Base Styles
+   ========================================================== */
+
+body {
+    background-color: #0f0d0e;
+    color: #ffffff;
+    font-family: 'Inter', sans-serif;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50"><text x="50%" y="50%" font-size="20" text-anchor="middle" dy=".35em" font-family="Arial, sans-serif" fill="rgba(255,255,255,0.1)">&#127876;</text></svg>');
+}
+
+/* ==========================================================
+   Design System - Layout Styles
+   ========================================================== */
+
+/* Main Container */
+.main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 30px 20px;
+}
+
+/* Page Header */
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #c41e3a;
+}
+
+.page-header-text {
+    flex: 1;
+}
+
+/* Page Toolbar (Tabs + Actions) */
+.page-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    gap: 16px;
+}
+
+.page-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.page-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+/* Hide toolbar when both sides are empty */
+.page-toolbar:has(.page-toolbar-left:empty):has(.page-toolbar-right:empty) {
+    display: none;
+}
+
+/* Back Button */
+.btn-back {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #1a472a;
+    border: 2px solid #2d5a3d;
+    color: #ffffff;
+    text-decoration: none;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.btn-back:hover {
+    background: #c41e3a;
+    border-color: #c41e3a;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(211, 33, 47, 0.4);
+}
+
+/* Page Title */
+.page-title {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: #ffffff;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.page-subtitle {
+    margin: 4px 0 0 0;
+    color: #a8d5a2;
+    font-size: 0.9rem;
+}
+
+/* ==========================================================
+   Design System - Responsive Layout
+   ========================================================== */
+@media (max-width: 768px) {
+    .main-container {
+        padding: 15px 10px;
+    }
+
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .page-toolbar {
+        flex-wrap: wrap;
+    }
+
+    .page-title {
+        font-size: 1.4rem;
+    }
+
+    .btn-back {
+        width: 38px;
+        height: 38px;
+    }
+}
+
+@media (max-width: 480px) {
+    .page-title {
+        font-size: 1.2rem;
+    }
+}
+
+/* ==========================================================
+   Typography
+   ========================================================== */
+
+h1, h2, h3, h4, h5, h6 {
+    color: #ffffff;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+h2::before, h2::after {
+    content: "\1F384"; /* Christmas tree emoji */
+    margin: 0 10px;
+}
+
+.text-muted {
+    color: #a0c4b0 !important;
+}
+
+a {
+    color: #ffd700;
+    transition: color 0.3s ease;
+}
+
+a:hover {
+    color: #ffed4e;
+}
+
+code {
+    background-color: #146b3a;
+    color: #ffd700;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+/* ==========================================================
+   Navbar Styles
+   ========================================================== */
+
+.navbar {
+    background: linear-gradient(135deg, #146b3a 0%, #1a472a 100%) !important;
+    border-bottom: 3px solid #d3212f;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    position: relative;
+    animation: navbarGlow 3s infinite;
+}
+
+.navbar::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image:
+        radial-gradient(circle at 25% 25%, rgba(255, 255, 255, 0.2) 1px, transparent 1px),
+        radial-gradient(circle at 75% 75%, rgba(255, 255, 255, 0.2) 1px, transparent 1px);
+    background-size: 20px 20px;
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+@keyframes navbarGlow {
+    0%, 100% {
+        box-shadow: 0 2px 10px rgba(211, 33, 47, 0.2);
+    }
+    50% {
+        box-shadow: 0 2px 15px rgba(211, 33, 47, 0.4);
+    }
+}
+
+.navbar-brand {
+    color: #ffffff !important;
+    font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+    position: relative;
+    padding-left: 35px !important;
+}
+
+.navbar-brand::before {
+    content: "\1F384"; /* Christmas tree emoji */
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1.5em;
+}
+
+.nav-link {
+    color: #ffffff !important;
+    transition: all 0.3s ease;
+    margin: 0 5px;
+    padding: 8px 15px;
+    border-radius: 20px;
+}
+
+.nav-link:hover {
+    background-color: rgba(211, 33, 47, 0.8);
+    transform: translateY(-2px);
+}
+
+.navbar-toggler {
+    border-color: #d3212f;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.navbar-toggler:focus {
+    box-shadow: 0 0 0 3px rgba(211, 33, 47, 0.3);
+}
+
+.navbar-toggler-icon {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(255, 255, 255, 0.9)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
+}
+
+/* ==========================================================
+   Card Styles
+   ========================================================== */
+
+.card {
+    background-color: #1a472a;
+    border: 2px solid #5d9b84;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    position: relative;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(211, 33, 47, 0.2);
+}
+
+.card::before {
+    content: "\1F385"; /* Santa emoji */
+    position: absolute;
+    top: -15px;
+    right: 15px;
+    font-size: 24px;
+    z-index: 10;
+}
+
+.card:nth-child(even)::before {
+    content: "\1F384"; /* Christmas tree emoji */
+}
+
+.card-header {
+    background: linear-gradient(135deg, #146b3a 0%, #1a5c36 100%);
+    color: #ffffff;
+    border-bottom: 2px solid #d3212f;
+    font-weight: bold;
+    padding: 15px 20px;
+    border-radius: 10px 10px 0 0 !important;
+}
+
+.card-header h5 {
+    margin: 0;
+    color: #ffffff;
+}
+
+.card-body {
+    background-color: #1a472a;
+    color: #ffffff;
+    padding: 20px;
+}
+
+/* ==========================================================
+   Tab Navigation
+   ========================================================== */
+
+.nav-tabs {
+    border-bottom: 2px solid #5d9b84;
+}
+
+.nav-tabs .nav-link {
+    color: #ffffff;
+    background-color: #146b3a;
+    border: 1px solid #5d9b84;
+    border-bottom: none;
+    margin-right: 4px;
+    border-radius: 8px 8px 0 0;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.nav-tabs .nav-link:hover {
+    background-color: #1a5c36;
+    border-color: #5d9b84;
+    transform: translateY(-2px);
+}
+
+.nav-tabs .nav-link.active {
+    background-color: #1a472a;
+    color: #ffd700;
+    border-color: #d3212f;
+    border-bottom: 2px solid #1a472a;
+    font-weight: 600;
+}
+
+.nav-tabs .nav-link.active::after {
+    content: "\2744"; /* Snowflake */
+    position: absolute;
+    top: -8px;
+    right: -5px;
+    font-size: 12px;
+}
+
+.tab-content {
+    background-color: transparent;
+}
+
+.tab-pane {
+    padding-top: 15px;
+}
+
+/* ==========================================================
+   Table Styles
+   ========================================================== */
+
+.table {
+    color: #ffffff;
+    border-color: #5d9b84;
+}
+
+.table thead th {
+    background-color: #146b3a;
+    color: #ffffff;
+    border-bottom: 2px solid #d3212f;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+}
+
+.table tbody tr {
+    transition: background-color 0.3s ease;
+}
+
+.table tbody tr:hover {
+    background-color: rgba(211, 33, 47, 0.1);
+}
+
+.table td {
+    border-color: #5d9b84;
+    vertical-align: middle;
+}
+
+.table-pages th {
+    background-color: #146b3a !important;
+}
+
+/* ==========================================================
+   Form Styles
+   ========================================================== */
+
+.form-label {
+    color: #ffffff;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.form-control {
+    background-color: #146b3a;
+    border: 1px solid #5d9b84;
+    color: #ffffff;
+    transition: all 0.3s ease;
+}
+
+.form-control:focus {
+    background-color: #1a472a;
+    border-color: #d3212f;
+    box-shadow: 0 0 0 0.25rem rgba(211, 33, 47, 0.25);
+    color: #ffffff;
+}
+
+.form-control::placeholder {
+    color: #a0c4b0;
+}
+
+.form-select {
+    background-color: #146b3a;
+    border: 1px solid #5d9b84;
+    color: #ffffff;
+}
+
+.form-select:focus {
+    background-color: #1a472a;
+    border-color: #d3212f;
+    box-shadow: 0 0 0 0.25rem rgba(211, 33, 47, 0.25);
+    color: #ffffff;
+}
+
+.form-select option {
+    background-color: #1a472a;
+    color: #ffffff;
+}
+
+.form-check-input {
+    background-color: #146b3a;
+    border: 1px solid #5d9b84;
+}
+
+.form-check-input:checked {
+    background-color: #d3212f;
+    border-color: #d3212f;
+}
+
+.form-check-input:focus {
+    box-shadow: 0 0 0 0.25rem rgba(211, 33, 47, 0.25);
+}
+
+.form-check-label {
+    color: #ffffff;
+}
+
+.input-group-text {
+    background-color: #146b3a;
+    border: 1px solid #5d9b84;
+    color: #ffffff;
+}
+
+/* ==========================================================
+   Button Styles
+   ========================================================== */
+
+.btn {
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-primary {
+    background-color: #d3212f;
+    border-color: #d3212f;
+    color: #ffffff;
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+    background-color: #ff4d4d;
+    border-color: #ff4d4d;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(211, 33, 47, 0.4);
+}
+
+.btn-secondary {
+    background-color: #146b3a;
+    border-color: #146b3a;
+    color: #ffffff;
+}
+
+.btn-secondary:hover,
+.btn-secondary:focus {
+    background-color: #1a5c36;
+    border-color: #1a5c36;
+    transform: translateY(-2px);
+}
+
+.btn-success {
+    background-color: #1e8b4a;
+    border-color: #1e8b4a;
+    color: #ffffff;
+}
+
+.btn-success:hover,
+.btn-success:focus {
+    background-color: #28a85a;
+    border-color: #28a85a;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(30, 139, 74, 0.4);
+}
+
+.btn-warning {
+    background-color: #ffd700;
+    border-color: #ffd700;
+    color: #1a472a;
+}
+
+.btn-warning:hover,
+.btn-warning:focus {
+    background-color: #ffed4e;
+    border-color: #ffed4e;
+    color: #1a472a;
+    transform: translateY(-2px);
+}
+
+.btn-danger {
+    background-color: #d3212f;
+    border-color: #d3212f;
+    color: #ffffff;
+}
+
+.btn-danger:hover,
+.btn-danger:focus {
+    background-color: #ff4d4d;
+    border-color: #ff4d4d;
+    transform: translateY(-2px);
+}
+
+.btn-outline-primary {
+    color: #ffffff;
+    border-color: #d3212f;
+    background-color: transparent;
+}
+
+.btn-outline-primary:hover,
+.btn-outline-primary:focus {
+    color: #ffffff;
+    background-color: #d3212f;
+    border-color: #d3212f;
+}
+
+.btn-outline-secondary {
+    color: #ffffff;
+    border-color: #5d9b84;
+    background-color: transparent;
+}
+
+.btn-outline-secondary:hover,
+.btn-outline-secondary:focus {
+    color: #ffffff;
+    background-color: #146b3a;
+    border-color: #146b3a;
+}
+
+.btn-outline-success {
+    color: #1e8b4a;
+    border-color: #1e8b4a;
+    background-color: transparent;
+}
+
+.btn-outline-success:hover,
+.btn-outline-success:focus {
+    color: #ffffff;
+    background-color: #1e8b4a;
+    border-color: #1e8b4a;
+}
+
+.btn-outline-warning {
+    color: #ffd700;
+    border-color: #ffd700;
+    background-color: transparent;
+}
+
+.btn-outline-warning:hover,
+.btn-outline-warning:focus {
+    color: #1a472a;
+    background-color: #ffd700;
+    border-color: #ffd700;
+}
+
+.btn-outline-danger {
+    color: #ff4d4d;
+    border-color: #ff4d4d;
+    background-color: transparent;
+}
+
+.btn-outline-danger:hover,
+.btn-outline-danger:focus {
+    color: #ffffff;
+    background-color: #ff4d4d;
+    border-color: #ff4d4d;
+}
+
+.btn-outline-info {
+    color: #5d9b84;
+    border-color: #5d9b84;
+    background-color: transparent;
+}
+
+.btn-outline-info:hover,
+.btn-outline-info:focus {
+    color: #ffffff;
+    background-color: #5d9b84;
+    border-color: #5d9b84;
+}
+
+.btn-icon {
+    padding: 0.25rem 0.5rem;
+}
+
+.btn-lg {
+    position: relative;
+}
+
+.btn-lg::after {
+    content: "\1F381"; /* Gift emoji */
+    margin-left: 8px;
+}
+
+/* ==========================================================
+   Badge Styles
+   ========================================================== */
+
+.badge {
+    font-weight: 600;
+    padding: 0.4em 0.65em;
+    border-radius: 6px;
+}
+
+.badge.bg-primary {
+    background-color: #d3212f !important;
+}
+
+.badge.bg-secondary {
+    background-color: #5d9b84 !important;
+}
+
+.badge.bg-success {
+    background-color: #1e8b4a !important;
+}
+
+.badge.bg-warning {
+    background-color: #ffd700 !important;
+    color: #1a472a !important;
+}
+
+.badge.bg-danger {
+    background-color: #ff4d4d !important;
+}
+
+.badge.bg-info {
+    background-color: #5d9b84 !important;
+}
+
+.component-badge {
+    font-size: 0.75rem;
+}
+
+/* ==========================================================
+   Alert Styles
+   ========================================================== */
+
+.alert {
+    border-radius: 8px;
+    border-width: 2px;
+}
+
+.alert-warning {
+    background-color: rgba(255, 215, 0, 0.15);
+    border-color: #ffd700;
+    color: #ffd700;
+}
+
+.alert-info {
+    background-color: rgba(93, 155, 132, 0.15);
+    border-color: #5d9b84;
+    color: #ffffff;
+}
+
+.alert-success {
+    background-color: rgba(30, 139, 74, 0.15);
+    border-color: #1e8b4a;
+    color: #ffffff;
+}
+
+.alert-danger {
+    background-color: rgba(211, 33, 47, 0.15);
+    border-color: #d3212f;
+    color: #ff4d4d;
+}
+
+/* ==========================================================
+   Public URL Box
+   ========================================================== */
+
+.public-url-box {
+    background-color: #146b3a;
+    border: 2px solid #5d9b84;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-family: monospace;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #ffffff;
+}
+
+.public-url-box .url-text {
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #ffd700;
+}
+
+/* Active custom domain style */
+.public-url-box[style*="background-color: #d4edda"] {
+    background-color: rgba(30, 139, 74, 0.2) !important;
+    border-color: #1e8b4a !important;
+}
+
+/* ==========================================================
+   Custom Domain Details
+   ========================================================== */
+
+.custom-domain-details summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 10px 0;
+    transition: color 0.3s ease;
+}
+
+.custom-domain-details summary:hover {
+    color: #ffd700;
+}
+
+.custom-domain-details summary::-webkit-details-marker {
+    display: none;
+}
+
+.custom-domain-details[open] summary .fa-chevron-down {
+    transform: rotate(180deg);
+}
+
+.custom-domain-details summary .fa-chevron-down {
+    transition: transform 0.2s ease;
+}
+
+/* ==========================================================
+   List Group Styles
+   ========================================================== */
+
+.list-group {
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.list-group-item {
+    background-color: #146b3a;
+    border-color: #5d9b84;
+    color: #ffffff;
+    transition: all 0.3s ease;
+}
+
+.list-group-item:hover {
+    background-color: #1a5c36;
+}
+
+/* ==========================================================
+   Image Grid
+   ========================================================== */
+
+.image-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 1rem;
+}
+
+.image-card {
+    border: 2px solid #5d9b84;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #146b3a;
+    transition: all 0.3s ease;
+}
+
+.image-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 15px rgba(211, 33, 47, 0.3);
+    border-color: #d3212f;
+}
+
+.image-card img {
+    width: 100%;
+    height: 100px;
+    object-fit: cover;
+}
+
+.image-card .image-name {
+    padding: 0.5rem;
+    font-size: 0.75rem;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    color: #ffffff;
+    background-color: #1a472a;
+}
+
+/* ==========================================================
+   Modal Styles
+   ========================================================== */
+
+.modal-content {
+    background-color: #1a472a;
+    border: 2px solid #d3212f;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+    background: linear-gradient(135deg, #146b3a 0%, #1a5c36 100%);
+    border-bottom: 2px solid #d3212f;
+    border-radius: 10px 10px 0 0;
+    position: relative;
+}
+
+.modal-header::before {
+    content: "\1F384"; /* Christmas tree emoji */
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 24px;
+}
+
+.modal-title {
+    color: #ffffff;
+    padding-left: 30px;
+}
+
+.modal-body {
+    background-color: #1a472a;
+    color: #ffffff;
+    padding: 20px;
+}
+
+.modal-footer {
+    background-color: #146b3a;
+    border-top: 2px solid #5d9b84;
+    border-radius: 0 0 10px 10px;
+}
+
+.btn-close {
+    filter: invert(1);
+    opacity: 0.8;
+}
+
+.btn-close:hover {
+    opacity: 1;
+}
+
+/* ==========================================================
+   Dropdown Menu Styles
+   ========================================================== */
+
+.dropdown-menu {
+    background: linear-gradient(135deg, #1a472a 0%, #146b3a 100%);
+    border: 2px solid #d3212f;
+    border-radius: 10px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+    padding: 8px 0;
+}
+
+.dropdown-item {
+    color: #ffffff;
+    padding: 10px 20px;
+    transition: all 0.3s ease;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+    background: linear-gradient(135deg, #d3212f 0%, #bf0d1e 100%);
+    color: #ffffff;
+    transform: translateX(5px);
+}
+
+.dropdown-item i {
+    margin-right: 10px;
+    color: #ffd700;
+}
+
+.dropdown-item:hover i {
+    color: #ffffff;
+}
+
+.dropdown-divider {
+    border-top-color: #5d9b84;
+}
+
+/* ==========================================================
+   Border Utilities
+   ========================================================== */
+
+.border {
+    border-color: #5d9b84 !important;
+}
+
+.border-top {
+    border-top-color: #5d9b84 !important;
+}
+
+.border-bottom {
+    border-bottom-color: #5d9b84 !important;
+}
+
+.rounded {
+    border-radius: 8px !important;
+}
+
+/* ==========================================================
+   Background Utilities
+   ========================================================== */
+
+.bg-light {
+    background-color: #146b3a !important;
+}
+
+/* ==========================================================
+   Scrollbar Styles
+   ========================================================== */
+
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #0f0d0e;
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #d3212f;
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #ff4d4d;
+}
+
+/* ==========================================================
+   Christmas Animations and Decorations
+   ========================================================== */
+
+@keyframes snowfall {
+    0% {
+        transform: translateY(-100vh) rotate(0deg);
+    }
+    100% {
+        transform: translateY(100vh) rotate(360deg);
+    }
+}
+
+@keyframes twinkle {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* Container header decoration */
+.container > .d-flex:first-child h2::before {
+    content: "\1F381"; /* Gift emoji */
+    margin-right: 10px;
+}
+
+/* Button group radio styling for component types */
+.btn-group .btn-check:checked + .btn-outline-secondary {
+    background-color: #d3212f;
+    border-color: #d3212f;
+    color: #ffffff;
+}
+
+/* Page/Component action buttons hover effect */
+.btn-icon:hover {
+    transform: scale(1.1);
+}
+
+/* ==========================================================
+   Registration Tab Specific Styles
+   ========================================================== */
+
+#registration .form-control,
+#registration .form-select {
+    background-color: #146b3a;
+    border-color: #5d9b84;
+    color: #ffffff;
+}
+
+#registration .form-control:focus,
+#registration .form-select:focus {
+    border-color: #d3212f;
+    box-shadow: 0 0 0 0.25rem rgba(211, 33, 47, 0.25);
+}
+
+/* ==========================================================
+   Toast Notifications
+   ========================================================== */
+
+.toast {
+    background-color: #1a472a;
+    border: 2px solid #d3212f;
+    border-radius: 8px;
+}
+
+.toast-header {
+    background-color: #146b3a;
+    color: #ffffff;
+    border-bottom: 1px solid #5d9b84;
+}
+
+.toast-body {
+    color: #ffffff;
+}
+
+/* ==========================================================
+   Spinner/Loading States
+   ========================================================== */
+
+.spinner-border {
+    color: #d3212f;
+}
+
+.spinner-grow {
+    color: #d3212f;
+}
+
+/* ==========================================================
+   Responsive Adjustments
+   ========================================================== */
+
+@media (max-width: 768px) {
+    .card {
+        margin-bottom: 15px;
+    }
+
+    .card::before {
+        font-size: 18px;
+        top: -12px;
+        right: 10px;
+    }
+
+    .nav-tabs .nav-link {
+        padding: 8px 12px;
+        font-size: 0.9rem;
+    }
+
+    .public-url-box {
+        flex-wrap: wrap;
+    }
+
+    .public-url-box .url-text {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    .btn-lg {
+        font-size: 1rem;
+        padding: 10px 20px;
+    }
+
+    h2::before, h2::after {
+        display: none;
+    }
+}
+
+@media (max-width: 576px) {
+    .container {
+        padding: 10px;
+    }
+
+    .card-body {
+        padding: 15px;
+    }
+
+    .image-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 0.5rem;
+    }
+
+    .image-card img {
+        height: 80px;
+    }
+
+    .table {
+        font-size: 0.85rem;
+    }
+}
+
+/* ==========================================================
+   Accessibility - Reduced Motion
+   ========================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+    .card,
+    .btn,
+    .nav-tabs .nav-link,
+    .image-card,
+    .list-group-item,
+    .dropdown-item {
+        transition: none;
+    }
+
+    @keyframes navbarGlow {
+        0%, 50%, 100% {
+            box-shadow: 0 2px 10px rgba(211, 33, 47, 0.2);
+        }
+    }
+
+    @keyframes snowfall {
+        0%, 100% {
+            transform: none;
+        }
+    }
+
+    @keyframes twinkle {
+        0%, 50%, 100% {
+            opacity: 1;
+        }
+    }
+}
+
+/* ==========================================================
+   Focus States for Accessibility
+   ========================================================== */
+
+.btn:focus-visible,
+.form-control:focus-visible,
+.form-select:focus-visible,
+.nav-link:focus-visible {
+    outline: 2px solid #ffd700;
+    outline-offset: 2px;
+}
+
+/* ==========================================================
+   Print Styles
+   ========================================================== */
+
+@media print {
+    body {
+        background-color: #ffffff;
+        color: #000000;
+    }
+
+    .card {
+        border: 1px solid #333;
+        box-shadow: none;
+    }
+
+    .card::before {
+        display: none;
+    }
+
+    .navbar {
+        display: none;
+    }
+
+    .btn {
+        display: none;
+    }
+}

@@ -1,0 +1,449 @@
+{% extends 'base.html' %}
+
+{% block title %}My Usage - SPARK{% endblock %}
+
+{% block styles %}
+<style>
+    /* Stat cards */
+    .stat-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+        height: 100%;
+        border-left: 3px solid var(--accent);
+    }
+    .stat-card.primary { border-left-color: var(--accent); }
+    .stat-card.success { border-left-color: var(--success); }
+    .stat-card.info { border-left-color: var(--info); }
+    .stat-card.warning { border-left-color: var(--warning); }
+    .stat-card .amount {
+        font-size: 1.75rem;
+        font-weight: bold;
+        color: var(--text-primary);
+    }
+    .stat-card .label {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.25rem;
+    }
+    .stat-card .subtext {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin-top: 0.25rem;
+    }
+    /* Filters */
+    .filters-row {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        align-items: end;
+        margin-bottom: 20px;
+    }
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .filter-group label {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+    }
+    .filter-group select {
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-size: 0.9rem;
+    }
+    .filter-group select:focus {
+        outline: none;
+        border-color: var(--accent);
+    }
+    /* Type badges */
+    .type-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+    .type-badge.ai_tokens { background: rgba(88, 101, 242, 0.2); color: var(--accent); }
+    .type-badge.tts { background: rgba(67, 181, 129, 0.2); color: var(--success); }
+    .type-badge.stt { background: rgba(52, 152, 219, 0.2); color: var(--info); }
+    .type-badge.image { background: rgba(250, 166, 26, 0.2); color: var(--warning); }
+    .type-badge.video { background: rgba(231, 76, 60, 0.2); color: var(--danger); }
+    .type-badge.domain { background: rgba(155, 89, 182, 0.2); color: #9b59b6; }
+    /* Chart container */
+    .chart-container {
+        position: relative;
+        height: 220px;
+        width: 100%;
+    }
+    /* Usage breakdown list */
+    .usage-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .usage-item:last-child {
+        border-bottom: none;
+    }
+    .usage-item .details {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+    .usage-item .ops {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+    }
+    .usage-item .cost {
+        font-weight: bold;
+        font-size: 1.1rem;
+    }
+    /* Daily row */
+    .daily-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 12px;
+        background: var(--bg-tertiary);
+        border-radius: 8px;
+        margin-bottom: 8px;
+    }
+    .daily-item .date {
+        font-weight: 500;
+    }
+    .daily-item .stats {
+        display: flex;
+        gap: 20px;
+        font-size: 0.9rem;
+    }
+    .daily-item .stat-val {
+        color: var(--text-secondary);
+    }
+    .daily-item .stat-val strong {
+        color: var(--text-primary);
+    }
+    /* Balance card */
+    .balance-info {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        padding: 15px;
+        background: var(--bg-tertiary);
+        border-radius: 8px;
+        margin-top: 10px;
+    }
+    .balance-info .balance-amount {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: var(--success);
+    }
+    .balance-info .balance-label {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+    }
+</style>
+{% endblock %}
+
+{% block page_title %}My Usage{% endblock %}
+
+{% block back_url %}/{% endblock %}
+
+{% block page_subtitle %}
+<p class="text-muted mb-0">Track your consumption and spending</p>
+{% endblock %}
+
+{% block content %}
+<!-- Current Balance -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="stat-card success">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                <div>
+                    <div class="label"><i class="fas fa-wallet me-1"></i>Current Balance</div>
+                    <div class="amount" id="currentBalance">$0.00</div>
+                </div>
+                <a href="/payment" class="btn btn-success">
+                    <i class="fas fa-plus me-1"></i> Add Funds
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="filters-row">
+    <div class="filter-group">
+        <label>Time Period</label>
+        <select id="dateRange" onchange="loadUsageData()">
+            <option value="7">Last 7 days</option>
+            <option value="30" selected>Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="all">All time</option>
+        </select>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 col-6 mb-3">
+        <div class="stat-card primary">
+            <div class="label"><i class="fas fa-bolt me-1"></i>Total Operations</div>
+            <div class="amount" id="statOperations">-</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <div class="stat-card info">
+            <div class="label"><i class="fas fa-microchip me-1"></i>Tokens Used</div>
+            <div class="amount" id="statTokens">-</div>
+            <div class="subtext" id="statTokensBreakdown">-</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <div class="stat-card warning">
+            <div class="label"><i class="fas fa-receipt me-1"></i>Total Spent</div>
+            <div class="amount" id="statCost">-</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <div class="stat-card success">
+            <div class="label"><i class="fas fa-calendar-day me-1"></i>Avg. Daily</div>
+            <div class="amount" id="statAvgDaily">-</div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Usage by Type -->
+    <div class="col-lg-5 mb-4">
+        <div class="section-container h-100">
+            <div class="section-title"><i class="fas fa-chart-pie me-2"></i>Usage by Type</div>
+            <div id="usageByType">
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-spinner fa-spin me-2"></i>Loading...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Spending Trend Chart -->
+    <div class="col-lg-7 mb-4">
+        <div class="section-container h-100">
+            <div class="section-title"><i class="fas fa-chart-area me-2"></i>Spending Trend</div>
+            <div class="chart-container">
+                <canvas id="spendingChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Daily Breakdown -->
+<div class="section-container">
+    <div class="section-title"><i class="fas fa-calendar-alt me-2"></i>Recent Activity</div>
+    <div id="dailyBreakdown">
+        <div class="text-center text-muted py-4">
+            <i class="fas fa-spinner fa-spin me-2"></i>Loading...
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    let spendingChart = null;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadUsageData();
+    });
+
+    async function loadUsageData() {
+        const days = document.getElementById('dateRange').value;
+        const params = new URLSearchParams();
+        if (days !== 'all') params.append('days', days);
+
+        try {
+            const response = await fetch('/api/my-usage?' + params.toString());
+            if (!response.ok) throw new Error('Failed to load data');
+            const data = await response.json();
+
+            updateBalance(data.balance);
+            updateStats(data.stats);
+            updateUsageByType(data.by_type);
+            updateChart(data.daily);
+            updateDailyBreakdown(data.daily);
+
+        } catch (error) {
+            console.error('Error loading usage data:', error);
+            NotificationModal.error('Error', 'Failed to load usage data');
+        }
+    }
+
+    function updateBalance(balance) {
+        document.getElementById('currentBalance').textContent = '$' + (balance || 0).toFixed(2);
+    }
+
+    function updateStats(stats) {
+        document.getElementById('statOperations').textContent = formatNumber(stats.total_operations || 0);
+        document.getElementById('statTokens').textContent = formatNumber(stats.total_tokens || 0);
+        document.getElementById('statTokensBreakdown').textContent =
+            formatNumber(stats.tokens_in || 0) + ' in / ' + formatNumber(stats.tokens_out || 0) + ' out';
+        document.getElementById('statCost').textContent = '$' + (stats.total_cost || 0).toFixed(2);
+        document.getElementById('statAvgDaily').textContent = '$' + (stats.avg_daily || 0).toFixed(2);
+    }
+
+    function updateUsageByType(byType) {
+        const container = document.getElementById('usageByType');
+
+        if (!byType || byType.length === 0) {
+            container.innerHTML = '<div class="text-center text-muted py-4">No usage data yet</div>';
+            return;
+        }
+
+        const typeIcons = {
+            'ai_tokens': 'fa-robot',
+            'tts': 'fa-volume-up',
+            'stt': 'fa-microphone',
+            'image': 'fa-image',
+            'video': 'fa-video',
+            'domain': 'fa-globe'
+        };
+
+        const typeLabels = {
+            'ai_tokens': 'AI Conversations',
+            'tts': 'Text-to-Speech',
+            'stt': 'Speech-to-Text',
+            'image': 'Image Generation',
+            'video': 'Video Generation',
+            'domain': 'Custom Domains'
+        };
+
+        container.innerHTML = byType.map(t => `
+            <div class="usage-item">
+                <div class="details">
+                    <span class="type-badge ${t.type}">
+                        <i class="fas ${typeIcons[t.type] || 'fa-circle'}"></i>
+                        ${typeLabels[t.type] || t.type}
+                    </span>
+                    <span class="ops">${formatNumber(t.operations)} operations</span>
+                </div>
+                <div class="cost">$${t.total_cost.toFixed(2)}</div>
+            </div>
+        `).join('');
+    }
+
+    function updateChart(daily) {
+        const ctx = document.getElementById('spendingChart').getContext('2d');
+
+        if (spendingChart) {
+            spendingChart.destroy();
+        }
+
+        if (!daily || daily.length === 0) {
+            return;
+        }
+
+        // Sort by date ascending for chart
+        const sorted = [...daily].sort((a, b) => a.date.localeCompare(b.date));
+        const labels = sorted.map(d => formatDateShort(d.date));
+        const costData = sorted.map(d => d.total_cost);
+
+        spendingChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Daily Spending',
+                    data: costData,
+                    borderColor: 'rgb(250, 166, 26)',
+                    backgroundColor: 'rgba(250, 166, 26, 0.15)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 3,
+                    pointHoverRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => '$' + ctx.parsed.y.toFixed(2)
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#72767d',
+                            maxTicksLimit: 8
+                        },
+                        grid: { color: 'rgba(255,255,255,0.05)' }
+                    },
+                    y: {
+                        ticks: {
+                            color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#72767d',
+                            callback: v => '$' + v.toFixed(2)
+                        },
+                        grid: { color: 'rgba(255,255,255,0.05)' }
+                    }
+                }
+            }
+        });
+    }
+
+    function updateDailyBreakdown(daily) {
+        const container = document.getElementById('dailyBreakdown');
+
+        if (!daily || daily.length === 0) {
+            container.innerHTML = '<div class="text-center text-muted py-4">No activity yet</div>';
+            return;
+        }
+
+        // Sort by date descending and take last 14
+        const sorted = [...daily].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 14);
+
+        container.innerHTML = sorted.map(d => `
+            <div class="daily-item">
+                <div class="date">${formatDateLong(d.date)}</div>
+                <div class="stats">
+                    <span class="stat-val"><strong>${formatNumber(d.operations)}</strong> ops</span>
+                    <span class="stat-val"><strong>${formatNumber(d.tokens_in + d.tokens_out)}</strong> tokens</span>
+                    <span class="stat-val"><strong>$${d.total_cost.toFixed(2)}</strong></span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function formatNumber(num) {
+        if (num >= 1000000000) return (num / 1000000000).toFixed(1) + 'B';
+        if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+        if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+        return num.toString();
+    }
+
+    function formatDateShort(dateStr) {
+        const date = new Date(dateStr + 'T00:00:00');
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
+    function formatDateLong(dateStr) {
+        const date = new Date(dateStr + 'T00:00:00');
+        return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+</script>
+{% endblock %}

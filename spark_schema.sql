@@ -1,0 +1,512 @@
+CREATE TABLE USER_ROLES (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    role_name TEXT UNIQUE NOT NULL
+);
+
+CREATE TABLE SERVICES (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    unit TEXT NOT NULL,
+    cost_per_unit REAL NOT NULL DEFAULT 0.00,
+    type TEXT NOT NULL
+);
+
+CREATE TABLE VOICES (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    voice_code TEXT NOT NULL,
+    tts_service INTEGER NOT NULL,
+    FOREIGN KEY (tts_service) REFERENCES SERVICES(id)
+);
+
+CREATE TABLE LLM (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    machine TEXT NOT NULL,
+    model TEXT NOT NULL,
+    input_token_cost REAL,
+    output_token_cost REAL,
+    vision BOOLEAN DEFAULT FALSE
+);
+
+CREATE TABLE USERS (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password TEXT,
+    phone_number TEXT,
+    role_id INTEGER,
+    is_enabled BOOLEAN, user_info TEXT, profile_picture TEXT, email TEXT,
+    FOREIGN KEY (role_id) REFERENCES USER_ROLES(id)
+);
+
+CREATE TABLE PROMPTS (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    prompt TEXT,
+    voice_id INTEGER,
+    description TEXT,
+    image TEXT,
+    created_by_user_id INTEGER,
+    created_at TIMESTAMP,
+    public BOOLEAN DEFAULT (0),
+    public_id TEXT,
+    is_unlisted INTEGER DEFAULT 0,
+    is_paid BOOLEAN DEFAULT 0,
+    markup_per_mtokens DECIMAL DEFAULT 0.00,
+    allowed_llms TEXT DEFAULT NULL,
+    forced_llm_id INTEGER DEFAULT NULL,
+    hide_llm_name BOOLEAN DEFAULT 0,
+    landing_registration_config TEXT DEFAULT NULL,
+    FOREIGN KEY (voice_id) REFERENCES VOICES (id),
+    FOREIGN KEY (created_by_user_id) REFERENCES USERS (id)
+);
+
+CREATE UNIQUE INDEX idx_prompts_public_id ON PROMPTS(public_id);
+
+CREATE TABLE CONVERSATIONS (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    role_id INTEGER,
+    llm_id INTEGER,
+    locked BOOLEAN,
+    start_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, chat_name TEXT, stats TEXT, last_analyzed TIMESTAMP, folder_id INTEGER 
+                REFERENCES CHAT_FOLDERS(id),
+    FOREIGN KEY (user_id) REFERENCES USERS(id),
+    FOREIGN KEY (role_id) REFERENCES PROMPTS(id),
+    FOREIGN KEY (llm_id) REFERENCES LLM(id)
+);
+
+CREATE TABLE MESSAGES (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    message TEXT NOT NULL,
+    type TEXT CHECK(type IN ('user', 'bot')) NOT NULL,
+    date TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    input_tokens_used INTEGER DEFAULT 0,
+    output_tokens_used INTEGER DEFAULT 0, is_bookmarked INTEGER DEFAULT (0),
+    FOREIGN KEY (conversation_id) REFERENCES CONVERSATIONS(id),
+    FOREIGN KEY (user_id) REFERENCES USERS(id)
+);
+
+CREATE TABLE MAGIC_LINKS (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    token TEXT NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES USERS(id)
+);
+
+CREATE TABLE SERVICE_USAGE (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    service_id INTEGER NOT NULL,
+    usage_quantity REAL NOT NULL,
+    cost REAL NOT NULL, 
+    usage_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES USERS(id),
+    FOREIGN KEY (service_id) REFERENCES SERVICES(id)
+);
+
+CREATE TABLE DISCOUNTS (
+    code TEXT PRIMARY KEY,
+    discount_value REAL,
+    active BOOLEAN,
+    validity_date DATE, 
+    usage_count INTEGER, 
+    unlimited_usage BOOLEAN DEFAULT FALSE, 
+    unlimited_validity BOOLEAN DEFAULT FALSE,
+    created_by_user_id INTEGER,
+    FOREIGN KEY (created_by_user_id) REFERENCES USERS(id)
+);
+
+CREATE TABLE "PROMPT_PERMISSIONS" (
+
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    prompt_id INTEGER,
+
+    user_id INTEGER,
+
+    permission_level TEXT,
+
+    FOREIGN KEY (prompt_id) REFERENCES PROMPTS (id),
+
+    FOREIGN KEY (user_id) REFERENCES USERS(id)
+
+);
+
+CREATE TABLE PROMPT_SECTION_CONFIGS (
+
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    prompt_id INTEGER NOT NULL,
+
+    section VARCHAR(50) NOT NULL,
+
+    use_default BOOLEAN NOT NULL DEFAULT 0,
+
+    FOREIGN KEY (prompt_id) REFERENCES PROMPTS(id),
+
+    UNIQUE (prompt_id, section)
+
+);
+
+CREATE INDEX idx_prompt_section ON PROMPT_SECTION_CONFIGS (prompt_id, section);
+
+CREATE TABLE USER_ALTER_EGOS (
+
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    user_id INTEGER NOT NULL,
+
+    name TEXT NOT NULL,
+
+    description TEXT,
+
+    profile_picture TEXT,
+
+    FOREIGN KEY (user_id) REFERENCES USERS(id)
+
+);
+
+CREATE TABLE USER_DETAILS (
+    user_id INTEGER,
+    llm_id INTEGER,
+    input_tokens INTEGER DEFAULT (0),
+    output_tokens INTEGER DEFAULT (0),
+    tokens_spent INTEGER DEFAULT (0),
+    input_token_cost DECIMAL DEFAULT (0.00),
+    output_token_cost DECIMAL DEFAULT (0.00),
+    total_tts_cost DECIMAL DEFAULT (0.00),
+    total_stt_cost DECIMAL DEFAULT (0.00),
+    total_image_cost DECIMAL DEFAULT (0.00),
+    total_cost DECIMAL DEFAULT (0.00),
+    balance DECIMAL DEFAULT (0.00),
+    current_prompt_id INTEGER,
+    all_prompts_access BOOLEAN DEFAULT (FALSE),
+    allow_file_upload BOOLEAN DEFAULT (FALSE),
+    allow_image_generation BOOLEAN DEFAULT (FALSE),
+    external_platforms INTEGER,
+    created_by INTEGER,
+    voice_id INTEGER,
+    public_prompts_access BOOLEAN DEFAULT (FALSE),
+    voice_code TEXT,
+    current_alter_ego_id INTEGER,
+    authentication_mode VARCHAR(20) DEFAULT 'magic_link_only',
+    can_change_password BOOLEAN DEFAULT FALSE,
+    user_api_keys TEXT DEFAULT NULL,
+    api_key_mode VARCHAR(20) DEFAULT 'both_prefer_own',
+    category_access TEXT DEFAULT NULL,
+    reseller_markup_per_mtokens DECIMAL DEFAULT 0.00,
+    pending_earnings DECIMAL DEFAULT 0.00,
+    billing_account_id INTEGER DEFAULT NULL,
+    billing_limit DECIMAL DEFAULT NULL,
+    billing_limit_action TEXT DEFAULT 'block',
+    billing_current_month_spent DECIMAL DEFAULT 0.00,
+    billing_month_reset_date TEXT DEFAULT NULL,
+    billing_auto_refill_amount DECIMAL DEFAULT 10.00,
+    billing_max_limit DECIMAL DEFAULT NULL,
+    billing_auto_refill_count INTEGER DEFAULT 0,
+    CONSTRAINT USER_DETAILS_PK PRIMARY KEY (user_id),
+    CONSTRAINT FK_USER_DETAILS_LLM FOREIGN KEY (llm_id) REFERENCES LLM(id),
+    CONSTRAINT FK_USER_DETAILS_PROMPTS_2 FOREIGN KEY (current_prompt_id) REFERENCES PROMPTS(id),
+    CONSTRAINT FK_USER_DETAILS_USERS_3 FOREIGN KEY (user_id) REFERENCES USERS(id),
+    CONSTRAINT USER_DETAILS_USERS_FK FOREIGN KEY (created_by) REFERENCES USERS(id),
+    CONSTRAINT USER_DETAILS_VOICES_FK FOREIGN KEY (voice_id) REFERENCES VOICES(id),
+    CONSTRAINT USER_DETAILS_USER_ALTER_EGOS_FK FOREIGN KEY (current_alter_ego_id) REFERENCES USER_ALTER_EGOS(id)
+);
+
+CREATE INDEX idx_user_details_category_access ON USER_DETAILS(category_access);
+CREATE INDEX idx_user_details_created_by ON USER_DETAILS(created_by);
+CREATE INDEX idx_user_details_billing_account ON USER_DETAILS(billing_account_id);
+
+CREATE TABLE CHAT_FOLDERS (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                user_id INTEGER NOT NULL,
+                color TEXT DEFAULT '#3B82F6',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES USERS(id),
+                UNIQUE(name, user_id)
+            );
+
+CREATE INDEX idx_conversations_folder_id 
+            ON CONVERSATIONS(folder_id)
+        ;
+
+CREATE INDEX idx_chat_folders_user_id
+            ON CHAT_FOLDERS(user_id)
+        ;
+
+CREATE INDEX idx_users_email ON USERS(email);
+
+-- =============================================================================
+-- CATEGORIES (for prompt categorization)
+-- =============================================================================
+CREATE TABLE CATEGORIES (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    description TEXT,
+    icon TEXT DEFAULT 'fa-tag',
+    is_age_restricted INTEGER DEFAULT 0,
+    display_order INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_categories_display_order ON CATEGORIES(display_order);
+CREATE INDEX idx_categories_is_age_restricted ON CATEGORIES(is_age_restricted);
+
+-- =============================================================================
+-- PROMPT_CATEGORIES (many-to-many relationship)
+-- =============================================================================
+CREATE TABLE PROMPT_CATEGORIES (
+    prompt_id INTEGER NOT NULL,
+    category_id INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (prompt_id, category_id),
+    FOREIGN KEY (prompt_id) REFERENCES PROMPTS(id) ON DELETE CASCADE,
+    FOREIGN KEY (category_id) REFERENCES CATEGORIES(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_prompt_categories_prompt_id ON PROMPT_CATEGORIES(prompt_id);
+CREATE INDEX idx_prompt_categories_category_id ON PROMPT_CATEGORIES(category_id);
+
+-- =============================================================================
+-- PENDING_REGISTRATIONS (email verification flow)
+-- =============================================================================
+CREATE TABLE PENDING_REGISTRATIONS (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    username TEXT NOT NULL,
+    password_hash BLOB,
+    token TEXT UNIQUE NOT NULL,
+    target_role TEXT NOT NULL DEFAULT 'user',
+    prompt_id INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (prompt_id) REFERENCES PROMPTS(id)
+);
+
+CREATE UNIQUE INDEX idx_pending_token ON PENDING_REGISTRATIONS(token);
+CREATE INDEX idx_pending_email ON PENDING_REGISTRATIONS(email);
+CREATE INDEX idx_pending_expires ON PENDING_REGISTRATIONS(expires_at);
+
+-- =============================================================================
+-- LANDING_PAGE_ANALYTICS (visitor tracking for landing pages)
+-- =============================================================================
+CREATE TABLE LANDING_PAGE_ANALYTICS (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prompt_id INTEGER NOT NULL,
+    visitor_id TEXT,
+    page_path TEXT,
+    referrer TEXT,
+    user_agent TEXT,
+    ip_hash TEXT,
+    converted BOOLEAN DEFAULT 0,
+    converted_user_id INTEGER,
+    visit_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (prompt_id) REFERENCES PROMPTS(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_analytics_prompt ON LANDING_PAGE_ANALYTICS(prompt_id);
+CREATE INDEX idx_analytics_timestamp ON LANDING_PAGE_ANALYTICS(visit_timestamp);
+CREATE INDEX idx_analytics_visitor ON LANDING_PAGE_ANALYTICS(visitor_id);
+CREATE INDEX idx_analytics_converted ON LANDING_PAGE_ANALYTICS(converted);
+
+-- =============================================================================
+-- CREATOR_EARNINGS (paid prompts earnings tracking)
+-- =============================================================================
+CREATE TABLE CREATOR_EARNINGS (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    creator_id INTEGER NOT NULL,
+    prompt_id INTEGER NOT NULL,
+    consumer_id INTEGER NOT NULL,
+    reseller_id INTEGER,
+    tokens_consumed INTEGER NOT NULL,
+    gross_amount DECIMAL NOT NULL,
+    platform_commission DECIMAL NOT NULL,
+    net_earnings DECIMAL NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (creator_id) REFERENCES USERS(id),
+    FOREIGN KEY (prompt_id) REFERENCES PROMPTS(id),
+    FOREIGN KEY (consumer_id) REFERENCES USERS(id),
+    FOREIGN KEY (reseller_id) REFERENCES USERS(id)
+);
+
+CREATE INDEX idx_creator_earnings_creator ON CREATOR_EARNINGS(creator_id);
+CREATE INDEX idx_creator_earnings_prompt ON CREATOR_EARNINGS(prompt_id);
+CREATE INDEX idx_creator_earnings_consumer ON CREATOR_EARNINGS(consumer_id);
+CREATE INDEX idx_creator_earnings_created ON CREATOR_EARNINGS(created_at);
+
+-- =============================================================================
+-- TRANSACTIONS (balance changes history)
+-- =============================================================================
+CREATE TABLE TRANSACTIONS (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    amount DECIMAL NOT NULL,
+    balance_before DECIMAL NOT NULL,
+    balance_after DECIMAL NOT NULL,
+    description TEXT,
+    reference_id TEXT,
+    discount_code TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES USERS(id)
+);
+
+CREATE INDEX idx_transactions_user_id ON TRANSACTIONS(user_id);
+CREATE INDEX idx_transactions_created_at ON TRANSACTIONS(created_at);
+CREATE INDEX idx_transactions_type ON TRANSACTIONS(type);
+CREATE INDEX idx_transactions_reference_id ON TRANSACTIONS(reference_id);
+
+-- =============================================================================
+-- USAGE_DAILY (daily usage summaries per user)
+-- =============================================================================
+-- Aggregates consumption by day and type to avoid millions of individual records.
+-- Types: 'ai_tokens', 'tts', 'stt', 'image', 'video', 'domain'
+CREATE TABLE USAGE_DAILY (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    date DATE NOT NULL,
+    type TEXT NOT NULL,
+
+    -- Counters
+    operations INTEGER DEFAULT 0,
+    tokens_in INTEGER DEFAULT 0,
+    tokens_out INTEGER DEFAULT 0,
+    units REAL DEFAULT 0,
+
+    -- Cost
+    total_cost DECIMAL DEFAULT 0,
+
+    -- Timestamps
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (user_id) REFERENCES USERS(id),
+    UNIQUE(user_id, date, type)
+);
+
+CREATE INDEX idx_usage_daily_user_date ON USAGE_DAILY(user_id, date);
+CREATE INDEX idx_usage_daily_date ON USAGE_DAILY(date);
+CREATE INDEX idx_usage_daily_type ON USAGE_DAILY(type);
+
+-- =============================================================================
+-- SYSTEM_CONFIG (global system configuration)
+-- =============================================================================
+CREATE TABLE SYSTEM_CONFIG (
+    key TEXT PRIMARY KEY,
+    value TEXT,
+    description TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =============================================================================
+-- MANAGER_BRANDING (white-label customization)
+-- =============================================================================
+CREATE TABLE MANAGER_BRANDING (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    manager_id INTEGER NOT NULL UNIQUE,
+    company_name TEXT,
+    logo_url TEXT,
+    brand_color_primary TEXT DEFAULT '#6366f1',
+    brand_color_secondary TEXT DEFAULT '#10B981',
+    footer_text TEXT,
+    email_signature TEXT,
+    hide_spark_branding BOOLEAN DEFAULT 0,
+    forced_theme TEXT,
+    disable_theme_selector BOOLEAN DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (manager_id) REFERENCES USERS(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_manager_branding_manager ON MANAGER_BRANDING(manager_id);
+
+-- =============================================================================
+-- ELEVENLABS_AGENTS (voice call agents)
+-- =============================================================================
+CREATE TABLE ELEVENLABS_AGENTS (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_id TEXT NOT NULL UNIQUE,
+    agent_name TEXT,
+    is_default BOOLEAN NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX idx_elevenlabs_agents_default
+    ON ELEVENLABS_AGENTS (is_default)
+    WHERE is_default = 1;
+
+-- =============================================================================
+-- PROMPT_AGENT_MAPPING (prompt to voice agent mapping)
+-- =============================================================================
+CREATE TABLE PROMPT_AGENT_MAPPING (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prompt_id INTEGER NOT NULL,
+    agent_id TEXT NOT NULL,
+    voice_id TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (prompt_id) REFERENCES PROMPTS(id),
+    FOREIGN KEY (agent_id) REFERENCES ELEVENLABS_AGENTS(agent_id),
+    UNIQUE(prompt_id)
+);
+
+CREATE INDEX idx_prompt_agent_mapping_agent ON PROMPT_AGENT_MAPPING(agent_id);
+
+-- =============================================================================
+-- PROMPT_CUSTOM_DOMAINS (custom domain configuration)
+-- =============================================================================
+CREATE TABLE PROMPT_CUSTOM_DOMAINS (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prompt_id INTEGER NOT NULL UNIQUE,
+    custom_domain TEXT NOT NULL UNIQUE,
+    verification_status TEXT DEFAULT 'pending'
+        CHECK(verification_status IN ('pending', 'verified', 'failed', 'expired')),
+    verification_token TEXT,
+    last_verification_attempt TIMESTAMP,
+    last_verification_success TIMESTAMP,
+    verification_error TEXT,
+    is_active BOOLEAN DEFAULT FALSE,
+    activated_by_admin BOOLEAN DEFAULT FALSE,
+    activated_at TIMESTAMP,
+    activated_by_user_id INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (prompt_id) REFERENCES PROMPTS(id) ON DELETE CASCADE,
+    FOREIGN KEY (activated_by_user_id) REFERENCES USERS(id)
+);
+
+CREATE INDEX idx_custom_domain ON PROMPT_CUSTOM_DOMAINS(custom_domain);
+CREATE INDEX idx_prompt_custom_domain ON PROMPT_CUSTOM_DOMAINS(prompt_id);
+CREATE INDEX idx_domain_is_active ON PROMPT_CUSTOM_DOMAINS(is_active);
+
+
+-- =============================================================================
+-- ADMIN_AUDIT_LOG (tracks admin access to user data for transparency/compliance)
+-- =============================================================================
+-- This table logs when administrators access user conversations or other
+-- sensitive data. Required for support, moderation, and legal compliance.
+-- All admin actions on user data should be logged here.
+-- =============================================================================
+CREATE TABLE ADMIN_AUDIT_LOG (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    admin_id INTEGER NOT NULL,
+    action_type TEXT NOT NULL,
+    target_user_id INTEGER,
+    target_resource_type TEXT,
+    target_resource_id INTEGER,
+    details TEXT,
+    ip_address TEXT,
+    user_agent TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (admin_id) REFERENCES USERS(id),
+    FOREIGN KEY (target_user_id) REFERENCES USERS(id)
+);
+
+CREATE INDEX idx_admin_audit_admin_id ON ADMIN_AUDIT_LOG(admin_id);
+CREATE INDEX idx_admin_audit_target_user ON ADMIN_AUDIT_LOG(target_user_id);
+CREATE INDEX idx_admin_audit_created_at ON ADMIN_AUDIT_LOG(created_at);
+CREATE INDEX idx_admin_audit_action_type ON ADMIN_AUDIT_LOG(action_type);

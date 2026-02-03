@@ -1,0 +1,843 @@
+/* ==========================================================
+   admin-default.css
+   SPARK Design System - Default Theme (Dark/Discord-like)
+
+   Color palette:
+   - Background primary: #36393f
+   - Background secondary: #2f3136
+   - Background tertiary: #202225
+   - Text primary: #ffffff
+   - Text secondary: #b9bbbe
+   - Text muted: #72767d
+   - Accent color: #7289da (blue)
+   - Accent hover: #5b6eae
+   - Border color: #40444b
+   ========================================================== */
+
+/* ==========================================================
+   CSS Variables
+   ========================================================== */
+:root {
+    --admin-bg-primary: #36393f;
+    --admin-bg-secondary: #2f3136;
+    --admin-bg-tertiary: #202225;
+    --admin-text-primary: #ffffff;
+    --admin-text-secondary: #b9bbbe;
+    --admin-text-muted: #72767d;
+    --admin-accent: #7289da;
+    --admin-accent-light: #8ea1e1;
+    --admin-accent-hover: #5b6eae;
+    --admin-border-color: #40444b;
+    --admin-shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --admin-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* ==========================================================
+   Base Styles
+   ========================================================== */
+body {
+    background-color: var(--admin-bg-primary);
+    color: var(--admin-text-primary);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    margin: 0;
+}
+
+h1, h2, h3, h4, h5 {
+    color: var(--admin-text-primary);
+    font-weight: 600;
+}
+
+/* ==========================================================
+   Navbar
+   ========================================================== */
+.navbar {
+    background-color: #202225 !important;
+    border-bottom: 1px solid #40444b;
+}
+
+.navbar-brand,
+.nav-link {
+    color: #ffffff !important;
+    transition: color 0.2s ease-in-out;
+}
+
+.navbar-brand:hover,
+.nav-link:hover {
+    color: var(--admin-accent) !important;
+}
+
+.navbar-toggler {
+    border-color: #40444b;
+    background-color: #2f3136;
+}
+
+.navbar-toggler-icon {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(255, 255, 255, 0.75)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
+}
+
+.navbar-toggler:focus {
+    box-shadow: 0 0 0 0.25rem rgba(114, 137, 218, 0.25);
+}
+
+.navbar .btn-outline-danger {
+    color: #ed4245;
+    border-color: #ed4245;
+    background-color: transparent;
+    transition: all 0.2s ease-in-out;
+}
+
+.navbar .btn-outline-danger:hover {
+    color: #ffffff;
+    background-color: #ed4245;
+    border-color: #ed4245;
+}
+
+@media (max-width: 991.98px) {
+    .navbar-collapse {
+        background-color: #202225;
+        padding: 1rem;
+        border-radius: 0 0 8px 8px;
+        border: 1px solid #40444b;
+        border-top: none;
+    }
+}
+
+/* ==========================================================
+   Main Container
+   ========================================================== */
+.main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 30px 20px;
+}
+
+/* ==========================================================
+   Page Header
+   ========================================================== */
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid var(--admin-accent);
+}
+
+.page-header-text {
+    flex: 1;
+}
+
+/* ==========================================================
+   Page Toolbar (Tabs + Actions)
+   ========================================================== */
+.page-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    gap: 16px;
+}
+
+.page-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.page-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+/* Remove margin from internal-tabs when inside toolbar */
+.page-toolbar .internal-tabs {
+    margin-bottom: 0;
+}
+
+/* Hide toolbar when both sides are empty */
+.page-toolbar:has(.page-toolbar-left:empty):has(.page-toolbar-right:empty) {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .page-toolbar {
+        flex-wrap: wrap;
+    }
+}
+
+/* Back Button */
+.btn-back {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--admin-bg-secondary);
+    border: 1px solid var(--admin-border-color);
+    color: var(--admin-text-primary);
+    text-decoration: none;
+    transition: all 0.2s;
+    box-shadow: var(--admin-shadow-soft);
+}
+
+.btn-back:hover {
+    background: var(--admin-accent);
+    border-color: var(--admin-accent);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: var(--admin-shadow-hover);
+}
+
+/* Page Title */
+.page-title {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--admin-text-primary);
+}
+
+.page-subtitle {
+    margin: 4px 0 0 0;
+    color: var(--admin-text-muted);
+    font-size: 0.9rem;
+}
+
+/* ==========================================================
+   Primary Action Button
+   ========================================================== */
+.btn-primary-action {
+    background: linear-gradient(135deg, var(--admin-accent) 0%, var(--admin-accent-light) 100%);
+    border: none;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(114, 137, 218, 0.3);
+    transition: all 0.2s;
+}
+
+.btn-primary-action:hover {
+    background: linear-gradient(135deg, var(--admin-accent-hover) 0%, var(--admin-accent) 100%);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(114, 137, 218, 0.4);
+}
+
+/* Alias for backward compatibility with mockup */
+.btn-primary-gold {
+    background: linear-gradient(135deg, var(--admin-accent) 0%, var(--admin-accent-light) 100%);
+    border: none;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(114, 137, 218, 0.3);
+    transition: all 0.2s;
+}
+
+.btn-primary-gold:hover {
+    background: linear-gradient(135deg, var(--admin-accent-hover) 0%, var(--admin-accent) 100%);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(114, 137, 218, 0.4);
+}
+
+/* ==========================================================
+   Section Container (Card-like)
+   ========================================================== */
+.section-container {
+    background: var(--admin-bg-secondary);
+    border-radius: 8px;
+    padding: 25px;
+    margin-bottom: 25px;
+    box-shadow: var(--admin-shadow-soft);
+    transition: all 0.2s ease;
+    border: 1px solid var(--admin-border-color);
+}
+
+.section-container:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--admin-shadow-hover);
+}
+
+/* Section Title */
+.section-title {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--admin-text-primary);
+    border-bottom: 2px solid var(--admin-border-color);
+    padding-bottom: 14px;
+    margin-bottom: 22px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.section-title i {
+    color: var(--admin-accent);
+}
+
+/* ==========================================================
+   Internal Tabs (Navigation within page)
+   ========================================================== */
+.internal-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 25px;
+}
+
+.internal-tab {
+    padding: 10px 20px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--admin-text-secondary);
+    background: var(--admin-bg-secondary);
+    border: 1px solid var(--admin-border-color);
+    transition: all 0.2s;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.internal-tab:hover {
+    background: var(--admin-bg-tertiary);
+    color: var(--admin-text-primary);
+    transform: translateY(-1px);
+}
+
+.internal-tab.active {
+    background: linear-gradient(135deg, var(--admin-accent) 0%, var(--admin-accent-light) 100%);
+    color: white;
+    border-color: var(--admin-accent);
+    box-shadow: 0 4px 12px rgba(114, 137, 218, 0.3);
+}
+
+/* ==========================================================
+   Stats Badges (Summary statistics)
+   ========================================================== */
+.stats-row {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+}
+
+.stat-badge {
+    background: var(--admin-bg-secondary);
+    border: 1px solid var(--admin-border-color);
+    padding: 10px 18px;
+    border-radius: 25px;
+    font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.stat-badge i {
+    color: var(--admin-accent);
+    font-size: 1rem;
+}
+
+.stat-badge strong {
+    color: var(--admin-accent);
+}
+
+/* ==========================================================
+   Form Elements (inside section-container)
+   ========================================================== */
+.form-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--admin-text-primary);
+    margin-bottom: 8px;
+}
+
+.form-control,
+.form-select {
+    border: 1px solid var(--admin-border-color);
+    border-radius: 8px;
+    padding: 10px 14px;
+    background: var(--admin-bg-tertiary);
+    color: var(--admin-text-primary);
+    transition: all 0.2s;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--admin-accent);
+    box-shadow: 0 0 0 4px rgba(114, 137, 218, 0.2);
+    background: var(--admin-bg-secondary);
+    color: var(--admin-text-primary);
+}
+
+.form-control::placeholder {
+    color: var(--admin-text-muted);
+}
+
+.form-select option {
+    background-color: var(--admin-bg-secondary);
+    color: var(--admin-text-primary);
+}
+
+textarea.form-control {
+    resize: vertical;
+    min-height: 80px;
+}
+
+/* ==========================================================
+   Flex Layout (Responsive columns)
+   ========================================================== */
+.flex-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.flex-column {
+    flex: 1;
+    min-width: 250px;
+}
+
+/* ==========================================================
+   Table Wrapper and Styles
+   ========================================================== */
+.table-wrapper {
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--admin-border-color);
+}
+
+.table,
+.table-wrapper .table {
+    margin: 0;
+    background-color: #2f3136 !important;
+    color: #ffffff !important;
+    --bs-table-bg: #2f3136;
+    --bs-table-color: #ffffff;
+    --bs-table-border-color: #40444b;
+    --bs-table-striped-bg: #363a40;
+    --bs-table-hover-bg: #40444b;
+}
+
+.table th,
+.table td,
+.table-wrapper .table th,
+.table-wrapper .table td {
+    border-color: #40444b !important;
+    padding: 12px 16px;
+    vertical-align: middle;
+    background-color: inherit;
+}
+
+.table thead th,
+.table-wrapper .table thead th {
+    background-color: #202225 !important;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #b9bbbe !important;
+}
+
+.table tbody td,
+.table-wrapper .table tbody td {
+    color: #ffffff !important;
+}
+
+.table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.table-hover tbody tr:hover,
+.table tbody tr:hover {
+    background-color: #40444b !important;
+}
+
+/* ==========================================================
+   Table Actions (Buttons in table rows)
+   ========================================================== */
+.table-actions {
+    white-space: nowrap;
+}
+
+.table-actions .btn {
+    padding: 7px 11px;
+    margin-left: 6px;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.table-actions .btn:first-child {
+    margin-left: 0;
+}
+
+.table-actions .btn:hover {
+    transform: translateY(-2px);
+}
+
+.table-actions .btn-outline-primary {
+    border-color: var(--admin-accent);
+    color: var(--admin-accent);
+}
+
+.table-actions .btn-outline-primary:hover {
+    background: var(--admin-accent);
+    border-color: var(--admin-accent);
+    color: white;
+}
+
+/* ==========================================================
+   Provider Badges (For LLM management)
+   ========================================================== */
+.provider-badge {
+    font-size: 0.75rem;
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+.provider-GPT {
+    background: linear-gradient(135deg, #10a37f 0%, #0d8a6a 100%);
+    color: white;
+}
+
+.provider-Claude {
+    background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+    color: white;
+}
+
+.provider-Gemini {
+    background: linear-gradient(135deg, #4285f4 0%, #2b6de8 100%);
+    color: white;
+}
+
+.provider-xAI {
+    background: linear-gradient(135deg, #1d1d1f 0%, #3a3a3c 100%);
+    color: white;
+}
+
+/* ==========================================================
+   Vision Badge
+   ========================================================== */
+.vision-badge {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    color: white;
+    font-size: 0.7rem;
+    padding: 4px 10px;
+    border-radius: 5px;
+    font-weight: 500;
+}
+
+/* ==========================================================
+   Category Icon
+   ========================================================== */
+.category-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(114, 137, 218, 0.2) 0%, rgba(142, 161, 225, 0.15) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--admin-accent);
+}
+
+/* ==========================================================
+   Empty State (No data placeholder)
+   ========================================================== */
+.empty-state {
+    text-align: center;
+    padding: 50px 20px;
+    color: var(--admin-text-muted);
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 15px;
+    color: var(--admin-border-color);
+}
+
+.empty-state p {
+    margin: 10px 0 0;
+    font-size: 0.95rem;
+}
+
+/* ==========================================================
+   Demo Divider (For documentation/examples)
+   ========================================================== */
+.demo-divider {
+    background: linear-gradient(135deg, var(--admin-bg-tertiary) 0%, #2a3040 100%);
+    color: white;
+    padding: 16px 24px;
+    border-radius: 10px;
+    margin: 50px 0 30px 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.demo-divider h4 {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--admin-accent);
+}
+
+.demo-divider p {
+    margin: 0;
+    opacity: 0.8;
+    font-size: 0.85rem;
+}
+
+/* ==========================================================
+   Button Variants
+   ========================================================== */
+.btn-outline-secondary {
+    color: var(--admin-text-secondary);
+    border-color: var(--admin-border-color);
+    background: transparent;
+}
+
+.btn-outline-secondary:hover {
+    background: var(--admin-bg-tertiary);
+    color: var(--admin-text-primary);
+    border-color: var(--admin-border-color);
+}
+
+.btn-outline-danger {
+    color: #ed4245;
+    border-color: #ed4245;
+    background: transparent;
+}
+
+.btn-outline-danger:hover {
+    background: #ed4245;
+    border-color: #ed4245;
+    color: white;
+}
+
+/* ==========================================================
+   Form Check (Checkboxes/Radio)
+   ========================================================== */
+.form-check-input {
+    background-color: var(--admin-bg-tertiary);
+    border: 1px solid var(--admin-border-color);
+}
+
+.form-check-input:checked {
+    background-color: var(--admin-accent);
+    border-color: var(--admin-accent);
+}
+
+.form-check-input:focus {
+    box-shadow: 0 0 0 0.25rem rgba(114, 137, 218, 0.25);
+    border-color: var(--admin-accent);
+}
+
+.form-check-label {
+    color: var(--admin-text-primary);
+}
+
+/* ==========================================================
+   Badge Styles
+   ========================================================== */
+.badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.35em 0.65em;
+    border-radius: 10px;
+}
+
+.badge.bg-secondary {
+    background-color: var(--admin-bg-tertiary) !important;
+    color: var(--admin-text-secondary);
+}
+
+.badge.bg-danger {
+    background-color: #ed4245 !important;
+}
+
+.badge.bg-success {
+    background-color: #43b581 !important;
+}
+
+.badge.bg-warning {
+    background-color: #faa61a !important;
+    color: #000;
+}
+
+.badge.bg-info {
+    background-color: #00b0f4 !important;
+}
+
+/* ==========================================================
+   Text Utilities
+   ========================================================== */
+.text-muted {
+    color: var(--admin-text-muted) !important;
+}
+
+.text-primary {
+    color: var(--admin-accent) !important;
+}
+
+/* ==========================================================
+   Alert Styles
+   ========================================================== */
+.alert {
+    border-radius: 8px;
+    padding: 14px 18px;
+    border: 1px solid;
+}
+
+.alert-info {
+    background-color: rgba(0, 176, 244, 0.1);
+    border-color: #00b0f4;
+    color: #00b0f4;
+}
+
+.alert-warning {
+    background-color: rgba(250, 166, 26, 0.1);
+    border-color: #faa61a;
+    color: #faa61a;
+}
+
+.alert-danger {
+    background-color: rgba(237, 66, 69, 0.1);
+    border-color: #ed4245;
+    color: #ed4245;
+}
+
+.alert-success {
+    background-color: rgba(67, 181, 129, 0.1);
+    border-color: #43b581;
+    color: #43b581;
+}
+
+/* ==========================================================
+   Scrollbar Styling
+   ========================================================== */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--admin-bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--admin-bg-tertiary);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--admin-border-color);
+}
+
+/* ==========================================================
+   Responsive Styles
+   ========================================================== */
+@media (max-width: 768px) {
+    .main-container {
+        padding: 15px 10px;
+    }
+
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .page-header-right {
+        width: 100%;
+    }
+
+    .page-header-right .btn-primary-action,
+    .page-header-right .btn-primary-gold {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .page-title {
+        font-size: 1.4rem;
+    }
+
+    .flex-column {
+        min-width: 100%;
+    }
+
+    .flex-row {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .internal-tabs {
+        flex-wrap: wrap;
+    }
+
+    .internal-tab {
+        flex: 1;
+        min-width: calc(50% - 5px);
+        text-align: center;
+        justify-content: center;
+    }
+
+    .section-container {
+        padding: 18px;
+    }
+
+    .stats-row {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .stat-badge {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .table-wrapper {
+        overflow-x: auto;
+    }
+
+    .table {
+        min-width: 600px;
+    }
+
+    .btn-back {
+        width: 38px;
+        height: 38px;
+    }
+}
+
+@media (max-width: 480px) {
+    .page-title {
+        font-size: 1.2rem;
+    }
+
+    .section-title {
+        font-size: 1rem;
+    }
+
+    .internal-tab {
+        padding: 8px 14px;
+        font-size: 0.85rem;
+    }
+
+    .btn-primary-action,
+    .btn-primary-gold {
+        padding: 10px 18px;
+        font-size: 0.9rem;
+    }
+}

@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+
+{% block title %}Magic Link Recovery{% endblock %}
+
+{% block styles %}
+{# Theme CSS loaded by theme-loader.js #}
+<style>
+    /* Override base.html main-container for auth pages */
+    .main-container {
+        padding: 0;
+        max-width: none;
+    }
+</style>
+{% endblock %}
+
+{# Auth pages don't need navbar or header #}
+{% block header %}{% endblock %}
+{% block toolbar %}{% endblock %}
+{% block alerts %}{% endblock %}
+
+{% block content %}
+<div class="container d-flex align-items-center justify-content-center" style="min-height: 100vh;">
+    <div class="card shadow" style="width: 26rem;">
+        <div class="card-body">
+            <h2 class="card-title text-center mb-4">Magic Link Recovery</h2>
+            <div class="alert alert-info" role="alert">
+                <strong>Your magic link has expired.</strong><br>
+                Please enter your email address to receive a new magic link.
+            </div>
+
+            {% if message %}
+            <div class="alert alert-{{ message_type or 'info' }}" role="alert">
+                {{ message }}
+            </div>
+            {% endif %}
+
+            <form id="recoveryForm" action="/magic-link-recovery" method="POST">
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email Address:</label>
+                    <input type="email" class="form-control" id="email" name="email" required
+                           placeholder="Enter your registered email address">
+                </div>
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary" id="submitBtn">
+                        Send New Magic Link
+                    </button>
+                </div>
+            </form>
+
+            <div class="text-center mt-3">
+                <small class="text-muted">
+                    Remember your password? <a href="/login" class="text-decoration-none">Login here</a>
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    // Form submission handling
+    document.getElementById('recoveryForm').addEventListener('submit', function(e) {
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Sending...';
+
+        // Re-enable button after 3 seconds to prevent double submissions
+        setTimeout(() => {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Send New Magic Link';
+        }, 3000);
+    });
+</script>
+{% endblock %}

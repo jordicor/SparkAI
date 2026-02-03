@@ -1,0 +1,428 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if prompt %}Register - {{ prompt.name }}{% else %}Create Account - SparkAI{% endif %}{% endblock %}
+
+{% block styles %}
+{# Theme CSS loaded by theme-loader.js #}
+<style>
+    /* Override base.html main-container for auth pages */
+    .main-container {
+        padding: 0;
+        max-width: none;
+    }
+    /* Fallback styles if CSS file not loaded */
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+    }
+    .register-wrapper {
+        max-width: 420px;
+        width: 100%;
+        padding: 20px;
+    }
+    .card {
+        border: none;
+        border-radius: 16px;
+    }
+    .prompt-avatar {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 3px solid white;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .prompt-name, .sparkai-title {
+        color: white;
+        font-weight: 600;
+    }
+    .prompt-description {
+        color: rgba(255,255,255,0.85);
+        font-size: 0.9rem;
+    }
+    .sparkai-logo {
+        display: inline-block;
+    }
+    .btn-primary {
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        border: none;
+        padding: 12px 24px;
+        font-weight: 600;
+    }
+    .btn-primary:hover {
+        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    }
+    .form-control:focus {
+        border-color: #6366f1;
+        box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.25);
+    }
+    /* Password toggle */
+    .password-wrapper {
+        position: relative;
+    }
+    .password-wrapper input {
+        padding-right: 45px;
+    }
+    .password-toggle {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: #6b7280;
+        padding: 5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .password-toggle:hover {
+        color: #4b5563;
+    }
+    /* Divider with text */
+    .divider-with-text {
+        display: flex;
+        align-items: center;
+        text-align: center;
+        color: #9ca3af;
+        font-size: 0.875rem;
+    }
+    .divider-with-text::before,
+    .divider-with-text::after {
+        content: '';
+        flex: 1;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    .divider-with-text span {
+        padding: 0 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block head_extra %}
+<!-- CAPTCHA Scripts -->
+{% if captcha and captcha.enabled %}
+    {% if captcha.provider == 'turnstile' %}
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    {% elif captcha.provider == 'recaptcha' %}
+    <script src="https://www.google.com/recaptcha/api.js?render={{ captcha.site_key }}"></script>
+    {% endif %}
+{% endif %}
+{% endblock %}
+
+{# Auth pages don't need navbar or header #}
+{% block header %}{% endblock %}
+{% block toolbar %}{% endblock %}
+{% block alerts %}{% endblock %}
+
+{% block content %}
+<div class="container d-flex align-items-center justify-content-center" style="min-height: 100vh;">
+    <div class="register-wrapper">
+        <!-- Dynamic Header -->
+        {% if prompt %}
+        <!-- User registration from prompt landing -->
+        <div class="prompt-header text-center mb-4">
+            {% if prompt.image %}
+            <img src="/static/img/prompts/{{ prompt.image }}" alt="{{ prompt.name }}" class="prompt-avatar mb-3">
+            {% endif %}
+            <h2 class="prompt-name">{{ prompt.name }}</h2>
+            {% if prompt.description %}
+            <p class="prompt-description">{{ prompt.description[:150] }}{% if prompt.description|length > 150 %}...{% endif %}</p>
+            {% endif %}
+        </div>
+        {% else %}
+        <!-- Manager registration from SparkAI main -->
+        <div class="sparkai-header text-center mb-4">
+            <div class="sparkai-logo mb-3">
+                <svg width="56" height="56" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="24" cy="24" r="24" fill="white"/>
+                    <path d="M24 12L28 20L36 22L30 28L31 36L24 32L17 36L18 28L12 22L20 20L24 12Z" fill="#6366f1"/>
+                </svg>
+            </div>
+            <h2 class="sparkai-title">Create Your Account</h2>
+            <p class="text-white-50">Start creating AI-powered experiences</p>
+        </div>
+        {% endif %}
+
+        <div class="card shadow-lg">
+            <div class="card-body p-4">
+                <form id="registerForm">
+                    {% if prompt %}
+                    <input type="hidden" name="prompt_id" value="{{ prompt.id }}">
+                    <input type="hidden" name="prompt_public_id" value="{{ prompt.public_id }}">
+                    {% endif %}
+
+                    <div id="formFields">
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control form-control-lg" id="email" name="email" required
+                                   placeholder="you@example.com" autocomplete="email">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="username" class="form-label">Username <span class="text-muted fw-normal">(optional)</span></label>
+                            <input type="text" class="form-control form-control-lg" id="username" name="username"
+                                   placeholder="{% if prompt %}Your name or nickname{% else %}Your brand or nickname{% endif %}"
+                                   minlength="3" maxlength="20" pattern="[a-zA-Z0-9_-]+"
+                                   autocomplete="username">
+                            <div class="form-text">{% if prompt %}This name will appear in your chats{% else %}This will be your account name{% endif %}</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password</label>
+                            <div class="password-wrapper">
+                                <input type="password" class="form-control form-control-lg" id="password" name="password" required
+                                       minlength="8" placeholder="At least 8 characters" autocomplete="new-password">
+                                <button type="button" class="password-toggle" onclick="togglePassword('password', this)" aria-label="Show password">
+                                    <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                        <circle cx="12" cy="12" r="3"></circle>
+                                    </svg>
+                                    <svg class="eye-off-icon d-none" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="form-text">Minimum 8 characters</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password_confirm" class="form-label">Confirm Password</label>
+                            <div class="password-wrapper">
+                                <input type="password" class="form-control form-control-lg" id="password_confirm" name="password_confirm" required
+                                       minlength="8" placeholder="Confirm your password" autocomplete="new-password">
+                                <button type="button" class="password-toggle" onclick="togglePassword('password_confirm', this)" aria-label="Show password">
+                                    <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                        <circle cx="12" cy="12" r="3"></circle>
+                                    </svg>
+                                    <svg class="eye-off-icon d-none" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="errorMessage" class="alert alert-danger d-none" role="alert"></div>
+                    <div id="successMessage" class="alert alert-success d-none" role="alert"></div>
+
+                    <!-- CAPTCHA Widget -->
+                    {% if captcha and captcha.enabled and captcha.provider == 'turnstile' %}
+                    <div class="cf-turnstile mb-3" data-sitekey="{{ captcha.site_key }}" data-callback="onCaptchaSuccess" data-theme="light"></div>
+                    {% endif %}
+
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn" {% if captcha and captcha.enabled and captcha.provider == 'turnstile' %}disabled{% endif %}>
+                            {% if prompt %}
+                            Register & Get Access
+                            {% else %}
+                            Create Account
+                            {% endif %}
+                        </button>
+                    </div>
+                </form>
+
+                <div id="googleSignIn" class="mt-4">
+                    <div class="divider-with-text">
+                        <span>or</span>
+                    </div>
+
+                    <div class="d-grid gap-2 mt-3">
+                        <a href="/auth/google{% if prompt %}?prompt_id={{ prompt.id }}{% endif %}"
+                           class="btn btn-outline-secondary btn-lg d-flex align-items-center justify-content-center">
+                            <img src="/static/img/providers/google.svg" width="20" height="20" class="me-2" alt="">
+                            Sign in with Google
+                        </a>
+                    </div>
+                </div>
+
+                <div id="loginLink">
+                    <hr class="my-4">
+
+                    <p class="text-center text-muted mb-0">
+                        Already have an account? <a href="{{ login_url|default('/login') }}" class="text-decoration-none">Log in</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        {% if not prompt %}
+        <p class="text-center text-white-50 mt-3 small">
+            By creating an account, you agree to our Terms of Service and Privacy Policy.
+        </p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    // CAPTCHA configuration
+    const captchaConfig = {
+        provider: '{{ captcha.provider if captcha else "none" }}',
+        siteKey: '{{ captcha.site_key if captcha else "" }}',
+        enabled: {{ 'true' if captcha and captcha.enabled else 'false' }}
+    };
+
+    // Track CAPTCHA completion for Turnstile
+    let captchaToken = '';
+    function onCaptchaSuccess(token) {
+        captchaToken = token;
+        // Enable submit button when CAPTCHA is completed
+        const submitBtn = document.getElementById('submitBtn');
+        if (submitBtn) submitBtn.disabled = false;
+    }
+
+    function togglePassword(inputId, button) {
+        const input = document.getElementById(inputId);
+        const eyeIcon = button.querySelector('.eye-icon');
+        const eyeOffIcon = button.querySelector('.eye-off-icon');
+
+        if (input.type === 'password') {
+            input.type = 'text';
+            eyeIcon.classList.add('d-none');
+            eyeOffIcon.classList.remove('d-none');
+        } else {
+            input.type = 'password';
+            eyeIcon.classList.remove('d-none');
+            eyeOffIcon.classList.add('d-none');
+        }
+    }
+
+    document.getElementById('registerForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const form = e.target;
+        const submitBtn = document.getElementById('submitBtn');
+        const errorMsg = document.getElementById('errorMessage');
+        const successMsg = document.getElementById('successMessage');
+
+        // Reset messages
+        errorMsg.classList.add('d-none');
+        successMsg.classList.add('d-none');
+
+        // Validate passwords match
+        const password = document.getElementById('password').value;
+        const passwordConfirm = document.getElementById('password_confirm').value;
+
+        if (password !== passwordConfirm) {
+            errorMsg.textContent = 'Passwords do not match';
+            errorMsg.classList.remove('d-none');
+            return;
+        }
+
+        if (password.length < 8) {
+            errorMsg.textContent = 'Password must be at least 8 characters';
+            errorMsg.classList.remove('d-none');
+            return;
+        }
+
+        // Validate username if provided
+        const username = document.getElementById('username').value.trim();
+        if (username) {
+            if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+                errorMsg.textContent = 'Username can only contain letters, numbers, hyphens and underscores';
+                errorMsg.classList.remove('d-none');
+                return;
+            }
+            if (username.length < 3) {
+                errorMsg.textContent = 'Username must be at least 3 characters';
+                errorMsg.classList.remove('d-none');
+                return;
+            }
+            if (username.length > 20) {
+                errorMsg.textContent = 'Username cannot exceed 20 characters';
+                errorMsg.classList.remove('d-none');
+                return;
+            }
+        }
+
+        // Get CAPTCHA token
+        let finalCaptchaToken = '';
+        if (captchaConfig.enabled) {
+            if (captchaConfig.provider === 'turnstile') {
+                // Turnstile: get from hidden input or callback
+                const turnstileInput = document.querySelector('[name="cf-turnstile-response"]');
+                finalCaptchaToken = turnstileInput ? turnstileInput.value : captchaToken;
+                if (!finalCaptchaToken) {
+                    errorMsg.textContent = 'Please complete the CAPTCHA verification';
+                    errorMsg.classList.remove('d-none');
+                    return;
+                }
+            } else if (captchaConfig.provider === 'recaptcha') {
+                // reCAPTCHA v3: execute and get token
+                try {
+                    finalCaptchaToken = await grecaptcha.execute(captchaConfig.siteKey, {action: 'register'});
+                } catch (err) {
+                    console.error('reCAPTCHA error:', err);
+                    errorMsg.textContent = 'CAPTCHA verification failed. Please refresh and try again.';
+                    errorMsg.classList.remove('d-none');
+                    return;
+                }
+            }
+        }
+
+        // Disable button
+        submitBtn.disabled = true;
+        const originalBtnText = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating account...';
+
+        try {
+            const formData = new FormData(form);
+            // Add CAPTCHA token
+            if (finalCaptchaToken) {
+                formData.append('captcha_token', finalCaptchaToken);
+            }
+
+            const response = await fetch('/api/register', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                successMsg.innerHTML = '<strong>Check your email!</strong><br>' + data.message;
+                successMsg.classList.remove('d-none');
+                form.reset();
+                submitBtn.innerHTML = 'Email Sent!';
+                submitBtn.classList.remove('btn-primary');
+                submitBtn.classList.add('btn-success');
+                // Hide form fields and login link
+                document.getElementById('formFields').style.display = 'none';
+                document.getElementById('loginLink').style.display = 'none';
+                // Hide CAPTCHA widget
+                const captchaWidget = document.querySelector('.cf-turnstile');
+                if (captchaWidget) captchaWidget.style.display = 'none';
+            } else {
+                errorMsg.textContent = data.message || 'Registration failed. Please try again.';
+                errorMsg.classList.remove('d-none');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnText;
+                // Reset Turnstile if failed
+                if (captchaConfig.provider === 'turnstile' && typeof turnstile !== 'undefined') {
+                    turnstile.reset();
+                }
+            }
+        } catch (error) {
+            console.error('Registration error:', error);
+            errorMsg.textContent = 'An error occurred. Please try again.';
+            errorMsg.classList.remove('d-none');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnText;
+            // Reset Turnstile if failed
+            if (captchaConfig.provider === 'turnstile' && typeof turnstile !== 'undefined') {
+                turnstile.reset();
+            }
+        }
+    });
+
+</script>
+{% endblock %}

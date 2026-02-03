@@ -1,0 +1,412 @@
+{% extends 'base.html' %}
+
+{% block title %}Home - SPARK{% endblock %}
+
+{% block styles %}
+{# Theme CSS loaded by theme-loader.js #}
+<style>
+    .btn-block {
+        display: block;
+        width: 100%;
+    }
+    .card-body .btn {
+        margin-bottom: 10px;
+    }
+    .card-body .btn:last-child {
+        margin-bottom: 0;
+    }
+    .cache-options {
+        display: none;
+        margin-top: 10px;
+    }
+    .cache-options input[type="number"] {
+        width: 80px;
+    }
+    .info-icon {
+        cursor: help;
+        opacity: 0.7;
+    }
+    .info-icon:hover {
+        opacity: 1;
+    }
+</style>
+{% endblock %}
+
+{% block header %}
+<div class="page-header" style="border-bottom: none;">
+    <div class="page-header-text">
+        <h1 class="page-title">Dashboard</h1>
+    </div>
+</div>
+{% endblock %}
+
+{% block toolbar %}{% endblock %}
+
+{% block content %}
+<div class="container mt-3">
+    <div class="row">
+        <!-- User Panel (visible for all users) -->
+        <div class="col-md-12 mb-4">
+            <h3 class="text-center mb-4">User Panel</h3>
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <div class="section-container h-100">
+                        <div class="section-title"><i class="fas fa-user"></i> Profile Management</div>
+                        <div class="d-flex flex-column">
+                            <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/edit-profile';">Edit Profile</button>
+                            {% if can_change_password %}<button type="button" class="btn btn-outline-primary btn-block" onclick="window.location.href='/change-password';">Change Password</button>{% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <div class="section-container h-100">
+                        <div class="section-title"><i class="fas fa-comments"></i> Chat Functions</div>
+                        <div class="d-flex flex-column">
+                            <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/chat';">Start Chat</button>
+                            <button type="button" class="btn btn-outline-primary btn-block" onclick="window.location.href='/media-gallery';">Media Gallery</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <div class="section-container h-100">
+                        <div class="section-title"><i class="fas fa-credit-card"></i> Payment</div>
+                        <div class="d-flex flex-column">
+                            <div class="p-2 text-center mb-3">
+                                <strong>Balance:</strong> ${{ "%.2f"|format(user_balance) }}
+                            </div>
+                            <button type="button" class="btn btn-outline-primary btn-block" onclick="window.location.href='/payment';">Payment</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Manager Panel (visible for managers and admins) -->
+        {% if is_manager or is_admin %}
+        <div class="col-md-12 mb-4">
+            <h3 class="text-center mb-4">Manager Panel</h3>
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <div class="section-container h-100">
+                        <div class="section-title"><i class="fas fa-users"></i> User Management</div>
+                        <div class="d-flex flex-column">
+                            <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/create-user';">Create User</button>
+                            <button type="button" class="btn btn-outline-primary btn-block" onclick="window.location.href='/users-list';">Manage Users</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <div class="section-container h-100">
+                        <div class="section-title"><i class="fas fa-file-alt"></i> Content Management</div>
+                        <div class="d-flex flex-column">
+                            <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/prompts';">Prompts Management</button>
+                            <button type="button" class="btn btn-outline-primary btn-block" onclick="window.location.href='/admin/elevenlabs-agents';">ElevenLabs Agents</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <div class="section-container h-100">
+                        <div class="section-title">
+                            <i class="fas fa-globe"></i> Public Profile
+                            <span class="text-muted section-title-hint">- Select a prompt</span>
+                            <span class="info-icon ms-auto" data-bs-toggle="tooltip" data-bs-placement="top"
+                                  title="Create a public landing page for your AI assistant. Use it to showcase your prompt, attract users, or present your AI companion.">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                                    <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+                                </svg>
+                            </span>
+                        </div>
+                        <div class="d-flex flex-column">
+                            {% if manageable_prompts %}
+                            <div class="input-group mb-3" style="height: calc(1.5em + 0.75rem + 2px);">
+                                <select class="form-select" id="prompt" name="prompt_id" style="height: 100%; padding-block: 0;">
+                                    {% for prompt in manageable_prompts %}
+                                    <option value="{{ prompt.id }}" data-created-by="{{ prompt.created_by_username }}" data-public-id="{{ prompt.public_id }}" data-name="{{ prompt.name }}" data-custom-domain="{{ prompt.custom_domain or '' }}">{{ prompt.text }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="btn btn-outline-secondary" style="height: 100%;" onclick="viewPublicProfile()" title="View public landing page">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+                                        <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <button type="button" class="btn btn-outline-primary btn-block" onclick="configurePublicProfile()">
+                                Configure Public Profile
+                            </button>
+                            {% else %}
+                            <p class="text-muted mb-0">You don't have any prompts to configure. <a href="/prompts/new">Create your first prompt</a>.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Admin Panel (visible only for admins) -->
+        {% if is_admin %}
+        <div class="col-md-12">
+            <h3 class="text-center mb-4">Root Panel</h3>
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <div class="section-container h-100">
+                        <div class="section-title"><i class="fas fa-robot"></i> Content Management</div>
+                        <div class="d-flex flex-column">
+                            <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/admin/llms';">LLM Management</button>
+                            <button type="button" class="btn btn-outline-secondary btn-block mb-3" onclick="window.location.href='/admin/openrouter';">OpenRouter Models</button>
+                            <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/admin/voices';">Voices Management</button>
+                            <button type="button" class="btn btn-outline-primary btn-block" onclick="window.location.href='/admin/services';">Service Management</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <div class="section-container h-100">
+                        <div class="section-title"><i class="fas fa-cogs"></i> Other Functions</div>
+                        <div class="d-flex flex-column">
+                            <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/admin/task-manager';">Task Manager</button>
+                            <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/admin/chat';">Admin Chat</button>
+                            <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/admin/usage';">Platform Usage</button>
+                            <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/admin/categories';">Manage Categories</button>
+                            <button type="button" class="btn btn-outline-danger btn-block" onclick="toggleCacheOptions()">Clean Audio Cache</button>
+                            <div id="cacheOptions" class="cache-options">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="radio" name="cacheOption" id="deleteAll" value="all">
+                                    <label class="form-check-label" for="deleteAll">
+                                        Delete Everything
+                                    </label>
+                                </div>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="radio" name="cacheOption" id="deleteOlder" value="older" checked>
+                                    <label class="form-check-label" for="deleteOlder">
+                                        Delete older than:
+                                    </label>
+                                </div>
+                                <div class="input-group mb-3">
+                                    <input type="number" class="form-control" id="cacheTime" value="1" min="1">
+                                    <select class="form-select" id="cacheTimeUnit">
+                                        <option value="h">Hours</option>
+                                        <option value="d">Days</option>
+                                        <option value="w">Weeks</option>
+                                        <option value="m">Months</option>
+                                    </select>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="clearAudioCache()">Clean</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <div class="section-container h-100">
+                        <div class="section-title"><i class="fas fa-cloud"></i> External Services</div>
+                        <div class="d-flex flex-column">
+                            <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/admin/discount-list';">Manage Discounts</button>
+                            <button type="button" class="btn btn-outline-warning btn-block mb-3" onclick="disableCloudflareCache()">Disable Cloudflare Cache</button>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span>CAPTCHA (Login/Register)</span>
+                                <div class="form-check form-switch mb-0">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="captchaToggle" {% if captcha_enabled %}checked{% endif %} onchange="toggleCaptcha(this.checked)">
+                                </div>
+                            </div>
+                            <small class="text-muted">Disable for development/testing</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    function slugify(name) {
+        if (!name) return '';
+        // Normalize unicode (remove accents)
+        const normalized = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        // Convert to lowercase, replace spaces/underscores with hyphens
+        let slug = normalized.toLowerCase().replace(/[\s_]+/g, '-');
+        // Remove non-alphanumeric characters except hyphens
+        slug = slug.replace(/[^a-z0-9-]/g, '');
+        // Collapse multiple hyphens
+        slug = slug.replace(/-+/g, '-');
+        // Trim hyphens from start/end
+        return slug.replace(/^-+|-+$/g, '');
+    }
+
+    function viewPublicProfile() {
+        const promptSelect = document.getElementById("prompt");
+        if (!promptSelect) return;
+
+        const selectedOption = promptSelect.options[promptSelect.selectedIndex];
+        const publicId = selectedOption.dataset.publicId;
+        const name = selectedOption.dataset.name;
+        const customDomain = selectedOption.dataset.customDomain;
+
+        if (!publicId || !name) {
+            NotificationModal.warning('No Landing Page', 'This prompt does not have a public landing page configured.');
+            return;
+        }
+
+        // Use custom domain if available, otherwise use path-based URL
+        if (customDomain) {
+            window.open(`https://${customDomain}/`, '_blank');
+        } else {
+            const slug = slugify(name);
+            window.open(`/p/${publicId}/${slug}/`, '_blank');
+        }
+    }
+
+    function configurePublicProfile() {
+        const promptSelect = document.getElementById("prompt");
+        if (!promptSelect) return;
+
+        const promptId = promptSelect.value;
+        window.location.href = `/landing/${promptId}`;
+    }
+
+    function disableCloudflareCache() {
+        secureFetch('/admin/disable-cloudflare-cache', {
+            method: 'POST',
+        })
+        .then(response => {
+            if (!response) return; // Session expired, redirect handled by secureFetch
+            return response.json();
+        })
+        .then(data => {
+            if (data) NotificationModal.info('Cloudflare Cache', data.message || data.error);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            NotificationModal.error('Error', 'Error disabling Cloudflare cache');
+        });
+    }
+
+    function toggleCaptcha(enabled) {
+        secureFetch('/admin/toggle-captcha', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ enabled: enabled }),
+        })
+        .then(response => {
+            if (!response) return; // Session expired, redirect handled by secureFetch
+            return response.json();
+        })
+        .then(data => {
+            if (!data) return; // Session expired
+            if (data.status === 'success') {
+                const status = enabled ? 'enabled' : 'disabled';
+                console.log('CAPTCHA ' + status);
+            } else {
+                NotificationModal.error('Error', 'Error: ' + (data.message || data.error));
+                // Revert toggle on error
+                document.getElementById('captchaToggle').checked = !enabled;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            NotificationModal.error('Error', 'Error toggling CAPTCHA');
+            document.getElementById('captchaToggle').checked = !enabled;
+        });
+    }
+
+    function toggleCacheOptions() {
+        const cacheOptions = document.getElementById('cacheOptions');
+        if (cacheOptions.style.display === 'block') {
+            cacheOptions.style.display = 'none';
+        } else {
+            cacheOptions.style.display = 'block';
+        }
+    }
+
+    function clearAudioCache() {
+        const option = document.querySelector('input[name="cacheOption"]:checked').value;
+        let timeArg = '';
+
+        if (option === 'older') {
+            const time = document.getElementById('cacheTime').value;
+            const unit = document.getElementById('cacheTimeUnit').value;
+            timeArg = time + unit;
+        } else {
+            timeArg = '0h';
+        }
+
+        secureFetch('/admin/clear-audio-cache', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ time_arg: timeArg }),
+        })
+        .then(response => {
+            if (!response) return; // Session expired, redirect handled by secureFetch
+            return response.json();
+        })
+        .then(data => {
+            if (data) NotificationModal.info('Audio Cache', data.message || data.error);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            NotificationModal.error('Error', 'Error clearing audio cache');
+        });
+    }
+
+    function createSnowflakes() {
+        const numberOfSnowflakes = 50;
+
+        for (let i = 0; i < numberOfSnowflakes; i++) {
+            const snowflake = document.createElement('div');
+            snowflake.className = 'snowflake';
+            snowflake.innerHTML = '&#10052;';
+            snowflake.style.left = Math.random() * 100 + 'vw';
+            snowflake.style.animationDuration = (Math.random() * 3 + 2) + 's';
+            snowflake.style.opacity = Math.random();
+            snowflake.style.fontSize = (Math.random() * 10 + 10) + 'px';
+
+            document.body.appendChild(snowflake);
+
+            snowflake.addEventListener('animationend', () => {
+                snowflake.remove();
+                createSnowflake();
+            });
+        }
+    }
+
+    function createSnowflake() {
+        const snowflake = document.createElement('div');
+        snowflake.className = 'snowflake';
+        snowflake.innerHTML = '&#10052;';
+        snowflake.style.left = Math.random() * 100 + 'vw';
+        snowflake.style.animationDuration = (Math.random() * 3 + 2) + 's';
+        snowflake.style.opacity = Math.random();
+        snowflake.style.fontSize = (Math.random() * 10 + 10) + 'px';
+
+        document.body.appendChild(snowflake);
+
+        snowflake.addEventListener('animationend', () => {
+            snowflake.remove();
+            createSnowflake();
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Restore saved prompt selection
+        const promptSelect = document.getElementById("prompt");
+        if (promptSelect) {
+            const savedPromptId = localStorage.getItem('selectedPromptId');
+            if (savedPromptId) {
+                promptSelect.value = savedPromptId;
+            }
+        }
+
+        const cacheOptions = document.getElementById('cacheOptions');
+        if (cacheOptions) {
+            cacheOptions.style.display = 'none';
+        }
+    });
+</script>
+{% endblock %}

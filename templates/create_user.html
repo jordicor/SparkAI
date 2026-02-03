@@ -1,0 +1,658 @@
+{% extends 'base.html' %}
+
+{% block title %}Create User - SPARK{% endblock %}
+
+{% block styles %}
+{# Theme CSS loaded by theme-loader.js #}
+{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.13/css/intlTelInput.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.13/js/intlTelInput.min.js"></script>
+{% endblock %}
+
+{% block page_title %}Create User{% endblock %}
+
+{% block back_url %}/{% endblock %}
+
+{% block content %}
+<form id="createUserForm" action="/create-user" method="post">
+
+    <!-- Section 1: Prompt & Model Configuration -->
+    <div class="section-container">
+        <div class="section-title">Prompt & Model Configuration</div>
+        <div class="flex-row">
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label for="promptDropdown" class="form-label">Select a Prompt</label>
+                    <select class="form-select" id="promptDropdown" name="prompt_id">
+                        {% for prompt in prompts %}
+                            <option value="{{ prompt.id }}" {% if prompt.id == selected_prompt_id %}selected{% endif %}>
+                                {{ prompt.text }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label for="machineDropdown" class="form-label">
+                        Select a LLM
+                        <i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="The AI model this user will use. If the selected prompt has a forced LLM, it will be auto-selected and locked."></i>
+                    </label>
+                    <select name="machine" id="machineDropdown" class="form-select">
+                        {% for model in llm_models %}
+                            <option value="{{ model[0]|string }}" data-vision="{{ model[3] }}" {% if model[0]|string == selected_machine %}selected{% endif %}>
+                                {{ model[1] }} - {{ model[2] }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 2: User Account Settings -->
+    <div class="section-container">
+        <div class="section-title">User Account Settings</div>
+        <div class="flex-row">
+            <div class="flex-column">
+                {% if is_admin %}
+                <div class="mb-3">
+                    <label for="userType" class="form-label">User Type</label>
+                    <select class="form-select" id="userType" name="user_type">
+                        <option value="user">User</option>
+                        <option value="manager">Manager</option>
+                    </select>
+                </div>
+                {% else %}
+                    <input type="hidden" name="user_type" value="user">
+                {% endif %}
+                <div class="mb-3">
+                    <label for="authenticationMode" class="form-label">Authentication Mode</label>
+                    <select class="form-select" id="authenticationMode" name="authentication_mode">
+                        <option value="magic_link_only">Magic Link Only</option>
+                        <option value="magic_link_password">Magic Link + Password</option>
+                        <option value="password_only">Password Only</option>
+                    </select>
+                </div>
+                <div class="mb-3" id="initialPasswordContainer" style="display: none;">
+                    <label for="initialPassword" class="form-label">Initial Password</label>
+                    <input type="password" class="form-control" id="initialPassword" name="initial_password" minlength="6">
+                    <small class="form-text text-muted">Minimum 6 characters required for password modes</small>
+                </div>
+                <div class="mb-3 form-check" id="canChangePasswordContainer" style="display: none;">
+                    <input type="checkbox" class="form-check-input" id="canChangePassword" name="can_change_password">
+                    <label class="form-check-label" for="canChangePassword">User can change password</label>
+                </div>
+            </div>
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label for="apiKeyMode" class="form-label">API Key Mode</label>
+                    <select class="form-select" id="apiKeyMode" name="api_key_mode">
+                        <option value="both_prefer_own" selected>Both (Prefer Own Keys)</option>
+                        <option value="system_only">System Keys Only</option>
+                        <option value="own_only">Own Keys Only (BYOK)</option>
+                        <option value="both_prefer_system">Both (Prefer System Keys)</option>
+                    </select>
+                    <small class="form-text text-muted" id="apiKeyModeHelp">
+                        User keys take priority if configured, otherwise uses platform keys.
+                    </small>
+                </div>
+                <div class="alert alert-warning" id="ownOnlyWarning" style="display: none;">
+                    <strong>BYOK Mode:</strong> The user will NOT be able to use AI services until they configure their own API keys.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 3: User Information -->
+    <div class="section-container">
+        <div class="section-title">User Information</div>
+        <!-- Row 1: Username | Phone Number -->
+        <div class="flex-row">
+            <div class="flex-column">
+                <label for="username" class="form-label">Username</label>
+                <input type="text" class="form-control" id="username" name="username"
+                       minlength="3" maxlength="20"
+                       pattern="^[a-zA-Z0-9_\-]+$"
+                       title="The username must be between 3 and 20 characters and can only contain letters, numbers, hyphens, and underscores.">
+                <div class="form-check mt-2">
+                    <input type="checkbox" class="form-check-input" id="useRandomUsername" name="use_random_username">
+                    <label class="form-check-label" for="useRandomUsername">Use random username</label>
+                </div>
+            </div>
+            <div class="flex-column">
+                <label for="phone" class="form-label">Phone Number</label>
+                <input type="tel" class="form-control" id="phone" name="phone" inputmode="tel" oninput="this.value = this.value.replace(/[^0-9+\-() ]/g, '')">
+                <button type="button" class="btn btn-secondary mt-2" id="sendCodeButton" style="display: none;">Send Verification Code</button>
+            </div>
+        </div>
+        <!-- Row 2: Email | Balance -->
+        <div class="flex-row mt-3">
+            <div class="flex-column">
+                <label for="email" class="form-label">Email Address</label>
+                <input type="email" class="form-control" id="email" name="email">
+                <small class="form-text text-muted">Required for magic link recovery</small>
+            </div>
+            <div class="flex-column">
+                <label for="balance" class="form-label">Balance ($0 - $500)</label>
+                <input type="text" class="form-control" id="balance" name="balance" inputmode="decimal" pattern="[0-9]*\.?[0-9]*" oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')" required>
+            </div>
+        </div>
+        <!-- Verification Code (hidden by default) -->
+        <div class="flex-row mt-3" id="verificationCodeContainer" style="display: none;">
+            <div class="flex-column">
+                <label for="verificationCode" class="form-label">Verification Code</label>
+                <input type="text" class="form-control" id="verificationCode" name="verification_code">
+            </div>
+            <div class="flex-column"></div>
+        </div>
+    </div>
+
+    <!-- Section 4: Permissions -->
+    <div class="section-container">
+        <div class="section-title">Permissions</div>
+        <div class="flex-row">
+            <div class="flex-column">
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="publicPromptsAccess" name="public_prompts_access">
+                    <label class="form-check-label" for="publicPromptsAccess">
+                        Allow access to public prompts
+                        <i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="If enabled, this user can see and use prompts shared publicly by other creators in the marketplace."></i>
+                    </label>
+                </div>
+                {% if is_admin %}
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="allPromptsAccess" name="all_prompts_access">
+                    <label class="form-check-label" for="allPromptsAccess">
+                        Allow access to all prompts
+                        <i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="Admin only. Gives this user access to ALL prompts in the system, including private ones."></i>
+                    </label>
+                </div>
+                {% endif %}
+                <div class="mb-3 form-check" id="allowFileUploadContainer" style="display: none;">
+                    <input type="checkbox" class="form-check-input" id="allowFileUpload" name="allow_file_upload">
+                    <label class="form-check-label" for="allowFileUpload">Allow file upload to the AI</label>
+                </div>
+            </div>
+            <div class="flex-column">
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="allowImageGeneration" name="allow_image_generation">
+                    <label class="form-check-label" for="allowImageGeneration">Allow AI to generate images</label>
+                </div>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="skipVerification" name="skip_verification">
+                    <label class="form-check-label" for="skipVerification">Skip phone verification</label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 5: Category Access (visible when public prompts enabled) -->
+    <div class="section-container" id="categoryAccessSection" style="display: none;">
+        <div class="section-title">Category Access (Curator Mode)</div>
+        <p class="text-muted small mb-3">Select which categories of public prompts this user can access. Leave "All Categories" checked to give access to all.</p>
+        <div class="mb-3 form-check">
+            <input type="checkbox" class="form-check-input" id="allowAllCategories" checked onchange="toggleCategorySelection()">
+            <label class="form-check-label" for="allowAllCategories"><strong>All Categories</strong> (no restriction)</label>
+        </div>
+        <div id="categoryCheckboxes" style="display: none;">
+            <div class="row">
+                {% for cat in categories %}
+                <div class="col-md-4 col-sm-6 mb-2">
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input category-checkbox" name="category_ids" value="{{ cat.id }}" id="cat_{{ cat.id }}">
+                        <label class="form-check-label" for="cat_{{ cat.id }}">
+                            <i class="fas {{ cat.icon }} me-1"></i>{{ cat.name }}
+                            {% if cat.is_age_restricted %}
+                            <span class="badge bg-danger ms-1" style="font-size: 0.65rem;">18+</span>
+                            {% endif %}
+                        </label>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="mt-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllCategories()">Select All</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="deselectAllCategories()">Deselect All</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 6: Billing Mode (Enterprise) -->
+    <div class="section-container" id="billingModeSection">
+        <div class="section-title">Billing Mode (Enterprise)</div>
+        <p class="text-muted small mb-3">Choose who pays for this user's AI consumption.</p>
+
+        <div class="mb-3">
+            <div class="form-check">
+                <input type="radio" class="form-check-input" name="billing_mode" value="user_pays" id="billingUserPays" checked onchange="toggleBillingOptions()">
+                <label class="form-check-label" for="billingUserPays">
+                    <strong>User pays their own balance</strong>
+                    <br><small class="text-muted">User must add balance to their account to use the platform.</small>
+                </label>
+            </div>
+            <div class="form-check mt-2">
+                <input type="radio" class="form-check-input" name="billing_mode" value="manager_pays" id="billingManagerPays" onchange="toggleBillingOptions()">
+                <label class="form-check-label" for="billingManagerPays">
+                    <strong>I pay for this user (Enterprise Mode)</strong>
+                    <br><small class="text-muted">All AI costs will be charged to YOUR balance.</small>
+                </label>
+            </div>
+        </div>
+
+        <div id="enterpriseBillingOptions" style="display: none;" class="border rounded p-3 bg-light">
+            <div class="mb-3">
+                <label class="form-label">Monthly Spending Limit</label>
+                <div class="form-check">
+                    <input type="radio" class="form-check-input" name="billing_limit_type" value="unlimited" id="limitUnlimited" checked onchange="toggleLimitInput()">
+                    <label class="form-check-label" for="limitUnlimited">No limit (unlimited)</label>
+                </div>
+                <div class="form-check mt-1">
+                    <input type="radio" class="form-check-input" name="billing_limit_type" value="limited" id="limitSet" onchange="toggleLimitInput()">
+                    <label class="form-check-label" for="limitSet">Set limit:</label>
+                    <div class="input-group mt-1" style="max-width: 240px;">
+                        <span class="input-group-text">$</span>
+                        <input type="text" class="form-control" id="billingLimitInput" name="billing_limit" placeholder="25.00" inputmode="decimal" pattern="[0-9]*\.?[0-9]*" oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')" disabled>
+                        <span class="input-group-text">/month</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">When limit is reached:</label>
+                <div class="form-check">
+                    <input type="radio" class="form-check-input" name="billing_limit_action" value="block" id="actionBlock" checked onchange="toggleAutoRefillSettings()">
+                    <label class="form-check-label" for="actionBlock">
+                        <strong>Block</strong> - User cannot send more messages
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input type="radio" class="form-check-input" name="billing_limit_action" value="notify" id="actionNotify" onchange="toggleAutoRefillSettings()">
+                    <label class="form-check-label" for="actionNotify">
+                        <strong>Notify</strong> - Send alert but allow user to continue
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input type="radio" class="form-check-input" name="billing_limit_action" value="auto_refill" id="actionAutoRefill" onchange="toggleAutoRefillSettings()">
+                    <label class="form-check-label" for="actionAutoRefill">
+                        <strong>Auto-Refill</strong> - Automatically increase limit when reached
+                    </label>
+                </div>
+            </div>
+
+            <div id="autoRefillSettings" style="display: none;" class="mb-3 ms-4 p-3 border rounded bg-light">
+                <div class="mb-2">
+                    <label class="form-label small">Increment amount:</label>
+                    <div class="input-group" style="max-width: 200px;">
+                        <span class="input-group-text">$</span>
+                        <input type="number" class="form-control" name="billing_auto_refill_amount" value="10.00" step="0.01" min="1">
+                    </div>
+                    <small class="text-muted">How much to increase the limit each time</small>
+                </div>
+                <div>
+                    <label class="form-label small">Maximum limit (optional):</label>
+                    <div class="input-group" style="max-width: 200px;">
+                        <span class="input-group-text">$</span>
+                        <input type="number" class="form-control" name="billing_max_limit" placeholder="No cap" step="0.01" min="0">
+                    </div>
+                    <small class="text-muted">Leave empty for unlimited auto-refills</small>
+                </div>
+            </div>
+
+            <div class="alert alert-info small mb-0">
+                <i class="fas fa-info-circle me-1"></i>
+                Spending resets on the 1st of each month. You can view team billing in the <a href="/manager/team-billing">Team Billing dashboard</a>.
+            </div>
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary" id="createUserButton">Create User</button>
+</form>
+
+{% if magic_link %}
+<div class="mt-3">
+    <label for="magicLink" class="form-label">Magic Link:</label>
+    <div class="input-group">
+        <input type="text" class="form-control" id="magicLink" value="{{ magic_link }}" readonly>
+        <button class="btn btn-outline-secondary" type="button" onclick="copyToClipboard()">Copy</button>
+    </div>
+    <div id="copyMessage" class="mt-2" style="display: none;"><strong>Magic link copied to clipboard!</strong></div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('createUserForm');
+        const phoneInputField = document.getElementById('phone');
+        const sendCodeButton = document.getElementById('sendCodeButton');
+        const verificationCodeContainer = document.getElementById('verificationCodeContainer');
+        const skipVerificationCheckbox = document.getElementById('skipVerification');
+        const useRandomUsernameCheckbox = document.getElementById('useRandomUsername');
+        const usernameInput = document.getElementById('username');
+        const machineDropdown = document.getElementById('machineDropdown');
+        const allowFileUploadContainer = document.getElementById('allowFileUploadContainer');
+        const authenticationModeDropdown = document.getElementById('authenticationMode');
+        const initialPasswordContainer = document.getElementById('initialPasswordContainer');
+        const canChangePasswordContainer = document.getElementById('canChangePasswordContainer');
+        const initialPasswordInput = document.getElementById('initialPassword');
+
+        let phoneInputJS;
+
+        function initPhoneInput() {
+            phoneInputJS = window.intlTelInput(phoneInputField, {
+                initialCountry: "auto",
+                geoIpLookup: async function(success) {
+                    try {
+                        const response = await secureFetch('/api/get-ip-info');
+                        if (!response) {
+                            success("us");
+                            return;
+                        }
+                        const ipinfo = await response.json();
+                        success(ipinfo.country);
+                    } catch {
+                        success("us");
+                    }
+                },
+                utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.13/js/utils.js"
+            });
+        }
+
+        function toggleAllowFileUpload() {
+            const selectedOption = machineDropdown.options[machineDropdown.selectedIndex];
+            const vision = selectedOption.getAttribute('data-vision');
+            allowFileUploadContainer.style.display = vision === 'True' || vision === '1' ? 'block' : 'none';
+            document.getElementById('allowFileUpload').checked = false;
+        }
+
+        function toggleUsernameInput() {
+            usernameInput.disabled = useRandomUsernameCheckbox.checked;
+            if (useRandomUsernameCheckbox.checked) {
+                usernameInput.value = '';
+            }
+        }
+
+        function togglePasswordFields() {
+            const authMode = authenticationModeDropdown.value;
+            const showPasswordFields = ['magic_link_password', 'password_only'].includes(authMode);
+
+            initialPasswordContainer.style.display = showPasswordFields ? 'block' : 'none';
+            canChangePasswordContainer.style.display = showPasswordFields ? 'block' : 'none';
+
+            // Clear password and reset checkbox when hiding
+            if (!showPasswordFields) {
+                initialPasswordInput.value = '';
+                document.getElementById('canChangePassword').checked = false;
+            }
+
+            // Set required attribute based on mode
+            initialPasswordInput.required = authMode === 'password_only';
+        }
+
+        async function handleFormSubmit(event) {
+            event.preventDefault();
+            const formData = new FormData(form);
+            formData.set('phone', phoneInputJS.getNumber());
+
+            if (useRandomUsernameCheckbox.checked) {
+                formData.delete('username');
+            }
+
+            if (!skipVerificationCheckbox.checked && phoneInputField.value && !formData.get('verification_code')) {
+                NotificationModal.warning('Verification Required', 'Please enter the verification code.');
+                return;
+            }
+
+            // Validate password requirements
+            const authMode = authenticationModeDropdown.value;
+            const password = formData.get('initial_password');
+            if (authMode === 'password_only' && (!password || password.length < 6)) {
+                NotificationModal.warning('Password Required', 'Password is required and must be at least 6 characters for password-only mode.');
+                return;
+            }
+            if (authMode === 'magic_link_password' && password && password.length < 6) {
+                NotificationModal.warning('Invalid Password', 'Password must be at least 6 characters when provided.');
+                return;
+            }
+
+            try {
+                const response = await secureFetch('/create-user', {
+                    method: 'POST',
+                    body: formData,
+                });
+                if (!response) return; // Session expired
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.detail || `HTTP error! status: ${response.status}`);
+                }
+
+                if (result.status === 'success') {
+                    if (result.magic_link) {
+                        displayMagicLink(result.magic_link);
+                    } else {
+                        // No magic link for password-only users
+                        const container = document.querySelector('.main-container');
+                        const noLinkMessage = document.createElement('div');
+                        noLinkMessage.className = 'alert alert-info mt-3';
+                        noLinkMessage.innerHTML = '<strong>User created successfully!</strong> No magic link generated - user will login with username/password.';
+                        container.appendChild(noLinkMessage);
+                        setTimeout(() => noLinkMessage.remove(), 5000);
+                    }
+                    resetForm(result.selected_prompt_id, result.selected_machine);
+                    NotificationModal.success('User Created', 'User created successfully!');
+                } else {
+                    NotificationModal.error('User Creation Failed', result.message);
+                }
+            } catch (error) {
+                console.error('Error creating user:', error);
+                NotificationModal.error('Error', error.message);
+            }
+        }
+
+        function displayMagicLink(magicLink) {
+            let container = document.querySelector('.mt-3') || document.createElement('div');
+            container.className = 'mt-3';
+            container.innerHTML = `
+                <label for="magicLink" class="form-label">Magic Link:</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="magicLink" value="${magicLink}" readonly>
+                    <button class="btn btn-outline-secondary" type="button" onclick="copyToClipboard()">Copy</button>
+                </div>
+                <div id="copyMessage" class="mt-2" style="display: none;"><strong>Magic link copied to clipboard!</strong></div>
+            `;
+            if (!document.querySelector('.mt-3')) {
+                document.querySelector('.main-container').appendChild(container);
+            }
+        }
+
+        function resetForm(selectedPromptId, selectedMachine) {
+            form.reset();
+            document.getElementById('promptDropdown').value = selectedPromptId;
+            machineDropdown.value = selectedMachine;
+            initPhoneInput();
+            toggleAllowFileUpload();
+            toggleUsernameInput();
+        }
+
+        async function sendVerificationCode() {
+            const phoneNumber = phoneInputJS.getNumber();
+            try {
+                const response = await secureFetch('/api/send-verification-code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone: phoneNumber }),
+                });
+                if (!response) return; // Session expired
+
+                const result = await response.json();
+                if (response.ok && result.status === 'pending') {
+                    verificationCodeContainer.style.display = 'block';
+                    NotificationModal.success('Code Sent', 'Verification code sent successfully!');
+                } else {
+                    NotificationModal.error('Error', result.detail || 'Unexpected error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                NotificationModal.error('Error', 'An unexpected error occurred. Please try again.');
+            }
+        }
+
+        // Forced LLM auto-select functionality
+        const promptDropdown = document.getElementById('promptDropdown');
+        const forcedLlmInfo = document.createElement('small');
+        forcedLlmInfo.className = 'form-text text-info mt-1';
+        forcedLlmInfo.id = 'forcedLlmInfo';
+        forcedLlmInfo.style.display = 'none';
+        machineDropdown.parentNode.appendChild(forcedLlmInfo);
+
+        async function checkForcedLLM(promptId) {
+            if (!promptId) return;
+
+            try {
+                const response = await secureFetch(`/api/prompts/${promptId}/forced-llm`);
+                if (!response) return; // Session expired
+                if (!response.ok) return;
+
+                const data = await response.json();
+                if (data.forced_llm_id) {
+                    // Auto-select and disable dropdown
+                    machineDropdown.value = data.forced_llm_id.toString();
+                    machineDropdown.disabled = true;
+                    forcedLlmInfo.textContent = 'This prompt has a forced LLM configured. Users will use this model.';
+                    forcedLlmInfo.style.display = 'block';
+                    toggleAllowFileUpload(); // Update vision checkbox visibility
+                } else {
+                    // Enable dropdown
+                    machineDropdown.disabled = false;
+                    forcedLlmInfo.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error checking forced LLM:', error);
+            }
+        }
+
+        promptDropdown.addEventListener('change', function() {
+            checkForcedLLM(this.value);
+        });
+
+        // Check on initial load
+        if (promptDropdown.value) {
+            checkForcedLLM(promptDropdown.value);
+        }
+
+        // Event Listeners
+        initPhoneInput();
+        toggleAllowFileUpload();
+        togglePasswordFields();
+
+        phoneInputField.addEventListener('input', () => {
+            sendCodeButton.style.display = phoneInputField.value ? 'block' : 'none';
+            verificationCodeContainer.style.display = 'none';
+        });
+
+        sendCodeButton.addEventListener('click', sendVerificationCode);
+        useRandomUsernameCheckbox.addEventListener('change', toggleUsernameInput);
+        machineDropdown.addEventListener('change', toggleAllowFileUpload);
+        authenticationModeDropdown.addEventListener('change', togglePasswordFields);
+        form.addEventListener('submit', handleFormSubmit);
+
+        // API Key Mode handler
+        const apiKeyModeDropdown = document.getElementById('apiKeyMode');
+        const apiKeyModeHelp = document.getElementById('apiKeyModeHelp');
+        const ownOnlyWarning = document.getElementById('ownOnlyWarning');
+
+        const apiKeyModeDescriptions = {
+            'system_only': 'User can only use platform API keys. Cannot configure their own.',
+            'own_only': 'User MUST configure their own API keys to use AI services.',
+            'both_prefer_own': 'User keys take priority if configured, otherwise uses platform keys.',
+            'both_prefer_system': 'Platform keys by default. User can optionally use their own.'
+        };
+
+        apiKeyModeDropdown.addEventListener('change', function() {
+            apiKeyModeHelp.textContent = apiKeyModeDescriptions[this.value];
+            ownOnlyWarning.style.display = this.value === 'own_only' ? 'block' : 'none';
+        });
+
+        // Category access handler (Reseller Mode)
+        const publicPromptsCheckbox = document.getElementById('publicPromptsAccess');
+        const categoryAccessSection = document.getElementById('categoryAccessSection');
+
+        if (publicPromptsCheckbox && categoryAccessSection) {
+            publicPromptsCheckbox.addEventListener('change', function() {
+                categoryAccessSection.style.display = this.checked ? 'block' : 'none';
+                if (!this.checked) {
+                    // Reset category selection when disabling public prompts
+                    document.getElementById('allowAllCategories').checked = true;
+                    toggleCategorySelection();
+                }
+            });
+        }
+    });
+
+    function copyToClipboard() {
+        const magicLink = document.getElementById('magicLink');
+        magicLink.select();
+        document.execCommand('copy');
+
+        const copyMessage = document.getElementById('copyMessage');
+        copyMessage.style.display = 'block';
+
+        setTimeout(() => copyMessage.style.display = 'none', 5000);
+    }
+
+    // Category selection functions
+    function toggleCategorySelection() {
+        const allowAll = document.getElementById('allowAllCategories').checked;
+        const checkboxesDiv = document.getElementById('categoryCheckboxes');
+        checkboxesDiv.style.display = allowAll ? 'none' : 'block';
+
+        if (allowAll) {
+            // When "All Categories" is checked, uncheck individual categories
+            document.querySelectorAll('.category-checkbox').forEach(cb => cb.checked = false);
+        }
+    }
+
+    function selectAllCategories() {
+        document.querySelectorAll('.category-checkbox').forEach(cb => cb.checked = true);
+    }
+
+    function deselectAllCategories() {
+        document.querySelectorAll('.category-checkbox').forEach(cb => cb.checked = false);
+    }
+
+    // Billing mode functions (Enterprise)
+    function toggleBillingOptions() {
+        const managerPays = document.getElementById('billingManagerPays').checked;
+        const optionsDiv = document.getElementById('enterpriseBillingOptions');
+        optionsDiv.style.display = managerPays ? 'block' : 'none';
+
+        if (!managerPays) {
+            // Reset to defaults when switching to user pays
+            document.getElementById('limitUnlimited').checked = true;
+            document.getElementById('billingLimitInput').disabled = true;
+            document.getElementById('billingLimitInput').value = '';
+            document.getElementById('actionBlock').checked = true;
+        }
+    }
+
+    function toggleLimitInput() {
+        const limitSet = document.getElementById('limitSet').checked;
+        const limitInput = document.getElementById('billingLimitInput');
+        limitInput.disabled = !limitSet;
+        if (!limitSet) {
+            limitInput.value = '';
+        }
+    }
+
+    function toggleAutoRefillSettings() {
+        const autoRefillSelected = document.getElementById('actionAutoRefill').checked;
+        const autoRefillSettings = document.getElementById('autoRefillSettings');
+        autoRefillSettings.style.display = autoRefillSelected ? 'block' : 'none';
+    }
+</script>
+{% endblock %}

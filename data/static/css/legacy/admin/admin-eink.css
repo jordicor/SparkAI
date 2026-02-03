@@ -1,0 +1,1118 @@
+/* ==========================================================
+   admin-eink.css
+   SPARK Design System - E-Ink Theme
+
+   E-ink display style:
+   - High contrast black/white/grayscale only
+   - Georgia serif typography for readability
+   - No animations or transitions
+   - Sharp borders, no shadows or gradients
+   - Minimal design like e-reader displays
+
+   Color palette:
+   - Background primary: #ffffff
+   - Background secondary: #f8f8f8
+   - Background tertiary: #f2f2f2
+   - Text primary: #000000
+   - Text secondary: #333333
+   - Text muted: #666666
+   - Border color: #cccccc
+   - Border strong: #000000
+   ========================================================== */
+
+/* ==========================================================
+   CSS Variables
+   ========================================================== */
+:root {
+    --admin-bg-primary: #ffffff;
+    --admin-bg-secondary: #f8f8f8;
+    --admin-bg-tertiary: #f2f2f2;
+    --admin-text-primary: #000000;
+    --admin-text-secondary: #333333;
+    --admin-text-muted: #666666;
+    --admin-accent: #000000;
+    --admin-accent-light: #333333;
+    --admin-accent-hover: #444444;
+    --admin-border-color: #cccccc;
+    --admin-border-strong: #000000;
+    --admin-shadow-soft: none;
+    --admin-shadow-hover: none;
+}
+
+/* ==========================================================
+   Remove All Transitions and Animations for E-Ink
+   ========================================================== */
+*,
+*::before,
+*::after {
+    transition: none !important;
+    animation: none !important;
+}
+
+/* ==========================================================
+   Base Styles
+   ========================================================== */
+body {
+    background-color: var(--admin-bg-primary);
+    color: var(--admin-text-primary);
+    font-family: 'Georgia', serif;
+    margin: 0;
+    line-height: 1.5;
+}
+
+h1, h2, h3, h4, h5 {
+    color: var(--admin-text-primary);
+    font-weight: 600;
+    font-family: 'Georgia', serif;
+}
+
+/* ==========================================================
+   Navbar
+   ========================================================== */
+.navbar {
+    background-color: #f2f2f2 !important;
+    border-bottom: 1px solid #000000 !important;
+}
+
+.navbar-brand,
+.nav-link {
+    color: #000000 !important;
+    font-family: 'Georgia', serif;
+}
+
+.navbar-brand:hover,
+.nav-link:hover {
+    color: #444444 !important;
+}
+
+.navbar-toggler {
+    border-color: #000000 !important;
+    background-color: #ffffff !important;
+    border-radius: 0 !important;
+}
+
+.navbar-toggler-icon {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(0, 0, 0, 1)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
+}
+
+.navbar-toggler:focus {
+    box-shadow: none !important;
+    outline: 2px solid #000000 !important;
+}
+
+.navbar .btn-outline-danger {
+    color: #000000 !important;
+    border-color: #000000 !important;
+    background-color: transparent !important;
+}
+
+.navbar .btn-outline-danger:hover {
+    color: #ffffff !important;
+    background-color: #000000 !important;
+    border-color: #000000 !important;
+}
+
+@media (max-width: 991.98px) {
+    .navbar-collapse {
+        background-color: #f2f2f2;
+        padding: 1rem;
+        border-radius: 0;
+        border: 1px solid #000000;
+        border-top: none;
+    }
+}
+
+/* ==========================================================
+   Main Container
+   ========================================================== */
+.main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 30px 20px;
+}
+
+/* ==========================================================
+   Page Header - E-Ink Style
+   ========================================================== */
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #000000;
+}
+
+.page-header-text {
+    flex: 1;
+}
+
+/* ==========================================================
+   Page Toolbar (Tabs + Actions)
+   ========================================================== */
+.page-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    gap: 16px;
+}
+
+.page-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.page-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+/* Remove margin from internal-tabs when inside toolbar */
+.page-toolbar .internal-tabs {
+    margin-bottom: 0;
+}
+
+/* Hide toolbar when both sides are empty */
+.page-toolbar:has(.page-toolbar-left:empty):has(.page-toolbar-right:empty) {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .page-toolbar {
+        flex-wrap: wrap;
+    }
+}
+
+/* Back Button */
+.btn-back {
+    width: 44px;
+    height: 44px;
+    border-radius: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--admin-bg-secondary);
+    border: 1px solid var(--admin-border-strong);
+    color: var(--admin-text-primary);
+    text-decoration: none;
+    box-shadow: none;
+}
+
+.btn-back:hover {
+    background: var(--admin-bg-tertiary);
+    border-color: var(--admin-border-strong);
+    color: var(--admin-text-primary);
+    transform: none;
+    box-shadow: none;
+}
+
+/* Page Title */
+.page-title {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--admin-text-primary);
+    font-family: 'Georgia', serif;
+}
+
+.page-subtitle {
+    margin: 4px 0 0 0;
+    color: var(--admin-text-muted);
+    font-size: 0.9rem;
+}
+
+/* ==========================================================
+   Primary Action Button
+   ========================================================== */
+.btn-primary-action {
+    background: #000000;
+    border: 1px solid #000000;
+    color: #ffffff;
+    padding: 12px 24px;
+    border-radius: 0;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: none;
+    font-family: 'Georgia', serif;
+}
+
+.btn-primary-action:hover {
+    background: #333333;
+    border-color: #333333;
+    color: #ffffff;
+    transform: none;
+    box-shadow: none;
+}
+
+/* Alias for backward compatibility with mockup */
+.btn-primary-gold {
+    background: #000000;
+    border: 1px solid #000000;
+    color: #ffffff;
+    padding: 12px 24px;
+    border-radius: 0;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: none;
+    font-family: 'Georgia', serif;
+}
+
+.btn-primary-gold:hover {
+    background: #333333;
+    border-color: #333333;
+    color: #ffffff;
+    transform: none;
+    box-shadow: none;
+}
+
+/* ==========================================================
+   Section Container (Card-like)
+   ========================================================== */
+.section-container {
+    background: var(--admin-bg-secondary);
+    border-radius: 0;
+    padding: 25px;
+    margin-bottom: 25px;
+    box-shadow: none;
+    border: 1px solid var(--admin-border-color);
+}
+
+.section-container:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+/* Section Title */
+.section-title {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--admin-text-primary);
+    border-bottom: 2px solid var(--admin-border-strong);
+    padding-bottom: 14px;
+    margin-bottom: 22px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Georgia', serif;
+}
+
+.section-title i {
+    color: var(--admin-text-secondary);
+}
+
+/* ==========================================================
+   Internal Tabs (Navigation within page)
+   ========================================================== */
+.internal-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 25px;
+}
+
+.internal-tab {
+    padding: 10px 20px;
+    border-radius: 0;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--admin-text-secondary);
+    background: var(--admin-bg-secondary);
+    border: 1px solid var(--admin-border-color);
+    box-shadow: none;
+    font-family: 'Georgia', serif;
+}
+
+.internal-tab:hover {
+    background: var(--admin-bg-tertiary);
+    color: var(--admin-text-primary);
+    transform: none;
+}
+
+.internal-tab.active {
+    background: #000000;
+    color: #ffffff;
+    border-color: #000000;
+    box-shadow: none;
+}
+
+/* ==========================================================
+   Stats Badges (Summary statistics)
+   ========================================================== */
+.stats-row {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+}
+
+.stat-badge {
+    background: var(--admin-bg-secondary);
+    border: 1px solid var(--admin-border-color);
+    padding: 10px 18px;
+    border-radius: 0;
+    font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: none;
+    font-family: 'Georgia', serif;
+}
+
+.stat-badge i {
+    color: var(--admin-text-secondary);
+    font-size: 1rem;
+}
+
+.stat-badge strong {
+    color: var(--admin-text-primary);
+}
+
+/* ==========================================================
+   Form Elements (inside section-container)
+   ========================================================== */
+.form-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--admin-text-primary);
+    margin-bottom: 8px;
+}
+
+.form-control,
+.form-select {
+    border: 1px solid var(--admin-border-color);
+    border-radius: 0;
+    padding: 10px 14px;
+    background: var(--admin-bg-primary);
+    color: var(--admin-text-primary);
+    font-family: 'Georgia', serif;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--admin-border-strong);
+    box-shadow: none;
+    outline: 1px solid #000000;
+    background: var(--admin-bg-primary);
+    color: var(--admin-text-primary);
+}
+
+.form-control::placeholder {
+    color: var(--admin-text-muted);
+}
+
+.form-select option {
+    background-color: var(--admin-bg-primary);
+    color: var(--admin-text-primary);
+}
+
+textarea.form-control {
+    resize: vertical;
+    min-height: 80px;
+}
+
+/* ==========================================================
+   Flex Layout (Responsive columns)
+   ========================================================== */
+.flex-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.flex-column {
+    flex: 1;
+    min-width: 250px;
+}
+
+/* ==========================================================
+   Table Wrapper and Styles - Bootstrap Overrides
+   ========================================================== */
+.table-wrapper {
+    border-radius: 0;
+    overflow: hidden;
+    border: 1px solid var(--admin-border-color);
+}
+
+.table,
+.table-wrapper .table {
+    margin: 0;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    --bs-table-bg: #ffffff;
+    --bs-table-color: #000000;
+    --bs-table-border-color: #cccccc;
+    --bs-table-striped-bg: #f8f8f8;
+    --bs-table-hover-bg: #f0f0f0;
+}
+
+.table th,
+.table td,
+.table-wrapper .table th,
+.table-wrapper .table td {
+    border-color: #cccccc !important;
+    padding: 12px 16px;
+    vertical-align: middle;
+    background-color: inherit;
+    font-family: 'Georgia', serif;
+}
+
+.table thead th,
+.table-wrapper .table thead th {
+    background-color: #f2f2f2 !important;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #000000 !important;
+    border-bottom: 2px solid #000000 !important;
+}
+
+.table tbody td,
+.table-wrapper .table tbody td {
+    color: #000000 !important;
+}
+
+.table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.table tbody tr:nth-of-type(odd) {
+    background-color: #f8f8f8 !important;
+}
+
+.table-hover tbody tr:hover,
+.table tbody tr:hover {
+    background-color: #f0f0f0 !important;
+}
+
+/* ==========================================================
+   Table Actions (Buttons in table rows)
+   ========================================================== */
+.table-actions {
+    white-space: nowrap;
+}
+
+.table-actions .btn {
+    padding: 7px 11px;
+    margin-left: 6px;
+    border-radius: 0;
+}
+
+.table-actions .btn:first-child {
+    margin-left: 0;
+}
+
+.table-actions .btn:hover {
+    transform: none;
+}
+
+.table-actions .btn-outline-primary {
+    border-color: #000000;
+    color: #000000;
+}
+
+.table-actions .btn-outline-primary:hover {
+    background: #000000;
+    border-color: #000000;
+    color: #ffffff;
+}
+
+/* ==========================================================
+   Provider Badges (For LLM management) - Grayscale
+   ========================================================== */
+.provider-badge {
+    font-size: 0.75rem;
+    padding: 5px 12px;
+    border-radius: 0;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    font-family: 'Georgia', serif;
+}
+
+.provider-GPT {
+    background: #333333;
+    color: #ffffff;
+}
+
+.provider-Claude {
+    background: #666666;
+    color: #ffffff;
+}
+
+.provider-Gemini {
+    background: #444444;
+    color: #ffffff;
+}
+
+.provider-xAI {
+    background: #000000;
+    color: #ffffff;
+}
+
+/* ==========================================================
+   Vision Badge
+   ========================================================== */
+.vision-badge {
+    background: #666666;
+    color: #ffffff;
+    font-size: 0.7rem;
+    padding: 4px 10px;
+    border-radius: 0;
+    font-weight: 500;
+}
+
+/* ==========================================================
+   Category Icon
+   ========================================================== */
+.category-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 0;
+    background: var(--admin-bg-tertiary);
+    border: 1px solid var(--admin-border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--admin-text-secondary);
+}
+
+/* ==========================================================
+   Empty State (No data placeholder)
+   ========================================================== */
+.empty-state {
+    text-align: center;
+    padding: 50px 20px;
+    color: var(--admin-text-muted);
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 15px;
+    color: var(--admin-text-muted);
+}
+
+.empty-state p {
+    margin: 10px 0 0;
+    font-size: 0.95rem;
+}
+
+/* ==========================================================
+   Demo Divider (For documentation/examples)
+   ========================================================== */
+.demo-divider {
+    background: var(--admin-bg-tertiary);
+    color: var(--admin-text-primary);
+    padding: 16px 24px;
+    border-radius: 0;
+    margin: 50px 0 30px 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid var(--admin-border-color);
+}
+
+.demo-divider h4 {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--admin-text-primary);
+}
+
+.demo-divider p {
+    margin: 0;
+    opacity: 0.8;
+    font-size: 0.85rem;
+}
+
+/* ==========================================================
+   Button Variants
+   ========================================================== */
+.btn-outline-secondary {
+    color: var(--admin-text-secondary);
+    border-color: var(--admin-border-color);
+    background: transparent;
+    border-radius: 0;
+}
+
+.btn-outline-secondary:hover {
+    background: var(--admin-bg-tertiary);
+    color: var(--admin-text-primary);
+    border-color: var(--admin-border-color);
+}
+
+.btn-outline-danger {
+    color: #000000;
+    border-color: #000000;
+    background: transparent;
+    border-radius: 0;
+}
+
+.btn-outline-danger:hover {
+    background: #000000;
+    border-color: #000000;
+    color: #ffffff;
+}
+
+.btn-outline-primary {
+    color: #000000;
+    border-color: #000000;
+    background: transparent;
+    border-radius: 0;
+}
+
+.btn-outline-primary:hover {
+    background: #000000;
+    border-color: #000000;
+    color: #ffffff;
+}
+
+.btn-primary {
+    background-color: #000000;
+    border-color: #000000;
+    color: #ffffff;
+    border-radius: 0;
+}
+
+.btn-primary:hover {
+    background-color: #333333;
+    border-color: #333333;
+    color: #ffffff;
+}
+
+.btn-secondary {
+    background-color: #f2f2f2;
+    border-color: #cccccc;
+    color: #000000;
+    border-radius: 0;
+}
+
+.btn-secondary:hover {
+    background-color: #e0e0e0;
+    border-color: #999999;
+    color: #000000;
+}
+
+.btn-danger {
+    background-color: #cccccc;
+    border-color: #999999;
+    color: #000000;
+    border-radius: 0;
+}
+
+.btn-danger:hover {
+    background-color: #bbbbbb;
+    border-color: #888888;
+    color: #000000;
+}
+
+/* ==========================================================
+   Form Check (Checkboxes/Radio)
+   ========================================================== */
+.form-check-input {
+    background-color: var(--admin-bg-primary);
+    border: 1px solid var(--admin-border-strong);
+    border-radius: 0;
+}
+
+.form-check-input:checked {
+    background-color: #000000;
+    border-color: #000000;
+}
+
+.form-check-input:focus {
+    box-shadow: none;
+    outline: 1px solid #000000;
+    border-color: #000000;
+}
+
+.form-check-label {
+    color: var(--admin-text-primary);
+}
+
+/* ==========================================================
+   Badge Styles - Grayscale
+   ========================================================== */
+.badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.35em 0.65em;
+    border-radius: 0;
+    font-family: 'Georgia', serif;
+}
+
+.badge.bg-secondary {
+    background-color: #666666 !important;
+    color: #ffffff;
+}
+
+.badge.bg-danger {
+    background-color: #333333 !important;
+    color: #ffffff;
+}
+
+.badge.bg-success {
+    background-color: #444444 !important;
+    color: #ffffff;
+}
+
+.badge.bg-warning {
+    background-color: #888888 !important;
+    color: #000000;
+}
+
+.badge.bg-info {
+    background-color: #999999 !important;
+    color: #000000;
+}
+
+.badge.bg-primary {
+    background-color: #000000 !important;
+    color: #ffffff;
+}
+
+/* ==========================================================
+   Text Utilities
+   ========================================================== */
+.text-muted {
+    color: var(--admin-text-muted) !important;
+}
+
+.text-primary {
+    color: var(--admin-text-primary) !important;
+}
+
+.text-secondary {
+    color: var(--admin-text-secondary) !important;
+}
+
+.text-success {
+    color: #333333 !important;
+}
+
+.text-danger {
+    color: #333333 !important;
+}
+
+.text-warning {
+    color: #555555 !important;
+}
+
+.text-info {
+    color: #444444 !important;
+}
+
+/* ==========================================================
+   Alert Styles - Grayscale
+   ========================================================== */
+.alert {
+    border-radius: 0;
+    padding: 14px 18px;
+    border: 1px solid;
+    font-family: 'Georgia', serif;
+}
+
+.alert-info {
+    background-color: #f2f2f2;
+    border-color: #cccccc;
+    color: #333333;
+}
+
+.alert-warning {
+    background-color: #f5f5f5;
+    border-color: #999999;
+    color: #333333;
+}
+
+.alert-danger {
+    background-color: #f5f5f5;
+    border: 2px solid #000000;
+    color: #000000;
+}
+
+.alert-success {
+    background-color: #eeeeee;
+    border-color: #cccccc;
+    color: #000000;
+}
+
+/* ==========================================================
+   Scrollbar Styling
+   ========================================================== */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f2f2f2;
+    border: 1px solid #cccccc;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #999999;
+    border: 1px solid #666666;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #666666;
+}
+
+/* ==========================================================
+   Links
+   ========================================================== */
+a {
+    color: #000000;
+    text-decoration: underline;
+}
+
+a:hover {
+    color: #444444;
+    text-decoration: none;
+}
+
+/* ==========================================================
+   Dropdown Menus
+   ========================================================== */
+.dropdown-menu {
+    background-color: #ffffff;
+    border: 1px solid #000000;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.dropdown-item {
+    color: #000000;
+    font-family: 'Georgia', serif;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+    background-color: #f0f0f0;
+    color: #000000;
+}
+
+.dropdown-item.active,
+.dropdown-item:active {
+    background-color: #dddddd;
+    color: #000000;
+}
+
+/* ==========================================================
+   Modal Styles
+   ========================================================== */
+.modal-content {
+    background-color: #ffffff;
+    border: 1px solid #000000;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.modal-header {
+    background-color: #f2f2f2;
+    border-bottom: 1px solid #cccccc;
+}
+
+.modal-title {
+    color: #000000;
+    font-family: 'Georgia', serif;
+}
+
+.modal-footer {
+    background-color: #f2f2f2;
+    border-top: 1px solid #cccccc;
+}
+
+.btn-close {
+    filter: none;
+}
+
+/* ==========================================================
+   Card Styles
+   ========================================================== */
+.card {
+    background-color: #ffffff;
+    border: 1px solid #cccccc;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.card:hover {
+    background-color: #fafafa;
+}
+
+.card-header {
+    background-color: #f2f2f2;
+    border-bottom: 1px solid #cccccc;
+    color: #000000;
+    font-weight: bold;
+    font-family: 'Georgia', serif;
+}
+
+.card-body {
+    padding: 20px;
+}
+
+/* ==========================================================
+   Pagination
+   ========================================================== */
+.pagination .page-link {
+    background-color: #ffffff;
+    border-color: #cccccc;
+    color: #000000;
+    border-radius: 0;
+}
+
+.pagination .page-link:hover {
+    background-color: #eeeeee;
+    border-color: #999999;
+    color: #000000;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: #000000;
+    border-color: #000000;
+    color: #ffffff;
+}
+
+.pagination .page-item.disabled .page-link {
+    background-color: #f2f2f2;
+    border-color: #cccccc;
+    color: #999999;
+}
+
+/* ==========================================================
+   Input Group
+   ========================================================== */
+.input-group-text {
+    background-color: #f2f2f2;
+    border: 1px solid #cccccc;
+    color: #000000;
+    border-radius: 0;
+}
+
+/* ==========================================================
+   Font Awesome Icons - Grayscale
+   ========================================================== */
+.fa, .fas, .fab, .far, .fa-solid, .fa-brands, .fa-regular {
+    color: #444444 !important;
+}
+
+/* Icons inside buttons should inherit button color */
+.btn .fa,
+.btn .fas,
+.btn .fab,
+.btn .far,
+.btn .fa-solid,
+.btn .fa-brands,
+.btn .fa-regular {
+    color: inherit !important;
+}
+
+/* ==========================================================
+   Focus Visible for Accessibility
+   ========================================================== */
+:focus-visible {
+    outline: 2px solid #000000;
+    outline-offset: 2px;
+}
+
+/* ==========================================================
+   Disabled States
+   ========================================================== */
+.btn:disabled,
+.form-control:disabled,
+.form-select:disabled {
+    background-color: #e8e8e8;
+    color: #666666;
+    opacity: 0.6;
+    border-color: #cccccc;
+    cursor: not-allowed;
+}
+
+/* ==========================================================
+   Responsive Styles
+   ========================================================== */
+@media (max-width: 768px) {
+    .main-container {
+        padding: 15px 10px;
+    }
+
+    .page-title {
+        font-size: 1.4rem;
+    }
+
+    .flex-column {
+        min-width: 100%;
+    }
+
+    .flex-row {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .internal-tabs {
+        flex-wrap: wrap;
+    }
+
+    .internal-tab {
+        flex: 1;
+        min-width: calc(50% - 5px);
+        text-align: center;
+        justify-content: center;
+    }
+
+    .section-container {
+        padding: 18px;
+    }
+
+    .stats-row {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .stat-badge {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .table-wrapper {
+        overflow-x: auto;
+    }
+
+    .table {
+        min-width: 600px;
+    }
+
+    .btn-back {
+        width: 38px;
+        height: 38px;
+    }
+}
+
+@media (max-width: 480px) {
+    .page-title {
+        font-size: 1.2rem;
+    }
+
+    .section-title {
+        font-size: 1rem;
+    }
+
+    .internal-tab {
+        padding: 8px 14px;
+        font-size: 0.85rem;
+    }
+
+    .btn-primary-action,
+    .btn-primary-gold {
+        padding: 10px 18px;
+        font-size: 0.9rem;
+    }
+}

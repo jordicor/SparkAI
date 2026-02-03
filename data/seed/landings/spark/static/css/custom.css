@@ -1,0 +1,311 @@
+/* Cyberpunk Theme Custom Styles */
+
+:root {
+    --primary-blue: #3b82f6;
+    --secondary-cyan: #10efe4;
+    --dark-bg: #0f172a;
+    --grid-color: rgba(16, 239, 228, 0.1);
+}
+
+/* Cyberpunk Grid Background */
+#grid-bg {
+    background-image:
+        linear-gradient(var(--grid-color) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+    background-size: 50px 50px;
+    animation: gridScroll 20s linear infinite;
+}
+
+@keyframes gridScroll {
+    0% {
+        transform: perspective(500px) rotateX(60deg) translateZ(0);
+    }
+    100% {
+        transform: perspective(500px) rotateX(60deg) translateZ(50px);
+    }
+}
+
+/* Cyber Glow Effects */
+.cyber-glow {
+    text-shadow: 0 0 10px rgba(16, 239, 228, 0.5),
+                 0 0 20px rgba(16, 239, 228, 0.3),
+                 0 0 30px rgba(16, 239, 228, 0.2);
+}
+
+.cyber-glow-text {
+    text-shadow: 0 0 10px currentColor;
+}
+
+/* Button Styles */
+.cyber-button-primary {
+    position: relative;
+    overflow: hidden;
+    transform: translateZ(0);
+}
+
+.cyber-button-primary::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    transition: left 0.5s;
+}
+
+.cyber-button-primary:hover::before {
+    left: 100%;
+}
+
+.cyber-button-secondary {
+    position: relative;
+    overflow: hidden;
+}
+
+.cyber-button-secondary::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, rgba(16, 239, 228, 0.1), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.cyber-button-secondary:hover::after {
+    opacity: 1;
+}
+
+/* Card Animations */
+.cyber-card {
+    animation: float 6s ease-in-out infinite;
+}
+
+@keyframes float {
+    0%, 100% {
+        transform: translateY(0px);
+    }
+    50% {
+        transform: translateY(-20px);
+    }
+}
+
+.cyber-message-user {
+    animation: slideInRight 0.5s ease-out;
+}
+
+.cyber-message-ai {
+    animation: slideInLeft 0.5s ease-out 0.3s both;
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes slideInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Feature Cards */
+.cyber-card-feature {
+    transition: transform 0.3s ease;
+}
+
+.cyber-card-feature:hover {
+    transform: translateY(-8px);
+}
+
+/* Capability Items */
+.capability-item {
+    animation: fadeInUp 0.6s ease-out;
+    animation-fill-mode: both;
+}
+
+.capability-item:nth-child(1) { animation-delay: 0.1s; }
+.capability-item:nth-child(2) { animation-delay: 0.2s; }
+.capability-item:nth-child(3) { animation-delay: 0.3s; }
+.capability-item:nth-child(4) { animation-delay: 0.4s; }
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Stats Panel */
+.cyber-stats-panel {
+    animation: fadeIn 1s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.cyber-bar {
+    animation: fillBar 1.5s ease-out;
+    animation-fill-mode: both;
+}
+
+@keyframes fillBar {
+    from {
+        width: 0 !important;
+    }
+}
+
+/* Testimonials */
+.cyber-testimonial {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.cyber-testimonial:hover {
+    transform: translateY(-5px);
+}
+
+/* CTA Panel */
+.cyber-cta-panel {
+    animation: pulse 3s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.02);
+    }
+}
+
+/* Smooth Scrolling */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #1e293b;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, var(--primary-blue), var(--secondary-cyan));
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--secondary-cyan);
+}
+
+/* Glitch Effect on Hover (Subtle) */
+.cyber-glow:hover {
+    animation: glitch 0.3s ease;
+}
+
+@keyframes glitch {
+    0% {
+        transform: translate(0);
+    }
+    20% {
+        transform: translate(-2px, 2px);
+    }
+    40% {
+        transform: translate(-2px, -2px);
+    }
+    60% {
+        transform: translate(2px, 2px);
+    }
+    80% {
+        transform: translate(2px, -2px);
+    }
+    100% {
+        transform: translate(0);
+    }
+}
+
+/* Mobile Responsive Adjustments */
+@media (max-width: 768px) {
+    #grid-bg {
+        background-size: 30px 30px;
+    }
+
+    .cyber-glow {
+        text-shadow: 0 0 5px rgba(16, 239, 228, 0.5);
+    }
+}
+
+/* Accessibility - Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+
+    #grid-bg {
+        animation: none;
+    }
+
+    .cyber-card {
+        animation: none;
+    }
+}
+
+/* Loading Animation for Images */
+img {
+    opacity: 0;
+    animation: fadeIn 0.5s ease-out forwards;
+}
+
+/* Focus States for Accessibility */
+a:focus,
+button:focus {
+    outline: 2px solid var(--secondary-cyan);
+    outline-offset: 2px;
+}
+
+/* Neon Border Animation */
+@keyframes neonBorder {
+    0%, 100% {
+        box-shadow: 0 0 5px var(--secondary-cyan),
+                    0 0 10px var(--secondary-cyan),
+                    inset 0 0 5px var(--secondary-cyan);
+    }
+    50% {
+        box-shadow: 0 0 10px var(--secondary-cyan),
+                    0 0 20px var(--secondary-cyan),
+                    inset 0 0 10px var(--secondary-cyan);
+    }
+}
+
+.cyber-button-primary:focus,
+.cyber-button-secondary:focus {
+    animation: neonBorder 1.5s ease-in-out infinite;
+}

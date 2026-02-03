@@ -1,0 +1,195 @@
+{% extends 'base.html' %}
+
+{% block title %}Prompt Management - SPARK{% endblock %}
+
+{% block styles %}
+{# Theme CSS loaded by theme-loader.js #}
+{% endblock %}
+
+{% block page_title %}Manage Prompts{% endblock %}
+
+{% block back_url %}/{% endblock %}
+
+{% block page_actions %}
+{% endblock %}
+
+{% block content %}
+<!-- Stats Row -->
+<div class="stats-row">
+    <span class="stat-badge">
+        <i class="fas fa-file-alt"></i> <strong id="statTotal">{{ prompts|length }}</strong> Total
+    </span>
+    <span class="stat-badge stat-public">
+        <i class="fas fa-globe"></i> <strong id="statPublic">{{ prompts|selectattr('public')|list|length }}</strong> Public
+    </span>
+    <span class="stat-badge stat-private">
+        <i class="fas fa-lock"></i> <strong id="statPrivate">{{ prompts|rejectattr('public')|list|length }}</strong> Private
+    </span>
+    <span class="stat-badge" id="statFilteredContainer" style="display: none;">
+        <i class="fas fa-filter"></i> <strong id="statFiltered">0</strong> Shown
+    </span>
+</div>
+
+<!-- Filters Section -->
+<div class="section-container filters-section">
+    <div class="section-title">
+        <i class="fas fa-filter me-2"></i>Filters
+        <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" onclick="resetFilters()">
+            <i class="fas fa-undo me-1"></i>Reset
+        </button>
+    </div>
+    <div class="flex-row">
+        <div class="flex-column">
+            <label class="form-label">Search</label>
+            <input type="text" class="form-control" id="filterSearch" placeholder="Name or description...">
+        </div>
+        <div class="flex-column">
+            <label class="form-label">Status</label>
+            <select class="form-select" id="filterStatus">
+                <option value="">All Status</option>
+                <option value="public">Public</option>
+                <option value="private">Private</option>
+            </select>
+        </div>
+        <div class="flex-column">
+            <label class="form-label">Voice</label>
+            <select class="form-select" id="filterVoice">
+                <option value="">All Voices</option>
+            </select>
+        </div>
+        {% if is_admin %}
+        <div class="flex-column">
+            <label class="form-label">Owner</label>
+            <select class="form-select" id="filterOwner">
+                <option value="">All Owners</option>
+            </select>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Prompts Table Section -->
+<div class="section-container">
+    <div class="section-title">
+        <i class="fas fa-file-alt"></i> All Prompts
+    </div>
+    <form action="/prompts/delete-batch" method="post" id="promptsForm">
+        <!-- Toolbar: Select All + Actions -->
+        <div class="table-toolbar">
+            <div class="toolbar-left">
+                <input type="checkbox" id="selectAll" class="form-check-input" title="Select All">
+                <label for="selectAll" class="form-check-label">Select all</label>
+            </div>
+            <div class="toolbar-right">
+                <a href="/prompts/new" class="btn btn-success">
+                    <i class="fas fa-plus me-1"></i> Create Prompt
+                </a>
+                <button type="submit" class="btn btn-outline-danger" id="deleteBtn" disabled>
+                    <i class="fas fa-trash me-1"></i> Delete (<span id="selectedCount">0</span>)
+                </button>
+            </div>
+        </div>
+
+        <!-- Table -->
+        <div class="table-wrapper">
+            <table class="table table-hover" id="promptsTable">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;"></th>
+                        <th data-sort="name" class="sortable sort-asc">Name</th>
+                        <th data-sort="voice" class="sortable">Voice</th>
+                        <th data-sort="public" class="sortable" style="width: 100px;">Status</th>
+                        {% if is_admin %}
+                        <th data-sort="owner" class="sortable">Owner</th>
+                        {% endif %}
+                        <th class="text-end" style="width: 100px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="promptsTableBody">
+                    {% for prompt in prompts %}
+                    <tr data-id="{{ prompt.id }}"
+                        data-name="{{ prompt.name }}"
+                        data-description="{{ prompt.description or '' }}"
+                        data-voice="{{ prompt.voice_name or '' }}"
+                        data-public="{{ 'public' if prompt.public else 'private' }}"
+                        data-owner="{{ prompt.owner_username or '' }}">
+                        <td>
+                            {% if prompt.can_edit %}
+                            <input type="checkbox" name="selected_prompts" value="{{ prompt.id }}" class="prompt-checkbox">
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="prompt-name-cell">
+                                {% if prompt.image_url %}
+                                <img src="{{ prompt.image_url }}" alt="" class="prompt-avatar"
+                                     data-fullsize="{{ prompt.image_fullsize_url }}"
+                                     onclick="FullsizeViewer.show(this.dataset.fullsize)">
+                                {% else %}
+                                <span class="prompt-avatar-placeholder"><i class="fas fa-file-alt"></i></span>
+                                {% endif %}
+                                <span class="prompt-name" title="{{ prompt.description or prompt.name }}">{{ prompt.name }}</span>
+                            </div>
+                        </td>
+                        <td>{{ prompt.voice_name or '-' }}</td>
+                        <td>
+                            {% if prompt.public %}
+                            <span class="status-public"><i class="fas fa-globe me-1"></i>Public</span>
+                            {% else %}
+                            <span class="status-private"><i class="fas fa-lock me-1"></i>Private</span>
+                            {% endif %}
+                        </td>
+                        {% if is_admin %}
+                        <td>{{ prompt.owner_username or '-' }}</td>
+                        {% endif %}
+                        <td class="text-end table-actions">
+                            {% if prompt.can_edit %}
+                            <a href="/prompts/edit/{{ prompt.id }}" class="btn btn-sm btn-outline-primary" title="Edit">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <button type="button" onclick="deletePrompt({{ prompt.id }})" class="btn btn-sm btn-outline-danger" title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                            {% else %}
+                            <span class="text-muted"><i class="fas fa-eye"></i></span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </form>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ get_static_url('/static/js/fullsize-viewer.js') }}"></script>
+<script src="{{ get_static_url('/static/js/prompt-list.js') }}"></script>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    // Initialize fullsize viewer (no navigation, single images)
+    FullsizeViewer.init({
+        showNav: false,
+        showDownload: true,
+        showDelete: false
+    });
+
+    function deletePrompt(promptId) {
+        if (confirm('Are you sure you want to delete this prompt?')) {
+            fetch(`/prompts/delete/${promptId}`, {
+                method: 'DELETE'
+            }).then(response => {
+                if (response.ok) {
+                    NotificationModal.success('Prompt Deleted', 'Prompt deleted successfully!');
+                    window.location.reload();
+                } else {
+                    NotificationModal.error('Delete Failed', 'Failed to delete prompt.');
+                }
+            }).catch(error => console.error('Error:', error));
+        }
+    }
+</script>
+{% endblock %}

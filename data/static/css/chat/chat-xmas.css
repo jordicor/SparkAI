@@ -1,0 +1,2978 @@
+/* chat-xmas.css */
+
+body, h5 {
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', sans-serif;	
+}
+
+:root {
+    --sidebar-bg-color: #1a472a;
+    --sidebar-border-color: #5d9b84;
+    --sidebar-text-color: #ffffff;
+    --chat-window-bg-color: #0f0d0e;
+    --chatbot-info-bg-color: #165b33;
+    --user-info-bg-color: #1a472a;
+    --message-input-bg-color: #165b33;
+    --message-user-bg-color: #d3212f;
+    --message-bot-bg-color: #146b3a;
+}
+
+body {
+    display: flex;
+    height: 100vh;
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background-color: #c41e3a;
+    color: #ffffff;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50"><text x="50%" y="50%" font-size="20" text-anchor="middle" dy=".35em" font-family="Arial, sans-serif" fill="rgba(255,255,255,0.1)">🎄</text></svg>');
+}
+
+#sidebar {
+    min-width: 240px;
+    max-width: 10vw;
+    background-color: var(--sidebar-bg-color);
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+    border-right: 1px solid var(--sidebar-border-color);
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+    z-index: 1001;
+    overflow: visible;
+}
+
+.list-group {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 15px;
+}
+
+.list-group-item {
+    background-color: #146b3a;
+    color: var(--sidebar-text-color);
+    border-radius: 4px;
+    margin-bottom: 2px;
+    transition: background-color 0.3s ease;
+    padding: 10px 40px 10px 15px;
+    border: none;
+    position: relative;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.list-group-item.active-chat,
+.list-group-item:hover {
+    background-color: #d3212f;
+    color: white;
+}
+
+.list-group-item-action[href="/"] {
+    background-color: transparent; 
+    color: var(--sidebar-text-color);
+    pointer-events: auto; 
+}
+
+.list-group-item-action[href="/"]:hover {
+    background-color: #d3212f; 
+    color: var(--sidebar-text-color);
+}
+
+.btn-toggle-sidebar {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 1002;
+    background-color: var(--sidebar-bg-color);
+    color: var(--sidebar-text-color);
+    border: none;
+    padding: 5px 10px;
+    border-radius: 5px;
+}
+
+.overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(196, 30, 58, 0.5);
+    z-index: 999;
+}
+
+.overlay.active {
+    display: block;
+}
+
+@media (max-width: 768px) {
+    .btn-toggle-sidebar {
+        display: flex;
+    }
+
+    #sidebar {
+        position: fixed;
+        left: -80%;
+        width: 80%;
+        height: 100%;
+        overflow-y: auto;
+        background-color: var(--sidebar-bg-color);
+        transition: left 0.3s;
+        z-index: 1002;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .overlay {
+        display: none !important;
+    }
+
+    .overlay.active {
+        display: block !important;
+    }
+
+    #sidebar.active {
+        left: 10px;
+    }
+
+    .logout-container {
+        position: absolute;
+        bottom: 0;
+        width: 100%;
+    }
+
+    .chatbot-info h5 {
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+
+    #window-chat {
+        width: 100%;
+    }
+    
+    #chat-overlay {
+        left: 0;
+        width: 100%;
+    }		
+}
+
+#window-chat {
+    flex: 1;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: calc(100% - min(240px, 10vw));
+    box-sizing: border-box;
+}
+
+.chat-window {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: var(--chat-window-bg-color);
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50"><text x="50%" y="50%" font-size="20" text-anchor="middle" dy=".35em" font-family="Arial, sans-serif" fill="rgba(255,255,255,0.1)">❄️</text></svg>');
+}
+
+.chat-messages-container {
+    width: 100%;
+    max-width: 48rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.chatbot-info {
+    background-color: var(--chatbot-info-bg-color);
+    color: white;
+    padding: 15px;
+    border-bottom: 1px solid var(--sidebar-border-color);
+    position: relative;
+    z-index: 1002;
+}
+
+.user-info {
+    background-color: var(--user-info-bg-color);
+    padding: 30px;
+    height: 89px;
+    color: white;
+    align-items: center;
+    display: flex;
+}
+
+.message-input {
+    padding: 20px;
+    background-color: var(--message-input-bg-color);
+    display: flex;
+    justify-content: center;
+    border-top: 1px solid var(--sidebar-border-color);
+    position: relative;
+    z-index: 11;
+}
+
+.input-container {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    background-color: #146b3a;
+    border-radius: 8px;
+    width: 100%;
+    max-width: 48em;
+    margin: 0 auto;
+    padding: 8px;
+}
+.attach-icon,
+#audio-control {
+    position: relative; 
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    margin-right: 10px; 
+}
+
+#audio-control i,
+.attach-icon {
+    font-size: 14px;
+    line-height: 1;
+}
+.attach-icon {
+    margin-right: 12px;
+}
+
+#message-text {
+    flex: 1;
+    min-height: 20px;
+    max-height: 33vh;
+    padding: 8px;
+    padding-left: 0;
+    background: transparent;
+    resize: none;
+    overflow-y: auto;
+    line-height: 1.5;
+    margin-left: 0;
+}
+
+.input-icons {
+    display: flex;
+    align-items: flex-end; 
+    min-width: 70px;
+    margin-right: 8px;
+    align-self: flex-end; 
+    padding-bottom: 8px; 
+}
+.form-control {
+    background-color: #146b3a;
+    border: none;
+    color: #ffffff;
+    width: 100%;
+    padding-left: 65px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    box-sizing: border-box;
+    border-radius: 8px 0 0 8px;
+    display: flex;
+    align-items: center;
+    height: 100%;
+}
+
+.form-control:focus {
+    outline: none;
+    box-shadow: none;
+    background-color: #146b3a;
+    color: #ffffff;
+}
+
+.form-control::placeholder {
+    color: #ffffff;
+    opacity: 0.7;
+}
+
+.form-control:focus::placeholder {
+    color: #ffffff;
+}
+
+.send-btn {
+    background-color: #d3212f;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    border-radius: 0 8px 8px 0;
+}
+
+.send-btn:hover {
+    background-color: #bf0d1e;
+}
+
+.send-btn:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+.input-container i {
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #ffffff;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.input-container i.mic-icon {
+    left: 45px;
+}
+
+textarea {
+    resize: none;
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: inherit;
+    width: 100%;
+    height: 100%;
+}
+
+.message {
+    max-width: 70%;
+    padding: 10px 15px;
+    border-radius: 18px;
+    margin-bottom: 10px;
+    font-size: 16px;
+    line-height: 1.4;
+    word-wrap: break-word; 
+    width: fit-content; 
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.message.user {
+    margin-left: auto;
+    background-color: var(--message-user-bg-color);
+    color: white;
+    align-self: flex-end;
+    width: fit-content; 
+}
+
+.message.bot {
+    margin-right: auto;
+    background-color: var(--message-bot-bg-color);
+    color: white;
+    align-self: flex-start;
+    width: fit-content; 
+}
+
+.message.bot img:not(.avatar img),
+.message.user img:not(.avatar img) {
+    max-width: 256px;
+    max-height: 256px;
+    width: auto;
+    height: auto;
+    border-radius: 8px;
+    border: 2px solid #ffffff;
+}
+
+/* Updated styles for New Chat button */
+.btn-group {
+    display: flex;
+    margin-top: 15px;
+    width: 100%;
+}
+
+.custom-new-chat-btn {
+    background-color: #d3212f;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    padding: 8px 15px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.3s ease, filter 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.custom-new-chat-btn:hover {
+    background-color: #bf0d1e;
+    filter: brightness(1.1);
+}
+
+.custom-new-chat-btn i {
+    margin-right: 8px;
+}
+
+.btn-group .custom-new-chat-btn:first-child {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    flex-grow: 1;
+}
+
+.btn-group .dropdown-toggle-split {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+.btn-group .dropdown-toggle-split::after {
+    margin-left: 0;
+}
+
+.new-chat-settings {
+    width: 300px;
+    padding: 15px;
+    background-color: #146b3a;
+    border: 1px solid #1a472a;
+}
+
+.new-chat-settings .dropdown-header {
+    color: #ffffff;
+}
+
+.new-chat-settings .form-select {
+    margin-top: 5px;
+    background-color: #165b33;
+    color: #ffffff;
+    border: none;
+}
+
+.new-chat-settings .dropdown-divider {
+    border-top-color: #165b33;
+}
+
+/* Theme Button Styles */
+.custom-theme-btn {
+    background: linear-gradient(135deg, #146b3a, #165b33);
+    color: #ffffff;
+    border: 2px solid #d3212f;
+    border-radius: 25px;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 8px rgba(20, 107, 58, 0.3), 0 0 15px rgba(211, 33, 47, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+.custom-theme-btn:hover {
+    background: linear-gradient(135deg, #165b33, #1a4f37);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(20, 107, 58, 0.4), 0 0 20px rgba(211, 33, 47, 0.6);
+    color: #ffffff;
+}
+
+.custom-theme-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(20, 107, 58, 0.2), 0 0 10px rgba(211, 33, 47, 0.3);
+}
+
+.custom-theme-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(211, 33, 47, 0.3);
+}
+
+.custom-theme-btn i {
+    margin-right: 8px;
+}
+
+/* Theme Dropdown Menu */
+.theme-dropdown-menu {
+    width: 200px;
+    padding: 10px 0;
+    background: linear-gradient(135deg, #1a4f37, #0f3d2a);
+    border: 2px solid #d3212f;
+    border-radius: 15px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3), 0 0 20px rgba(211, 33, 47, 0.2);
+    margin-top: 5px;
+}
+
+.theme-dropdown-menu .dropdown-item {
+    color: #ffffff;
+    padding: 10px 20px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    border: none;
+    background: none;
+}
+
+.theme-dropdown-menu .dropdown-item:hover {
+    background: linear-gradient(135deg, #d3212f, #b01e2a);
+    color: #ffffff;
+    transform: translateX(5px);
+    box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.1);
+}
+
+.theme-dropdown-menu .dropdown-item:focus {
+    background: linear-gradient(135deg, #d3212f, #b01e2a);
+    color: #ffffff;
+    outline: none;
+}
+
+.theme-dropdown-menu .dropdown-item.active {
+    background: linear-gradient(135deg, #d3212f, #b01e2a);
+    color: #ffffff;
+    font-weight: bold;
+}
+
+@media (max-width: 768px) {
+    .custom-theme-btn {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+    
+    .theme-dropdown-menu {
+        width: 180px;
+        padding: 8px 0;
+    }
+    
+    .theme-dropdown-menu .dropdown-item {
+        padding: 8px 15px;
+        font-size: 12px;
+    }
+}
+
+.sidebar-section h3 {
+    font-size: 12px;
+    color: #ffffff;
+    margin: 10px 0 10px 0;
+    text-transform: uppercase;
+}
+
+#dynamic-chats-container .list-group-item {
+    padding: 8px 10px;
+    margin-bottom: 2px;
+    background-color: transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    font-size: 14px;
+}
+
+#dynamic-chats-container .list-group-item:hover {
+    background-color: #165b33;
+}
+
+#dynamic-chats-container .list-group-item.active-chat {
+    background-color: #d3212f;
+    color: white;
+}
+
+#dynamic-chats-container .list-group-item i {
+    margin-left: 10px;
+    color: #ffffff;
+    cursor: pointer;
+    transition: color 0.3s ease;
+}
+
+#dynamic-chats-container .list-group-item i:hover {
+    color: #ffd700;
+}
+
+#load-more-button {
+    background-color: transparent;
+    color: #ffffff;
+    border: none;
+    padding: 10px;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 10px 0;
+    transition: color 0.3s ease;
+}
+
+#load-more-button:hover {
+    color: #ffd700;
+}
+
+#load-more-button .dots {
+    margin-right: 5px;
+    font-size: 18px;
+    line-height: 0;
+}
+
+#load-more-button i {
+    margin-left: 5px;
+}
+
+#image-previews {
+    position: absolute;
+    bottom: 80px;
+    left: 0;
+    right: 0;
+    height: 100px;
+    overflow-y: auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 10px;
+    background-color: rgba(20, 107, 58, 0.69);
+    z-index: 10;
+    max-width: 100%;
+}
+
+#image-previews.hidden {
+    display: none;
+}
+
+#image-previews img,
+.preview-image {
+    max-width: 100px;
+    max-height: 100px;
+    border-radius: 5px;
+    margin-right: 10px;
+    margin-bottom: 10px;
+}
+
+.drop-zone--over {
+    border: 2px dashed #ffd700;
+}
+
+.drop-zone-overlay {
+    pointer-events: none;
+}
+
+.select-container {
+    margin-bottom: 15px;
+    padding: 8px;
+    border-radius: 4px;
+}
+
+.form-select,
+.select {
+    width: 100%;
+    padding: 8px;
+    background-color: #146b3a;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+#audio-button {
+    margin-left: 12px;
+}
+
+.chat-title-container {
+    display: flex;
+    align-items: center;
+}
+
+#chat-title {
+    transition: max-width 0.3s ease-in-out, opacity 0.3s ease-in-out;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 300px;
+    padding-left: 3em;
+}
+
+#info-icon {
+    margin-left: 10px;
+    cursor: pointer;
+    font-size: 1.2em;
+    transition: transform 0.3s ease-in-out;
+}
+
+#info-icon:hover {
+    transform: scale(1.1);
+}
+
+#message-text {
+    max-height: 33vh;
+    overflow-y: auto;
+    resize: none;
+}
+
+.message-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: #ffffff;
+    margin-top: 5px;
+    background-color: transparent; 
+}
+
+.message-info i {
+    margin-right: 10px;
+    color: #ffffff; 
+}
+
+.message-info span {
+    color: #ffffff; 
+    cursor: default;
+    padding-left: 15px;
+    transition: color 0.3s ease;
+}
+
+.message-info span:hover {
+    color: #ffd700; 
+}
+
+.bookmark-icon {
+    color: #ffffff;
+    transition: all 0.3s ease;
+}
+
+.bookmark-icon.check {
+    color: #ffd700;
+    font-family: 'FontAwesome';
+    content: "\f00c";
+    transform: scale(1.2);
+    transition: transform 0.3s ease-in-out, color 0.3s ease-in-out;
+}
+
+.bookmark-icon.fade-out {
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+}
+
+.bookmark-icon.bookmarked {
+    color: #ffd700;
+}
+
+.previously-active-chat {
+    background-color: #0f5429 !important;
+    color: #ffffff !important;
+}
+
+.code-block {
+    margin-top: 16px;
+    margin-bottom: 16px;
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: #1a472a;
+}
+
+.code-language {
+    color: #ffffff;
+    text-transform: uppercase;
+}
+
+.code-header {
+    margin: 0;
+    padding: 8px 12px;
+    background-color: #146b3a;
+    border-radius: 8px 8px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.copy-button {
+    background: none;
+    border: none;
+    color: #ffffff;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0;
+    height: 24px;
+    display: flex;
+    align-items: center;
+}
+
+.copy-button:hover {
+    color: #ffd700;
+}
+
+.code-block pre {
+    margin: 0;
+    padding: 12px;
+    background-color: #1a472a;
+    border-radius: 0 0 8px 8px;
+    overflow-x: auto;
+}
+
+.code-block code {
+    margin: 0;
+    padding: 0;
+    font-family: 'Consolas', 'Monaco', 'Andale Mono', 'Ubuntu Mono', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.copy-button i {
+    font-size: 14px;
+    transition: color 0.3s ease;
+}
+
+.copy-button i.fa-check {
+    color: #ffd700;
+}
+
+.copy-button i.fa-copy {
+    color: #ffffff;
+}
+
+.list-group-item-action.active-bookmarks,
+.list-group-item-action.active-bookmarks:hover,
+.list-group-item-action.active-bookmarks:focus {
+    background-color: #d3212f;
+    color: white;
+}
+
+#my-bookmarks-btn {
+    background-color: var(--sidebar-bg-color);
+    color: var(--sidebar-text-color);
+}
+
+#my-bookmarks-btn:hover {
+    background-color: #bf0d1e;
+}
+
+#my-bookmarks-btn.active-bookmarks:hover {
+    background-color: #d3212f;
+}
+
+.rollback-icon {
+    color: #ffffff;
+    transition: all 0.3s ease;
+}
+
+.rollback-icon:hover {
+    color: #ffd700;
+    transform: scale(1.1);
+}
+
+#form-message {
+    width: 100%;
+    max-width: 48rem;
+    display: flex;
+    background-color: #146b3a;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.input-group {
+    width: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.input-group textarea {
+    flex-grow: 1;
+    margin-right: 10px;
+}
+
+.input-group .btn {
+    white-space: nowrap;
+}
+
+.list-group-item-action.active-chat {
+    background-color: #d3212f;
+    color: white;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.chat-menu {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-block;
+    cursor: pointer;
+}
+
+.chat-menu .fa-ellipsis-h {
+    color: #ffffff;
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
+}
+
+.chat-menu:hover .fa-ellipsis-h {
+    opacity: 1;
+}
+
+.chat-menu .chat-menu-content {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    background-color: #146b3a;
+    border-radius: 5px;
+    padding: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    z-index: 1001;
+}
+
+.chat-menu .chat-menu-content a {
+    display: block;
+    color: #ffffff;
+    padding: 8px;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.chat-menu .chat-menu-content a i {
+    margin-right: 10px;
+}
+
+.chat-menu .chat-menu-content a:hover {
+    background-color: #165b33;
+}
+
+.chat-menu .chat-menu-content .delete-chat i {
+    color: #ff4d4d;
+}
+
+.menu-separator {
+    height: 1px;
+    background-color: #165b33;
+    margin: 5px 0;
+}
+
+.dropdown-menu {
+    background-color: var(--sidebar-bg-color);
+    border: 3px solid var(--sidebar-border-color);
+    z-index: 1050;
+}
+
+.dropdown-item {
+    color: var(--sidebar-text-color);
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+    background: linear-gradient(135deg, #d3212f, #b01e2a) !important;
+    color: #ffffff !important;
+}
+
+.preserve-whitespace {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+#chat-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(128, 128, 128, 0.5);
+    z-index: 1000;
+    display: none;
+}
+
+.chat-deactivated #chat-overlay {
+    display: block;
+}
+
+.chat-deactivated #chat-window {
+    pointer-events: none;
+}
+
+.avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    overflow: hidden;
+    background-color: #1a472a;
+    margin-right: 10px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #d3212f;
+}
+
+.avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    cursor: default;
+}
+
+.message-content img {
+    max-width: 256px;
+    max-height: 256px;
+    object-fit: cover;
+    cursor: pointer;
+}
+
+.nav-menu {
+    position: fixed;
+    right: 20px;
+    bottom: 100px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 1000;
+}
+
+.nav-button {
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 50%;
+    background-color: #d3212f;
+    color: #ffffff;
+    font-size: 18px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.nav-button:hover {
+    background-color: #bf0d1e;
+    transform: scale(1.05);
+}
+
+.nav-button:active {
+    transform: scale(0.95);
+}
+
+@keyframes highlight {
+    0% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7); }
+    70% { box-shadow: 0 0 0 20px rgba(255, 215, 0, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0); }
+}
+
+.highlight {
+    animation: highlight 1s ease-out;
+}
+
+@keyframes shake {
+    0% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    50% { transform: translateX(5px); }
+    75% { transform: translateX(-5px); }
+    100% { transform: translateX(0); }
+}
+
+.shake {
+    animation: shake 0.5s ease-in-out;
+}
+
+.number-bubble {
+    position: absolute;
+    background-color: rgba(20, 107, 58, 0.8);
+    color: white;
+    border-radius: 50%;
+    width: 45px;
+    height: 45px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 12px;
+    animation: float-away 1s ease-out;
+    pointer-events: none;
+}
+
+@keyframes float-away {
+    0% {
+        transform: translate(0, 0);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-50px, -50px);
+        opacity: 0;
+    }
+}
+
+.loading-indicator {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+.list-group-item-action[href="/"] {
+    background-color: transparent;
+    color: var(--sidebar-text-color);
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 10px 15px;
+}
+
+.list-group-item-action[href="/"] i {
+    margin-right: 10px;
+}
+
+.list-group-item-action[href="/"] span {
+    flex-grow: 1;
+    text-align: center;
+}
+
+.message img {
+    max-width: 256px;
+    max-height: 256px;
+    object-fit: cover;
+}
+
+.fullsize-container {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(20, 107, 58, 0.9);
+    z-index: 1000;
+}
+
+.fullsize-image {
+    max-width: 90%;
+    max-height: 90%;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.fullsize-controls {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(26, 71, 42, 0.9);
+    padding: 15px;
+    border-radius: 25px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    display: flex;
+    gap: 15px;
+    z-index: 1001;
+}
+
+
+.user-menu-mobile {
+    display: none;
+}
+
+@media (max-width: 767px) {
+    .user-menu-mobile {
+        display: block;
+        margin-bottom: 15px;
+    }
+    .user-menu-desktop {
+        display: none;
+    }
+}
+
+.message-content-container {
+    display: flex;
+    align-items: flex-start;
+}
+
+.avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background-color: #1a472a;
+    margin-right: 10px;
+    flex-shrink: 0;
+}
+
+.user .message-content-container {
+    flex-direction: row-reverse;
+}
+
+.user .avatar {
+    margin-right: 0;
+    margin-left: 10px;
+}
+
+.menu-separator {
+    margin: 5px 0;
+    border-top: 1px solid #4a4a4a;
+}
+
+.list-group-item-action {
+    transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+
+@keyframes popIn {
+    0% { transform: scale(0.8); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.pop-in {
+    animation: popIn 0.3s ease-out forwards;
+}
+
+#audio-recording-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px;
+    background-color: var(--message-input-bg-color);
+}
+
+#time-counter {
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--sidebar-text-color);
+    margin-bottom: 10px;
+}
+
+.audio-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+
+#audio-recording-controls button {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.3s, transform 0.2s;
+}
+
+#audio-recording-controls button:hover {
+    transform: scale(1.1);
+}
+
+#cancel-audio {
+    background-color: #ff0000; 
+    color: white;
+}
+
+#cancel-audio:hover {
+    background-color: #cc0000; 
+}
+
+#send-audio {
+    background-color: #008000; 
+    color: white;
+}
+
+#send-audio:hover {
+    background-color: #006400;
+}
+
+.chat-title-container {
+    display: flex;
+    align-items: center;
+}
+
+.chat-title-avatar {
+    margin-right: 10px;
+}
+
+.chat-title-avatar .avatar {
+    width: 30px;
+    height: 30px;
+}
+
+.chat-title-avatar .avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+@media (max-width: 768px) {
+    .chat-title-avatar {
+        padding-left: 10%;
+    }
+    #chat-title{
+        padding-left: 0;
+    }
+}
+@media (max-width: 768px) {
+    .btn-toggle-sidebar {
+        margin-top: 2%;
+    }
+}
+
+.new-chat-settings {
+    width: 300px;
+    padding: 15px;
+}
+
+.new-chat-settings .form-select {
+    margin-top: 5px;
+}
+
+/* New styles to fix dropdown menu issue */
+.dropdown-menu.new-chat-settings {
+    position: absolute;
+    right: 0;
+    left: auto;
+    top: 100%;
+    z-index: 1050;
+    width: auto;
+    min-width: 200px;
+    max-width: 300px;
+    overflow: visible;
+}
+
+.sidebar-section {
+    position: relative;
+    overflow: visible;
+}
+
+.btn-group {
+    position: relative;
+}
+
+/* Ensure dropdown menu is not cut off */
+#sidebar .dropdown-menu,
+.new-chat-settings.dropdown-menu {
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+/* Mobile device adjustments */
+@media (max-width: 768px) {
+    .dropdown-menu.new-chat-settings {
+        position: fixed;
+        top: auto;
+        bottom: 60px;
+        left: 10px;
+        right: 10px;
+        width: auto;
+        max-width: none;
+    }
+}
+
+/* Ensure menu items are readable */
+.dropdown-menu .dropdown-item {
+    white-space: normal;
+    word-wrap: break-word;
+}
+
+/* Adjustment for split dropdown button */
+.btn-group .dropdown-toggle-split {
+    z-index: 1051;
+}
+
+/* Style for split dropdown button when active */
+.btn-group .dropdown-toggle-split:active,
+.btn-group .dropdown-toggle-split.show {
+    background-color: #bf0d1e; 
+    color: #ffffff;
+    box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.125);
+}
+
+/* Style for when button is active and has hover */
+.btn-group .dropdown-toggle-split:active:hover,
+.btn-group .dropdown-toggle-split.show:hover {
+    background-color: #a30b19; 
+}
+
+/* Ensure button border is visible when active */
+.btn-group .dropdown-toggle-split:active,
+.btn-group .dropdown-toggle-split.show,
+.btn-group .dropdown-toggle-split:active:hover,
+.btn-group .dropdown-toggle-split.show:hover {
+    border-color: #1a472a;
+}
+
+/* Keep icon (caret) style visible */
+.btn-group .dropdown-toggle-split:active::after,
+.btn-group .dropdown-toggle-split.show::after {
+    border-top-color: #ffffff; 
+}
+
+/* Christmas-specific additions */
+body::after {
+    content: "🎄";
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    font-size: 30px;
+    z-index: 1000;
+}
+
+.message.user::before {
+    content: "🎁";
+    position: relative;
+    top: -10px;
+    left: -10px;
+    font-size: 20px;
+}
+
+.message.bot::before {
+    content: "☃️";
+    position: relative;
+    top: -10px;
+    left: -10px;
+    font-size: 20px;
+}
+
+.send-btn::after {
+    content: "🎅";
+    margin-left: 5px;
+}
+
+#new-chat-btn::before,
+#switch-theme-btn::before {
+    content: "🔔";
+    margin-right: 5px;
+}
+
+.list-group-item::before {
+    content: "🍪";
+    margin-right: 5px;
+}
+
+.chatbot-info h5::before,
+.chatbot-info h5::after {
+    content: "❄️";
+    margin: 0 5px;
+}
+
+/* Christmas additions for navigation */
+.nav-button::before {
+    content: "🎄";
+    position: absolute;
+    top: -15px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 14px;
+}
+
+.nav-button:nth-child(even)::before {
+    content: "🎅";
+}
+
+.number-bubble::after {
+    content: "❄️";
+    position: absolute;
+    bottom: -10px;
+    right: -10px;
+    font-size: 14px;
+}
+
+/* Styles for fullsize image display */
+.fullsize-container {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(20, 107, 58, 0.9); /* Semi-transparent Christmas green */
+    z-index: 1000;
+    overflow: hidden;
+}
+
+.fullsize-image {
+    max-width: 90%;
+    max-height: 90%;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border: 4px solid #d3212f; /* Christmas red border */
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+}
+
+.fullsize-controls {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #146b3a; /* Christmas green */
+    padding: 15px;
+    border-radius: 25px;
+    display: flex;
+    gap: 10px;
+}
+
+.fullsize-controls button {
+    background-color: #d3212f; /* Christmas red */
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: bold;
+}
+
+.fullsize-controls button:hover {
+    background-color: #bf0d1e; /* Darker Christmas red */
+    transform: scale(1.05);
+}
+
+.fullsize-controls button::before {
+    margin-right: 5px;
+}
+
+.fullsize-controls button:nth-child(1)::before {
+    content: "🎁"; /* Gift icon for download */
+}
+
+.fullsize-controls button:nth-child(2)::before {
+    content: "❄️"; /* Snowflake for delete */
+}
+
+/* Christmas decorations */
+.fullsize-container::before,
+.fullsize-container::after {
+    content: "🎄";
+    position: absolute;
+    font-size: 40px;
+}
+
+.fullsize-container::before {
+    top: 20px;
+    left: 20px;
+}
+
+.fullsize-container::after {
+    bottom: 20px;
+    right: 20px;
+}
+
+/* Falling snow animation */
+@keyframes snowfall {
+    0% { transform: translateY(-100%) rotate(0deg); }
+    100% { transform: translateY(100vh) rotate(360deg); }
+}
+
+.snowflake {
+    position: absolute;
+    color: white;
+    font-size: 20px;
+    animation: snowfall 10s linear infinite;
+}
+
+/* Create multiple snowflakes */
+.fullsize-container::after {
+    content: "❄️ ❄️ ❄️ ❄️ ❄️";
+    position: absolute;
+    top: -20px;
+    left: 0;
+    right: 0;
+    height: 20px;
+    animation: snowfall 10s linear infinite;
+    animation-delay: calc(var(--i) * -2s);
+}
+
+.prompt-info {
+    padding: 2rem;
+    margin: 1rem;
+    border-radius: 8px;
+    background: var(--chatbot-info-bg-color);
+    border: 2px solid #d3212f;
+    margin-left: 0;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    position: relative;
+}
+
+.prompt-info::before {
+    content: '🎄';
+    position: absolute;
+    top: -15px;
+    left: -15px;
+    font-size: 30px;
+    animation: treeLight 2s infinite;
+}
+
+.prompt-info::after {
+    content: '🎅';
+    position: absolute;
+    bottom: -15px;
+    right: -15px;
+    font-size: 30px;
+}
+
+.prompt-info-container {
+    display: flex;
+    align-items: flex-start;
+    gap: 2rem;
+}
+
+.prompt-image-section img {
+    width: 80px;
+    height: 80px;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 2px solid #d3212f;
+    box-shadow: 3px 3px 0 #146b3a;
+}
+
+.prompt-text-section {
+    flex: 1;
+}
+
+.prompt-name {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #ffffff;
+    font-family: 'Inter', sans-serif;
+}
+
+.prompt-name::before {
+    content: '🎁';
+    margin-right: 10px;
+}
+
+.prompt-description {
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #ffffff;
+    margin: 0;
+}
+
+.prompt-info {
+    animation: fadeIn 0.3s ease-out;
+}
+
+.prompt-image-section {
+    width: 80px;
+    height: 80px;
+}
+
+.prompt-initial {
+    width: 100%;
+    height: 100%;
+    border-radius: 8px;
+    background-color: #146b3a;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    font-weight: bold;
+    border: 2px solid #d3212f;
+    box-shadow: 3px 3px 0 #d3212f;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes treeLight {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.prompt-info:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(211, 33, 47, 0.3);
+    transition: all 0.3s ease;
+}
+
+.fullsize-controls button {
+    background-color: #146b3a;
+    color: #ffffff;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+}
+
+.fullsize-controls button:hover {
+    background-color: #d3212f;
+    transform: scale(1.05);
+}
+
+.fullsize-controls button::before {
+    margin-right: 5px;
+    font-family: 'FontAwesome';
+}
+
+.fullsize-controls button:nth-child(1)::before {
+    content: "🎁";
+    color: #ffd700;
+    text-shadow: 1px 1px 0 #d3212f, -1px -1px 0 #d3212f, 1px -1px 0 #d3212f, -1px 1px 0 #d3212f;
+}
+
+.fullsize-controls button:nth-child(2)::before {
+    content: "❄️"; 
+}
+
+.fullsize-controls .btn-primary {
+    background-color: #d3212f;
+    color: #ffffff;
+}
+
+.fullsize-controls .btn-primary:hover {
+    background-color: #ff4d4d;
+}
+
+.fullsize-controls .btn-danger {
+    background-color: #d3212f;
+    color: #ffffff;
+}
+
+.fullsize-controls .btn-danger:hover {
+    background-color: #ff4d4d;
+}
+
+.fullsize-controls .btn-secondary {
+    background-color: #146b3a;
+    color: #ffffff;
+}
+
+.fullsize-controls .btn-secondary:hover {
+    background-color: #1a472a;
+}
+
+/* ===== CHRISTMAS FOLDER SYSTEM STYLES ===== */
+
+/* Folder Container - Christmas Theme */
+.folder-container {
+    background: linear-gradient(135deg, #146b3a 0%, #1e8b4a 50%, #0f5d32 100%);
+    border: 2px solid #d3212f;
+    border-radius: 12px;
+    margin: 8px 0;
+    box-shadow: 0 4px 15px rgba(211, 33, 47, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    position: relative;
+    overflow: hidden;
+    font-family: 'Inter', sans-serif;
+}
+
+.folder-container::before {
+    content: '🎄';
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    font-size: 16px;
+    opacity: 0.6;
+    animation: treeLight 3s infinite;
+    z-index: 1;
+}
+
+.folder-container::after {
+    content: '❄️';
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    font-size: 14px;
+    opacity: 0.4;
+    animation: snowfall 4s linear infinite;
+}
+
+/* Christmas snowfall animation */
+@keyframes christmasSnow {
+    0% { transform: translateY(-10px) rotate(0deg); opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { transform: translateY(40px) rotate(360deg); opacity: 0; }
+}
+
+/* Folder Header */
+.folder-header {
+    background: linear-gradient(90deg, #d3212f 0%, #ff4d4d 50%, #d3212f 100%);
+    color: #ffffff;
+    padding: 12px 45px 12px 15px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    border-radius: 10px 10px 0 0;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    transition: all 0.3s ease;
+}
+
+.folder-header:hover {
+    background: linear-gradient(90deg, #ff4d4d 0%, #ff6666 50%, #ff4d4d 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(211, 33, 47, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.folder-header::before {
+    content: '🎁';
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 16px;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.folder-name {
+    margin-left: 25px;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+    letter-spacing: 0.5px;
+}
+
+/* Folder Toggle Button */
+.folder-toggle {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.folder-toggle:hover {
+    background: rgba(255, 255, 255, 0.25);
+    transform: translateY(-50%) scale(1.1);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+}
+
+.folder-toggle::after {
+    content: '▼';
+    transition: transform 0.3s ease;
+}
+
+.folder-container.collapsed .folder-toggle::after {
+    transform: rotate(-90deg);
+}
+
+/* Folder Content */
+.folder-content {
+    padding: 8px;
+    background: rgba(20, 107, 58, 0.1);
+    border-radius: 0 0 10px 10px;
+    max-height: 500px;
+    overflow-y: auto;
+    transition: all 0.3s ease;
+}
+
+.folder-container.collapsed .folder-content {
+    max-height: 0;
+    padding: 0 8px;
+    opacity: 0;
+    overflow: hidden;
+}
+
+/* Folder Chat Items */
+.folder-chat-item {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%);
+    border: 1px solid #d3212f;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin: 4px 0;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    color: #146b3a;
+    font-weight: 500;
+    box-shadow: 0 2px 4px rgba(211, 33, 47, 0.1);
+}
+
+.folder-chat-item::before {
+    content: '🎅';
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    opacity: 0.6;
+}
+
+.folder-chat-item:hover {
+    background: linear-gradient(135deg, #d3212f 0%, #ff4d4d 100%);
+    color: #ffffff;
+    transform: translateX(5px) translateY(-1px);
+    box-shadow: 0 4px 12px rgba(211, 33, 47, 0.3);
+}
+
+.folder-chat-item:hover::before {
+    opacity: 1;
+    animation: bounce 0.6s ease;
+}
+
+.folder-chat-item.active {
+    background: linear-gradient(135deg, #146b3a 0%, #1e8b4a 100%);
+    color: #ffffff;
+    border-color: #0f5d32;
+    box-shadow: 0 0 0 2px rgba(20, 107, 58, 0.3), 0 4px 12px rgba(20, 107, 58, 0.2);
+}
+
+.folder-chat-item.active::before {
+    opacity: 1;
+    filter: brightness(1.3);
+}
+
+/* Christmas bounce animation */
+@keyframes bounce {
+    0%, 20%, 60%, 100% { transform: translateY(-50%); }
+    40% { transform: translateY(-70%); }
+    80% { transform: translateY(-60%); }
+}
+
+/* Chat Item Text */
+.folder-chat-title {
+    margin-left: 25px;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: none;
+}
+
+.folder-chat-item:hover .folder-chat-title {
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Drag and Drop Styles - Christmas Theme */
+.folder-container.drag-over {
+    border-color: #ffd700;
+    background: linear-gradient(135deg, #ffd700 0%, #ffed4e 50%, #ffd700 100%);
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+    animation: christmasGlow 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes christmasGlow {
+    from {
+        box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
+    }
+    to {
+        box-shadow: 0 0 30px rgba(255, 215, 0, 0.8);
+    }
+}
+
+.folder-container.drag-over .folder-header {
+    background: linear-gradient(90deg, #ffd700 0%, #ffed4e 50%, #ffd700 100%);
+    color: #d3212f;
+    font-weight: bold;
+}
+
+.folder-container.drag-over::before {
+    content: '🎁';
+    animation: christmasWiggle 0.6s ease-in-out infinite;
+}
+
+@keyframes christmasWiggle {
+    0%, 100% { transform: rotate(-5deg); }
+    50% { transform: rotate(5deg); }
+}
+
+.chat-item.dragging {
+    opacity: 0.7;
+    transform: scale(1.05) rotate(2deg);
+    z-index: 1000;
+    box-shadow: 0 8px 25px rgba(211, 33, 47, 0.4);
+    border: 2px dashed #ffd700;
+    background: linear-gradient(135deg, #ffffff 0%, #fffacd 100%);
+}
+
+/* Context Menu - Christmas Style */
+.context-menu {
+    background: linear-gradient(135deg, #ffffff 0%, #f0f8ff 100%);
+    border: 2px solid #d3212f;
+    border-radius: 8px;
+    box-shadow: 0 8px 25px rgba(211, 33, 47, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.8);
+    padding: 8px 0;
+    font-family: 'Inter', sans-serif;
+    z-index: 10000;
+    backdrop-filter: blur(10px);
+}
+
+.context-menu-item {
+    padding: 10px 16px;
+    cursor: pointer;
+    color: #146b3a;
+    font-size: 14px;
+    font-weight: 500;
+    border-bottom: 1px solid rgba(211, 33, 47, 0.1);
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.context-menu-item:last-child {
+    border-bottom: none;
+}
+
+.context-menu-item::before {
+    content: '🎄';
+    margin-right: 8px;
+    font-size: 12px;
+    opacity: 0.6;
+}
+
+.context-menu-item[data-action="remove-from-folder"]::before {
+    content: '❄️';
+}
+
+.context-menu-item[data-action="move-to-folder"]::before {
+    content: '🎁';
+}
+
+.context-menu-item[data-action="rename-chat"]::before {
+    content: '🎅';
+}
+
+.context-menu-item[data-action="delete-chat"]::before {
+    content: '🔥';
+}
+
+.context-menu-item:hover {
+    background: linear-gradient(135deg, #d3212f 0%, #ff4d4d 100%);
+    color: #ffffff;
+    transform: translateX(3px);
+}
+
+.context-menu-item:hover::before {
+    opacity: 1;
+    animation: bounce 0.6s ease;
+}
+
+/* Folder Management Buttons */
+.folder-management {
+    padding: 8px;
+    background: rgba(20, 107, 58, 0.05);
+    border-top: 1px solid rgba(211, 33, 47, 0.2);
+    text-align: center;
+}
+
+.btn-create-folder {
+    background: linear-gradient(135deg, #146b3a 0%, #1e8b4a 100%);
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(20, 107, 58, 0.3);
+    font-family: 'Inter', sans-serif;
+}
+
+.btn-create-folder::before {
+    content: '🎄 ';
+    font-size: 14px;
+}
+
+.btn-create-folder:hover {
+    background: linear-gradient(135deg, #1e8b4a 0%, #28a85a 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(20, 107, 58, 0.4);
+}
+
+/* Empty Folder State */
+.folder-empty {
+    padding: 20px;
+    text-align: center;
+    color: rgba(20, 107, 58, 0.6);
+    font-style: italic;
+    font-size: 13px;
+}
+
+.folder-empty::before {
+    content: '❄️';
+    display: block;
+    font-size: 24px;
+    margin-bottom: 8px;
+    opacity: 0.4;
+    animation: christmasSnow 3s linear infinite;
+}
+
+/* Mobile Responsive - Christmas Theme */
+@media (max-width: 768px) {
+    .folder-container {
+        margin: 6px 0;
+        border-radius: 8px;
+    }
+    
+    .folder-header {
+        padding: 10px 35px 10px 12px;
+        font-size: 13px;
+    }
+    
+    .folder-header::before {
+        font-size: 14px;
+        left: 12px;
+    }
+    
+    .folder-toggle {
+        width: 20px;
+        height: 20px;
+        right: 12px;
+        font-size: 10px;
+    }
+    
+    .folder-chat-item {
+        padding: 8px 10px;
+        font-size: 12px;
+    }
+    
+    .folder-chat-item::before {
+        font-size: 10px;
+        left: 6px;
+    }
+    
+    .folder-chat-title {
+        margin-left: 22px;
+        font-size: 12px;
+    }
+    
+    .context-menu {
+        border-radius: 6px;
+        padding: 6px 0;
+    }
+    
+    .context-menu-item {
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+    
+    .btn-create-folder {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+}
+
+/* Accessibility Features */
+@media (prefers-reduced-motion: reduce) {
+    .folder-container::before,
+    .folder-container::after,
+    .folder-chat-item::before,
+    .context-menu-item::before {
+        animation: none;
+    }
+    
+    .folder-toggle,
+    .folder-header,
+    .folder-chat-item,
+    .context-menu-item,
+    .btn-create-folder {
+        transition: none;
+    }
+}
+
+/* Focus Management */
+.folder-header:focus,
+.folder-chat-item:focus,
+.folder-toggle:focus {
+    outline: 2px solid #ffd700;
+    outline-offset: 2px;
+}
+
+.context-menu-item:focus {
+    background: linear-gradient(135deg, #d3212f 0%, #ff4d4d 100%);
+    color: #ffffff;
+    outline: none;
+}
+
+/* Christmas Loading Animation */
+.folder-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 15px;
+    color: #146b3a;
+    font-size: 13px;
+}
+
+.folder-loading::before {
+    content: '🎄';
+    margin-right: 8px;
+    animation: treeLight 1.5s infinite;
+}
+
+/* Special Christmas Decorations */
+.sidebar::before {
+    content: '❄️ ❄️ ❄️ ❄️ ❄️';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 30px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.1;
+    animation: christmasSnow 8s linear infinite;
+}
+
+.sidebar::after {
+    content: '🎅 🤶 🎄 🎁 ❄️';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 25px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.1;
+    font-size: 12px;
+}
+
+/* ==========================================================
+   AI MODEL SELECTOR DROPDOWN STYLES
+   ========================================================== */
+
+/* Model selector container */
+.model-selector-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Inter', sans-serif;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 4px 8px;
+}
+
+.model-selector-container:hover {
+    color: #ffd700;
+    background: rgba(255, 215, 0, 0.1);
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);
+    transform: translateY(-1px);
+}
+
+.model-selector-container::before {
+    content: '🎄';
+    font-size: 14px;
+    margin-right: 4px;
+    animation: treeGlow 2s ease-in-out infinite alternate;
+}
+
+/* Chat model info display */
+.chat-model-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #ffffff;
+    font-weight: 500;
+    font-size: 14px;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+}
+
+.chat-model-info:hover {
+    color: #ffd700;
+    text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+}
+
+/* Dropdown chevron icon */
+.model-dropdown-icon {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.8);
+    transition: all 0.3s ease;
+}
+
+.model-selector-container:hover .model-dropdown-icon {
+    color: #ffd700;
+    text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+}
+
+.model-selector-container.open .model-dropdown-icon {
+    transform: rotate(180deg);
+    color: #ffd700;
+}
+
+/* Dropdown menu */
+.model-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%);
+    border: 2px solid #d3212f;
+    border-radius: 12px;
+    box-shadow: 
+        0 8px 32px rgba(211, 33, 47, 0.3),
+        0 0 0 1px rgba(255, 255, 255, 0.8),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1000;
+    max-height: 400px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    font-family: 'Inter', sans-serif;
+    backdrop-filter: blur(10px);
+}
+
+.model-dropdown-menu.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.model-dropdown-menu::before {
+    content: '🎁 ✨ 🎄';
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 16px;
+    z-index: 1;
+    animation: christmasSparkle 3s linear infinite;
+}
+
+/* Dropdown header */
+.model-dropdown-header {
+    padding: 14px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #d3212f;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+    border-bottom: 2px solid #d3212f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Inter', sans-serif;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+    position: relative;
+}
+
+.model-dropdown-header::before {
+    content: '🎅';
+    margin-right: 8px;
+    animation: santaWave 2s ease-in-out infinite;
+}
+
+.model-dropdown-header::after {
+    content: '🎁';
+    margin-left: 8px;
+    animation: presentBounce 1.5s ease-in-out infinite;
+}
+
+/* Scrollable content area */
+.model-dropdown-content {
+    max-height: 320px;
+    overflow-y: auto;
+    padding: 8px 0;
+    background: linear-gradient(135deg, #ffffff 0%, #fef5f5 100%);
+}
+
+/* Custom scrollbar for dropdown */
+.model-dropdown-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.model-dropdown-content::-webkit-scrollbar-track {
+    background: linear-gradient(to bottom, #f8f8f8, #ffffff);
+    border-radius: 4px;
+}
+
+.model-dropdown-content::-webkit-scrollbar-thumb {
+    background: linear-gradient(to bottom, #d3212f, #ff4d4d);
+    border-radius: 4px;
+    border: 1px solid #ffffff;
+}
+
+.model-dropdown-content::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(to bottom, #146b3a, #1e8b4a);
+    box-shadow: 0 0 8px rgba(20, 107, 58, 0.4);
+}
+
+/* Model groups */
+.model-group {
+    margin-bottom: 6px;
+}
+
+.model-group-header {
+    padding: 10px 18px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #146b3a;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    font-family: 'Inter', sans-serif;
+    position: relative;
+}
+
+.model-group-header::before {
+    content: '❄️';
+    margin-right: 6px;
+    animation: snowflakeRotate 4s linear infinite;
+}
+
+/* Individual model items */
+.model-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 18px;
+    margin: 2px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: #333333;
+    font-size: 14px;
+    font-family: 'Inter', sans-serif;
+    position: relative;
+    border-left: 3px solid transparent;
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.model-item::before {
+    content: '🔮';
+    margin-right: 8px;
+    font-size: 12px;
+    opacity: 0.7;
+    transition: all 0.3s ease;
+}
+
+.model-item:hover::before {
+    opacity: 1;
+    animation: magicSparkle 1s ease-in-out;
+}
+
+.model-item:hover {
+    background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+    border-left-color: #d3212f;
+    color: #d3212f;
+    transform: translateX(4px) translateY(-1px);
+    box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.model-item:active {
+    transform: translateX(2px);
+    box-shadow: 0 2px 8px rgba(255, 215, 0, 0.4);
+}
+
+.model-item.selected {
+    background: linear-gradient(135deg, #146b3a 0%, #1e8b4a 100%);
+    border-left-color: #ffd700;
+    color: #ffffff;
+    font-weight: 600;
+    box-shadow: 0 4px 15px rgba(20, 107, 58, 0.3);
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.model-item.selected::before {
+    content: '⭐';
+    animation: starTwinkle 2s ease-in-out infinite;
+}
+
+.model-item .model-name {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+}
+
+.model-item .model-details {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #666666;
+    opacity: 0.8;
+}
+
+/* Vision capability badge */
+.vision-badge {
+    background: linear-gradient(135deg, #d3212f, #ff4d4d);
+    color: #ffffff;
+    font-size: 9px;
+    padding: 3px 6px;
+    border-radius: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-family: 'Inter', sans-serif;
+    box-shadow: 0 2px 8px rgba(211, 33, 47, 0.3);
+    border: 1px solid #ffffff;
+    position: relative;
+}
+
+.vision-badge::before {
+    content: '👁️';
+    margin-right: 2px;
+    font-size: 8px;
+}
+
+/* Christmas animations */
+@keyframes treeGlow {
+    0% { filter: brightness(1) hue-rotate(0deg); }
+    50% { filter: brightness(1.3) hue-rotate(10deg); }
+    100% { filter: brightness(1) hue-rotate(0deg); }
+}
+
+@keyframes christmasSparkle {
+    0%, 100% { transform: translateX(-50%) scale(1); }
+    25% { transform: translateX(-50%) scale(1.1); }
+    50% { transform: translateX(-50%) scale(1.2); }
+    75% { transform: translateX(-50%) scale(1.1); }
+}
+
+@keyframes santaWave {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-10deg); }
+    75% { transform: rotate(10deg); }
+}
+
+@keyframes presentBounce {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-3px); }
+}
+
+@keyframes snowflakeRotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes magicSparkle {
+    0%, 100% { transform: scale(1) rotate(0deg); }
+    50% { transform: scale(1.2) rotate(180deg); }
+}
+
+@keyframes starTwinkle {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.2); }
+}
+
+/* Loading state */
+.model-dropdown-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    color: #146b3a;
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+}
+
+.model-dropdown-loading::before {
+    content: '🎄';
+    margin-right: 8px;
+    animation: treeLight 1.5s ease-in-out infinite;
+}
+
+.model-dropdown-loading::after {
+    content: 'Loading models...';
+}
+
+@keyframes treeLight {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.5) hue-rotate(60deg); }
+}
+
+/* Error state */
+.model-dropdown-error {
+    padding: 16px;
+    text-align: center;
+    color: #d3212f;
+    font-size: 13px;
+    background: linear-gradient(135deg, #ffeaea 0%, #fff5f5 100%);
+    margin: 8px;
+    border-radius: 8px;
+    border: 2px solid #d3212f;
+    font-family: 'Inter', sans-serif;
+    position: relative;
+}
+
+.model-dropdown-error::before {
+    content: '🎅💔 ';
+    margin-right: 4px;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+    .model-dropdown-menu {
+        position: fixed;
+        top: auto;
+        bottom: 80px;
+        left: 10px;
+        right: 10px;
+        max-height: 50vh;
+    }
+    
+    .model-item {
+        padding: 14px 16px;
+        font-size: 15px;
+    }
+    
+    .model-dropdown-header {
+        padding: 16px 18px;
+        font-size: 14px;
+    }
+    
+    .model-dropdown-content {
+        max-height: calc(50vh - 80px);
+    }
+    
+    .vision-badge {
+        font-size: 8px;
+        padding: 2px 4px;
+    }
+    
+    .model-item .model-details {
+        font-size: 10px;
+    }
+}
+
+/* Christmas special effects */
+.model-dropdown-menu.show {
+    animation: christmasEntry 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes christmasEntry {
+    0% {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.8);
+    }
+    60% {
+        transform: translateY(5px) scale(1.05);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Accessibility for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    .model-selector-container::before,
+    .model-dropdown-header::before,
+    .model-dropdown-header::after,
+    .model-group-header::before,
+    .model-item::before,
+    .model-item.selected::before,
+    .vision-badge::before,
+    .model-dropdown-loading::before {
+        animation: none;
+    }
+    
+    .model-dropdown-menu.show {
+        animation: none;
+    }
+}
+
+/* Thinking Tokens Styles */
+#thinking-tokens-control {
+    position: relative;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    margin-right: 12px;
+    overflow: visible;
+    z-index: 10000;
+}
+
+.thinking-tokens-icon {
+    color: #FFD700;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 900;
+    transition: all 0.3s ease;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+    position: relative;
+}
+
+
+.thinking-tokens-icon:hover {
+    color: #ff6b35;
+    text-shadow: 0 0 15px rgba(255, 107, 53, 0.8);
+}
+
+.thinking-tokens-icon.active {
+    color: #32cd32;
+    animation: xmas-glow 2s infinite;
+    text-shadow: 0 0 20px rgba(50, 205, 50, 0.9);
+}
+
+@keyframes xmas-twinkle {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.3; transform: scale(0.8); }
+}
+
+@keyframes xmas-glow {
+    0% { 
+        color: #32cd32; 
+        text-shadow: 0 0 20px rgba(50, 205, 50, 0.9);
+    }
+    33% { 
+        color: #FFD700; 
+        text-shadow: 0 0 20px rgba(255, 215, 0, 0.9);
+    }
+    66% { 
+        color: #ff6b35; 
+        text-shadow: 0 0 20px rgba(255, 107, 53, 0.9);
+    }
+    100% { 
+        color: #32cd32; 
+        text-shadow: 0 0 20px rgba(50, 205, 50, 0.9);
+    }
+}
+
+.thinking-tokens-popup {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 320px;
+    background: linear-gradient(135deg, #1a472a, #0f3820);
+    border: 3px solid #FFD700;
+    border-radius: 15px;
+    padding: 20px;
+    z-index: 1100;
+    box-shadow: 
+        0 12px 40px rgba(0, 0, 0, 0.6),
+        0 0 20px rgba(255, 215, 0, 0.3),
+        inset 0 0 30px rgba(255, 215, 0, 0.1);
+}
+
+.thinking-tokens-popup::before {
+    content: "🎄";
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 28px;
+    background: linear-gradient(135deg, #1a472a, #0f3820);
+    padding: 5px 15px;
+    border-radius: 50%;
+    border: 2px solid #FFD700;
+    animation: xmas-tree-sway 3s infinite;
+}
+
+.thinking-tokens-popup::after {
+    content: "🎁";
+    position: absolute;
+    top: -10px;
+    right: 15px;
+    font-size: 20px;
+    animation: xmas-gift-bounce 2s infinite;
+}
+
+@keyframes xmas-tree-sway {
+    0%, 100% { transform: translateX(-50%) rotate(-2deg); }
+    50% { transform: translateX(-50%) rotate(2deg); }
+}
+
+@keyframes xmas-gift-bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+.thinking-tokens-popup h4 {
+    margin: 5px 0 15px 0;
+    color: #FFD700;
+    font-size: 1.1rem;
+    font-weight: bold;
+    text-align: center;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.thinking-tokens-popup p {
+    margin: 0 0 15px 0;
+    color: #ffffff;
+    font-size: 0.85rem;
+    text-align: center;
+    opacity: 0.9;
+}
+
+.thinking-tokens-value {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 15px 0;
+    padding: 12px;
+    background: rgba(255, 215, 0, 0.1);
+    border-radius: 10px;
+    border: 2px solid rgba(255, 215, 0, 0.3);
+    position: relative;
+}
+
+.thinking-tokens-value::before {
+    content: "🌟";
+    font-size: 16px;
+    animation: xmas-star-spin 4s linear infinite;
+}
+
+@keyframes xmas-star-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.thinking-tokens-value span {
+    color: #FFD700;
+    font-weight: bold;
+    min-width: 60px;
+    text-transform: uppercase;
+    text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+}
+
+.thinking-tokens-value input[type="number"] {
+    width: 100px;
+    padding: 8px 12px;
+    background: #1a472a;
+    border: 2px solid #FFD700;
+    border-radius: 8px;
+    color: #FFD700;
+    font-weight: bold;
+    text-align: center;
+}
+
+.thinking-tokens-value input[type="number"]:focus {
+    outline: none;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
+    border-color: #ff6b35;
+}
+
+input[type="range"] {
+    width: 100%;
+    margin: 15px 0;
+    height: 8px;
+    background: linear-gradient(90deg, #32cd32, #FFD700, #ff6b35);
+    border-radius: 10px;
+    outline: none;
+    appearance: none;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #FFD700, #ff6b35);
+    cursor: pointer;
+    border: 3px solid #1a472a;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.7);
+}
+
+.thinking-tokens-presets {
+    display: flex;
+    gap: 8px;
+    margin: 15px 0;
+    flex-wrap: wrap;
+}
+
+.preset-btn {
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #32cd32, #1a472a);
+    border: 2px solid #FFD700;
+    border-radius: 12px;
+    color: #FFD700;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    position: relative;
+}
+
+.preset-btn::before {
+    content: "🔔";
+    position: absolute;
+    left: 4px;
+    font-size: 12px;
+    animation: xmas-bell-ring 2s infinite;
+}
+
+@keyframes xmas-bell-ring {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(10deg); }
+    75% { transform: rotate(-10deg); }
+}
+
+.preset-btn:hover {
+    background: linear-gradient(135deg, #ff6b35, #d3212f);
+    color: #FFFFFF;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(255, 107, 53, 0.4);
+}
+
+.preset-btn.active {
+    background: linear-gradient(135deg, #FFD700, #ff6b35);
+    color: #1a472a;
+    border-color: #FFFFFF;
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+}
+
+#thinking-tokens-apply {
+    width: 100%;
+    margin-top: 15px;
+    background: linear-gradient(135deg, #d3212f, #ff6b35);
+    border: 3px solid #FFD700;
+    color: #FFFFFF;
+    padding: 12px;
+    border-radius: 15px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.3s ease;
+    box-shadow: 
+        0 6px 25px rgba(211, 33, 47, 0.4),
+        0 0 15px rgba(255, 215, 0, 0.3);
+    position: relative;
+}
+
+#thinking-tokens-apply::before {
+    content: "🎅 ";
+}
+
+#thinking-tokens-apply::after {
+    content: " ❄️";
+}
+
+#thinking-tokens-apply:hover {
+    background: linear-gradient(135deg, #32cd32, #FFD700);
+    color: #1a472a;
+    transform: translateY(-3px);
+    box-shadow: 
+        0 8px 30px rgba(50, 205, 50, 0.5),
+        0 0 20px rgba(255, 215, 0, 0.6);
+}
+
+#thinking-tokens-apply:active {
+    transform: translateY(-1px);
+    box-shadow: 
+        0 4px 15px rgba(211, 33, 47, 0.6),
+        0 0 10px rgba(255, 215, 0, 0.4);
+}

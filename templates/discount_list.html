@@ -1,0 +1,161 @@
+{% extends 'base_admin.html' %}
+
+{% block title %}Manage Discounts - SPARK{% endblock %}
+
+{% block styles %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+{% endblock %}
+
+{% block page_title %}Manage Discounts{% endblock %}
+
+{% block page_actions %}
+<a href="/admin/create-discount" class="btn btn-success">
+    <i class="fas fa-plus me-1"></i>Create New Discount
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="section-container">
+    <div class="section-title">
+        <i class="fas fa-list"></i> All Discounts
+    </div>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Discount Value</th>
+                    <th>Active</th>
+                    <th>Validity Date</th>
+                    <th>Usage Count</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for discount in discounts %}
+                <tr>
+                    <td>{{ discount.code }}</td>
+                    <td>{{ discount.discount_value }}%</td>
+                    <td>{{ 'Yes' if discount.active else 'No' }}</td>
+                    <td>{{ discount.validity_date if discount.validity_date else 'Unlimited' }}</td>
+                    <td>{{ discount.usage_count if discount.usage_count is not none else 'Unlimited' }}</td>
+                    <td class="text-end table-actions">
+                        <button class="btn btn-sm btn-outline-primary" onclick="editDiscount('{{ discount.code }}')" data-bs-toggle="tooltip" title="Edit">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteDiscount('{{ discount.code }}')" data-bs-toggle="tooltip" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal for editing discount -->
+<div class="modal fade" id="editDiscountModal" tabindex="-1" aria-labelledby="editDiscountModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editDiscountModalLabel">Edit Discount</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editDiscountForm">
+                    <input type="hidden" id="editCode" name="code">
+                    <div class="mb-3">
+                        <label for="editDiscountValue" class="form-label">Discount Value (%)</label>
+                        <input type="text" class="form-control" id="editDiscountValue" name="discount_value" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')" required>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="editActive" name="active">
+                        <label class="form-check-label" for="editActive">Active</label>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editValidityDate" class="form-label">Validity Date</label>
+                        <input type="date" class="form-control" id="editValidityDate" name="validity_date">
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="editUnlimitedValidity" name="unlimited_validity">
+                        <label class="form-check-label" for="editUnlimitedValidity">Unlimited Validity</label>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editUsageCount" class="form-label">Usage Count</label>
+                        <input type="text" class="form-control" id="editUsageCount" name="usage_count" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="editUnlimitedUsage" name="unlimited_usage">
+                        <label class="form-check-label" for="editUnlimitedUsage">Unlimited Usage</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="saveDiscount()">Save changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    function editDiscount(code) {
+        fetch(`/admin/get-discount/${code}`)
+            .then(response => response.json())
+            .then(data => {
+                $('#editCode').val(data.code);
+                $('#editDiscountValue').val(data.discount_value);
+                $('#editActive').prop('checked', data.active);
+                $('#editValidityDate').val(data.validity_date);
+                $('#editUnlimitedValidity').prop('checked', data.unlimited_validity);
+                $('#editUsageCount').val(data.usage_count);
+                $('#editUnlimitedUsage').prop('checked', data.unlimited_usage);
+
+                $('#editDiscountModal').modal('show');
+            })
+            .catch(error => console.error('Error:', error));
+    }
+
+    function saveDiscount() {
+        const formData = new FormData(document.getElementById('editDiscountForm'));
+
+        fetch('/admin/update-discount', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            NotificationModal.info('Discount Updated', data.message);
+            $('#editDiscountModal').modal('hide');
+            location.reload();
+        })
+        .catch(error => console.error('Error:', error));
+    }
+
+    function deleteDiscount(code) {
+        if (confirm('Are you sure you want to delete this discount?')) {
+            fetch(`/admin/delete-discount/${code}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                NotificationModal.info('Discount Deleted', data.message);
+                location.reload();
+            })
+            .catch(error => console.error('Error:', error));
+        }
+    }
+
+    // Handle unlimited validity and usage checkboxes
+    $('#editUnlimitedValidity').change(function() {
+        $('#editValidityDate').prop('disabled', this.checked);
+    });
+
+    $('#editUnlimitedUsage').change(function() {
+        $('#editUsageCount').prop('disabled', this.checked);
+    });
+</script>
+{% endblock %}

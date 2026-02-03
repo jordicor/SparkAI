@@ -1,0 +1,415 @@
+/* SparkAI Registration Page Styles - Memphis Theme */
+
+:root {
+    --primary-color: #FF6B9D;
+    --primary-hover: #FF4081;
+    --secondary-color: #00D4AA;
+    --tertiary-color: #FFD93D;
+    --quaternary-color: #6C63FF;
+    --success-color: #00D4AA;
+    --error-color: #FF6B6B;
+    --bg-gradient-start: #FFEAA7;
+    --bg-gradient-end: #FFE4E1;
+    --text-primary: #2D3436;
+    --text-secondary: #636E72;
+    --text-muted: #B2BEC3;
+    --card-bg: #ffffff;
+    --card-shadow: 8px 8px 0px #2D3436;
+    --input-border: #2D3436;
+    --input-focus-border: var(--primary-color);
+    --input-focus-shadow: 4px 4px 0px var(--primary-color);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+    min-height: 100vh;
+    font-family: 'Poppins', 'Comic Sans MS', sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+/* ==========================================================
+   Design System - Layout Styles
+   ========================================================== */
+
+/* Main Container */
+.main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 30px 20px;
+}
+
+/* Page Header */
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 4px solid var(--text-primary);
+}
+
+.page-header-text {
+    flex: 1;
+}
+
+/* Page Toolbar (Tabs + Actions) */
+.page-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    gap: 16px;
+}
+
+.page-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.page-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+/* Hide toolbar when both sides are empty */
+.page-toolbar:has(.page-toolbar-left:empty):has(.page-toolbar-right:empty) {
+    display: none;
+}
+
+/* Back Button */
+.btn-back {
+    width: 44px;
+    height: 44px;
+    border-radius: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--tertiary-color);
+    border: 3px solid var(--text-primary);
+    color: var(--text-primary);
+    text-decoration: none;
+    transition: all 0.2s;
+    box-shadow: 4px 4px 0px var(--text-primary);
+}
+
+.btn-back:hover {
+    background: var(--primary-color);
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0px var(--text-primary);
+}
+
+/* Page Title */
+.page-title {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.page-subtitle {
+    margin: 4px 0 0 0;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+/* ==========================================================
+   Design System - Responsive Layout
+   ========================================================== */
+@media (max-width: 768px) {
+    .main-container {
+        padding: 15px 10px;
+    }
+
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .page-toolbar {
+        flex-wrap: wrap;
+    }
+
+    .page-title {
+        font-size: 1.4rem;
+    }
+
+    .btn-back {
+        width: 38px;
+        height: 38px;
+    }
+}
+
+@media (max-width: 480px) {
+    .page-title {
+        font-size: 1.2rem;
+    }
+}
+
+/* ==========================================================
+   Registration Page Styles
+   ========================================================== */
+
+.register-wrapper {
+    max-width: 420px;
+    width: 100%;
+    padding: 20px;
+}
+
+/* Card Styling */
+.card {
+    background: var(--card-bg);
+    border: 4px solid var(--text-primary);
+    border-radius: 0;
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+}
+
+.card-body {
+    padding: 2rem;
+}
+
+/* Header Styles - Prompt */
+.prompt-header {
+    margin-bottom: 1.5rem;
+}
+
+.prompt-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 0;
+    object-fit: cover;
+    border: 4px solid var(--text-primary);
+    box-shadow: 4px 4px 0px var(--primary-color);
+}
+
+.prompt-name {
+    color: var(--primary-color);
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.prompt-description {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.5;
+    max-width: 90%;
+    margin: 0 auto;
+}
+
+/* Header Styles - SparkAI */
+.sparkai-header {
+    margin-bottom: 1.5rem;
+}
+
+.sparkai-logo {
+    display: inline-block;
+    margin-bottom: 0.5rem;
+}
+
+.sparkai-logo svg {
+    filter: drop-shadow(4px 4px 0px var(--text-primary));
+}
+
+.sparkai-title {
+    color: var(--quaternary-color);
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+/* Form Elements */
+.form-label {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+}
+
+.form-control {
+    border: 3px solid var(--input-border);
+    border-radius: 0;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    background: #ffffff;
+    transition: all 0.2s ease;
+}
+
+.form-control:focus {
+    border-color: var(--input-focus-border);
+    box-shadow: var(--input-focus-shadow);
+    outline: none;
+    transform: translate(-2px, -2px);
+}
+
+.form-control::placeholder {
+    color: var(--text-muted);
+}
+
+.form-control-lg {
+    padding: 0.875rem 1rem;
+    font-size: 1rem;
+}
+
+.form-text {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+}
+
+/* Buttons */
+.btn-primary {
+    background: var(--primary-color);
+    border: 3px solid var(--text-primary);
+    border-radius: 0;
+    padding: 0.875rem 1.5rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #ffffff;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    box-shadow: 4px 4px 0px var(--text-primary);
+    transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+    background: var(--quaternary-color);
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0px var(--text-primary);
+    color: #ffffff;
+}
+
+.btn-primary:active {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0px var(--text-primary);
+}
+
+.btn-primary:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-success {
+    background: var(--success-color);
+    color: #ffffff;
+}
+
+.btn-lg {
+    padding: 1rem 1.5rem;
+    font-size: 1.1rem;
+}
+
+/* Alerts */
+.alert {
+    border-radius: 0;
+    border: 3px solid var(--text-primary);
+    padding: 1rem;
+    box-shadow: 4px 4px 0px var(--text-primary);
+}
+
+.alert-danger {
+    background-color: var(--error-color);
+    color: #ffffff;
+}
+
+.alert-success {
+    background-color: var(--success-color);
+    color: #ffffff;
+}
+
+/* Divider */
+hr {
+    border: none;
+    border-top: 3px solid var(--text-primary);
+    margin: 1.5rem 0;
+}
+
+/* Links */
+a {
+    color: var(--quaternary-color);
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.2s ease;
+}
+
+a:hover {
+    color: var(--primary-color);
+    text-decoration: underline;
+}
+
+/* Text utilities */
+.text-muted {
+    color: var(--text-secondary) !important;
+}
+
+.text-white-50 {
+    color: var(--text-muted) !important;
+}
+
+/* Spinner */
+.spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+    border-width: 0.2em;
+    border-color: var(--text-primary);
+    border-right-color: transparent;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .register-wrapper {
+        padding: 15px;
+    }
+
+    .card-body {
+        padding: 1.5rem;
+    }
+
+    .prompt-name,
+    .sparkai-title {
+        font-size: 1.25rem;
+    }
+
+    .btn-lg {
+        padding: 0.875rem 1.25rem;
+        font-size: 1rem;
+    }
+}
+
+/* Focus visible for accessibility */
+.form-control:focus-visible,
+.btn:focus-visible {
+    outline: 3px solid var(--quaternary-color);
+    outline-offset: 2px;
+}
+
+/* Animation for success state */
+@keyframes successPulse {
+    0% { transform: translate(0, 0); }
+    25% { transform: translate(-2px, -2px); }
+    50% { transform: translate(0, 0); }
+    75% { transform: translate(-2px, -2px); }
+    100% { transform: translate(0, 0); }
+}
+
+.btn-success {
+    animation: successPulse 0.5s ease;
+}

@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upload Image and Text</title>
+</head>
+<body>
+    <h1>Upload Image and Text</h1>
+    <form action="/upload-image/" method="post" enctype="multipart/form-data">
+        <label for="text">Text:</label>
+        <input type="text" id="text" name="text" required><br><br>
+        <label for="file">Choose an image:</label>
+        <input type="file" id="file" name="file" accept="image/*" required><br><br>
+        <input type="submit" value="Upload">
+    </form>
+</body>
+</html>

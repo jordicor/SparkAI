@@ -1,0 +1,325 @@
+{% extends 'base_admin.html' %}
+
+{% block title %}Pricing Configuration - SPARK{% endblock %}
+
+{% block styles %}
+<style>
+    .preview-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 10px;
+        padding: 1rem;
+    }
+    .preview-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid rgba(255,255,255,0.2);
+    }
+    .preview-item:last-child {
+        border-bottom: none;
+    }
+    .help-text {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+</style>
+{% endblock %}
+
+{% block page_title %}Pricing Configuration{% endblock %}
+
+{% block page_subtitle %}
+<p class="page-subtitle">Configure platform margins, commissions, and payout settings for the pricing system.</p>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Configuration Form -->
+    <div class="col-lg-7 mb-4">
+        <form id="pricingForm">
+            <!-- Margins Section -->
+            <div class="section-container">
+                <div class="section-title"><i class="fas fa-percentage me-2"></i>Platform Margins</div>
+                <p class="help-text mb-3">Margins are added on top of API costs. Higher margins = more platform revenue.</p>
+
+                <div class="mb-3">
+                    <label for="pricing_margin_free" class="form-label">
+                        Free Prompts Margin
+                        <span class="badge bg-secondary ms-1">Default: 20%</span>
+                    </label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="pricing_margin_free" name="pricing_margin_free"
+                               min="0" max="100" step="1"
+                               value="{{ pricing_config.get('pricing_margin_free', {}).get('value', '20') }}">
+                        <span class="input-group-text">%</span>
+                    </div>
+                    <small class="help-text">Applied to prompts that don't have a creator markup.</small>
+                </div>
+
+                <div class="mb-3">
+                    <label for="pricing_margin_paid" class="form-label">
+                        Paid Prompts Margin
+                        <span class="badge bg-secondary ms-1">Default: 10%</span>
+                    </label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="pricing_margin_paid" name="pricing_margin_paid"
+                               min="0" max="100" step="1"
+                               value="{{ pricing_config.get('pricing_margin_paid', {}).get('value', '10') }}">
+                        <span class="input-group-text">%</span>
+                    </div>
+                    <small class="help-text">Applied to prompts with creator markup (lower to encourage paid prompts).</small>
+                </div>
+
+                <div class="mb-3">
+                    <label for="pricing_margin_personal" class="form-label">
+                        Personal Use Margin
+                        <span class="badge bg-secondary ms-1">Default: 15%</span>
+                    </label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="pricing_margin_personal" name="pricing_margin_personal"
+                               min="0" max="100" step="1"
+                               value="{{ pricing_config.get('pricing_margin_personal', {}).get('value', '15') }}">
+                        <span class="input-group-text">%</span>
+                    </div>
+                    <small class="help-text">Applied when creators use their own paid prompts (no markup charged).</small>
+                </div>
+            </div>
+
+            <!-- Commission Section -->
+            <div class="section-container">
+                <div class="section-title"><i class="fas fa-hand-holding-usd me-2"></i>Commission & Payouts</div>
+
+                <div class="mb-3">
+                    <label for="pricing_commission" class="form-label">
+                        Platform Commission
+                        <span class="badge bg-secondary ms-1">Default: 30%</span>
+                    </label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="pricing_commission" name="pricing_commission"
+                               min="0" max="100" step="1"
+                               value="{{ pricing_config.get('pricing_commission', {}).get('value', '30') }}">
+                        <span class="input-group-text">%</span>
+                    </div>
+                    <small class="help-text">Percentage taken from creator/curator markup. They keep the rest.</small>
+                </div>
+
+                <div class="mb-3">
+                    <label for="min_payout_amount" class="form-label">
+                        Minimum Payout Amount
+                        <span class="badge bg-secondary ms-1">Default: $50</span>
+                    </label>
+                    <div class="input-group">
+                        <span class="input-group-text">$</span>
+                        <input type="number" class="form-control" id="min_payout_amount" name="min_payout_amount"
+                               min="0" max="1000" step="1"
+                               value="{{ pricing_config.get('min_payout_amount', {}).get('value', '50') }}">
+                    </div>
+                    <small class="help-text">Minimum balance required for creators/curators to request withdrawal.</small>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg" id="saveBtn">
+                <i class="fas fa-save me-1"></i> Save Configuration
+            </button>
+        </form>
+    </div>
+
+    <!-- Live Preview -->
+    <div class="col-lg-5">
+        <div class="section-container">
+            <div class="section-title"><i class="fas fa-calculator me-2"></i>Live Pricing Preview</div>
+            <p class="help-text mb-3">Example calculation for $10/Mtokens API cost with $6 creator markup + $3 curator markup:</p>
+
+            <div class="preview-card mb-3">
+                <h6 class="mb-3">Scenario A: FREE Prompt</h6>
+                <div class="preview-item">
+                    <span>API Cost:</span>
+                    <span>$10.00</span>
+                </div>
+                <div class="preview-item">
+                    <span>Margin (<span id="previewMarginFree">20</span>%):</span>
+                    <span id="previewFreeMarginAmount">$2.00</span>
+                </div>
+                <div class="preview-item fw-bold">
+                    <span>User Pays:</span>
+                    <span id="previewFreeTotag">$12.00</span>
+                </div>
+            </div>
+
+            <div class="preview-card mb-3">
+                <h6 class="mb-3">Scenario B: PAID Prompt (External User)</h6>
+                <div class="preview-item">
+                    <span>API Cost:</span>
+                    <span>$10.00</span>
+                </div>
+                <div class="preview-item">
+                    <span>Margin (<span id="previewMarginPaid">10</span>%):</span>
+                    <span id="previewPaidMarginAmount">$1.00</span>
+                </div>
+                <div class="preview-item">
+                    <span>Creator Markup:</span>
+                    <span>$6.00</span>
+                </div>
+                <div class="preview-item fw-bold">
+                    <span>User Pays:</span>
+                    <span id="previewPaidTotal">$17.00</span>
+                </div>
+                <hr class="my-2 opacity-50">
+                <div class="preview-item text-success">
+                    <span>Creator Earns (<span id="previewCreatorPercent">70</span>%):</span>
+                    <span id="previewCreatorEarnings">$4.20</span>
+                </div>
+                <div class="preview-item text-warning">
+                    <span>Platform Commission:</span>
+                    <span id="previewPlatformCommission">$1.80</span>
+                </div>
+            </div>
+
+            <div class="preview-card">
+                <h6 class="mb-3">Scenario D: With Curator Markup</h6>
+                <div class="preview-item">
+                    <span>Base (API + Margin):</span>
+                    <span id="previewResellerBase">$11.00</span>
+                </div>
+                <div class="preview-item">
+                    <span>Creator Markup:</span>
+                    <span>$6.00</span>
+                </div>
+                <div class="preview-item">
+                    <span>Curator Markup:</span>
+                    <span>$3.00</span>
+                </div>
+                <div class="preview-item fw-bold">
+                    <span>User Pays:</span>
+                    <span id="previewResellerTotal">$20.00</span>
+                </div>
+                <hr class="my-2 opacity-50">
+                <div class="preview-item text-success">
+                    <span>Creator Earns:</span>
+                    <span id="previewResellerCreator">$4.20</span>
+                </div>
+                <div class="preview-item text-info">
+                    <span>Curator Earns:</span>
+                    <span id="previewResellerEarning">$2.10</span>
+                </div>
+                <div class="preview-item text-warning">
+                    <span>Total Platform:</span>
+                    <span id="previewResellerPlatform">$3.70</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    const API_COST = 10;  // Example $10/Mtokens
+    const CREATOR_MARKUP = 6;  // Example $6/Mtokens
+    const RESELLER_MARKUP = 3;  // Example $3/Mtokens
+
+    function updatePreview() {
+        const marginFree = parseFloat(document.getElementById('pricing_margin_free').value) || 0;
+        const marginPaid = parseFloat(document.getElementById('pricing_margin_paid').value) || 0;
+        const commission = parseFloat(document.getElementById('pricing_commission').value) || 0;
+
+        const creatorPercent = 100 - commission;
+
+        // Scenario A: Free prompt
+        const freeMargin = API_COST * (marginFree / 100);
+        const freeTotal = API_COST + freeMargin;
+
+        document.getElementById('previewMarginFree').textContent = marginFree;
+        document.getElementById('previewFreeMarginAmount').textContent = `$${freeMargin.toFixed(2)}`;
+        document.getElementById('previewFreeTotag').textContent = `$${freeTotal.toFixed(2)}`;
+
+        // Scenario B: Paid prompt
+        const paidMargin = API_COST * (marginPaid / 100);
+        const paidTotal = API_COST + paidMargin + CREATOR_MARKUP;
+        const creatorEarnings = CREATOR_MARKUP * (creatorPercent / 100);
+        const platformCommission = CREATOR_MARKUP * (commission / 100);
+
+        document.getElementById('previewMarginPaid').textContent = marginPaid;
+        document.getElementById('previewPaidMarginAmount').textContent = `$${paidMargin.toFixed(2)}`;
+        document.getElementById('previewPaidTotal').textContent = `$${paidTotal.toFixed(2)}`;
+        document.getElementById('previewCreatorPercent').textContent = creatorPercent;
+        document.getElementById('previewCreatorEarnings').textContent = `$${creatorEarnings.toFixed(2)}`;
+        document.getElementById('previewPlatformCommission').textContent = `$${platformCommission.toFixed(2)}`;
+
+        // Scenario D: With reseller
+        const resellerBase = API_COST + paidMargin;
+        const resellerTotal = resellerBase + CREATOR_MARKUP + RESELLER_MARKUP;
+        const resellerCreatorEarnings = CREATOR_MARKUP * (creatorPercent / 100);
+        const resellerEarnings = RESELLER_MARKUP * (creatorPercent / 100);
+        const totalPlatform = paidMargin + (CREATOR_MARKUP + RESELLER_MARKUP) * (commission / 100);
+
+        document.getElementById('previewResellerBase').textContent = `$${resellerBase.toFixed(2)}`;
+        document.getElementById('previewResellerTotal').textContent = `$${resellerTotal.toFixed(2)}`;
+        document.getElementById('previewResellerCreator').textContent = `$${resellerCreatorEarnings.toFixed(2)}`;
+        document.getElementById('previewResellerEarning').textContent = `$${resellerEarnings.toFixed(2)}`;
+        document.getElementById('previewResellerPlatform').textContent = `$${totalPlatform.toFixed(2)}`;
+    }
+
+    // Initial preview update
+    updatePreview();
+
+    // Add event listeners to all inputs
+    document.querySelectorAll('#pricingForm input').forEach(input => {
+        input.addEventListener('input', updatePreview);
+        input.addEventListener('change', updatePreview);
+    });
+
+    // Form submit handler
+    document.getElementById('pricingForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const saveBtn = document.getElementById('saveBtn');
+        const originalText = saveBtn.innerHTML;
+
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+
+        const data = {
+            pricing_margin_free: document.getElementById('pricing_margin_free').value,
+            pricing_margin_paid: document.getElementById('pricing_margin_paid').value,
+            pricing_margin_personal: document.getElementById('pricing_margin_personal').value,
+            pricing_commission: document.getElementById('pricing_commission').value,
+            min_payout_amount: document.getElementById('min_payout_amount').value
+        };
+
+        try {
+            const response = await fetch('/api/admin/pricing-config', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                saveBtn.innerHTML = '<i class="fas fa-check me-1"></i> Saved!';
+                saveBtn.classList.remove('btn-primary');
+                saveBtn.classList.add('btn-success');
+
+                setTimeout(() => {
+                    saveBtn.innerHTML = originalText;
+                    saveBtn.classList.remove('btn-success');
+                    saveBtn.classList.add('btn-primary');
+                    saveBtn.disabled = false;
+                }, 2000);
+            } else {
+                NotificationModal.error('Save Failed', result.message || 'Error saving configuration');
+                saveBtn.innerHTML = originalText;
+                saveBtn.disabled = false;
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            NotificationModal.error('Save Error', 'An error occurred while saving configuration');
+            saveBtn.innerHTML = originalText;
+            saveBtn.disabled = false;
+        }
+    });
+</script>
+{% endblock %}

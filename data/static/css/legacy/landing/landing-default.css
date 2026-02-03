@@ -1,0 +1,1036 @@
+/* landing-default.css */
+/* Default theme for Landing Configuration Page */
+/* Follows the same visual style as create-user-default.css and chat-default.css */
+
+/* ==========================================================
+   CSS Variables (consistent with default theme)
+   ========================================================== */
+:root {
+    --landing-bg-color: #36393f;
+    --landing-card-bg: #2f3136;
+    --landing-border-color: #40444b;
+    --landing-text-primary: #ffffff;
+    --landing-text-secondary: #b9bbbe;
+    --landing-text-muted: #72767d;
+    --landing-accent-color: #7289da;
+    --landing-accent-hover: #5b6eae;
+    --landing-success-color: #43b581;
+    --landing-warning-color: #faa61a;
+    --landing-danger-color: #ed4245;
+    --landing-info-color: #5865f2;
+}
+
+/* ==========================================================
+   Base Styles
+   ========================================================== */
+body {
+    background-color: var(--landing-bg-color);
+    color: var(--landing-text-primary);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* ==========================================================
+   Design System - Layout Styles
+   ========================================================== */
+
+/* Main Container */
+.main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 30px 20px;
+}
+
+/* Page Header */
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid var(--landing-accent-color);
+}
+
+.page-header-text {
+    flex: 1;
+}
+
+/* Page Toolbar (Tabs + Actions) */
+.page-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    gap: 16px;
+}
+
+.page-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.page-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+/* Hide toolbar when both sides are empty */
+.page-toolbar:has(.page-toolbar-left:empty):has(.page-toolbar-right:empty) {
+    display: none;
+}
+
+/* Back Button */
+.btn-back {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--landing-card-bg);
+    border: 1px solid var(--landing-border-color);
+    color: var(--landing-text-primary);
+    text-decoration: none;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.btn-back:hover {
+    background: var(--landing-accent-color);
+    border-color: var(--landing-accent-color);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* Page Title */
+.page-title {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--landing-text-primary);
+}
+
+.page-subtitle {
+    margin: 4px 0 0 0;
+    color: var(--landing-text-muted);
+    font-size: 0.9rem;
+}
+
+/* ==========================================================
+   Design System - Responsive Layout
+   ========================================================== */
+@media (max-width: 768px) {
+    .main-container {
+        padding: 15px 10px;
+    }
+
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .page-toolbar {
+        flex-wrap: wrap;
+    }
+
+    .page-title {
+        font-size: 1.4rem;
+    }
+
+    .btn-back {
+        width: 38px;
+        height: 38px;
+    }
+}
+
+@media (max-width: 480px) {
+    .page-title {
+        font-size: 1.2rem;
+    }
+}
+
+/* ==========================================================
+   Container
+   ========================================================== */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* ==========================================================
+   Typography
+   ========================================================== */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--landing-text-primary);
+}
+
+h2 {
+    font-size: 1.75rem;
+    font-weight: 600;
+}
+
+h5 {
+    font-size: 1.15rem;
+    font-weight: 600;
+}
+
+h6 {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+p {
+    color: var(--landing-text-secondary);
+}
+
+code {
+    background-color: var(--landing-border-color);
+    color: var(--landing-warning-color);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.875rem;
+}
+
+small, .form-text {
+    color: var(--landing-text-muted) !important;
+}
+
+.text-muted {
+    color: var(--landing-text-muted) !important;
+}
+
+/* ==========================================================
+   Cards
+   ========================================================== */
+.card {
+    background-color: var(--landing-card-bg);
+    border: 1px solid var(--landing-border-color);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s ease-in-out;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+}
+
+.card-header {
+    background-color: rgba(0, 0, 0, 0.15);
+    border-bottom: 1px solid var(--landing-border-color);
+    padding: 15px 20px;
+}
+
+.card-header h5 {
+    color: var(--landing-text-primary);
+    margin-bottom: 0;
+}
+
+.card-body {
+    padding: 20px;
+}
+
+/* ==========================================================
+   Buttons
+   ========================================================== */
+.btn {
+    font-weight: 500;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.btn-primary {
+    background-color: var(--landing-accent-color);
+    border-color: var(--landing-accent-color);
+    color: var(--landing-text-primary);
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+    background-color: var(--landing-accent-hover);
+    border-color: var(--landing-accent-hover);
+    color: var(--landing-text-primary);
+}
+
+.btn-success {
+    background-color: var(--landing-success-color);
+    border-color: var(--landing-success-color);
+    color: var(--landing-text-primary);
+}
+
+.btn-success:hover,
+.btn-success:focus {
+    background-color: #3ca374;
+    border-color: #3ca374;
+    color: var(--landing-text-primary);
+}
+
+.btn-warning {
+    background-color: var(--landing-warning-color);
+    border-color: var(--landing-warning-color);
+    color: #1a1a1a;
+}
+
+.btn-warning:hover,
+.btn-warning:focus {
+    background-color: #e09612;
+    border-color: #e09612;
+    color: #1a1a1a;
+}
+
+.btn-danger {
+    background-color: var(--landing-danger-color);
+    border-color: var(--landing-danger-color);
+    color: var(--landing-text-primary);
+}
+
+.btn-danger:hover,
+.btn-danger:focus {
+    background-color: #c93134;
+    border-color: #c93134;
+    color: var(--landing-text-primary);
+}
+
+.btn-secondary {
+    background-color: #4f545c;
+    border-color: #4f545c;
+    color: var(--landing-text-primary);
+}
+
+.btn-secondary:hover,
+.btn-secondary:focus {
+    background-color: var(--landing-border-color);
+    border-color: var(--landing-border-color);
+    color: var(--landing-text-primary);
+}
+
+.btn-outline-primary {
+    color: var(--landing-accent-color);
+    border-color: var(--landing-accent-color);
+}
+
+.btn-outline-primary:hover,
+.btn-outline-primary:focus {
+    background-color: var(--landing-accent-color);
+    border-color: var(--landing-accent-color);
+    color: var(--landing-text-primary);
+}
+
+.btn-outline-secondary {
+    color: var(--landing-text-secondary);
+    border-color: #4f545c;
+}
+
+.btn-outline-secondary:hover,
+.btn-outline-secondary:focus {
+    background-color: #4f545c;
+    border-color: #4f545c;
+    color: var(--landing-text-primary);
+}
+
+.btn-outline-success {
+    color: var(--landing-success-color);
+    border-color: var(--landing-success-color);
+}
+
+.btn-outline-success:hover,
+.btn-outline-success:focus {
+    background-color: var(--landing-success-color);
+    border-color: var(--landing-success-color);
+    color: var(--landing-text-primary);
+}
+
+.btn-outline-danger {
+    color: var(--landing-danger-color);
+    border-color: var(--landing-danger-color);
+}
+
+.btn-outline-danger:hover,
+.btn-outline-danger:focus {
+    background-color: var(--landing-danger-color);
+    border-color: var(--landing-danger-color);
+    color: var(--landing-text-primary);
+}
+
+.btn-outline-warning {
+    color: var(--landing-warning-color);
+    border-color: var(--landing-warning-color);
+}
+
+.btn-outline-warning:hover,
+.btn-outline-warning:focus {
+    background-color: var(--landing-warning-color);
+    border-color: var(--landing-warning-color);
+    color: #1a1a1a;
+}
+
+.btn-icon {
+    padding: 0.375rem 0.5rem;
+}
+
+.btn-lg {
+    padding: 12px 24px;
+    font-size: 1.1rem;
+}
+
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+/* Button check (radio buttons styled as buttons) */
+.btn-check:checked + .btn-outline-primary {
+    background-color: var(--landing-accent-color);
+    border-color: var(--landing-accent-color);
+    color: var(--landing-text-primary);
+}
+
+.btn-check:checked + .btn-outline-secondary {
+    background-color: #4f545c;
+    border-color: #4f545c;
+    color: var(--landing-text-primary);
+}
+
+/* ==========================================================
+   Forms
+   ========================================================== */
+.form-label {
+    color: var(--landing-text-primary);
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.form-control,
+.form-select {
+    background-color: var(--landing-card-bg);
+    border: 1px solid var(--landing-border-color);
+    color: var(--landing-text-primary);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+}
+
+.form-control:focus,
+.form-select:focus {
+    background-color: var(--landing-card-bg);
+    border-color: var(--landing-accent-color);
+    box-shadow: 0 0 0 0.25rem rgba(114, 137, 218, 0.25);
+    color: var(--landing-text-primary);
+}
+
+.form-control::placeholder {
+    color: var(--landing-text-muted);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+    background-color: var(--landing-border-color);
+    opacity: 0.7;
+}
+
+/* Input group */
+.input-group-text {
+    background-color: var(--landing-border-color);
+    border: 1px solid var(--landing-border-color);
+    color: var(--landing-text-secondary);
+}
+
+/* Color input */
+.form-control-color {
+    padding: 0.25rem;
+    height: 38px;
+}
+
+/* Textarea */
+textarea.form-control {
+    resize: vertical;
+    min-height: 100px;
+}
+
+/* Checkboxes and radios */
+.form-check-input {
+    background-color: var(--landing-card-bg);
+    border: 1px solid var(--landing-border-color);
+}
+
+.form-check-input:checked {
+    background-color: var(--landing-accent-color);
+    border-color: var(--landing-accent-color);
+}
+
+.form-check-input:focus {
+    border-color: var(--landing-accent-color);
+    box-shadow: 0 0 0 0.25rem rgba(114, 137, 218, 0.25);
+}
+
+.form-check-label {
+    color: var(--landing-text-primary);
+}
+
+/* ==========================================================
+   Tabs (Bootstrap nav-tabs)
+   ========================================================== */
+.nav-tabs {
+    border-bottom: 2px solid var(--landing-border-color);
+}
+
+.nav-tabs .nav-link {
+    color: var(--landing-text-secondary);
+    background-color: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    padding: 12px 20px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.nav-tabs .nav-link:hover {
+    color: var(--landing-text-primary);
+    border-color: transparent;
+    background-color: rgba(114, 137, 218, 0.1);
+}
+
+.nav-tabs .nav-link.active {
+    color: var(--landing-accent-color);
+    background-color: transparent;
+    border-color: transparent;
+    border-bottom-color: var(--landing-accent-color);
+    font-weight: 600;
+}
+
+.nav-tabs .nav-link i {
+    margin-right: 6px;
+}
+
+/* Tab content */
+.tab-content {
+    padding-top: 0;
+}
+
+.tab-pane {
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ==========================================================
+   Tables
+   ========================================================== */
+/* Bootstrap Table Override */
+.table {
+    color: var(--landing-text-primary);
+    margin-bottom: 0;
+    background-color: #2f3136 !important;
+    color: #ffffff !important;
+    --bs-table-bg: #2f3136;
+    --bs-table-color: #ffffff;
+    --bs-table-border-color: #40444b;
+    --bs-table-striped-bg: #363a40;
+    --bs-table-hover-bg: #40444b;
+}
+
+.table th,
+.table td {
+    border-color: #40444b !important;
+    background-color: inherit !important;
+}
+
+.table thead th {
+    background-color: #202225 !important;
+    color: #b9bbbe !important;
+    border-bottom: 2px solid var(--landing-border-color);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.5px;
+    padding: 12px 16px;
+}
+
+.table tbody td {
+    border-bottom: 1px solid var(--landing-border-color);
+    padding: 12px 16px;
+    vertical-align: middle;
+}
+
+.table tbody tr:hover {
+    background-color: #40444b !important;
+}
+
+.table-hover tbody tr:hover {
+    background-color: #40444b !important;
+}
+
+.table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.table-pages th {
+    background-color: rgba(0, 0, 0, 0.15) !important;
+}
+
+/* ==========================================================
+   List Groups
+   ========================================================== */
+.list-group {
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.list-group-item {
+    background-color: var(--landing-card-bg);
+    border: 1px solid var(--landing-border-color);
+    color: var(--landing-text-primary);
+    padding: 12px 16px;
+}
+
+.list-group-item:first-child {
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+}
+
+.list-group-item:last-child {
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+
+.list-group-item + .list-group-item {
+    border-top: none;
+}
+
+.list-group-item-action {
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.list-group-item-action:hover,
+.list-group-item-action:focus {
+    background-color: rgba(114, 137, 218, 0.1);
+    color: var(--landing-text-primary);
+}
+
+.list-group-item-action:active {
+    background-color: rgba(114, 137, 218, 0.2);
+}
+
+/* ==========================================================
+   Badges
+   ========================================================== */
+.badge {
+    font-weight: 500;
+    padding: 0.35em 0.65em;
+    border-radius: 4px;
+}
+
+.badge.bg-primary {
+    background-color: var(--landing-accent-color) !important;
+}
+
+.badge.bg-success {
+    background-color: var(--landing-success-color) !important;
+}
+
+.badge.bg-warning {
+    background-color: var(--landing-warning-color) !important;
+    color: #1a1a1a !important;
+}
+
+.badge.bg-danger {
+    background-color: var(--landing-danger-color) !important;
+}
+
+.badge.bg-secondary {
+    background-color: #4f545c !important;
+}
+
+.badge.bg-info {
+    background-color: var(--landing-info-color) !important;
+}
+
+.component-badge {
+    font-size: 0.7rem;
+}
+
+/* ==========================================================
+   Alerts
+   ========================================================== */
+.alert {
+    border-radius: 8px;
+    border: none;
+    padding: 12px 16px;
+}
+
+.alert-primary {
+    background-color: rgba(114, 137, 218, 0.15);
+    color: var(--landing-accent-color);
+}
+
+.alert-success {
+    background-color: rgba(67, 181, 129, 0.15);
+    color: var(--landing-success-color);
+}
+
+.alert-warning {
+    background-color: rgba(250, 166, 26, 0.15);
+    color: var(--landing-warning-color);
+}
+
+.alert-danger {
+    background-color: rgba(237, 66, 69, 0.15);
+    color: var(--landing-danger-color);
+}
+
+.alert-info {
+    background-color: rgba(88, 101, 242, 0.15);
+    color: #8ea1f2;
+}
+
+.alert-secondary {
+    background-color: rgba(79, 84, 92, 0.3);
+    color: var(--landing-text-secondary);
+}
+
+/* ==========================================================
+   Modals
+   ========================================================== */
+.modal-content {
+    background-color: var(--landing-card-bg);
+    border: 1px solid var(--landing-border-color);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.modal-header {
+    border-bottom: 1px solid var(--landing-border-color);
+    padding: 16px 20px;
+}
+
+.modal-header.bg-primary {
+    background-color: var(--landing-accent-color) !important;
+    border-radius: 11px 11px 0 0;
+}
+
+.modal-header.bg-danger {
+    background-color: var(--landing-danger-color) !important;
+    border-radius: 11px 11px 0 0;
+}
+
+.modal-title {
+    color: var(--landing-text-primary);
+    font-weight: 600;
+}
+
+.modal-body {
+    padding: 20px;
+    color: var(--landing-text-primary);
+}
+
+.modal-footer {
+    border-top: 1px solid var(--landing-border-color);
+    padding: 16px 20px;
+}
+
+.btn-close-white {
+    filter: brightness(0) invert(1);
+}
+
+/* ==========================================================
+   Public URL Box
+   ========================================================== */
+.public-url-box {
+    background-color: var(--landing-border-color);
+    border-radius: 8px;
+    padding: 14px 18px;
+    font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.public-url-box .url-text {
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--landing-text-primary);
+    font-size: 0.95rem;
+}
+
+/* Success variant for active custom domain */
+.public-url-box[style*="d4edda"] {
+    background-color: rgba(67, 181, 129, 0.15) !important;
+    border-color: rgba(67, 181, 129, 0.3) !important;
+}
+
+/* ==========================================================
+   Custom Domain Details (Expandable Section)
+   ========================================================== */
+.custom-domain-details summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 8px 0;
+    user-select: none;
+}
+
+.custom-domain-details summary::-webkit-details-marker {
+    display: none;
+}
+
+.custom-domain-details[open] summary .fa-chevron-down {
+    transform: rotate(180deg);
+}
+
+.custom-domain-details summary .fa-chevron-down {
+    transition: transform 0.2s ease;
+}
+
+/* Domain configuration bordered box */
+.border.rounded.p-3 {
+    background-color: rgba(0, 0, 0, 0.1) !important;
+    border-color: var(--landing-border-color) !important;
+}
+
+/* ==========================================================
+   Image Grid
+   ========================================================== */
+.image-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 16px;
+}
+
+.image-card {
+    background-color: var(--landing-card-bg);
+    border: 1px solid var(--landing-border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.image-card:hover {
+    border-color: var(--landing-accent-color);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.image-card img {
+    width: 100%;
+    height: 100px;
+    object-fit: cover;
+    display: block;
+}
+
+.image-card .image-name {
+    padding: 10px 12px;
+    font-size: 0.75rem;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    color: var(--landing-text-secondary);
+    background-color: rgba(0, 0, 0, 0.1);
+    border-top: 1px solid var(--landing-border-color);
+}
+
+.image-card .image-actions {
+    padding: 8px;
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.15);
+}
+
+/* ==========================================================
+   Spinners / Loading
+   ========================================================== */
+.spinner-border {
+    width: 2.5rem;
+    height: 2.5rem;
+}
+
+.spinner-border.text-primary {
+    color: var(--landing-accent-color) !important;
+}
+
+/* ==========================================================
+   Border utilities override
+   ========================================================== */
+.border {
+    border-color: var(--landing-border-color) !important;
+}
+
+.border-top {
+    border-top-color: var(--landing-border-color) !important;
+}
+
+.border-bottom {
+    border-bottom-color: var(--landing-border-color) !important;
+}
+
+/* ==========================================================
+   Background utilities override
+   ========================================================== */
+.bg-light {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* ==========================================================
+   Scrollbar Styling
+   ========================================================== */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--landing-card-bg);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--landing-border-color);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--landing-accent-color);
+}
+
+/* ==========================================================
+   Links
+   ========================================================== */
+a {
+    color: var(--landing-accent-color);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+a:hover {
+    color: var(--landing-accent-hover);
+    text-decoration: underline;
+}
+
+/* ==========================================================
+   Responsive Adjustments
+   ========================================================== */
+@media (max-width: 768px) {
+    .container {
+        padding: 15px;
+    }
+
+    h2 {
+        font-size: 1.4rem;
+    }
+
+    .card-body {
+        padding: 15px;
+    }
+
+    .nav-tabs .nav-link {
+        padding: 10px 14px;
+        font-size: 0.9rem;
+    }
+
+    .public-url-box {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .public-url-box .url-text {
+        width: 100%;
+        font-size: 0.85rem;
+    }
+
+    .image-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 10px;
+    }
+
+    .modal-dialog {
+        margin: 10px;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+    }
+
+    .btn-lg {
+        padding: 10px 20px;
+        font-size: 1rem;
+    }
+
+    .table thead th,
+    .table tbody td {
+        padding: 10px 12px;
+        font-size: 0.85rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .d-flex.gap-2 {
+        flex-direction: column;
+    }
+
+    .btn-group.d-flex {
+        flex-wrap: wrap;
+    }
+
+    .btn-group.d-flex .btn {
+        flex: 1 1 calc(50% - 2px);
+        margin: 2px;
+    }
+}
+
+/* ==========================================================
+   Utility Classes
+   ========================================================== */
+.fw-semibold {
+    font-weight: 600;
+}
+
+.gap-2 {
+    gap: 0.5rem !important;
+}
+
+.gap-3 {
+    gap: 1rem !important;
+}
+
+/* ==========================================================
+   Navbar Override (if included)
+   ========================================================== */
+.navbar {
+    background-color: #202225 !important;
+    border-bottom: 1px solid var(--landing-border-color);
+}
+
+.navbar-brand,
+.nav-link {
+    color: var(--landing-text-primary) !important;
+}
+
+.navbar-brand:hover,
+.nav-link:hover {
+    color: var(--landing-accent-color) !important;
+}
+
+.navbar-toggler {
+    border-color: var(--landing-border-color);
+    background-color: var(--landing-card-bg);
+}
+
+.navbar-toggler-icon {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(255, 255, 255, 0.75)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
+}

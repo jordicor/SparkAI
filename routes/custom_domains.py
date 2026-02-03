@@ -1,0 +1,698 @@
+"""
+Custom Domain API Endpoints for Users and Admins.
+
+Handles configuration, verification, and activation of custom domains
+for prompt landing pages.
+"""
+
+import os
+import re
+import socket
+from typing import Optional
+
+import dns.resolver
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, field_validator
+
+from auth import get_current_user
+from models import User
+from database import get_db_connection
+from common import deduct_balance, get_balance, record_daily_usage
+from middleware.custom_domains import invalidate_domain_cache
+
+# Configuration from environment
+CNAME_TARGET = os.getenv("CLOUDFLARE_CNAME_TARGET", "your-server.example.com")
+SLOT_PRICE = float(os.getenv("CUSTOM_DOMAIN_SLOT_PRICE", "25.00"))
+# Keep DOMAIN_PRICE for backwards compatibility
+DOMAIN_PRICE = SLOT_PRICE
+
+# Verification status constants (INTEGER values in DB)
+VSTATUS_PENDING = 0
+VSTATUS_VERIFIED = 1
+VSTATUS_FAILED = 2
+VSTATUS_EXPIRED = 3
+
+# Map for API responses (INT -> string for frontend)
+VSTATUS_NAMES = {
+    VSTATUS_PENDING: 'pending',
+    VSTATUS_VERIFIED: 'verified',
+    VSTATUS_FAILED: 'failed',
+    VSTATUS_EXPIRED: 'expired',
+}
+
+# Router for user endpoints
+router = APIRouter(prefix="/api/domains", tags=["Custom Domains"])
+
+# Router for admin endpoints
+admin_router = APIRouter(prefix="/admin/domains", tags=["Admin - Custom Domains"])
+
+
+# =============================================================================
+# Slot Helper Functions
+# =============================================================================
+
+async def get_user_slots_info(user_id: int) -> dict:
+    """
+    Get slot information for a user.
+    Returns dict with purchased, used, and available slots.
+    """
+    async with get_db_connection(readonly=True) as conn:
+        # Get purchased slots
+        cursor = await conn.execute(
+            "SELECT domain_slots_purchased FROM USER_DETAILS WHERE user_id = ?",
+            (user_id,)
+        )
+        row = await cursor.fetchone()
+        purchased = row[0] if row and row[0] else 0
+
+        # Count used slots (active domains owned by this user)
+        cursor = await conn.execute("""
+            SELECT COUNT(*) FROM PROMPT_CUSTOM_DOMAINS pcd
+            JOIN PROMPTS p ON pcd.prompt_id = p.id
+            WHERE p.created_by_user_id = ? AND pcd.is_active = 1
+        """, (user_id,))
+        row = await cursor.fetchone()
+        used = row[0] if row else 0
+
+    return {
+        "purchased": purchased,
+        "used": used,
+        "available": purchased - used
+    }
+
+
+async def user_has_available_slot(user_id: int) -> bool:
+    """Check if user has at least one available (unused) slot."""
+    slots = await get_user_slots_info(user_id)
+    return slots["available"] > 0
+
+
+async def add_slots_to_user(user_id: int, quantity: int = 1) -> bool:
+    """Add slots to a user's account."""
+    async with get_db_connection() as conn:
+        await conn.execute("""
+            UPDATE USER_DETAILS
+            SET domain_slots_purchased = COALESCE(domain_slots_purchased, 0) + ?
+            WHERE user_id = ?
+        """, (quantity, user_id))
+        await conn.commit()
+    return True
+
+
+class DomainConfigRequest(BaseModel):
+    domain: str
+
+    @field_validator('domain')
+    @classmethod
+    def validate_domain(cls, v):
+        # Basic domain validation
+        pattern = r'^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z]{2,})+$'
+        if not re.match(pattern, v):
+            raise ValueError('Invalid domain format')
+        return v.lower().strip()
+
+
+# =============================================================================
+# User Endpoints
+# =============================================================================
+
+@router.get("/{prompt_id}")
+async def get_domain_config(
+    prompt_id: int,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get custom domain configuration for a prompt.
+    Returns current domain, verification status, and CNAME target.
+    """
+    if not current_user:
+        raise HTTPException(401, "Authentication required")
+
+    await _verify_prompt_access(prompt_id, current_user)
+
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.execute("""
+            SELECT custom_domain, verification_status, is_active,
+                   activated_by_admin, last_verification_attempt,
+                   verification_error, activated_at
+            FROM PROMPT_CUSTOM_DOMAINS
+            WHERE prompt_id = ?
+        """, (prompt_id,))
+        result = await cursor.fetchone()
+
+    if not result:
+        return JSONResponse({
+            "has_domain": False,
+            "cname_target": CNAME_TARGET,
+            "price": DOMAIN_PRICE
+        })
+
+    return JSONResponse({
+        "has_domain": True,
+        "domain": result[0],
+        "verification_status": VSTATUS_NAMES.get(result[1], 'pending'),
+        "is_active": bool(result[2]),
+        "activated_by_admin": bool(result[3]),
+        "last_check": result[4],
+        "verification_error": result[5],
+        "activated_at": result[6],
+        "cname_target": CNAME_TARGET,
+        "price": DOMAIN_PRICE
+    })
+
+
+@router.get("/slots/info")
+async def get_slots_info(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get domain slots information for the current user.
+    Returns purchased, used, and available slots.
+    """
+    if not current_user:
+        raise HTTPException(401, "Authentication required")
+
+    slots = await get_user_slots_info(current_user.id)
+
+    return JSONResponse({
+        "success": True,
+        "slots": slots,
+        "slot_price": SLOT_PRICE
+    })
+
+
+@router.post("/slots/purchase")
+async def purchase_slot(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Purchase a domain slot.
+    Deducts SLOT_PRICE from user balance and adds 1 slot.
+    """
+    if not current_user:
+        raise HTTPException(401, "Authentication required")
+
+    # Only managers can purchase slots
+    is_manager = await current_user.is_manager
+    if not is_manager:
+        raise HTTPException(403, "Only managers can purchase domain slots")
+
+    # Check balance
+    balance = await get_balance(current_user.id)
+    if balance < SLOT_PRICE:
+        raise HTTPException(
+            402,
+            f"Insufficient balance. Required: ${SLOT_PRICE:.2f}, Available: ${balance:.2f}"
+        )
+
+    # Deduct payment
+    if not await deduct_balance(current_user.id, SLOT_PRICE):
+        raise HTTPException(500, "Payment processing failed")
+
+    # Record daily usage
+    await record_daily_usage(
+        user_id=current_user.id,
+        usage_type='domain',
+        cost=SLOT_PRICE,
+        units=1
+    )
+
+    # Add slot
+    await add_slots_to_user(current_user.id, 1)
+
+    # Get updated slots info
+    slots = await get_user_slots_info(current_user.id)
+
+    return JSONResponse({
+        "success": True,
+        "message": "Domain slot purchased successfully",
+        "amount_charged": SLOT_PRICE,
+        "slots": slots
+    })
+
+
+@router.post("/{prompt_id}/configure")
+async def configure_domain(
+    prompt_id: int,
+    request: DomainConfigRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Configure a custom domain for a prompt.
+    Does NOT activate - just saves the domain and sets status to 'pending'.
+    """
+    if not current_user:
+        raise HTTPException(401, "Authentication required")
+
+    await _verify_prompt_access(prompt_id, current_user)
+
+    domain = request.domain
+
+    # Check if domain is already used by another prompt
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.execute(
+            "SELECT prompt_id FROM PROMPT_CUSTOM_DOMAINS WHERE custom_domain = ?",
+            (domain,)
+        )
+        existing = await cursor.fetchone()
+        if existing and existing[0] != prompt_id:
+            raise HTTPException(400, "Domain already configured for another prompt")
+
+    # Insert or update
+    async with get_db_connection() as conn:
+        await conn.execute("""
+            INSERT INTO PROMPT_CUSTOM_DOMAINS (prompt_id, custom_domain, verification_status)
+            VALUES (?, ?, ?)
+            ON CONFLICT(prompt_id) DO UPDATE SET
+                custom_domain = excluded.custom_domain,
+                verification_status = ?,
+                is_active = FALSE,
+                updated_at = CURRENT_TIMESTAMP
+        """, (prompt_id, domain, VSTATUS_PENDING, VSTATUS_PENDING))
+        await conn.commit()
+
+    invalidate_domain_cache(domain)
+
+    return JSONResponse({
+        "success": True,
+        "message": f"Domain configured. Point CNAME to: {CNAME_TARGET}",
+        "cname_target": CNAME_TARGET,
+        "next_step": "verify"
+    })
+
+
+@router.post("/{prompt_id}/verify")
+async def verify_domain(
+    prompt_id: int,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Verify that the domain's CNAME points to our server.
+    """
+    if not current_user:
+        raise HTTPException(401, "Authentication required")
+
+    await _verify_prompt_access(prompt_id, current_user)
+
+    # Get the configured domain
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.execute(
+            "SELECT custom_domain FROM PROMPT_CUSTOM_DOMAINS WHERE prompt_id = ?",
+            (prompt_id,)
+        )
+        result = await cursor.fetchone()
+
+    if not result:
+        raise HTTPException(404, "No domain configured")
+
+    domain = result[0]
+    verification_result = _verify_cname(domain, CNAME_TARGET)
+
+    # Update verification status
+    async with get_db_connection() as conn:
+        if verification_result["success"]:
+            await conn.execute("""
+                UPDATE PROMPT_CUSTOM_DOMAINS
+                SET verification_status = ?,
+                    last_verification_success = CURRENT_TIMESTAMP,
+                    last_verification_attempt = CURRENT_TIMESTAMP,
+                    verification_error = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE prompt_id = ?
+            """, (VSTATUS_VERIFIED, prompt_id))
+        else:
+            await conn.execute("""
+                UPDATE PROMPT_CUSTOM_DOMAINS
+                SET verification_status = ?,
+                    last_verification_attempt = CURRENT_TIMESTAMP,
+                    verification_error = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE prompt_id = ?
+            """, (VSTATUS_FAILED, verification_result["error"], prompt_id))
+        await conn.commit()
+
+    return JSONResponse(verification_result)
+
+
+@router.post("/{prompt_id}/activate")
+async def activate_domain(
+    prompt_id: int,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Activate a verified domain using a domain slot.
+    Requires an available slot (purchased previously or buy one now).
+    Only managers can use this endpoint. Admins should use /admin/domains/{id}/activate-free.
+    """
+    if not current_user:
+        raise HTTPException(401, "Authentication required")
+
+    # Only managers can activate. Admins should use activate-free endpoint.
+    is_admin = await current_user.is_admin
+    is_manager = await current_user.is_manager
+    if not is_manager and not is_admin:
+        raise HTTPException(403, "Only managers can activate custom domains")
+
+    # If admin, redirect them to use the free endpoint
+    if is_admin:
+        raise HTTPException(400, "Admins should use /admin/domains/{prompt_id}/activate-free endpoint")
+
+    await _verify_prompt_access(prompt_id, current_user)
+
+    # Check verification status
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.execute("""
+            SELECT custom_domain, verification_status, is_active, activated_by_admin
+            FROM PROMPT_CUSTOM_DOMAINS WHERE prompt_id = ?
+        """, (prompt_id,))
+        result = await cursor.fetchone()
+
+    if not result:
+        raise HTTPException(404, "No domain configured")
+
+    domain, status, is_active, admin_activated = result
+
+    if is_active:
+        raise HTTPException(400, "Domain already active")
+
+    if status != VSTATUS_VERIFIED:
+        raise HTTPException(400, f"Domain not verified. Current status: {VSTATUS_NAMES.get(status, 'unknown')}")
+
+    # Check if user has available slots
+    slots = await get_user_slots_info(current_user.id)
+
+    if slots["available"] <= 0:
+        # No slots available - need to purchase one
+        raise HTTPException(
+            402,
+            f"No domain slots available. You have {slots['used']}/{slots['purchased']} slots in use. "
+            f"Purchase a slot for ${SLOT_PRICE:.2f} to activate this domain."
+        )
+
+    # User has available slot - activate domain (slot gets "used" by having is_active=1)
+    async with get_db_connection() as conn:
+        await conn.execute("""
+            UPDATE PROMPT_CUSTOM_DOMAINS
+            SET is_active = TRUE,
+                activated_at = CURRENT_TIMESTAMP,
+                activated_by_user_id = ?,
+                activated_by_admin = FALSE,
+                verification_error = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE prompt_id = ?
+        """, (current_user.id, prompt_id))
+        await conn.commit()
+
+    invalidate_domain_cache(domain)
+
+    # Get updated slots info
+    updated_slots = await get_user_slots_info(current_user.id)
+
+    return JSONResponse({
+        "success": True,
+        "message": f"Domain {domain} activated successfully",
+        "slots": updated_slots
+    })
+
+
+@router.post("/{prompt_id}/deactivate")
+async def deactivate_domain(
+    prompt_id: int,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Deactivate a domain (toggle OFF).
+    This frees up the slot for use on another prompt.
+    The domain configuration is preserved and can be reactivated later.
+    """
+    if not current_user:
+        raise HTTPException(401, "Authentication required")
+
+    await _verify_prompt_access(prompt_id, current_user)
+
+    # Get current domain state
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.execute("""
+            SELECT custom_domain, is_active
+            FROM PROMPT_CUSTOM_DOMAINS WHERE prompt_id = ?
+        """, (prompt_id,))
+        result = await cursor.fetchone()
+
+    if not result:
+        raise HTTPException(404, "No domain configured")
+
+    domain, is_active = result
+
+    if not is_active:
+        raise HTTPException(400, "Domain is already inactive")
+
+    # Deactivate domain (frees the slot)
+    async with get_db_connection() as conn:
+        await conn.execute("""
+            UPDATE PROMPT_CUSTOM_DOMAINS
+            SET is_active = FALSE,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE prompt_id = ?
+        """, (prompt_id,))
+        await conn.commit()
+
+    invalidate_domain_cache(domain)
+
+    # Get updated slots info
+    slots = await get_user_slots_info(current_user.id)
+
+    return JSONResponse({
+        "success": True,
+        "message": f"Domain {domain} deactivated. Slot freed for use elsewhere.",
+        "slots": slots
+    })
+
+
+@router.delete("/{prompt_id}")
+async def remove_domain(
+    prompt_id: int,
+    current_user: User = Depends(get_current_user)
+):
+    """Remove custom domain configuration."""
+    if not current_user:
+        raise HTTPException(401, "Authentication required")
+
+    await _verify_prompt_access(prompt_id, current_user)
+
+    # Get domain for cache invalidation
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.execute(
+            "SELECT custom_domain FROM PROMPT_CUSTOM_DOMAINS WHERE prompt_id = ?",
+            (prompt_id,)
+        )
+        result = await cursor.fetchone()
+
+    if result:
+        domain = result[0]
+        async with get_db_connection() as conn:
+            await conn.execute(
+                "DELETE FROM PROMPT_CUSTOM_DOMAINS WHERE prompt_id = ?",
+                (prompt_id,)
+            )
+            await conn.commit()
+        invalidate_domain_cache(domain)
+
+    return JSONResponse({"success": True, "message": "Domain removed"})
+
+
+# =============================================================================
+# Admin Endpoints
+# =============================================================================
+
+@admin_router.get("/")
+async def list_all_domains(
+    current_user: User = Depends(get_current_user)
+):
+    """List all configured custom domains (admin only)."""
+    if not current_user or not await current_user.is_admin:
+        raise HTTPException(403, "Admin only")
+
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.execute("""
+            SELECT
+                pcd.id, pcd.custom_domain, pcd.verification_status,
+                pcd.is_active, pcd.activated_by_admin, pcd.activated_at,
+                p.id as prompt_id, p.name as prompt_name,
+                u.username as owner
+            FROM PROMPT_CUSTOM_DOMAINS pcd
+            JOIN PROMPTS p ON pcd.prompt_id = p.id
+            JOIN USERS u ON p.created_by_user_id = u.id
+            ORDER BY pcd.created_at DESC
+        """)
+        rows = await cursor.fetchall()
+
+    domains = []
+    for row in rows:
+        domains.append({
+            "id": row[0],
+            "domain": row[1],
+            "verification_status": VSTATUS_NAMES.get(row[2], 'pending'),
+            "is_active": bool(row[3]),
+            "activated_by_admin": bool(row[4]),
+            "activated_at": row[5],
+            "prompt_id": row[6],
+            "prompt_name": row[7],
+            "owner": row[8]
+        })
+
+    return JSONResponse({"domains": domains})
+
+
+@admin_router.post("/{prompt_id}/activate-free")
+async def admin_activate_free(
+    prompt_id: int,
+    current_user: User = Depends(get_current_user)
+):
+    """Activate a domain for free (admin only, bypasses payment)."""
+    if not current_user or not await current_user.is_admin:
+        raise HTTPException(403, "Admin only")
+
+    async with get_db_connection() as conn:
+        # Check domain exists and is verified
+        cursor = await conn.execute("""
+            SELECT custom_domain, verification_status
+            FROM PROMPT_CUSTOM_DOMAINS WHERE prompt_id = ?
+        """, (prompt_id,))
+        result = await cursor.fetchone()
+
+        if not result:
+            raise HTTPException(404, "No domain configured for this prompt")
+
+        domain, status = result
+
+        if status != VSTATUS_VERIFIED:
+            raise HTTPException(400, f"Domain not verified yet. Current status: {VSTATUS_NAMES.get(status, 'unknown')}")
+
+        # Activate for free
+        await conn.execute("""
+            UPDATE PROMPT_CUSTOM_DOMAINS
+            SET is_active = TRUE,
+                activated_by_admin = TRUE,
+                activated_at = CURRENT_TIMESTAMP,
+                activated_by_user_id = ?,
+                verification_error = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE prompt_id = ?
+        """, (current_user.id, prompt_id))
+        await conn.commit()
+
+    invalidate_domain_cache(domain)
+
+    return JSONResponse({
+        "success": True,
+        "message": f"Domain {domain} activated for free (admin)"
+    })
+
+
+@admin_router.post("/{prompt_id}/deactivate")
+async def admin_deactivate(
+    prompt_id: int,
+    current_user: User = Depends(get_current_user)
+):
+    """Deactivate a domain (admin only)."""
+    if not current_user or not await current_user.is_admin:
+        raise HTTPException(403, "Admin only")
+
+    async with get_db_connection() as conn:
+        cursor = await conn.execute(
+            "SELECT custom_domain FROM PROMPT_CUSTOM_DOMAINS WHERE prompt_id = ?",
+            (prompt_id,)
+        )
+        result = await cursor.fetchone()
+
+        if result:
+            domain = result[0]
+            await conn.execute("""
+                UPDATE PROMPT_CUSTOM_DOMAINS
+                SET is_active = FALSE,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE prompt_id = ?
+            """, (prompt_id,))
+            await conn.commit()
+            invalidate_domain_cache(domain)
+
+    return JSONResponse({"success": True, "message": "Domain deactivated"})
+
+
+# =============================================================================
+# Helper Functions
+# =============================================================================
+
+async def _verify_prompt_access(prompt_id: int, user: User):
+    """Verify user has edit access to prompt."""
+    is_admin = await user.is_admin
+    if is_admin:
+        return
+
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.execute("""
+            SELECT 1 FROM PROMPTS p
+            LEFT JOIN PROMPT_PERMISSIONS pp ON p.id = pp.prompt_id
+            WHERE p.id = ? AND (
+                p.created_by_user_id = ? OR
+                (pp.user_id = ? AND pp.permission_level IN ('owner', 'edit'))
+            )
+        """, (prompt_id, user.id, user.id))
+        if not await cursor.fetchone():
+            raise HTTPException(403, "Access denied to this prompt")
+
+
+def _verify_cname(domain: str, expected_target: str) -> dict:
+    """
+    Verify CNAME record for a domain.
+    Returns dict with success status and details.
+    """
+    try:
+        # Try CNAME lookup
+        try:
+            answers = dns.resolver.resolve(domain, 'CNAME')
+            for rdata in answers:
+                cname_target = str(rdata.target).rstrip('.')
+                if cname_target.lower() == expected_target.lower():
+                    return {
+                        "success": True,
+                        "message": f"CNAME verified: {domain} -> {cname_target}"
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "error": f"CNAME points to {cname_target}, expected {expected_target}"
+                    }
+        except dns.resolver.NoAnswer:
+            # No CNAME, try A record as fallback
+            pass
+
+        # Check if A record points to our IP (fallback for apex domains)
+        try:
+            our_ip = socket.gethostbyname(expected_target)
+            their_ips = dns.resolver.resolve(domain, 'A')
+            for ip in their_ips:
+                if str(ip) == our_ip:
+                    return {
+                        "success": True,
+                        "message": f"A record verified: {domain} -> {ip}"
+                    }
+            return {
+                "success": False,
+                "error": f"Domain does not point to our server. Configure CNAME to {expected_target}"
+            }
+        except Exception:
+            pass
+
+        return {
+            "success": False,
+            "error": f"No valid DNS records found. Configure CNAME to {expected_target}"
+        }
+
+    except dns.resolver.NXDOMAIN:
+        return {"success": False, "error": "Domain does not exist"}
+    except dns.resolver.Timeout:
+        return {"success": False, "error": "DNS lookup timeout"}
+    except Exception as e:
+        return {"success": False, "error": f"DNS verification error: {str(e)}"}

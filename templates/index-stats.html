@@ -1,0 +1,289 @@
+{% extends 'base.html' %}
+
+{% block title %}Conversation Analysis - SPARK{% endblock %}
+
+{% block styles %}
+{# Theme CSS loaded by theme-loader.js #}
+<style>
+    .stats-container {
+        background-color: white;
+        border-radius: 15px;
+        box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        padding: 20px;
+        width: 100%;
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    .stats-container h1 {
+        color: #333;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    .controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+    .controls select {
+        flex-grow: 1;
+        padding: 10px;
+        border-radius: 5px;
+        border: 1px solid #ddd;
+        margin-right: 10px;
+    }
+    #changeStyle {
+        background-color: #4CAF50;
+        border: none;
+        color: white;
+        padding: 10px 15px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+        margin: 4px 2px;
+        transition-duration: 0.4s;
+        cursor: pointer;
+        border-radius: 5px;
+    }
+    #changeStyle:hover {
+        background-color: #45a049;
+    }
+    #chart {
+        width: 100%;
+        height: 400px;
+    }
+    #notes {
+        margin-top: 20px;
+        padding: 10px;
+        background-color: #f9f9f9;
+        border-radius: 5px;
+        border: 1px solid #ddd;
+    }
+    .stats-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .stats-table th, .stats-table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+    }
+    .stats-table th {
+        background-color: #f2f2f2;
+    }
+    .meter {
+        height: 20px;
+        background-color: #e0e0e0;
+        border-radius: 10px;
+        padding: 5px;
+        margin-bottom: 10px;
+    }
+    .meter > span {
+        display: block;
+        height: 100%;
+        border-radius: 5px;
+        background-color: #2196F3;
+    }
+</style>
+{% endblock %}
+
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block page_title %}Conversation Analysis{% endblock %}
+
+{% block back_url %}/{% endblock %}
+
+{% block toolbar %}{% endblock %}
+
+{% block content %}
+<div class="stats-container">
+    <h1>Conversation Analysis</h1>
+    <div class="controls">
+        <select id="categorySelect">
+            <option value="global">Global</option>
+            {% for category in data.keys() if category != "global" and category != "notas" %}
+                <option value="{{ category }}">{{ category }}</option>
+            {% endfor %}
+        </select>
+        <button id="changeStyle"><i class="fas fa-chart-bar"></i></button>
+    </div>
+    <div id="chart"></div>
+    <div id="notes"></div>
+</div>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    const data = {{ data|tojson }};
+    let chart;
+    let currentStyle = 'radar';
+    let currentCategory = 'global';
+
+    const colors = {
+        'global': 'rgb(75, 192, 192)',
+        'Communication': 'rgb(255, 159, 64)',
+        'Social Skills': 'rgb(54, 162, 235)',
+        'Personal Development': 'rgb(153, 102, 255)',
+        'Health and Wellness': 'rgb(255, 205, 86)',
+        'Creativity': 'rgb(255, 99, 132)',
+        'Ethics and Values': 'rgb(75, 192, 192)',
+        'Overall Satisfaction': 'rgb(201, 203, 207)'
+    };
+
+    function getRandomColor() {
+        const letters = '0123456789ABCDEF';
+        let color = '#';
+        for (let i = 0; i < 6; i++) {
+            color += letters[Math.floor(Math.random() * 16)];
+        }
+        return color;
+    }
+
+    function getCategoryColor(category) {
+        return colors[category] || getRandomColor();
+    }
+
+    function updateChart(category) {
+        currentCategory = category;
+        const chartContainer = document.getElementById('chart');
+        chartContainer.innerHTML = '';
+
+        switch(currentStyle) {
+            case 'radar':
+                drawRadarChart(category);
+                break;
+            case 'bar':
+                drawBarChart(category);
+                break;
+            case 'table':
+                drawTable(category);
+                break;
+            case 'meter':
+                drawMeters(category);
+                break;
+        }
+
+        const notesElement = document.getElementById('notes');
+        notesElement.innerHTML = `<strong>Notes:</strong> ${data.notas[category] || 'No notes available for this category.'}`;
+    }
+
+    function drawRadarChart(category) {
+        const ctx = document.createElement('canvas');
+        document.getElementById('chart').appendChild(ctx);
+        const categoryColor = getCategoryColor(category);
+        const chartData = {
+            labels: Object.keys(data[category]),
+            datasets: [{
+                label: category,
+                data: Object.values(data[category]),
+                fill: true,
+                backgroundColor: categoryColor.replace('rgb', 'rgba').replace(')', ', 0.2)'),
+                borderColor: categoryColor,
+                pointBackgroundColor: categoryColor,
+                pointBorderColor: '#fff',
+                pointHoverBackgroundColor: '#fff',
+                pointHoverBorderColor: categoryColor
+            }]
+        };
+
+        chart = new Chart(ctx, {
+            type: 'radar',
+            data: chartData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                elements: {
+                    line: {
+                        borderWidth: 3
+                    }
+                },
+                scales: {
+                    r: {
+                        angleLines: {
+                            display: false
+                        },
+                        suggestedMin: 0,
+                        suggestedMax: 100
+                    }
+                }
+            }
+        });
+    }
+
+    function drawBarChart(category) {
+        const ctx = document.createElement('canvas');
+        document.getElementById('chart').appendChild(ctx);
+        const chartData = {
+            labels: Object.keys(data[category]),
+            datasets: [{
+                label: category,
+                data: Object.values(data[category]),
+                backgroundColor: Object.keys(data[category]).map(key => getCategoryColor(key)),
+                borderColor: Object.keys(data[category]).map(key => getCategoryColor(key)),
+                borderWidth: 1
+            }]
+        };
+
+        chart = new Chart(ctx, {
+            type: 'bar',
+            data: chartData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                }
+            }
+        });
+    }
+
+    function drawTable(category) {
+        const table = document.createElement('table');
+        table.className = 'stats-table';
+        table.innerHTML = `
+            <tr>
+                <th>Category</th>
+                <th>Value</th>
+            </tr>
+            ${Object.entries(data[category]).map(([key, value]) => `
+                <tr>
+                    <td>${key}</td>
+                    <td>${value}</td>
+                </tr>
+            `).join('')}
+        `;
+        document.getElementById('chart').appendChild(table);
+    }
+
+    function drawMeters(category) {
+        const meterContainer = document.createElement('div');
+        meterContainer.innerHTML = Object.entries(data[category]).map(([key, value]) => `
+            <div>
+                <label>${key}</label>
+                <div class="meter">
+                    <span style="width: ${value}%; background-color: ${getCategoryColor(key)}"></span>
+                </div>
+            </div>
+        `).join('');
+        document.getElementById('chart').appendChild(meterContainer);
+    }
+
+    document.getElementById('categorySelect').addEventListener('change', (event) => {
+        updateChart(event.target.value);
+    });
+
+    document.getElementById('changeStyle').addEventListener('click', () => {
+        const styles = ['radar', 'bar', 'table', 'meter'];
+        currentStyle = styles[(styles.indexOf(currentStyle) + 1) % styles.length];
+        updateChart(currentCategory);
+    });
+
+    updateChart('global');
+</script>
+{% endblock %}

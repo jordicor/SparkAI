@@ -1,0 +1,633 @@
+{% extends 'base.html' %}
+
+{% block title %}Edit Prompt - SPARK{% endblock %}
+
+{% block styles %}
+{# Theme CSS loaded by theme-loader.js - category styles now in default.css #}
+{% endblock %}
+
+{% block page_title %}Edit Prompt{% endblock %}
+
+{% block back_url %}/prompts{% endblock %}
+{% block back_title %}Back to Prompts{% endblock %}
+
+{% block content %}
+<form action="/prompts/update/{{ prompt_id }}" method="post" enctype="multipart/form-data" id="editPromptForm">
+
+    <!-- Section 1: Basic Information -->
+    <div class="section-container">
+        <div class="section-title"><i class="fas fa-info-circle me-2"></i>Basic Information</div>
+        <div class="flex-row">
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label for="promptName" class="form-label">Prompt Name</label>
+                    <input type="text" class="form-control" id="promptName" name="name" value="{{ prompt_name }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="description" class="form-label">Description</label>
+                    <textarea class="form-control" id="description" name="description" rows="3">{{ description }}</textarea>
+                </div>
+            </div>
+            <div class="flex-column">
+                {% if is_admin or is_owner %}
+                <div class="mb-3">
+                    <label for="new_owner" class="form-label">Owner</label>
+                    <select class="form-select" name="new_owner_id" id="new_owner">
+                        {% for user in users %}
+                            <option value="{{ user[0] }}" {% if user[0] == current_owner_id %}selected{% endif %}>
+                                {{ user[0] }} - {{ user[1] }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Editors</label>
+                    <div class="editors-container">
+                        <div class="editor-list mb-2">
+                            {% for editor in editors %}
+                            <div class="editor-item">
+                                <span>{{ editor.username }}</span>
+                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeEditor({{ editor.id }})">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="input-group">
+                            <select class="form-select" id="editorSelect">
+                                {% for user in users %}
+                                    <option value="{{ user.id }}">{{ user.username }}</option>
+                                {% endfor %}
+                            </select>
+                            <button class="btn btn-outline-secondary" type="button" onclick="addEditor()">
+                                <i class="fas fa-plus me-1"></i>Add
+                            </button>
+                        </div>
+                    </div>
+                    <input type="hidden" id="editorIds" name="editor_ids" value="{{ editor_ids }}">
+                </div>
+                {% else %}
+                <div class="mb-3">
+                    <label class="form-label">Prompt ID</label>
+                    <input type="text" class="form-control" value="{{ prompt_id }}" disabled>
+                    <small class="form-text text-muted">Unique identifier for this prompt</small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 2: Appearance & Voice -->
+    <div class="section-container">
+        <div class="section-title"><i class="fas fa-palette me-2"></i>Appearance & Voice</div>
+        <div class="flex-row">
+            <div class="flex-column d-flex justify-content-center align-items-center">
+                <div class="mb-3 text-center">
+                    <label for="promptImageInput" class="form-label">Prompt Image</label>
+                    <div class="avatar-wrapper" style="margin: 0 auto;">
+                        <div class="avatar-container" id="promptImageContainer">
+                            {% if image_url %}
+                                <img src="{{ image_url }}" alt="Prompt Image" id="currentPromptImage">
+                                <div class="avatar-icons">
+                                    <span class="avatar-icon edit"><i class="fas fa-pencil-alt"></i></span>
+                                    <span class="avatar-icon delete"><i class="fas fa-trash"></i></span>
+                                </div>
+                            {% else %}
+                                <span class="avatar-initial" id="defaultPromptInitial">{{ prompt_name|first|upper }}</span>
+                                <div class="avatar-icons">
+                                    <span class="avatar-icon edit"><i class="fas fa-pencil-alt"></i></span>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="avatar-preview hidden" id="previewContainer">
+                            <img id="previewImage" alt="Preview">
+                            <div class="avatar-icons">
+                                <span class="avatar-icon edit"><i class="fas fa-pencil-alt"></i></span>
+                                <span class="avatar-icon cancel"><i class="fas fa-times"></i></span>
+                            </div>
+                        </div>
+                        <input type="file" id="promptImageInput" name="image" accept="image/*">
+                    </div>
+                </div>
+            </div>
+            <div class="flex-column">
+                <div class="voice-section">
+                    <label for="voiceSelect" class="form-label">
+                        <i class="fas fa-microphone me-1"></i>Voice
+                    </label>
+                    <div class="voice-controls">
+                        <select class="form-select" id="voiceSelect" name="sample_voice_id" required>
+                            <!-- Options will be loaded dynamically -->
+                        </select>
+                        <select class="form-select" id="sampleCategory" style="display: none;">
+                            <!-- Categories will be loaded dynamically -->
+                        </select>
+                        <button type="button" class="btn" id="playVoiceButton" style="display: none;">
+                            <i class="fas fa-play"></i>Play Sample
+                        </button>
+                    </div>
+                    <small class="form-text text-muted mt-2">Select a voice for this prompt's text-to-speech.</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 3: Prompt Content -->
+    <div class="section-container">
+        <div class="section-title"><i class="fas fa-file-alt me-2"></i>Prompt Content</div>
+        <div class="mb-3">
+            <label for="promptText" class="form-label">Prompt Text</label>
+            <textarea class="form-control" id="promptText" name="prompt" rows="10">{{ prompt_text }}</textarea>
+            <small class="form-text text-muted">The system prompt that defines the AI's personality and behavior</small>
+        </div>
+    </div>
+
+    <!-- Section 4: Settings -->
+    <div class="section-container">
+        <div class="section-title"><i class="fas fa-cog me-2"></i>Settings</div>
+        <div class="flex-row">
+            <div class="flex-column">
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="isPublic" name="public" {% if is_public %}checked{% endif %}>
+                    <label class="form-check-label" for="isPublic">
+                        <i class="fas fa-globe me-1 text-muted"></i>Share My Prompt
+                    </label>
+                    <small class="form-text text-muted d-block">Share with the community and earn money when others use it</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 5: Categories (shown for public prompts) -->
+    <div class="section-container" id="categoriesSection" style="{% if not is_public %}display: none;{% endif %}">
+        <div class="section-title"><i class="fas fa-tags me-2"></i>Categories</div>
+        <p class="text-muted small mb-3">Select at least one category for your public prompt</p>
+        <div class="categories-grid" id="categoriesGrid">
+            <!-- Categories will be loaded dynamically -->
+            <div class="text-center py-3">
+                <div class="spinner-border spinner-border-sm" role="status"></div>
+                <span class="ms-2">Loading categories...</span>
+            </div>
+        </div>
+        <input type="hidden" id="categoryIds" name="category_ids" value="">
+        <div id="categoryError" class="text-danger small mt-2" style="display: none;">
+            Public prompts require at least one category
+        </div>
+    </div>
+
+    <!-- Section 6: Pricing (shown for public prompts) -->
+    <div class="section-container" id="pricingSection" style="{% if not is_public %}display: none;{% endif %}">
+        <div class="section-title"><i class="fas fa-dollar-sign me-2"></i>Monetization</div>
+        <p class="text-muted small mb-3">Configure pricing for your public prompt. You earn 70% of your markup when others use it.</p>
+
+        <div class="flex-row">
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label class="form-label">Pricing Model</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="is_paid" id="pricingFree" value="0" {% if not is_paid %}checked{% endif %} onchange="togglePricingOptions()">
+                        <label class="form-check-label" for="pricingFree">
+                            <i class="fas fa-gift me-1 text-success"></i>Free
+                            <small class="text-muted d-block">Anyone can use without paying markup</small>
+                        </label>
+                    </div>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="radio" name="is_paid" id="pricingPaid" value="1" {% if is_paid %}checked{% endif %} onchange="togglePricingOptions()">
+                        <label class="form-check-label" for="pricingPaid">
+                            <i class="fas fa-coins me-1 text-warning"></i>Paid
+                            <small class="text-muted d-block">Earn money when others use this prompt</small>
+                        </label>
+                    </div>
+                </div>
+
+                <div id="markupOptions" style="{% if not is_paid %}display: none;{% endif %}">
+                    <div class="mb-3">
+                        <label for="markupInput" class="form-label">Your Markup ($ per million tokens)</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="text" class="form-control" id="markupInput" name="markup_per_mtokens"
+                                   value="{{ markup_per_mtokens or 0 }}" inputmode="decimal" pattern="[0-9]*\.?[0-9]*"
+                                   oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1'); updateEarningsPreview()">
+                            <span class="input-group-text">/ Mtokens</span>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-success" id="earningsPreview">
+                        <i class="fas fa-calculator me-2"></i>
+                        <strong>You will earn:</strong> <span id="previewEarnings">$0.00</span> per million tokens (70% of markup)
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label class="form-label">AI Model Restrictions</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="llm_mode" id="llmModeAny" value="any" {% if not forced_llm_id %}checked{% endif %} onchange="toggleLLMOptions()">
+                        <label class="form-check-label" for="llmModeAny">
+                            Any model (user chooses)
+                        </label>
+                    </div>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="radio" name="llm_mode" id="llmModeForced" value="forced" {% if forced_llm_id %}checked{% endif %} onchange="toggleLLMOptions()">
+                        <label class="form-check-label" for="llmModeForced">
+                            Force specific model
+                        </label>
+                    </div>
+                </div>
+
+                <div id="forcedLLMOptions" style="{% if not forced_llm_id %}display: none;{% endif %}">
+                    <div class="mb-3">
+                        <label for="forcedLLM" class="form-label">Select Model</label>
+                        <select class="form-select" id="forcedLLM" name="forced_llm_id">
+                            <!-- LLMs loaded dynamically -->
+                        </select>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input type="checkbox" class="form-check-input" id="hideLLMName" name="hide_llm_name" {% if hide_llm_name %}checked{% endif %}>
+                        <label class="form-check-label" for="hideLLMName">
+                            Hide model name in chat UI
+                            <small class="text-muted d-block">Show "AI" instead of model name</small>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save me-1"></i>Save Changes
+        </button>
+        <button type="button" class="btn btn-secondary" onclick="window.history.back();">
+            <i class="fas fa-arrow-left me-1"></i>Back
+        </button>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    let editors = {{ editor_ids | tojson }};
+    let currentVoiceId = "{{ voice_code }}";
+    let audioPlayer = null;
+    let selectedCategories = [];
+    const PROMPT_ID_FOR_CATEGORIES = {{ prompt_id }};
+    const currentForcedLLMId = {{ forced_llm_id or 'null' }};
+
+    // Pricing functions
+    function togglePricingSection() {
+        const isPublic = document.getElementById('isPublic').checked;
+        const pricingSection = document.getElementById('pricingSection');
+        const categoriesSection = document.getElementById('categoriesSection');
+
+        pricingSection.style.display = isPublic ? 'block' : 'none';
+        categoriesSection.style.display = isPublic ? 'block' : 'none';
+
+        // Reset to free if hiding
+        if (!isPublic) {
+            document.getElementById('pricingFree').checked = true;
+            togglePricingOptions();
+        }
+    }
+
+    function togglePricingOptions() {
+        const isPaid = document.getElementById('pricingPaid').checked;
+        document.getElementById('markupOptions').style.display = isPaid ? 'block' : 'none';
+        if (!isPaid) {
+            document.getElementById('markupInput').value = '0';
+        }
+        updateEarningsPreview();
+    }
+
+    function updateEarningsPreview() {
+        const markup = parseFloat(document.getElementById('markupInput').value) || 0;
+        const earnings = markup * 0.70;  // 70% to creator
+        document.getElementById('previewEarnings').textContent = `$${earnings.toFixed(2)}`;
+    }
+
+    function toggleLLMOptions() {
+        const isForced = document.getElementById('llmModeForced').checked;
+        document.getElementById('forcedLLMOptions').style.display = isForced ? 'block' : 'none';
+        document.getElementById('forcedLLM').disabled = !isForced;
+    }
+
+    function loadLLMs() {
+        fetch('/api/llms')
+            .then(response => response.json())
+            .then(llms => {
+                const select = document.getElementById('forcedLLM');
+                select.innerHTML = '<option value="">Select a model</option>';
+                llms.forEach(llm => {
+                    const option = document.createElement('option');
+                    option.value = llm.id;
+                    option.textContent = `${llm.machine} - ${llm.model}`;
+                    if (currentForcedLLMId && llm.id === currentForcedLLMId) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+            })
+            .catch(error => console.error('Error loading LLMs:', error));
+    }
+
+    function updateEditorIds() {
+        document.getElementById('editorIds').value = editors.join(',');
+    }
+
+    function addEditor() {
+        const select = document.getElementById('editorSelect');
+        const editorId = select.value;
+        const editorName = select.options[select.selectedIndex].text;
+
+        if (!editors.includes(editorId)) {
+            editors.push(editorId);
+            const editorList = document.querySelector('.editor-list');
+            const editorItem = document.createElement('div');
+            editorItem.className = 'editor-item';
+            editorItem.innerHTML = `
+                <span>${editorName}</span>
+                <button type="button" class="btn btn-sm btn-danger" onclick="removeEditor(${editorId})">Remove</button>
+            `;
+            editorList.appendChild(editorItem);
+            updateEditorIds();
+        }
+    }
+
+    function removeEditor(editorId) {
+        editors = editors.filter(id => id !== editorId);
+        const editorItem = document.querySelector(`.editor-item button[onclick="removeEditor(${editorId})"]`).parentNode;
+        editorItem.remove();
+        updateEditorIds();
+    }
+
+    function loadVoices() {
+        fetch('/api/voices')
+            .then(response => response.json())
+            .then(voices => {
+                const voiceSelect = document.getElementById('voiceSelect');
+                voiceSelect.innerHTML = '<option value="">Select a voice</option>';
+                voices.forEach(voice => {
+                    const option = document.createElement('option');
+                    option.value = voice.id;
+                    option.textContent = voice.name;
+                    voiceSelect.appendChild(option);
+                });
+                if (currentVoiceId) {
+                    voiceSelect.value = currentVoiceId;
+                }
+                setupVoiceControls();
+            })
+            .catch(error => console.error('Error loading voices:', error));
+    }
+
+    function setupVoiceControls() {
+        const voiceSelect = document.getElementById('voiceSelect');
+        const categorySelect = document.getElementById('sampleCategory');
+        const playButton = document.getElementById('playVoiceButton');
+
+        const categories = [
+            "Children and Basic Education",
+            "Finance and Business",
+            "Relaxation and Meditation",
+            "Casual Conversation",
+            "Drama and Emotional Narration",
+            "Storytelling",
+            "Advertising and Announcements",
+            "Science and Technology",
+            "Education and Advanced Training",
+            "Corporate Environments",
+            "Mystery and Suspense",
+            "Sports and Energy"
+        ];
+
+        categories.forEach((category, index) => {
+            const option = document.createElement('option');
+            option.value = index;
+            option.textContent = category;
+            categorySelect.appendChild(option);
+        });
+
+        voiceSelect.addEventListener('change', function() {
+            categorySelect.style.display = this.value ? 'inline-block' : 'none';
+            playButton.style.display = this.value ? 'inline-block' : 'none';
+        });
+
+        playButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            playVoiceSample(voiceSelect.value, categorySelect.value);
+        });
+
+        categorySelect.style.display = voiceSelect.value ? 'inline-block' : 'none';
+        playButton.style.display = voiceSelect.value ? 'inline-block' : 'none';
+    }
+
+    function playVoiceSample(voiceId, categoryId) {
+        if (!voiceId) return;
+
+        if (audioPlayer) {
+            audioPlayer.pause();
+            audioPlayer.currentTime = 0;
+            audioPlayer = null;
+            playVoiceButton.innerHTML = '<i class="fas fa-play me-1"></i>Play Sample';
+            return;
+        }
+
+        playVoiceButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Loading...';
+        playVoiceButton.disabled = true;
+
+        fetch(`/api/voice-sample/${voiceId}?category=${categoryId}`)
+            .then(response => response.blob())
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                audioPlayer = new Audio(url);
+
+                audioPlayer.onended = function() {
+                    playVoiceButton.innerHTML = '<i class="fas fa-play me-1"></i>Play Sample';
+                    playVoiceButton.disabled = false;
+                    audioPlayer = null;
+                };
+
+                audioPlayer.play();
+                playVoiceButton.innerHTML = '<i class="fas fa-stop me-1"></i>Stop Sample';
+                playVoiceButton.disabled = false;
+            })
+            .catch(error => {
+                console.error('Error playing voice sample:', error);
+                playVoiceButton.innerHTML = '<i class="fas fa-play me-1"></i>Play Sample';
+                playVoiceButton.disabled = false;
+            });
+    }
+
+    // Categories functionality
+    async function loadCategories() {
+        try {
+            // Load all categories
+            const categoriesResponse = await fetch('/api/categories?include_restricted=true');
+            const categories = await categoriesResponse.json();
+
+            // Load current prompt's categories
+            const promptCategoriesResponse = await fetch(`/api/prompts/${PROMPT_ID_FOR_CATEGORIES}/categories`);
+            const promptCategories = await promptCategoriesResponse.json();
+            const currentCategoryIds = promptCategories.map(c => c.id);
+
+            const grid = document.getElementById('categoriesGrid');
+            grid.innerHTML = '';
+
+            if (categories.length === 0) {
+                grid.innerHTML = '<p class="text-muted">No categories available</p>';
+                return;
+            }
+
+            categories.forEach(cat => {
+                const isChecked = currentCategoryIds.includes(cat.id);
+                const div = document.createElement('div');
+                div.className = 'form-check category-item';
+                div.innerHTML = `
+                    <input class="form-check-input category-checkbox" type="checkbox"
+                           id="cat_${cat.id}" value="${cat.id}"
+                           data-age-restricted="${cat.is_age_restricted}"
+                           ${isChecked ? 'checked' : ''}>
+                    <label class="form-check-label" for="cat_${cat.id}">
+                        <i class="fas ${cat.icon} me-1"></i>
+                        ${cat.name}
+                        ${cat.is_age_restricted ? '<span class="badge bg-danger ms-1">18+</span>' : ''}
+                    </label>
+                `;
+                grid.appendChild(div);
+            });
+
+            // Initialize selectedCategories
+            selectedCategories = currentCategoryIds;
+            document.getElementById('categoryIds').value = JSON.stringify(selectedCategories);
+
+            // Add event listeners to checkboxes
+            document.querySelectorAll('.category-checkbox').forEach(cb => {
+                cb.addEventListener('change', updateSelectedCategories);
+            });
+
+        } catch (error) {
+            console.error('Error loading categories:', error);
+            document.getElementById('categoriesGrid').innerHTML =
+                '<p class="text-danger">Error loading categories</p>';
+        }
+    }
+
+    function updateSelectedCategories() {
+        selectedCategories = Array.from(document.querySelectorAll('.category-checkbox:checked'))
+            .map(cb => parseInt(cb.value));
+        document.getElementById('categoryIds').value = JSON.stringify(selectedCategories);
+        validateCategories();
+    }
+
+    function validateCategories() {
+        const isPublic = document.getElementById('isPublic').checked;
+        const errorDiv = document.getElementById('categoryError');
+
+        if (isPublic && selectedCategories.length === 0) {
+            errorDiv.style.display = 'block';
+            return false;
+        } else {
+            errorDiv.style.display = 'none';
+            return true;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadVoices();
+        loadCategories();
+        loadLLMs();
+        toggleLLMOptions();
+
+        // Initialize pricing preview
+        updateEarningsPreview();
+
+        // Add validation on public checkbox change
+        document.getElementById('isPublic').addEventListener('change', function() {
+            validateCategories();
+            togglePricingSection();
+        });
+
+        // Form validation on submit
+        document.getElementById('editPromptForm').addEventListener('submit', function(e) {
+            if (!validateCategories()) {
+                e.preventDefault();
+                document.getElementById('categoriesSection').scrollIntoView({ behavior: 'smooth' });
+                return false;
+            }
+        });
+
+        const promptImageInput = document.getElementById('promptImageInput');
+        const promptImageContainer = document.getElementById('promptImageContainer');
+        const previewContainer = document.getElementById('previewContainer');
+        const previewImage = document.getElementById('previewImage');
+
+        promptImageContainer.addEventListener('click', function(e) {
+            if (e.target.closest('.avatar-icon.edit')) {
+                promptImageInput.click();
+            } else if (e.target.closest('.avatar-icon.delete')) {
+                deletePromptImage();
+            }
+        });
+
+        previewContainer.addEventListener('click', function(e) {
+            if (e.target.closest('.avatar-icon.edit')) {
+                promptImageInput.click();
+            } else if (e.target.closest('.avatar-icon.cancel')) {
+                resetPreview();
+            }
+        });
+
+        promptImageInput.addEventListener('change', function(event) {
+            handleFileSelection(event);
+        });
+
+        function handleFileSelection(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    previewImage.src = e.target.result;
+                    previewContainer.classList.remove('hidden');
+                    promptImageContainer.classList.add('hidden');
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function resetPreview() {
+            previewContainer.classList.add('hidden');
+            promptImageContainer.classList.remove('hidden');
+            promptImageInput.value = '';
+        }
+
+        function deletePromptImage() {
+            if (confirm('Are you sure you want to delete this prompt image?')) {
+                fetch(`/api/delete-prompt-image/{{ prompt_id }}`, {
+                    method: 'POST',
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const initial = document.getElementById('promptName').value.charAt(0).toUpperCase();
+                        promptImageContainer.innerHTML = `
+                            <span class="avatar-initial" id="defaultPromptInitial">${initial}</span>
+                            <div class="avatar-icons">
+                                <span class="avatar-icon edit"><i class="fas fa-pencil-alt"></i></span>
+                            </div>
+                        `;
+                    } else {
+                        NotificationModal.error('Delete Error', 'Error deleting prompt image: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    NotificationModal.error('Delete Error', 'An error occurred while deleting the prompt image');
+                });
+            }
+        }
+
+    });
+</script>
+{% endblock %}

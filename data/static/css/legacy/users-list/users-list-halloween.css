@@ -1,0 +1,871 @@
+/* users_list-halloween.css */
+
+body {
+    background-color: #2b1500;
+    color: #ff9966;
+    font-family: 'Creepster', cursive;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><text x="50%" y="50%" font-size="70" text-anchor="middle" dy=".35em" font-family="Arial" fill="rgba(255,102,0,0.03)">👻</text></svg>');
+}
+
+/* ==========================================================
+   Design System - Layout Styles
+   ========================================================== */
+
+/* Main Container */
+.main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 30px 20px;
+}
+
+/* Page Header */
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #ff6600;
+}
+
+.page-header-text {
+    flex: 1;
+}
+
+/* Page Toolbar (Tabs + Actions) */
+.page-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    gap: 16px;
+}
+
+.page-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.page-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+/* Hide toolbar when both sides are empty */
+.page-toolbar:has(.page-toolbar-left:empty):has(.page-toolbar-right:empty) {
+    display: none;
+}
+
+/* Back Button */
+.btn-back {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #1a1a1a;
+    border: 2px solid #ff6600;
+    color: #ffffff;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 15px rgba(255, 102, 0, 0.3);
+}
+
+.btn-back:hover {
+    background: #ff6600;
+    border-color: #ff6600;
+    color: #1a0d00;
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 0 25px rgba(255, 102, 0, 0.5);
+}
+
+/* Page Title */
+.page-title {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: #ffffff;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    font-family: 'Creepster', cursive !important;
+}
+
+.page-subtitle {
+    margin: 4px 0 0 0;
+    color: #888888;
+    font-size: 0.9rem;
+}
+
+/* ==========================================================
+   Design System - Responsive Layout
+   ========================================================== */
+@media (max-width: 768px) {
+    .main-container {
+        padding: 15px 10px;
+    }
+
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .page-toolbar {
+        flex-wrap: wrap;
+    }
+
+    .page-title {
+        font-size: 1.4rem;
+    }
+
+    .btn-back {
+        width: 38px;
+        height: 38px;
+    }
+}
+
+@media (max-width: 480px) {
+    .page-title {
+        font-size: 1.2rem;
+    }
+}
+
+/* Table and container */
+.table-container {
+    background-color: rgba(26, 13, 0, 0.9) !important;
+    border: 2px solid #ff6600 !important;
+    border-radius: 8px !important;
+    padding: 10px !important;
+    margin: 20px 0 !important;
+    box-shadow: 0 0 15px rgba(255, 102, 0, 0.3) !important;
+}
+
+.table {
+    color: #ff9966 !important;
+    border-color: #ff6600 !important;
+}
+
+.table > thead > tr > th {
+    background-color: #4d2600 !important;
+    color: #ff6600 !important;
+    border-bottom: 2px solid #ff6600 !important;
+    font-family: 'Creepster', cursive !important;
+}
+
+.table > tbody > tr > td {
+    color: #ff9966 !important;
+    border-color: #ff6600 !important;
+    background-color: transparent !important;
+}
+
+.table-striped > tbody > tr:nth-of-type(odd) {
+    background-color: rgba(77, 38, 0, 0.3) !important;
+}
+
+.table tbody tr:hover > * {
+    background-color: rgba(255, 102, 0, 0.1) !important;
+    color: #ff6600 !important;
+}
+
+/* Custom checkbox */
+.user-checkbox {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    width: 20px !important;
+    height: 20px !important;
+    border: 2px solid #ff6600 !important;
+    background-color: #4d2600 !important;
+    cursor: pointer !important;
+    position: relative !important;
+    border-radius: 3px !important;
+}
+
+.user-checkbox:checked {
+    background-color: #ff6600 !important;
+}
+
+.user-checkbox:checked::after {
+    content: '🎃' !important;
+    position: absolute !important;
+    font-size: 14px !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+}
+
+/* Magic Link Container */
+#magicLinkContainer {
+    background-color: #1a0d00 !important;
+    border: 2px solid #ff6600 !important;
+    border-radius: 8px !important;
+    padding: 20px !important;
+    margin-top: 20px !important;
+    box-shadow: 0 0 15px rgba(255, 102, 0, 0.3) !important;
+}
+
+.form-control {
+    background-color: #4d2600 !important;
+    border: 1px solid #ff6600 !important;
+    color: #ff9966 !important;
+}
+
+.form-control:focus {
+    background-color: #3d1e00 !important;
+    border-color: #ff8533 !important;
+    box-shadow: 0 0 0 0.25rem rgba(255, 102, 0, 0.25) !important;
+    color: #ff9966 !important;
+}
+
+/* Buttons */
+.btn-primary {
+    background-color: #ff6600 !important;
+    border-color: #ff6600 !important;
+    color: #1a0d00 !important;
+    font-family: 'Creepster', cursive !important;
+    transition: all 0.3s ease !important;
+}
+
+.btn-primary:hover {
+    background-color: #ff8533 !important;
+    border-color: #ff8533 !important;
+    transform: scale(1.05) !important;
+}
+
+.btn-danger {
+    background-color: #8B0000 !important;
+    border-color: #FF0000 !important;
+    color: #FFB3BA !important;
+    font-family: 'Creepster', cursive !important;
+}
+
+.btn-danger:hover {
+    background-color: #a52a2a !important;
+    border-color: #ff4500 !important;
+    transform: scale(1.05) !important;
+}
+
+/* Navbar */
+.navbar {
+    background-color: #1a0d00 !important;
+    border-bottom: 2px solid #ff6600 !important;
+    box-shadow: 0 4px 8px rgba(255, 102, 0, 0.3) !important;
+}
+
+.navbar-brand {
+    color: #ff9966 !important;
+    font-weight: bold !important;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3) !important;
+    position: relative !important;
+    padding-left: 45px !important;
+    display: flex !important;
+    align-items: center !important;
+    height: 40px !important;
+}
+
+.navbar-brand::before {
+    content: "🏰"!important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    font-size: 1.5em !important;
+}
+
+.navbar-brand i {
+    display: none !important;
+}
+
+.nav-link {
+    color: #ff9966 !important;
+    transition: color 0.3s ease !important;
+}
+
+.nav-link:hover {
+    color: #ff6600 !important;
+}
+
+.btn-outline-danger {
+    color: #ff4500 !important;
+    border-color: #ff4500 !important;
+    transition: all 0.3s ease !important;
+}
+
+.btn-outline-danger:hover {
+    color: #1a0d00 !important;
+    background-color: #ff4500 !important;
+    border-color: #ff4500 !important;
+}
+
+/* Username */
+.username {
+    color: #ff9966 !important;
+    cursor: pointer !important;
+    transition: all 0.3s ease !important;
+    text-decoration: none !important;
+}
+
+.username:hover {
+    color: #ff6600 !important;
+    text-shadow: 0 0 10px rgba(255, 102, 0, 0.5) !important;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 12px !important;
+}
+
+::-webkit-scrollbar-track {
+    background: #2b1500 !important;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #ff6600 !important;
+    border-radius: 6px !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #ff8533 !important;
+}
+
+/* Edit button */
+.edit-button {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    transition: opacity 0.3s ease, visibility 0.3s ease !important;
+}
+
+.table tbody tr:hover .edit-button {
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+/* Edit column title */
+th.edit-column {
+    font-size: 0 !important;
+}
+
+/* Halloween effects */
+.table-container::before {
+    content: "🎃" !important;
+    position: absolute !important;
+    top: -20px !important;
+    right: 20px !important;
+    font-size: 30px !important;
+    animation: float 3s ease-in-out infinite !important;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-20px); }
+}
+
+.table tbody tr:hover {
+    animation: spookyShake 0.5s ease-in-out !important;
+}
+
+@keyframes spookyShake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+    20%, 40%, 60%, 80% { transform: translateX(2px); }
+}
+
+/* ==========================================================
+   Users List Specific Styles
+   ========================================================== */
+
+/* Table container scrolling */
+.table-container {
+    max-height: 65vh !important;
+    overflow-y: auto !important;
+    position: relative !important;
+}
+
+.table thead th {
+    position: sticky !important;
+    top: 0 !important;
+    background: #4d2600 !important;
+    z-index: 10 !important;
+    border-bottom: 2px solid #ff6600 !important;
+}
+
+.table td, .table th {
+    vertical-align: middle !important;
+    white-space: nowrap !important;
+}
+
+/* Username link */
+.username-link {
+    color: #ff6600 !important;
+    cursor: pointer !important;
+    font-weight: 600 !important;
+}
+
+.username-link:hover {
+    color: #ff8533 !important;
+    text-decoration: underline !important;
+    text-shadow: 0 0 10px rgba(255, 102, 0, 0.5) !important;
+}
+
+/* Status indicators */
+.status-active {
+    color: #43b581 !important;
+}
+
+.status-expired {
+    color: #ed4245 !important;
+}
+
+/* Stats cards */
+.stats-card {
+    background: rgba(255, 102, 0, 0.1) !important;
+    border: 2px solid rgba(255, 102, 0, 0.3) !important;
+    border-radius: 8px !important;
+    padding: 1rem 1.5rem !important;
+    text-align: center !important;
+    box-shadow: 0 0 15px rgba(255, 102, 0, 0.2) !important;
+}
+
+.stats-card .stats-number {
+    font-size: 1.8rem !important;
+    font-weight: bold !important;
+    color: #ff6600 !important;
+    font-family: 'Creepster', cursive !important;
+}
+
+.stats-card .stats-label {
+    font-size: 0.85rem !important;
+    color: #888888 !important;
+}
+
+/* Magic link section */
+.magic-link-section {
+    background: rgba(67, 181, 129, 0.1) !important;
+    border: 2px solid rgba(67, 181, 129, 0.3) !important;
+}
+
+/* Edit button */
+.btn-edit {
+    padding: 0.25rem 0.75rem !important;
+    font-size: 0.8rem !important;
+}
+
+/* Action buttons container */
+.action-buttons {
+    display: flex !important;
+    gap: 0.5rem !important;
+    flex-wrap: wrap !important;
+    margin-bottom: 1rem !important;
+}
+
+/* Select all container */
+.select-all-container {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+    padding: 0.5rem 1rem !important;
+    background: rgba(255, 102, 0, 0.1) !important;
+    border: 1px solid rgba(255, 102, 0, 0.3) !important;
+    border-radius: 4px !important;
+    margin-bottom: 1rem !important;
+}
+
+/* ==========================================================
+   New Styles for Filters, Stats, Sorting
+   ========================================================== */
+
+/* Stats Row */
+.stats-row {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 12px !important;
+    margin-bottom: 20px !important;
+    padding: 15px !important;
+    background: rgba(26, 13, 0, 0.8) !important;
+    border: 2px solid #ff6600 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 0 15px rgba(255, 102, 0, 0.2) !important;
+}
+
+.stat-badge {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 8px 16px !important;
+    background: rgba(255, 102, 0, 0.1) !important;
+    border: 1px solid rgba(255, 102, 0, 0.3) !important;
+    border-radius: 20px !important;
+    font-family: 'Creepster', cursive !important;
+    font-size: 0.95rem !important;
+    color: #ff9966 !important;
+    transition: all 0.3s ease !important;
+}
+
+.stat-badge:hover {
+    background: rgba(255, 102, 0, 0.2) !important;
+    border-color: #ff6600 !important;
+    transform: scale(1.05) !important;
+}
+
+.stat-active {
+    background: rgba(67, 181, 129, 0.15) !important;
+    border-color: rgba(67, 181, 129, 0.4) !important;
+    color: #43b581 !important;
+}
+
+.stat-active:hover {
+    background: rgba(67, 181, 129, 0.25) !important;
+    border-color: #43b581 !important;
+}
+
+.stat-expired {
+    background: rgba(237, 66, 69, 0.15) !important;
+    border-color: rgba(237, 66, 69, 0.4) !important;
+    color: #ed4245 !important;
+}
+
+.stat-expired:hover {
+    background: rgba(237, 66, 69, 0.25) !important;
+    border-color: #ed4245 !important;
+}
+
+/* Filters Section */
+.filters-section {
+    background: rgba(26, 13, 0, 0.9) !important;
+    border: 2px solid #ff6600 !important;
+    border-radius: 8px !important;
+    padding: 20px !important;
+    margin-bottom: 20px !important;
+    box-shadow: 0 0 15px rgba(255, 102, 0, 0.3) !important;
+}
+
+.filters-section .section-title {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    margin-bottom: 15px !important;
+    padding-bottom: 10px !important;
+    border-bottom: 1px solid rgba(255, 102, 0, 0.3) !important;
+    color: #ff6600 !important;
+    font-family: 'Creepster', cursive !important;
+    font-size: 1.1rem !important;
+}
+
+.filters-section .section-title button {
+    background: transparent !important;
+    border: 1px solid #ff6600 !important;
+    color: #ff6600 !important;
+    padding: 4px 12px !important;
+    border-radius: 4px !important;
+    font-size: 0.85rem !important;
+    cursor: pointer !important;
+    transition: all 0.3s ease !important;
+}
+
+.filters-section .section-title button:hover {
+    background: #ff6600 !important;
+    color: #1a0d00 !important;
+}
+
+.flex-row {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 16px !important;
+    align-items: flex-end !important;
+}
+
+.flex-column {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    min-width: 150px !important;
+    flex: 1 !important;
+}
+
+.flex-column label {
+    color: #ff9966 !important;
+    font-size: 0.85rem !important;
+    font-weight: 500 !important;
+}
+
+.flex-column input,
+.flex-column select {
+    background-color: #4d2600 !important;
+    border: 1px solid #ff6600 !important;
+    color: #ff9966 !important;
+    padding: 8px 12px !important;
+    border-radius: 4px !important;
+    transition: all 0.3s ease !important;
+}
+
+.flex-column input:focus,
+.flex-column select:focus {
+    background-color: #3d1e00 !important;
+    border-color: #ff8533 !important;
+    box-shadow: 0 0 0 0.25rem rgba(255, 102, 0, 0.25) !important;
+    outline: none !important;
+}
+
+/* Table Toolbar */
+.table-toolbar {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 12px 15px !important;
+    background: rgba(77, 38, 0, 0.5) !important;
+    border: 1px solid rgba(255, 102, 0, 0.3) !important;
+    border-radius: 8px 8px 0 0 !important;
+    margin-bottom: -2px !important;
+}
+
+.toolbar-left {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+}
+
+.toolbar-right {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+}
+
+.toolbar-left span,
+.toolbar-right span {
+    color: #ff9966 !important;
+    font-size: 0.9rem !important;
+}
+
+/* Sortable Headers */
+.sortable {
+    cursor: pointer !important;
+    user-select: none !important;
+    transition: all 0.3s ease !important;
+    position: relative !important;
+    padding-right: 20px !important;
+}
+
+.sortable:hover {
+    color: #ff8533 !important;
+    text-shadow: 0 0 10px rgba(255, 102, 0, 0.5) !important;
+}
+
+.sortable::after {
+    content: '\25B2\25BC' !important;
+    position: absolute !important;
+    right: 4px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    font-size: 0.6rem !important;
+    color: rgba(255, 102, 0, 0.4) !important;
+    letter-spacing: -2px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    line-height: 0.7 !important;
+}
+
+.sort-asc::after {
+    content: '\25B2' !important;
+    color: #ff6600 !important;
+    font-size: 0.75rem !important;
+    letter-spacing: normal !important;
+    text-shadow: 0 0 8px rgba(255, 102, 0, 0.6) !important;
+}
+
+.sort-desc::after {
+    content: '\25BC' !important;
+    color: #ff6600 !important;
+    font-size: 0.75rem !important;
+    letter-spacing: normal !important;
+    text-shadow: 0 0 8px rgba(255, 102, 0, 0.6) !important;
+}
+
+/* Actions Column */
+.th-actions {
+    width: 70px !important;
+    min-width: 70px !important;
+    max-width: 70px !important;
+    text-align: center !important;
+}
+
+.actions-cell {
+    width: 70px !important;
+    min-width: 70px !important;
+    max-width: 70px !important;
+    text-align: center !important;
+    padding: 4px !important;
+}
+
+.actions-cell .btn {
+    padding: 4px 8px !important;
+    font-size: 0.8rem !important;
+}
+
+/* ==========================================================
+   Responsive Styles for New Elements
+   ========================================================== */
+@media (max-width: 768px) {
+    .stats-row {
+        padding: 12px !important;
+        gap: 8px !important;
+    }
+
+    .stat-badge {
+        padding: 6px 12px !important;
+        font-size: 0.85rem !important;
+    }
+
+    .filters-section {
+        padding: 15px !important;
+    }
+
+    .flex-row {
+        flex-direction: column !important;
+        gap: 12px !important;
+    }
+
+    .flex-column {
+        width: 100% !important;
+        min-width: unset !important;
+    }
+
+    .table-toolbar {
+        flex-direction: column !important;
+        gap: 10px !important;
+        align-items: flex-start !important;
+    }
+
+    .toolbar-left,
+    .toolbar-right {
+        width: 100% !important;
+        justify-content: space-between !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .stat-badge {
+        padding: 5px 10px !important;
+        font-size: 0.8rem !important;
+        gap: 5px !important;
+    }
+
+    .th-actions,
+    .actions-cell {
+        width: 60px !important;
+        min-width: 60px !important;
+        max-width: 60px !important;
+    }
+}
+/* ==========================================================
+   Phone Column - Privacy Tooltip
+   ========================================================== */
+.phone-cell {
+    text-align: center;
+}
+
+.phone-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(114, 137, 218, 0.15);
+    color: #7289da;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.phone-icon:hover {
+    background: rgba(114, 137, 218, 0.3);
+    transform: scale(1.1);
+}
+
+.phone-icon.copied {
+    background: rgba(67, 181, 129, 0.3);
+    color: #43b581;
+}
+
+.phone-icon::after {
+    content: attr(data-phone);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 6px 12px;
+    background: #202225;
+    color: #ffffff;
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    z-index: 100;
+    margin-bottom: 6px;
+}
+
+.phone-icon::before {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: #202225;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    z-index: 100;
+}
+
+.phone-icon:hover::after,
+.phone-icon:hover::before {
+    opacity: 1;
+    visibility: visible;
+}
+
+.phone-none {
+    color: #72767d;
+}
+
+
+/* ==========================================================
+   Role Column - Badges
+   ========================================================== */
+.role-cell {
+    text-align: center;
+}
+
+.role-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.role-badge.role-admin {
+    background: rgba(237, 66, 69, 0.2);
+    color: #ed4245;
+    border: 1px solid rgba(237, 66, 69, 0.4);
+}
+
+.role-badge.role-manager {
+    background: rgba(114, 137, 218, 0.2);
+    color: #7289da;
+    border: 1px solid rgba(114, 137, 218, 0.4);
+}
+
+.role-badge.role-user {
+    background: rgba(153, 170, 181, 0.2);
+    color: #99aab5;
+    border: 1px solid rgba(153, 170, 181, 0.4);
+}

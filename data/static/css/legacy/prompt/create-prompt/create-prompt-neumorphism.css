@@ -1,0 +1,521 @@
+/* create_prompt-neumorphism.css */
+
+:root {
+    --main-bg-color: #e0e5ec;
+    --text-color: #4d5562;
+    --text-color-light: #7a8499;
+    --shadow-light: #ffffff;
+    --shadow-dark: #a3b1c6;
+    --accent-color: #4a90e2;
+    --error-color: #e74c3c;
+}
+
+body {
+    background-color: var(--main-bg-color);
+    color: var(--text-color);
+    font-family: 'Poppins', sans-serif;
+}
+
+/* ==========================================================
+   Design System - Layout Styles
+   ========================================================== */
+
+/* Main Container */
+.main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 30px 20px;
+}
+
+/* Page Header */
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: none;
+    box-shadow: inset 0 -2px 4px var(--shadow-dark), inset 0 2px 4px var(--shadow-light);
+}
+
+.page-header-text {
+    flex: 1;
+}
+
+/* Page Toolbar (Tabs + Actions) */
+.page-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    gap: 16px;
+}
+
+.page-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.page-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+/* Hide toolbar when both sides are empty */
+.page-toolbar:has(.page-toolbar-left:empty):has(.page-toolbar-right:empty) {
+    display: none;
+}
+
+/* Back Button */
+.btn-back {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--main-bg-color);
+    border: none;
+    color: var(--text-color);
+    text-decoration: none;
+    transition: all 0.2s;
+    box-shadow:
+        4px 4px 8px var(--shadow-dark),
+        -4px -4px 8px var(--shadow-light);
+}
+
+.btn-back:hover {
+    background: var(--main-bg-color);
+    color: var(--accent-color);
+    transform: translateY(-2px);
+    box-shadow:
+        6px 6px 12px var(--shadow-dark),
+        -6px -6px 12px var(--shadow-light);
+}
+
+.btn-back:active {
+    box-shadow:
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+}
+
+/* Page Title */
+.page-title {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.page-subtitle {
+    margin: 4px 0 0 0;
+    color: var(--text-color-light);
+    font-size: 0.9rem;
+}
+
+/* ==========================================================
+   Design System - Responsive Layout
+   ========================================================== */
+@media (max-width: 768px) {
+    .main-container {
+        padding: 15px 10px;
+    }
+
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .page-toolbar {
+        flex-wrap: wrap;
+    }
+
+    .page-title {
+        font-size: 1.4rem;
+    }
+
+    .btn-back {
+        width: 38px;
+        height: 38px;
+    }
+}
+
+@media (max-width: 480px) {
+    .page-title {
+        font-size: 1.2rem;
+    }
+}
+
+/* Main Section Container */
+.section-container {
+    background-color: var(--main-bg-color);
+    border: none;
+    border-radius: 20px;
+    padding: 25px;
+    margin-bottom: 30px;
+    box-shadow:
+        8px 8px 16px var(--shadow-dark),
+        -8px -8px 16px var(--shadow-light);
+}
+
+/* Section Title */
+.section-title {
+    color: var(--text-color);
+    font-size: 1.3em;
+    font-weight: 600;
+    margin-bottom: 20px;
+    padding: 10px;
+    border-radius: 10px;
+    box-shadow:
+        inset 3px 3px 6px var(--shadow-dark),
+        inset -3px -3px 6px var(--shadow-light);
+}
+
+/* Section Title - h2 variant */
+h2 {
+    color: var(--text-color);
+    font-size: 1.8em;
+    font-weight: 600;
+    margin-bottom: 25px;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: none;
+    box-shadow:
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+    padding: 15px;
+    border-radius: 10px;
+}
+
+/* Flex Layout */
+.flex-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.flex-column {
+    flex: 1;
+    min-width: 250px;
+}
+
+/* Form Elements */
+.form-label {
+    font-weight: 500;
+    color: var(--text-color);
+    margin-bottom: 10px;
+    display: block;
+}
+
+.form-control, .form-select {
+    background-color: var(--main-bg-color);
+    border: none;
+    border-radius: 10px;
+    padding: 12px;
+    width: 100%;
+    color: var(--text-color);
+    box-shadow: 
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+}
+
+.form-control:focus {
+    box-shadow: 
+        inset 3px 3px 6px var(--shadow-dark),
+        inset -3px -3px 6px var(--shadow-light);
+}
+
+.form-control::placeholder {
+    color: var(--text-color-light);
+}
+
+/* Voice Section */
+.voice-section {
+    margin-bottom: 20px;
+}
+
+.voice-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+#playVoiceButton {
+    background-color: var(--main-bg-color);
+    border: none;
+    color: var(--accent-color);
+    padding: 8px 16px;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+    box-shadow: 
+        3px 3px 6px var(--shadow-dark),
+        -3px -3px 6px var(--shadow-light);
+}
+
+#playVoiceButton:hover {
+    box-shadow: 
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+}
+
+/* Prompt Image */
+.prompt-image-wrapper {
+    position: relative;
+    width: 150px;
+    height: 150px;
+    margin: auto 20px;
+}
+
+.prompt-image-container,
+.preview-container {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    overflow: hidden;
+    background-color: var(--main-bg-color);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    box-shadow: 
+        8px 8px 16px var(--shadow-dark),
+        -8px -8px 16px var(--shadow-light);
+    transition: all 0.3s ease;
+    margin-bottom: 15px;
+}
+
+.prompt-image-container img,
+.preview-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+#defaultPromptInitial {
+    font-size: 3em;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+}
+
+.icon-container,
+.preview-icons {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(224, 229, 236, 0.9);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    border-radius: 50%;
+}
+
+.prompt-image-container:hover .icon-container,
+.preview-container:hover .preview-icons {
+    opacity: 1;
+}
+
+.edit-icon,
+.cancel-icon {
+    cursor: pointer;
+    color: var(--text-color);
+    font-size: 1.5em;
+    margin: 5px;
+    padding: 8px;
+    border-radius: 50%;
+    background-color: var(--main-bg-color);
+    box-shadow: 
+        3px 3px 6px var(--shadow-dark),
+        -3px -3px 6px var(--shadow-light);
+    transition: all 0.3s ease;
+    display: inline-flex;
+    justify-content: center;
+}
+
+.edit-icon:hover,
+.cancel-icon:hover {
+    box-shadow: 
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+}
+
+.edit-icon:active,
+.cancel-icon:active {
+    transform: scale(0.95);
+    box-shadow: 
+        inset 3px 3px 6px var(--shadow-dark),
+        inset -3px -3px 6px var(--shadow-light);
+}
+
+#promptImageInput {
+    display: none;
+}
+
+/* Buttons */
+.btn {
+    font-family: 'Poppins', sans-serif;
+    border-radius: 10px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light);
+}
+
+.btn:not(.btn-outline-danger) {
+    background-color: var(--main-bg-color);
+    border: none;
+    padding: 0.8rem 1.5rem;
+}
+
+.btn-primary {
+    color: var(--accent-color);
+}
+
+.btn-primary:hover {
+    background-color: var(--main-bg-color);
+    color: var(--accent-color);
+    transform: translateY(-2px);
+    box-shadow: 
+        4px 4px 8px var(--shadow-dark),
+        -4px -4px 8px var(--shadow-light);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+    box-shadow: 
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+}
+
+.btn-secondary {
+    color: var(--text-color);
+}
+
+.btn-secondary:hover {
+    background-color: var(--main-bg-color);
+    color: var(--text-color);
+    transform: translateY(-2px);
+}
+
+/* Checkbox */
+.form-check-input {
+    background-color: var(--main-bg-color);
+    border: none;
+    box-shadow: 
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+}
+
+.form-check-input:checked {
+    background-color: var(--accent-color);
+    box-shadow: 
+        2px 2px 4px var(--shadow-dark),
+        -2px -2px 4px var(--shadow-light);
+}
+
+.form-check-label {
+    color: var(--text-color);
+}
+
+/* Navbar Styles */
+.navbar {
+    background-color: var(--main-bg-color);
+    box-shadow: 
+        0 5px 15px rgba(163,177,198,0.5),
+        0 -5px 15px rgba(255,255,255,0.5);
+}
+
+.navbar-brand,
+.nav-link {
+    color: var(--text-color) !important;
+    transition: color 0.3s ease;
+}
+
+.navbar-brand:hover,
+.nav-link:hover {
+    color: var(--accent-color) !important;
+}
+
+.navbar-brand {
+    font-weight: 600;
+}
+
+/* Error states */
+.form-control.is-invalid {
+    border-color: var(--error-color);
+    box-shadow: 
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light),
+        0 0 0 0.2rem rgba(231, 76, 60, 0.25);
+}
+
+.invalid-feedback {
+    color: var(--error-color);
+}
+
+.form-control, .form-select {
+    background-color: var(--main-bg-color);
+}
+
+.form-control:focus {
+    background-color: var(--main-bg-color);
+}
+/* Responsive Design */
+@media (max-width: 768px) {
+    .section-container {
+        margin: 20px auto;
+        padding: 15px;
+    }
+
+    .voice-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .btn:not(.btn-outline-danger) {
+        width: 100%;
+        margin-top: 10px;
+    }
+}
+
+.btn-primary, .btn-secondary {
+    background-color: var(--main-bg-color);
+    border: none;
+    box-shadow: 
+        3px 3px 6px var(--shadow-dark),
+        -3px -3px 6px var(--shadow-light);
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover, .btn-secondary:hover {
+    background-color: var(--main-bg-color);
+    box-shadow: 
+        1px 1px 3px var(--shadow-dark),
+        -1px -1px 3px var(--shadow-light);
+}
+
+.btn-primary:active, .btn-secondary:active {
+    background-color: var(--main-bg-color);
+    box-shadow: 
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+}
+
+.btn-primary {
+    color: var(--accent-color);
+}
+
+.btn-secondary {
+    color: var(--text-color);
+}

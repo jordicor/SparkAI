@@ -1,0 +1,515 @@
+{% extends 'base_admin.html' %}
+
+{% block title %}Platform Usage - Admin - SPARK{% endblock %}
+
+{% block styles %}
+<style>
+    /* Stat cards */
+    .stat-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+        height: 100%;
+        border-left: 3px solid var(--accent);
+    }
+    .stat-card.primary { border-left-color: var(--accent); }
+    .stat-card.success { border-left-color: var(--success); }
+    .stat-card.info { border-left-color: var(--info); }
+    .stat-card.warning { border-left-color: var(--warning); }
+    .stat-card.danger { border-left-color: var(--danger); }
+    .stat-card .amount {
+        font-size: 1.75rem;
+        font-weight: bold;
+        color: var(--text-primary);
+    }
+    .stat-card .label {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.25rem;
+    }
+    .stat-card .subtext {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin-top: 0.25rem;
+    }
+    /* Filters */
+    .filters-row {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        align-items: end;
+        margin-bottom: 20px;
+    }
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .filter-group label {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+    }
+    .filter-group input,
+    .filter-group select {
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-size: 0.9rem;
+    }
+    .filter-group input:focus,
+    .filter-group select:focus {
+        outline: none;
+        border-color: var(--accent);
+    }
+    /* Type badges */
+    .type-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+    .type-badge.ai_tokens { background: rgba(88, 101, 242, 0.2); color: var(--accent); }
+    .type-badge.tts { background: rgba(67, 181, 129, 0.2); color: var(--success); }
+    .type-badge.stt { background: rgba(52, 152, 219, 0.2); color: var(--info); }
+    .type-badge.image { background: rgba(250, 166, 26, 0.2); color: var(--warning); }
+    .type-badge.video { background: rgba(231, 76, 60, 0.2); color: var(--danger); }
+    .type-badge.domain { background: rgba(155, 89, 182, 0.2); color: #9b59b6; }
+    /* Chart container */
+    .chart-container {
+        position: relative;
+        height: 250px;
+        width: 100%;
+    }
+    /* Table enhancements */
+    .table td.amount-cell {
+        font-family: 'SF Mono', 'Consolas', monospace;
+        font-size: 0.9rem;
+    }
+    .text-success-soft { color: var(--success); }
+    .text-warning-soft { color: var(--warning); }
+</style>
+{% endblock %}
+
+{% block page_title %}Platform Usage{% endblock %}
+
+{% block page_subtitle %}
+<p class="page-subtitle">Monitor consumption across all users and services</p>
+{% endblock %}
+
+{% block page_actions %}
+<button class="btn btn-outline-secondary btn-sm" onclick="loadUsageData()">
+    <i class="fas fa-sync-alt me-1"></i> Refresh
+</button>
+<button class="btn btn-outline-primary btn-sm" onclick="exportUsageCSV()">
+    <i class="fas fa-download me-1"></i> Export CSV
+</button>
+{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<div class="filters-row">
+    <div class="filter-group">
+        <label>Date Range</label>
+        <select id="dateRange" onchange="onFilterChange()">
+            <option value="7">Last 7 days</option>
+            <option value="30" selected>Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="365">Last year</option>
+            <option value="all">All time</option>
+        </select>
+    </div>
+    <div class="filter-group">
+        <label>Usage Type</label>
+        <select id="typeFilter" onchange="onFilterChange()">
+            <option value="">All types</option>
+            <option value="ai_tokens">AI Tokens</option>
+            <option value="tts">TTS</option>
+            <option value="stt">STT</option>
+            <option value="image">Images</option>
+            <option value="video">Videos</option>
+            <option value="domain">Domains</option>
+        </select>
+    </div>
+    <div class="filter-group">
+        <label>Search User</label>
+        <input type="text" id="userSearch" placeholder="Username..." oninput="debounceFilter()">
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 col-6 mb-3">
+        <div class="stat-card primary">
+            <div class="label"><i class="fas fa-users me-1"></i>Active Users</div>
+            <div class="amount" id="statActiveUsers">-</div>
+            <div class="subtext" id="statActiveUsersPeriod">in selected period</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <div class="stat-card success">
+            <div class="label"><i class="fas fa-bolt me-1"></i>Total Operations</div>
+            <div class="amount" id="statOperations">-</div>
+            <div class="subtext" id="statOperationsPeriod">in selected period</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <div class="stat-card info">
+            <div class="label"><i class="fas fa-microchip me-1"></i>Tokens Used</div>
+            <div class="amount" id="statTokens">-</div>
+            <div class="subtext">input + output</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <div class="stat-card warning">
+            <div class="label"><i class="fas fa-dollar-sign me-1"></i>Total Cost</div>
+            <div class="amount" id="statCost">-</div>
+            <div class="subtext">platform revenue</div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Usage by Type -->
+    <div class="col-lg-4 mb-4">
+        <div class="section-container">
+            <div class="section-title"><i class="fas fa-chart-pie me-2"></i>Usage by Type</div>
+            <div id="usageByType">
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-spinner fa-spin me-2"></i>Loading...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Daily Usage Chart -->
+    <div class="col-lg-8 mb-4">
+        <div class="section-container">
+            <div class="section-title"><i class="fas fa-chart-line me-2"></i>Daily Usage Trend</div>
+            <div class="chart-container">
+                <canvas id="dailyChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Top Users Table -->
+<div class="section-container">
+    <div class="section-title"><i class="fas fa-trophy me-2"></i>Top Users by Consumption</div>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th class="text-center">Operations</th>
+                    <th class="text-end">Tokens</th>
+                    <th class="text-end">Cost</th>
+                    <th class="text-center">Types</th>
+                </tr>
+            </thead>
+            <tbody id="topUsersTable">
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">
+                        <i class="fas fa-spinner fa-spin me-2"></i>Loading...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Daily Breakdown Table -->
+<div class="section-container mt-4">
+    <div class="section-title"><i class="fas fa-calendar-alt me-2"></i>Daily Breakdown</div>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th class="text-center">Users</th>
+                    <th class="text-center">Operations</th>
+                    <th class="text-end">Tokens</th>
+                    <th class="text-end">Cost</th>
+                </tr>
+            </thead>
+            <tbody id="dailyTable">
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">
+                        <i class="fas fa-spinner fa-spin me-2"></i>Loading...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    let dailyChart = null;
+    let debounceTimeout = null;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadUsageData();
+    });
+
+    function debounceFilter() {
+        clearTimeout(debounceTimeout);
+        debounceTimeout = setTimeout(onFilterChange, 300);
+    }
+
+    function onFilterChange() {
+        loadUsageData();
+    }
+
+    async function loadUsageData() {
+        const days = document.getElementById('dateRange').value;
+        const type = document.getElementById('typeFilter').value;
+        const search = document.getElementById('userSearch').value;
+
+        const params = new URLSearchParams();
+        if (days !== 'all') params.append('days', days);
+        if (type) params.append('type', type);
+        if (search) params.append('search', search);
+
+        try {
+            const response = await fetch('/api/admin/usage?' + params.toString());
+            if (!response.ok) throw new Error('Failed to load data');
+            const data = await response.json();
+
+            updateStats(data.stats);
+            updateUsageByType(data.by_type);
+            updateDailyChart(data.daily);
+            updateTopUsers(data.top_users);
+            updateDailyTable(data.daily);
+
+        } catch (error) {
+            console.error('Error loading usage data:', error);
+            NotificationModal.error('Error', 'Failed to load usage data');
+        }
+    }
+
+    function updateStats(stats) {
+        document.getElementById('statActiveUsers').textContent = formatNumber(stats.active_users || 0);
+        document.getElementById('statOperations').textContent = formatNumber(stats.total_operations || 0);
+        document.getElementById('statTokens').textContent = formatNumber(stats.total_tokens || 0);
+        document.getElementById('statCost').textContent = '$' + (stats.total_cost || 0).toFixed(2);
+    }
+
+    function updateUsageByType(byType) {
+        const container = document.getElementById('usageByType');
+
+        if (!byType || byType.length === 0) {
+            container.innerHTML = '<div class="text-center text-muted py-4">No data for selected period</div>';
+            return;
+        }
+
+        const typeIcons = {
+            'ai_tokens': 'fa-robot',
+            'tts': 'fa-volume-up',
+            'stt': 'fa-microphone',
+            'image': 'fa-image',
+            'video': 'fa-video',
+            'domain': 'fa-globe'
+        };
+
+        const typeLabels = {
+            'ai_tokens': 'AI Tokens',
+            'tts': 'Text-to-Speech',
+            'stt': 'Speech-to-Text',
+            'image': 'Images',
+            'video': 'Videos',
+            'domain': 'Domains'
+        };
+
+        container.innerHTML = byType.map(t => `
+            <div class="d-flex justify-content-between align-items-center py-2 border-bottom" style="border-color: var(--border-color) !important;">
+                <div>
+                    <span class="type-badge ${t.type}">
+                        <i class="fas ${typeIcons[t.type] || 'fa-circle'}"></i>
+                        ${typeLabels[t.type] || t.type}
+                    </span>
+                </div>
+                <div class="text-end">
+                    <div class="fw-bold">${formatNumber(t.operations)} ops</div>
+                    <small class="text-muted">$${t.total_cost.toFixed(2)}</small>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function updateDailyChart(daily) {
+        const ctx = document.getElementById('dailyChart').getContext('2d');
+
+        if (dailyChart) {
+            dailyChart.destroy();
+        }
+
+        if (!daily || daily.length === 0) {
+            return;
+        }
+
+        const labels = daily.map(d => d.date);
+        const costData = daily.map(d => d.total_cost);
+        const opsData = daily.map(d => d.operations);
+
+        dailyChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Cost ($)',
+                        data: costData,
+                        borderColor: 'rgb(250, 166, 26)',
+                        backgroundColor: 'rgba(250, 166, 26, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Operations',
+                        data: opsData,
+                        borderColor: 'rgb(88, 101, 242)',
+                        backgroundColor: 'rgba(88, 101, 242, 0.1)',
+                        fill: false,
+                        tension: 0.3,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim() || '#b9bbbe'
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#72767d',
+                            maxTicksLimit: 10
+                        },
+                        grid: {
+                            color: 'rgba(255,255,255,0.05)'
+                        }
+                    },
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        ticks: {
+                            color: 'rgb(250, 166, 26)',
+                            callback: v => '$' + v.toFixed(2)
+                        },
+                        grid: {
+                            color: 'rgba(255,255,255,0.05)'
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        ticks: {
+                            color: 'rgb(88, 101, 242)'
+                        },
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function updateTopUsers(users) {
+        const tbody = document.getElementById('topUsersTable');
+
+        if (!users || users.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No data for selected period</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = users.map(u => `
+            <tr>
+                <td>
+                    <strong>${escapeHtml(u.username)}</strong>
+                    <small class="text-muted d-block">${escapeHtml(u.email || '')}</small>
+                </td>
+                <td class="text-center">${formatNumber(u.operations)}</td>
+                <td class="text-end amount-cell">${formatNumber(u.tokens)}</td>
+                <td class="text-end amount-cell text-warning-soft">$${u.total_cost.toFixed(2)}</td>
+                <td class="text-center">
+                    ${u.types.map(t => `<span class="type-badge ${t}">${t.replace('_', ' ')}</span>`).join(' ')}
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function updateDailyTable(daily) {
+        const tbody = document.getElementById('dailyTable');
+
+        if (!daily || daily.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No data for selected period</td></tr>';
+            return;
+        }
+
+        // Sort by date descending
+        const sorted = [...daily].sort((a, b) => b.date.localeCompare(a.date));
+
+        tbody.innerHTML = sorted.slice(0, 30).map(d => `
+            <tr>
+                <td><strong>${d.date}</strong></td>
+                <td class="text-center">${d.unique_users || '-'}</td>
+                <td class="text-center">${formatNumber(d.operations)}</td>
+                <td class="text-end amount-cell">${formatNumber(d.tokens_in + d.tokens_out)}</td>
+                <td class="text-end amount-cell text-warning-soft">$${d.total_cost.toFixed(2)}</td>
+            </tr>
+        `).join('');
+    }
+
+    function exportUsageCSV() {
+        const days = document.getElementById('dateRange').value;
+        const type = document.getElementById('typeFilter').value;
+
+        const params = new URLSearchParams();
+        if (days !== 'all') params.append('days', days);
+        if (type) params.append('type', type);
+        params.append('format', 'csv');
+
+        window.location.href = '/api/admin/usage/export?' + params.toString();
+    }
+
+    function formatNumber(num) {
+        if (num >= 1000000000) return (num / 1000000000).toFixed(1) + 'B';
+        if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+        if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+        return num.toString();
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+{% endblock %}

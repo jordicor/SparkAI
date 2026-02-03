@@ -1,0 +1,229 @@
+{% extends 'base.html' %}
+
+{% block title %}Curation Settings - SPARK{% endblock %}
+
+{% block styles %}
+{# Theme CSS loaded by theme-loader.js #}
+<style>
+    .earnings-amount {
+        font-size: 2rem;
+        font-weight: bold;
+        color: var(--success, #43b581);
+    }
+    .markup-preview {
+        background-color: var(--bg-tertiary, #202225);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+    .preview-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--border-color, #40444b);
+        color: var(--text-primary, #dcddde);
+    }
+    .preview-item:last-child {
+        border-bottom: none;
+    }
+</style>
+{% endblock %}
+
+{% block page_title %}Curation Settings{% endblock %}
+
+{% block back_url %}/edit-profile{% endblock %}
+
+{% block back_title %}Back to Profile{% endblock %}
+
+{% block page_subtitle %}
+<p class="text-muted mb-0">Configure your curation markup. When you include prompts from other creators in your offering, you earn a percentage on top.</p>
+{% endblock %}
+
+{% block page_actions %}
+<a href="/create-user" class="btn btn-outline-primary">
+    <i class="fas fa-user-plus me-1"></i> Create User
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="row mt-4">
+    <!-- Earnings Card -->
+    <div class="col-md-4 mb-4">
+        <div class="section-container h-100">
+            <div class="section-title"><i class="fas fa-wallet"></i> Pending Earnings</div>
+            <div class="earnings-amount" id="pendingEarnings">${{ "%.2f"|format(curation_data.pending_earnings) }}</div>
+            <p class="text-muted mb-0 mt-2">Minimum withdrawal: $50</p>
+            {% if curation_data.pending_earnings >= 50 %}
+            <button class="btn btn-success btn-sm mt-3" onclick="requestPayout()">
+                <i class="fas fa-money-bill-wave me-1"></i> Request Withdrawal
+            </button>
+            {% else %}
+            <small class="text-muted d-block mt-2">
+                <i class="fas fa-info-circle me-1"></i>
+                ${{ "%.2f"|format(50 - curation_data.pending_earnings) }} more to reach minimum
+            </small>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Markup Configuration -->
+    <div class="col-md-8 mb-4">
+        <div class="section-container h-100">
+            <div class="section-title"><i class="fas fa-percentage me-2"></i>Curation Markup Configuration</div>
+            <p class="text-muted small">
+                Set your markup to earn commission when your users consume AI tokens.
+                The markup is added on top of the base price and you receive 70% of it (platform takes 30% commission).
+            </p>
+
+            <form id="markupForm">
+                <div class="mb-3">
+                    <label for="markup" class="form-label">Your Markup ($ per million tokens)</label>
+                    <div class="input-group">
+                        <span class="input-group-text">$</span>
+                        <input type="text" class="form-control" id="markup" name="markup"
+                               value="{{ curation_data.reseller_markup_per_mtokens }}" inputmode="decimal" pattern="[0-9]*\.?[0-9]*"
+                               oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1'); updatePreview()">
+                        <span class="input-group-text">/ Mtokens</span>
+                    </div>
+                    <small class="form-text text-muted">
+                        Set to 0 to disable markup (users pay base price only).
+                        Maximum: $100 per million tokens.
+                    </small>
+                </div>
+
+                <!-- Earnings Preview -->
+                <div class="alert alert-info" id="earningsPreview">
+                    <h6><i class="fas fa-calculator me-2"></i>Earnings Preview</h6>
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <small class="text-muted">Your markup:</small>
+                            <div id="previewMarkup">$0.00 / Mtokens</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <small class="text-muted">You earn (70%):</small>
+                            <div id="previewEarning" class="text-success fw-bold">$0.00 / Mtokens</div>
+                        </div>
+                    </div>
+                    <hr>
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Example: If your user consumes 1 million tokens, you earn <span id="previewExample">$0.00</span>
+                    </small>
+                </div>
+
+                <button type="submit" class="btn btn-primary" id="saveBtn">
+                    <i class="fas fa-save me-1"></i> Save Markup Settings
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- How it Works -->
+<div class="section-container mt-4">
+    <div class="section-title"><i class="fas fa-question-circle me-2"></i>How Curation Works</div>
+    <div class="row">
+        <div class="col-md-4 mb-3">
+            <div class="card h-100" style="background-color: var(--bg-tertiary); color: var(--text-primary); border-color: var(--border-color);">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-users text-primary me-2"></i>1. Create Users</h5>
+                    <p class="card-text small" style="color: var(--text-secondary);">
+                        Create users from your dashboard or landing page.
+                        Configure which categories of prompts they can access.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card h-100" style="background-color: var(--bg-tertiary); color: var(--text-primary); border-color: var(--border-color);">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-coins text-warning me-2"></i>2. Users Pay</h5>
+                    <p class="card-text small" style="color: var(--text-secondary);">
+                        Your users add balance to their accounts and use AI prompts.
+                        They pay the base price plus your markup.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card h-100" style="background-color: var(--bg-tertiary); color: var(--text-primary); border-color: var(--border-color);">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-hand-holding-usd text-success me-2"></i>3. You Earn</h5>
+                    <p class="card-text small" style="color: var(--text-secondary);">
+                        You receive 70% of your markup on every token consumed.
+                        Request withdrawal when you reach the $50 minimum.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    function updatePreview() {
+        const markup = parseFloat(document.getElementById('markup').value) || 0;
+        const earning = markup * 0.70;  // 70% to curator
+
+        document.getElementById('previewMarkup').textContent = `$${markup.toFixed(2)} / Mtokens`;
+        document.getElementById('previewEarning').textContent = `$${earning.toFixed(2)} / Mtokens`;
+        document.getElementById('previewExample').textContent = `$${earning.toFixed(2)}`;
+    }
+
+    // Initial preview update
+    updatePreview();
+
+    // Form submit handler
+    document.getElementById('markupForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const markup = parseFloat(document.getElementById('markup').value) || 0;
+        const saveBtn = document.getElementById('saveBtn');
+        const originalText = saveBtn.innerHTML;
+
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+
+        try {
+            const response = await fetch('/api/user/curation-settings', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    reseller_markup_per_mtokens: markup
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                saveBtn.innerHTML = '<i class="fas fa-check me-1"></i> Saved!';
+                saveBtn.classList.remove('btn-primary');
+                saveBtn.classList.add('btn-success');
+
+                setTimeout(() => {
+                    saveBtn.innerHTML = originalText;
+                    saveBtn.classList.remove('btn-success');
+                    saveBtn.classList.add('btn-primary');
+                    saveBtn.disabled = false;
+                }, 2000);
+            } else {
+                NotificationModal.error('Error', result.message || 'Error saving settings');
+                saveBtn.innerHTML = originalText;
+                saveBtn.disabled = false;
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            NotificationModal.error('Error', 'An error occurred while saving settings');
+            saveBtn.innerHTML = originalText;
+            saveBtn.disabled = false;
+        }
+    });
+
+    function requestPayout() {
+        NotificationModal.info('Coming Soon', 'Payout request feature will be available in the Creator Earnings Dashboard. Coming soon!');
+    }
+</script>
+{% endblock %}

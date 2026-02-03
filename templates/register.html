@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block title %}Complete Registration{% endblock %}
+
+{% block styles %}
+{# Theme CSS loaded by theme-loader.js #}
+<style>
+    /* Override base.html main-container for auth pages */
+    .main-container {
+        padding: 0;
+        max-width: none;
+    }
+</style>
+{% endblock %}
+
+{# Auth pages don't need navbar or header #}
+{% block header %}{% endblock %}
+{% block toolbar %}{% endblock %}
+{% block alerts %}{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2>Complete Registration</h2>
+    <form action="/complete_registration" method="post">
+        <input type="hidden" name="token" value="{{ token }}">
+        <div class="mb-3">
+            <label for="email" class="form-label">Email Address</label>
+            <input type="email" class="form-control" id="email" name="email" required>
+        </div>
+        <div class="mb-3">
+            <label for="password" class="form-label">Password</label>
+            <input type="password" class="form-control" id="password" name="password" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Complete Registration</button>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}

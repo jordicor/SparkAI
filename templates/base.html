@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SPARK{% endblock %}</title>
+
+    <!-- Theme detection - sets data-theme for skeleton CSS -->
+    <script>
+        var savedTheme = 'default';
+        try { savedTheme = localStorage.getItem('theme') || 'default'; } catch(e) {}
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
+
+    <!-- Skeleton CSS (loads first for instant skeleton display) -->
+    <link rel="stylesheet" href="{{ get_static_url('/static/css/skeleton.css') }}">
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+
+    <!-- Common CSS - Base structural styles (loaded before theme for proper cascading) -->
+    <link rel="stylesheet" href="{{ get_static_url('/static/css/common.css') }}">
+
+    <!-- CDN Base URL (must be defined before theme-loader.js) -->
+    <script>window.CDN_BASE_URL = "{{ get_static_url('/static/').rstrip('/') }}";</script>
+
+    <!-- Theme Loader AFTER Bootstrap and common.css so theme styles have priority -->
+    <script src="{{ get_static_url('/static/js/theme-loader.js') }}"></script>
+
+    <!-- Page-specific styles -->
+    {% block styles %}{% endblock %}
+
+    <!-- Extra head content (libraries, meta tags, etc.) -->
+    {% block head_extra %}{% endblock %}
+</head>
+<body>
+    <!-- Skeleton Loader (shown until content is ready) -->
+    <div id="page-skeleton" class="skeleton-container">
+        {% block skeleton %}
+        <!-- Default skeleton: navbar + page header + content area -->
+        <div class="skeleton-navbar skeleton-pulse">
+            <div class="skeleton-item skeleton-navbar-brand"></div>
+            <div class="skeleton-navbar-links">
+                <div class="skeleton-item skeleton-navbar-link"></div>
+                <div class="skeleton-item skeleton-navbar-link"></div>
+                <div class="skeleton-item skeleton-navbar-link"></div>
+            </div>
+            <div class="skeleton-item skeleton-navbar-user"></div>
+        </div>
+        <div class="skeleton-page">
+            <div class="skeleton-page-header">
+                <div class="skeleton-item skeleton-avatar"></div>
+                <div class="skeleton-col skeleton-flex-1">
+                    <div class="skeleton-item skeleton-title"></div>
+                    <div class="skeleton-item skeleton-text" style="width: 40%;"></div>
+                </div>
+            </div>
+            <div class="skeleton-page-content">
+                <div class="skeleton-item" style="width: 100%; height: 200px; border-radius: 12px;"></div>
+            </div>
+        </div>
+        {% endblock %}
+    </div>
+
+    <!-- Real Content (hidden until ready) -->
+    <div id="page-content" style="display: none;">
+        {% include 'navbar.html' %}
+
+        <!-- Main Content -->
+        <div class="main-container">
+
+        <!-- Page Header -->
+        {% block header %}
+        <div class="page-header">
+            {% block back_button %}
+            <a href="{% block back_url %}/{% endblock %}" class="btn-back" title="{% block back_title %}Back to Home{% endblock %}" data-bs-toggle="tooltip">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+            {% endblock %}
+            <div class="page-header-text">
+                <h1 class="page-title">{% block page_title %}Page Title{% endblock %}</h1>
+                {% block page_subtitle %}{% endblock %}
+            </div>
+        </div>
+        {% endblock %}
+
+        <!-- Toolbar: Tabs (left) + Actions (right) -->
+        {% block toolbar %}
+        <div class="page-toolbar">
+            <div class="page-toolbar-left">
+                {% block tabs %}{% endblock %}
+            </div>
+            <div class="page-toolbar-right">
+                {% block page_actions %}{% endblock %}
+            </div>
+        </div>
+        {% endblock %}
+
+        <!-- Alert Container (for JS-driven alerts) -->
+        {% block alerts %}
+        <div id="alertContainer"></div>
+        {% endblock %}
+
+        <!-- Main Page Content -->
+        {% block content %}{% endblock %}
+
+    </div>
+    </div><!-- /page-content -->
+
+    <!-- Skeleton to Content Swap -->
+    <script>
+        // Show content and hide skeleton as soon as DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            var skeleton = document.getElementById('page-skeleton');
+            var content = document.getElementById('page-content');
+            if (skeleton) skeleton.style.display = 'none';
+            if (content) content.style.display = 'block';
+        });
+    </script>
+
+    <!-- CDN Configuration for JavaScript -->
+    <script>
+        window.CDN_CONFIG = {
+            enabled: {{ get_static_url('/static/').startswith('http')|tojson }},
+            baseUrl: "{{ get_static_url('/static/').rstrip('/') }}"
+        };
+    </script>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Initialize Bootstrap tooltips -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+            tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+        });
+    </script>
+
+    <!-- Notification Modal (global) -->
+    <script src="{{ get_static_url('/static/js/common/notification-modal.js') }}"></script>
+
+    <!-- Session Management (global) -->
+    <script src="{{ get_static_url('/static/js/chat/session-utils.js') }}"></script>
+
+    <!-- Page-specific scripts (external files) -->
+    {% block scripts %}{% endblock %}
+
+    <!-- Page-specific inline scripts -->
+    {% block scripts_inline %}{% endblock %}
+</body>
+</html>

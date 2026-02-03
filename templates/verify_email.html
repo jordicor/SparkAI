@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if success %}Account Verified{% else %}Verification Failed{% endif %} - SparkAI{% endblock %}
+
+{% block styles %}
+<style>
+    /* Override base.html main-container for auth pages */
+    .main-container {
+        padding: 0;
+        max-width: none;
+    }
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+    }
+    .verify-wrapper {
+        max-width: 480px;
+        width: 100%;
+        padding: 20px;
+    }
+    .card {
+        border: none;
+        border-radius: 16px;
+    }
+    .icon-success {
+        width: 80px;
+        height: 80px;
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 20px;
+    }
+    .icon-error {
+        width: 80px;
+        height: 80px;
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 20px;
+    }
+    .icon-success svg, .icon-error svg {
+        width: 40px;
+        height: 40px;
+        color: white;
+    }
+    .btn-primary {
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        border: none;
+        padding: 12px 32px;
+        font-weight: 600;
+    }
+    .btn-primary:hover {
+        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    }
+</style>
+{% endblock %}
+
+{# Auth pages don't need navbar or header #}
+{% block header %}{% endblock %}
+{% block toolbar %}{% endblock %}
+{% block alerts %}{% endblock %}
+
+{% block content %}
+<div class="container d-flex align-items-center justify-content-center" style="min-height: 100vh;">
+    <div class="verify-wrapper">
+        <div class="card shadow-lg">
+            <div class="card-body p-5 text-center">
+                {% if success %}
+                <!-- Success State -->
+                <div class="icon-success">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                </div>
+                <h2 class="mb-3">Account Verified!</h2>
+                <p class="text-muted mb-4">
+                    {{ message if message else "Your email has been verified successfully. You can now log in to your account." }}
+                </p>
+                <a href="/login" class="btn btn-primary btn-lg">
+                    Go to Login
+                </a>
+                {% else %}
+                <!-- Error State -->
+                <div class="icon-error">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </div>
+                <h2 class="mb-3">Verification Failed</h2>
+                <p class="text-muted mb-4">
+                    {{ error if error else "We couldn't verify your email. The link may have expired or is invalid." }}
+                </p>
+                <div class="d-grid gap-2">
+                    <a href="/register" class="btn btn-primary btn-lg">
+                        Register Again
+                    </a>
+                    <a href="/login" class="btn btn-outline-secondary">
+                        Back to Login
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <p class="text-center text-white-50 mt-4 small">
+            Need help? Contact support.
+        </p>
+    </div>
+</div>
+{% endblock %}

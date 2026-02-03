@@ -1,0 +1,1221 @@
+/* landing-valentinesday.css
+ * Valentine's Day theme for the Landing Page Configuration
+ * Pink, red, white romantic color palette with hearts and love vibes
+ */
+
+/* ==========================================================
+   CSS Variables
+   ========================================================== */
+:root {
+    --vday-bg-primary: #FFF0F5;
+    --vday-bg-secondary: #FFD1DC;
+    --vday-bg-tertiary: #FFE4E1;
+    --vday-bg-card: #FFD1DC;
+    --vday-bg-card-body: #FFE4E1;
+    --vday-bg-card-header: #FFB6C1;
+    --vday-text-primary: #FF1493;
+    --vday-text-secondary: #FF69B4;
+    --vday-border-primary: #FF69B4;
+    --vday-border-secondary: #FFB6C1;
+    --vday-accent: #FF69B4;
+    --vday-accent-hover: #FF1493;
+    --vday-shadow: rgba(255, 105, 180, 0.2);
+    --vday-shadow-hover: rgba(255, 105, 180, 0.3);
+}
+
+/* ==========================================================
+   Base Styles
+   ========================================================== */
+body {
+    background-color: var(--vday-bg-primary);
+    color: var(--vday-text-primary);
+    font-family: 'Pacifico', cursive, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Floating hearts background effect */
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><text x="50" y="50" font-size="70" text-anchor="middle" alignment-baseline="middle" font-family="Arial, sans-serif" fill="rgba(255,105,180,0.1)">❤</text></svg>');
+    background-repeat: repeat;
+    z-index: -1;
+}
+
+/* ==========================================================
+   Design System - Layout Styles
+   ========================================================== */
+
+/* Main Container */
+.main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 30px 20px;
+}
+
+/* Page Header */
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid var(--vday-accent);
+}
+
+.page-header-text {
+    flex: 1;
+}
+
+/* Page Toolbar */
+.page-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    gap: 16px;
+}
+
+.page-toolbar:not(:has(*)) {
+    display: none;
+}
+
+.page-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.page-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+/* Back Button */
+.btn-back {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--vday-bg-secondary);
+    border: 2px solid var(--vday-border-primary);
+    color: var(--vday-text-primary);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.btn-back:hover {
+    background-color: var(--vday-accent);
+    border-color: var(--vday-accent);
+    color: #ffffff;
+    transform: translateY(-2px);
+}
+
+/* Page Title */
+.page-title {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--vday-text-primary);
+}
+
+.page-subtitle {
+    margin: 4px 0 0 0;
+    color: var(--vday-text-secondary);
+    font-size: 0.9rem;
+}
+
+/* Responsive Layout Styles */
+@media (max-width: 768px) {
+    .main-container {
+        padding: 20px 15px;
+    }
+
+    .page-header {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .page-toolbar {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .page-toolbar-right {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .page-title {
+        font-size: 1.5rem;
+    }
+
+    .btn-back {
+        width: 40px;
+        height: 40px;
+    }
+}
+
+@media (max-width: 480px) {
+    .main-container {
+        padding: 15px 10px;
+    }
+
+    .page-header {
+        gap: 10px;
+    }
+
+    .page-title {
+        font-size: 1.25rem;
+    }
+
+    .page-subtitle {
+        font-size: 0.85rem;
+    }
+
+    .btn-back {
+        width: 36px;
+        height: 36px;
+    }
+}
+
+/* ==========================================================
+   Container
+   ========================================================== */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* ==========================================================
+   Typography
+   ========================================================== */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--vday-text-primary);
+    text-shadow: 2px 2px 4px var(--vday-shadow);
+}
+
+h2.mb-0 {
+    font-weight: bold;
+    letter-spacing: 0.5px;
+}
+
+/* ==========================================================
+   Cards
+   ========================================================== */
+.card {
+    background-color: var(--vday-bg-card);
+    border: 2px solid var(--vday-border-primary);
+    border-radius: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 8px var(--vday-shadow);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    overflow: hidden;
+}
+
+.card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 12px var(--vday-shadow-hover);
+}
+
+.card-header {
+    background-color: var(--vday-bg-card-header) !important;
+    color: var(--vday-text-primary);
+    border-bottom: 2px solid var(--vday-border-primary);
+    border-radius: 18px 18px 0 0 !important;
+    font-weight: bold;
+    padding: 15px 20px;
+}
+
+.card-header h5 {
+    margin-bottom: 0;
+    color: var(--vday-text-primary);
+}
+
+.card-body {
+    padding: 25px;
+    background-color: var(--vday-bg-card-body);
+    border-radius: 0 0 18px 18px;
+}
+
+/* ==========================================================
+   Navbar
+   ========================================================== */
+.navbar {
+    background-color: var(--vday-bg-secondary) !important;
+    border-bottom: 2px solid var(--vday-border-primary);
+    box-shadow: 0 2px 4px var(--vday-shadow);
+    padding: 10px 20px;
+}
+
+.navbar-brand {
+    color: var(--vday-text-primary) !important;
+    font-size: 1.5rem;
+    transition: color 0.3s ease;
+    position: relative;
+}
+
+.navbar-brand:hover {
+    color: var(--vday-text-secondary) !important;
+}
+
+.navbar-brand::before {
+    content: "💗";
+    position: absolute;
+    left: -30px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1.3em;
+}
+
+.navbar-brand i {
+    opacity: 0;
+}
+
+.nav-link {
+    color: var(--vday-text-primary) !important;
+    font-size: 1.1rem;
+    transition: color 0.3s ease;
+}
+
+.nav-link:hover {
+    color: var(--vday-text-secondary) !important;
+}
+
+.navbar-toggler {
+    border: none;
+    background-color: var(--vday-border-secondary);
+    transition: background-color 0.3s ease;
+}
+
+.navbar-toggler:hover {
+    background-color: var(--vday-accent);
+}
+
+.navbar-toggler-icon {
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="%23FF1493" viewBox="0 0 30 30"><path d="M4 7h22v2H4zm0 7h22v2H4zm0 7h22v2H4z"/></svg>') !important;
+}
+
+.navbar .btn-outline-danger {
+    color: var(--vday-text-primary);
+    border-color: var(--vday-border-primary);
+    background-color: transparent;
+    border-radius: 25px;
+    padding: 8px 16px;
+    transition: all 0.3s ease;
+}
+
+.navbar .btn-outline-danger:hover {
+    background-color: var(--vday-accent);
+    border-color: var(--vday-accent);
+    color: white;
+    transform: scale(1.05);
+}
+
+/* ==========================================================
+   Tabs (Navigation)
+   ========================================================== */
+.nav-tabs {
+    border-bottom: 2px solid var(--vday-border-primary);
+}
+
+.nav-tabs .nav-link {
+    color: var(--vday-text-secondary) !important;
+    border: 2px solid transparent;
+    border-radius: 20px 20px 0 0;
+    margin-right: 5px;
+    padding: 10px 20px;
+    transition: all 0.3s ease;
+    background-color: transparent;
+}
+
+.nav-tabs .nav-link:hover {
+    color: var(--vday-text-primary) !important;
+    background-color: var(--vday-bg-tertiary);
+    border-color: var(--vday-border-secondary) var(--vday-border-secondary) transparent;
+}
+
+.nav-tabs .nav-link.active {
+    color: var(--vday-text-primary) !important;
+    background-color: var(--vday-bg-card-body);
+    border-color: var(--vday-border-primary) var(--vday-border-primary) var(--vday-bg-card-body);
+    font-weight: 600;
+}
+
+.nav-tabs .nav-link i {
+    color: inherit;
+}
+
+/* ==========================================================
+   Buttons - Primary
+   ========================================================== */
+.btn-primary {
+    background-color: var(--vday-accent);
+    border-color: var(--vday-accent);
+    color: white;
+    border-radius: 25px;
+    padding: 10px 20px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+    background-color: var(--vday-accent-hover);
+    border-color: var(--vday-accent-hover);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px var(--vday-shadow-hover);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+/* ==========================================================
+   Buttons - Secondary
+   ========================================================== */
+.btn-secondary {
+    background-color: var(--vday-border-secondary);
+    border-color: var(--vday-border-secondary);
+    color: var(--vday-text-primary);
+    border-radius: 25px;
+    padding: 10px 20px;
+    transition: all 0.3s ease;
+}
+
+.btn-secondary:hover,
+.btn-secondary:focus {
+    background-color: var(--vday-accent);
+    border-color: var(--vday-accent);
+    color: white;
+    transform: translateY(-2px);
+}
+
+/* ==========================================================
+   Buttons - Success
+   ========================================================== */
+.btn-success {
+    background-color: #FF69B4;
+    border-color: #FF69B4;
+    color: white;
+    border-radius: 25px;
+    padding: 10px 20px;
+    transition: all 0.3s ease;
+}
+
+.btn-success:hover,
+.btn-success:focus {
+    background-color: #FF1493;
+    border-color: #FF1493;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px var(--vday-shadow-hover);
+}
+
+/* ==========================================================
+   Buttons - Danger
+   ========================================================== */
+.btn-danger {
+    background-color: #DC143C;
+    border-color: #DC143C;
+    color: white;
+    border-radius: 25px;
+    padding: 10px 20px;
+    transition: all 0.3s ease;
+}
+
+.btn-danger:hover,
+.btn-danger:focus {
+    background-color: #B22222;
+    border-color: #B22222;
+    color: white;
+    transform: translateY(-2px);
+}
+
+/* ==========================================================
+   Buttons - Warning
+   ========================================================== */
+.btn-warning {
+    background-color: #FFB6C1;
+    border-color: #FFB6C1;
+    color: var(--vday-text-primary);
+    border-radius: 25px;
+    padding: 10px 20px;
+    transition: all 0.3s ease;
+}
+
+.btn-warning:hover,
+.btn-warning:focus {
+    background-color: #FF69B4;
+    border-color: #FF69B4;
+    color: white;
+    transform: translateY(-2px);
+}
+
+/* ==========================================================
+   Buttons - Outline Variants
+   ========================================================== */
+.btn-outline-primary {
+    color: var(--vday-text-primary);
+    border-color: var(--vday-border-primary);
+    background-color: transparent;
+    border-radius: 25px;
+    padding: 8px 16px;
+    transition: all 0.3s ease;
+}
+
+.btn-outline-primary:hover,
+.btn-outline-primary:focus {
+    background-color: var(--vday-accent);
+    border-color: var(--vday-accent);
+    color: white;
+    transform: scale(1.05);
+}
+
+.btn-outline-secondary {
+    color: var(--vday-text-secondary);
+    border-color: var(--vday-border-secondary);
+    background-color: transparent;
+    border-radius: 25px;
+    padding: 8px 16px;
+    transition: all 0.3s ease;
+}
+
+.btn-outline-secondary:hover,
+.btn-outline-secondary:focus {
+    background-color: var(--vday-border-secondary);
+    border-color: var(--vday-border-secondary);
+    color: var(--vday-text-primary);
+    transform: scale(1.05);
+}
+
+.btn-outline-success {
+    color: #FF69B4;
+    border-color: #FF69B4;
+    background-color: transparent;
+    border-radius: 25px;
+    padding: 8px 16px;
+    transition: all 0.3s ease;
+}
+
+.btn-outline-success:hover,
+.btn-outline-success:focus {
+    background-color: #FF69B4;
+    border-color: #FF69B4;
+    color: white;
+    transform: scale(1.05);
+}
+
+.btn-outline-danger {
+    color: #DC143C;
+    border-color: #DC143C;
+    background-color: transparent;
+    border-radius: 25px;
+    padding: 8px 16px;
+    transition: all 0.3s ease;
+}
+
+.btn-outline-danger:hover,
+.btn-outline-danger:focus {
+    background-color: #DC143C;
+    border-color: #DC143C;
+    color: white;
+    transform: scale(1.05);
+}
+
+.btn-outline-warning {
+    color: var(--vday-text-primary);
+    border-color: var(--vday-border-secondary);
+    background-color: transparent;
+    border-radius: 25px;
+    padding: 8px 16px;
+    transition: all 0.3s ease;
+}
+
+.btn-outline-warning:hover,
+.btn-outline-warning:focus {
+    background-color: var(--vday-border-secondary);
+    border-color: var(--vday-border-secondary);
+    color: var(--vday-text-primary);
+    transform: scale(1.05);
+}
+
+/* Small button adjustments */
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 0.875rem;
+}
+
+.btn-lg {
+    padding: 12px 30px;
+    font-size: 1.1rem;
+}
+
+.btn-icon {
+    padding: 6px 10px;
+    border-radius: 15px;
+}
+
+/* ==========================================================
+   Forms - Inputs
+   ========================================================== */
+.form-control {
+    background-color: var(--vday-bg-tertiary);
+    border: 2px solid var(--vday-border-primary);
+    border-radius: 15px;
+    color: var(--vday-text-primary);
+    padding: 10px 15px;
+    transition: all 0.3s ease;
+}
+
+.form-control:focus {
+    background-color: var(--vday-bg-tertiary);
+    border-color: var(--vday-accent-hover);
+    box-shadow: 0 0 0 0.2rem rgba(255, 105, 180, 0.25);
+    color: var(--vday-text-primary);
+}
+
+.form-control::placeholder {
+    color: var(--vday-text-secondary);
+    opacity: 0.7;
+}
+
+/* ==========================================================
+   Forms - Select
+   ========================================================== */
+.form-select {
+    background-color: var(--vday-bg-tertiary);
+    border: 2px solid var(--vday-border-primary);
+    border-radius: 15px;
+    color: var(--vday-text-primary);
+    padding: 10px 15px;
+    transition: all 0.3s ease;
+}
+
+.form-select:focus {
+    border-color: var(--vday-accent-hover);
+    box-shadow: 0 0 0 0.2rem rgba(255, 105, 180, 0.25);
+}
+
+/* ==========================================================
+   Forms - Labels
+   ========================================================== */
+.form-label {
+    color: var(--vday-text-primary);
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.form-text {
+    color: var(--vday-text-secondary);
+    font-size: 0.85rem;
+}
+
+/* ==========================================================
+   Forms - Checkboxes and Radios
+   ========================================================== */
+.form-check-input {
+    background-color: var(--vday-bg-tertiary);
+    border: 2px solid var(--vday-border-primary);
+    width: 1.2em;
+    height: 1.2em;
+}
+
+.form-check-input:checked {
+    background-color: var(--vday-accent);
+    border-color: var(--vday-accent);
+}
+
+.form-check-input:focus {
+    box-shadow: 0 0 0 0.2rem rgba(255, 105, 180, 0.25);
+    border-color: var(--vday-accent-hover);
+}
+
+.form-check-label {
+    color: var(--vday-text-primary);
+    margin-left: 5px;
+}
+
+/* ==========================================================
+   Forms - Input Groups
+   ========================================================== */
+.input-group-text {
+    background-color: var(--vday-border-secondary);
+    border: 2px solid var(--vday-border-primary);
+    border-right: none;
+    color: var(--vday-text-primary);
+    border-radius: 15px 0 0 15px;
+}
+
+.input-group .form-control {
+    border-radius: 0 15px 15px 0;
+}
+
+.input-group .form-control:not(:last-child) {
+    border-radius: 0;
+}
+
+.input-group .btn {
+    border-radius: 0 15px 15px 0;
+}
+
+/* ==========================================================
+   Forms - Button Groups
+   ========================================================== */
+.btn-group .btn {
+    border-radius: 0;
+}
+
+.btn-group .btn:first-child {
+    border-radius: 15px 0 0 15px;
+}
+
+.btn-group .btn:last-child {
+    border-radius: 0 15px 15px 0;
+}
+
+.btn-check:checked + .btn-outline-secondary {
+    background-color: var(--vday-accent);
+    border-color: var(--vday-accent);
+    color: white;
+}
+
+.btn-check:checked + .btn-outline-primary {
+    background-color: var(--vday-accent);
+    border-color: var(--vday-accent);
+    color: white;
+}
+
+/* ==========================================================
+   Tables
+   ========================================================== */
+.table {
+    color: var(--vday-text-primary);
+    margin-bottom: 0;
+}
+
+.table thead th {
+    background-color: var(--vday-border-secondary);
+    color: var(--vday-text-primary);
+    border-bottom: 2px solid var(--vday-border-primary);
+    font-weight: 600;
+    padding: 12px 15px;
+}
+
+.table tbody td {
+    background-color: var(--vday-bg-tertiary);
+    border-bottom: 1px solid var(--vday-border-secondary);
+    padding: 12px 15px;
+    vertical-align: middle;
+}
+
+.table tbody tr:hover td {
+    background-color: var(--vday-bg-secondary);
+}
+
+.table-pages th {
+    background-color: var(--vday-border-secondary) !important;
+}
+
+/* ==========================================================
+   Badges
+   ========================================================== */
+.badge {
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 20px;
+}
+
+.badge.bg-primary {
+    background-color: var(--vday-accent) !important;
+}
+
+.badge.bg-secondary {
+    background-color: var(--vday-text-secondary) !important;
+}
+
+.badge.bg-success {
+    background-color: #FF69B4 !important;
+}
+
+.badge.bg-danger {
+    background-color: #DC143C !important;
+}
+
+.badge.bg-warning {
+    background-color: #FFB6C1 !important;
+    color: var(--vday-text-primary) !important;
+}
+
+.badge.bg-info {
+    background-color: var(--vday-border-secondary) !important;
+    color: var(--vday-text-primary) !important;
+}
+
+.component-badge {
+    font-size: 0.75rem;
+}
+
+/* ==========================================================
+   Alerts
+   ========================================================== */
+.alert {
+    border-radius: 15px;
+    border-width: 2px;
+    padding: 15px 20px;
+}
+
+.alert-primary {
+    background-color: var(--vday-bg-secondary);
+    border-color: var(--vday-border-primary);
+    color: var(--vday-text-primary);
+}
+
+.alert-secondary {
+    background-color: var(--vday-bg-tertiary);
+    border-color: var(--vday-border-secondary);
+    color: var(--vday-text-primary);
+}
+
+.alert-success {
+    background-color: #FFD1DC;
+    border-color: #FF69B4;
+    color: #FF1493;
+}
+
+.alert-danger {
+    background-color: #FFE4E1;
+    border-color: #DC143C;
+    color: #B22222;
+}
+
+.alert-warning {
+    background-color: #FFF0F5;
+    border-color: #FFB6C1;
+    color: var(--vday-text-primary);
+}
+
+.alert-info {
+    background-color: var(--vday-bg-tertiary);
+    border-color: var(--vday-border-primary);
+    color: var(--vday-text-primary);
+}
+
+/* ==========================================================
+   List Groups
+   ========================================================== */
+.list-group {
+    border-radius: 15px;
+    overflow: hidden;
+}
+
+.list-group-item {
+    background-color: var(--vday-bg-tertiary);
+    border-color: var(--vday-border-secondary);
+    color: var(--vday-text-primary);
+    padding: 12px 20px;
+    transition: all 0.3s ease;
+}
+
+.list-group-item:hover {
+    background-color: var(--vday-bg-secondary);
+}
+
+.list-group-item-action {
+    cursor: pointer;
+}
+
+.list-group-item-action:hover {
+    background-color: var(--vday-border-secondary);
+    color: var(--vday-text-primary);
+}
+
+/* ==========================================================
+   Modals
+   ========================================================== */
+.modal-content {
+    background-color: var(--vday-bg-primary);
+    border: 2px solid var(--vday-border-primary);
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.modal-header {
+    background-color: var(--vday-accent);
+    border-bottom: 2px solid var(--vday-border-primary);
+    padding: 15px 20px;
+}
+
+.modal-header.bg-primary {
+    background-color: var(--vday-accent) !important;
+}
+
+.modal-header.bg-danger {
+    background-color: #DC143C !important;
+}
+
+.modal-title {
+    color: white;
+    font-weight: 600;
+}
+
+.modal-body {
+    background-color: var(--vday-bg-card-body);
+    padding: 25px;
+}
+
+.modal-footer {
+    background-color: var(--vday-bg-tertiary);
+    border-top: 2px solid var(--vday-border-secondary);
+    padding: 15px 20px;
+}
+
+.btn-close-white {
+    filter: brightness(0) invert(1);
+}
+
+/* ==========================================================
+   Public URL Box
+   ========================================================== */
+.public-url-box {
+    background-color: var(--vday-bg-tertiary);
+    border: 2px solid var(--vday-border-primary);
+    border-radius: 15px;
+    padding: 15px 20px;
+    font-family: 'Monaco', 'Consolas', monospace;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.public-url-box .url-text {
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--vday-text-primary);
+}
+
+/* ==========================================================
+   Custom Domain Details
+   ========================================================== */
+.custom-domain-details summary::-webkit-details-marker {
+    display: none;
+}
+
+.custom-domain-details[open] summary .fa-chevron-down {
+    transform: rotate(180deg);
+}
+
+.custom-domain-details summary .fa-chevron-down {
+    transition: transform 0.2s ease;
+}
+
+.custom-domain-details summary {
+    cursor: pointer;
+    padding: 10px 0;
+}
+
+.custom-domain-details summary:hover {
+    color: var(--vday-text-secondary);
+}
+
+/* ==========================================================
+   Images Grid
+   ========================================================== */
+.image-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 1rem;
+}
+
+.image-card {
+    border: 2px solid var(--vday-border-primary);
+    border-radius: 15px;
+    overflow: hidden;
+    background: var(--vday-bg-tertiary);
+    transition: all 0.3s ease;
+}
+
+.image-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 12px var(--vday-shadow-hover);
+}
+
+.image-card img {
+    width: 100%;
+    height: 100px;
+    object-fit: cover;
+    border-bottom: 2px solid var(--vday-border-secondary);
+}
+
+.image-card .image-name {
+    padding: 10px;
+    font-size: 0.75rem;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    color: var(--vday-text-primary);
+    text-align: center;
+}
+
+/* ==========================================================
+   Spinner / Loading
+   ========================================================== */
+.spinner-border {
+    color: var(--vday-accent) !important;
+}
+
+/* ==========================================================
+   Code Elements
+   ========================================================== */
+code {
+    background-color: var(--vday-border-secondary);
+    color: var(--vday-text-primary);
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-size: 0.9em;
+}
+
+/* ==========================================================
+   Borders
+   ========================================================== */
+.border {
+    border-color: var(--vday-border-primary) !important;
+}
+
+.border-top {
+    border-top-color: var(--vday-border-secondary) !important;
+}
+
+.border-bottom {
+    border-bottom-color: var(--vday-border-secondary) !important;
+}
+
+/* ==========================================================
+   Background utilities override
+   ========================================================== */
+.bg-light {
+    background-color: var(--vday-bg-tertiary) !important;
+}
+
+/* ==========================================================
+   Text utilities override
+   ========================================================== */
+.text-muted {
+    color: var(--vday-text-secondary) !important;
+}
+
+.text-primary {
+    color: var(--vday-text-primary) !important;
+}
+
+.text-danger {
+    color: #DC143C !important;
+}
+
+.text-success {
+    color: #FF69B4 !important;
+}
+
+/* ==========================================================
+   Scrollbar Styling
+   ========================================================== */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--vday-bg-tertiary);
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--vday-accent);
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--vday-accent-hover);
+}
+
+/* ==========================================================
+   Animations
+   ========================================================== */
+@keyframes floatingHearts {
+    0% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-10px) rotate(5deg); }
+    100% { transform: translateY(0) rotate(0deg); }
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+/* Heart decoration for card headers */
+.card-header::before {
+    content: '💕';
+    margin-right: 10px;
+    animation: pulse 2s infinite ease-in-out;
+}
+
+/* ==========================================================
+   Color Picker Enhancement
+   ========================================================== */
+.form-control-color {
+    width: 50px;
+    height: 42px;
+    border: 2px solid var(--vday-border-primary);
+    border-radius: 15px 0 0 15px;
+    padding: 3px;
+}
+
+.form-control-color::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+.form-control-color::-webkit-color-swatch {
+    border: none;
+    border-radius: 10px;
+}
+
+/* ==========================================================
+   Responsive Styles
+   ========================================================== */
+@media (max-width: 768px) {
+    .container {
+        padding: 15px;
+    }
+
+    .card {
+        margin-bottom: 15px;
+    }
+
+    .card-body {
+        padding: 15px;
+    }
+
+    .btn {
+        font-size: 0.9rem;
+    }
+
+    .nav-tabs .nav-link {
+        padding: 8px 15px;
+        font-size: 0.9rem;
+    }
+
+    .image-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 0.75rem;
+    }
+
+    .table-responsive {
+        border-radius: 15px;
+        overflow: hidden;
+    }
+
+    .modal-body {
+        padding: 15px;
+    }
+
+    .input-group {
+        flex-direction: column;
+    }
+
+    .input-group > * {
+        width: 100%;
+        border-radius: 15px !important;
+        margin-bottom: 5px;
+    }
+
+    .input-group .form-control {
+        border-radius: 15px !important;
+    }
+
+    .input-group-text {
+        border-radius: 15px !important;
+        border-right: 2px solid var(--vday-border-primary) !important;
+    }
+}
+
+@media (max-width: 576px) {
+    .container {
+        padding: 10px;
+    }
+
+    h2.mb-0 {
+        font-size: 1.3rem;
+    }
+
+    .card-header {
+        padding: 12px 15px;
+    }
+
+    .card-body {
+        padding: 12px;
+    }
+
+    .nav-tabs .nav-link {
+        padding: 6px 10px;
+        font-size: 0.85rem;
+    }
+
+    .btn-lg {
+        padding: 10px 20px;
+        font-size: 1rem;
+    }
+
+    .public-url-box {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .public-url-box .url-text {
+        width: 100%;
+    }
+}
+
+/* ==========================================================
+   Accessibility - Reduced Motion
+   ========================================================== */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* ==========================================================
+   Print Styles
+   ========================================================== */
+@media print {
+    body::before {
+        display: none;
+    }
+
+    .card {
+        box-shadow: none;
+        border: 1px solid #ccc;
+    }
+
+    .btn {
+        display: none;
+    }
+}

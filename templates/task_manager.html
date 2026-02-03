@@ -1,0 +1,196 @@
+{% extends 'base.html' %}
+
+{% block title %}Task Manager{% endblock %}
+
+{% block page_title %}Task Manager{% endblock %}
+
+{% block back_url %}/{% endblock %}
+{% block back_title %}Return to Home{% endblock %}
+
+{% block head_extra %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+{% endblock %}
+
+{% block toolbar %}{% endblock %}
+
+{% block content %}
+<h2>System Status</h2>
+<ul>
+    <li>Redis Connection: {% if redis_connected %}Connected{% else %}Disconnected{% endif %}</li>
+    <li>Dramatiq Connection: {% if dramatiq_connected %}Connected{% else %}Disconnected{% endif %}</li>
+</ul>
+
+<h3>Dramatiq Queues</h3>
+<ul>
+{% for queue in dramatiq_queues %}
+    <li>{{ queue }}</li>
+{% else %}
+    <li>No queues found</li>
+{% endfor %}
+</ul>
+
+<h3>Redis Keys</h3>
+<ul id="redis-keys-list">
+{% for key in redis_keys %}
+    <li><a href="#" class="redis-key" data-key="{{ key }}">{{ key }}</a></li>
+{% else %}
+    <li>No Dramatiq-related keys found</li>
+{% endfor %}
+</ul>
+
+<div id="key-info" class="mt-4" style="display: none;">
+    <h4>Key Information</h4>
+    <pre id="key-data"></pre>
+</div>
+
+<h2>Pending Tasks</h2>
+<p>Number of pending tasks: {{ pending_tasks|length }}</p>
+<ul class="list-group">
+{% for task in pending_tasks %}
+    <li class="list-group-item">
+        <pre>{{ task | tojson(indent=2) }}</pre>
+        <p>Retries: {{ task.options.retries }}/{{ task.options.max_retries }}</p>
+        <button class="btn btn-danger btn-sm float-end" onclick="deleteTask('{{ task.message_id }}', 'pending')">Delete</button>
+    </li>
+{% else %}
+    <li class="list-group-item">No pending tasks</li>
+{% endfor %}
+</ul>
+
+<h2 class="mt-4">Active Tasks</h2>
+<p>Number of active tasks: {{ active_tasks|length }}</p>
+<ul class="list-group">
+{% for task in active_tasks %}
+    <li class="list-group-item">
+        <pre>{{ task | tojson(indent=2) }}</pre>
+        <p>Retries: {{ task.options.retries }}/{{ task.options.max_retries }}</p>
+    </li>
+{% else %}
+    <li class="list-group-item">No active tasks</li>
+{% endfor %}
+</ul>
+
+<h2 class="mt-4">Failed Tasks</h2>
+<p>Number of failed tasks: {{ failed_tasks|length }}</p>
+<ul class="list-group">
+{% for task in failed_tasks %}
+    <li class="list-group-item">
+        <pre>{{ task | tojson(indent=2) }}</pre>
+        <p>Retries: {{ task.options.retries }}/{{ task.options.max_retries }}</p>
+        <button class="btn btn-danger btn-sm float-end" onclick="deleteTask('{{ task.message_id }}', 'failed')">Delete</button>
+        <button class="btn btn-primary btn-sm float-end me-2" onclick="retryTask('{{ task.message_id }}')">Retry</button>
+    </li>
+{% else %}
+    <li class="list-group-item">No failed tasks</li>
+{% endfor %}
+</ul>
+
+<h2 class="mt-4">Delayed Tasks</h2>
+<p>Number of delayed tasks: {{ delayed_tasks|length }}</p>
+<ul class="list-group">
+{% for task in delayed_tasks %}
+    <li class="list-group-item">
+        <pre>{{ task | tojson(indent=2) }}</pre>
+        <p>Retries: {{ task.options.retries }}/{{ task.options.max_retries }}</p>
+    </li>
+{% else %}
+    <li class="list-group-item">No delayed tasks</li>
+{% endfor %}
+</ul>
+
+<!-- Button to clear all Dramatiq tasks -->
+<div class="mt-5">
+    <button class="btn btn-warning" onclick="clearDramatiq()">Clear All Dramatiq Tasks</button>
+</div>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    $(document).ready(function() {
+        $('.redis-key').click(function(e) {
+            e.preventDefault();
+            var key = $(this).data('key');
+            $.get('/admin/inspect-redis-key', {key: key}, function(data) {
+                $('#key-data').text(JSON.stringify(data, null, 2));
+                $('#key-info').show();
+            }).fail(function(jqXHR, textStatus, errorThrown) {
+                NotificationModal.error('Request Failed', 'Error: ' + errorThrown);
+            });
+        });
+    });
+
+    function deleteTask(taskId, queue) {
+        console.log("Deleting task:", taskId, "from queue:", queue);
+        fetch('/admin/delete-task', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ task_id: taskId, queue: queue }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log("Task deleted successfully");
+                location.reload();
+            } else {
+                console.error("Error deleting task:", data.error);
+                NotificationModal.error('Delete Failed', 'Error deleting task: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error("Error in delete task request:", error);
+            NotificationModal.error('Request Error', 'Error in delete task request: ' + error);
+        });
+    }
+
+    function retryTask(taskId) {
+        console.log("Retrying task:", taskId);
+        fetch('/admin/retry-task', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ task_id: taskId }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log("Task retried successfully");
+                location.reload();
+            } else {
+                console.error("Error retrying task:", data.error);
+                NotificationModal.error('Retry Failed', 'Error retrying task: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error("Error in retry task request:", error);
+            NotificationModal.error('Request Error', 'Error in retry task request: ' + error);
+        });
+    }
+
+    function clearDramatiq() {
+        if (!confirm("Are you sure you want to delete all Dramatiq tasks? This action cannot be undone.")) {
+            return;
+        }
+
+        fetch('/admin/clear-dramatiq', {
+            method: 'POST',
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                NotificationModal.success('Tasks Cleared', 'All Dramatiq tasks have been deleted.');
+                location.reload();
+            } else {
+                console.error("Error clearing Dramatiq:", data.error);
+                NotificationModal.error('Clear Failed', 'Error clearing Dramatiq: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error("Error in cleanup request:", error);
+            NotificationModal.error('Request Error', 'Error in cleanup request: ' + error);
+        });
+    }
+</script>
+{% endblock %}

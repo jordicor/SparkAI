@@ -1,0 +1,1997 @@
+{% extends 'base.html' %}
+
+{% block title %}Public Profile - {{ prompt.name }}{% endblock %}
+
+{% block styles %}
+{# Theme CSS loaded by theme-loader.js #}
+{% endblock %}
+
+{% block page_title %}Public Profile - "{{ prompt.name }}"{% endblock %}
+
+{% block back_url %}/{% endblock %}
+
+{% block content %}
+        <!-- Public URL & Custom Domain Section (Unified) -->
+        <div class="section-container">
+            <div class="section-title">
+                <i class="fas fa-link"></i> Your Public URL
+                <div class="d-flex align-items-center gap-2 ms-auto">
+                    {% if not is_admin %}
+                    <!-- Slots indicator -->
+                    <span class="badge bg-secondary" title="Domain slots: used / purchased">
+                        <i class="fas fa-layer-group me-1"></i>
+                        <span id="slotsUsed">{{ user_slots.used }}</span>/<span id="slotsPurchased">{{ user_slots.purchased }}</span> slots
+                    </span>
+                    {% endif %}
+                    {% if domain_config and domain_config.is_active %}
+                    <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Custom Domain Active</span>
+                    {% elif domain_config and domain_config.verification_status == 'verified' %}
+                    <span class="badge bg-warning text-dark"><i class="fas fa-clock me-1"></i>Domain Verified</span>
+                    {% elif domain_config %}
+                    <span class="badge bg-secondary"><i class="fas fa-hourglass-half me-1"></i>Domain Pending</span>
+                    {% endif %}
+                </div>
+            </div>
+                <!-- Main Public URL Display -->
+                {% if domain_config and domain_config.is_active %}
+                <!-- Custom domain is active - show it as the public URL -->
+                <div class="public-url-box public-url-box-success">
+                    <i class="fas fa-globe text-success me-2"></i>
+                    <span class="url-text" id="publicUrl">https://{{ domain_config.domain }}/</span>
+                    <button type="button" class="btn btn-outline-success btn-sm" onclick="copyUrl()" title="Copy URL">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                    <a href="https://{{ domain_config.domain }}/" target="_blank" class="btn btn-outline-success btn-sm" title="Open in new tab">
+                        <i class="fas fa-external-link-alt"></i>
+                    </a>
+                </div>
+                {% else %}
+                <!-- No active custom domain - show standard URL -->
+                <div class="public-url-box">
+                    <span class="url-text" id="publicUrl">{{ public_url }}</span>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="copyUrl()" title="Copy URL">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                    <a href="{{ public_url }}" target="_blank" class="btn btn-outline-primary btn-sm" title="Open in new tab">
+                        <i class="fas fa-external-link-alt"></i>
+                    </a>
+                </div>
+                {% endif %}
+
+                {% if not has_home_page %}
+                <div class="alert alert-warning mt-3 mb-0">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    No <code>home.html</code> page exists yet. Create one to make your public profile accessible.
+                </div>
+                {% endif %}
+
+                <!-- Custom Domain Configuration Section -->
+                <div class="mt-4 pt-3" style="border-top: 1px solid var(--border-color, #40444b);" id="domainConfigSection">
+                    {% if domain_config and domain_config.is_active %}
+                    <!-- Domain is ACTIVE -->
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fas fa-globe text-success me-2"></i>
+                        <strong>Custom Domain</strong>
+                    </div>
+                    <div class="border rounded p-3" style="background-color: var(--bg-tertiary, #202225); border-color: var(--border-color, #40444b) !important;">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="mb-2">
+                                    <strong>{{ domain_config.domain }}</strong>
+                                    <span class="badge bg-success ms-2">Active</span>
+                                    {% if domain_config.activated_by_admin %}
+                                    <span class="badge bg-info ms-1">Admin</span>
+                                    {% endif %}
+                                </div>
+                                {% if domain_config.activated_at %}
+                                <small class="text-muted d-block mb-2">
+                                    <i class="fas fa-calendar me-1"></i>
+                                    Activated: {{ domain_config.activated_at }}
+                                </small>
+                                {% endif %}
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    The standard URL <code>{{ public_url }}</code> redirects here automatically (301).
+                                </small>
+                            </div>
+                            <button type="button" class="btn btn-outline-warning btn-sm" onclick="toggleDomainOff()" title="Deactivate (frees slot)">
+                                <i class="fas fa-toggle-on me-1"></i> Deactivate
+                            </button>
+                        </div>
+                    </div>
+
+                    {% elif domain_config %}
+                    <!-- Domain configured but NOT active (pending or verified) -->
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fas fa-globe text-muted me-2"></i>
+                        <strong>Custom Domain</strong>
+                        <small class="text-muted ms-2">(pending activation)</small>
+                    </div>
+                    <div class="rounded p-3" style="background-color: var(--bg-tertiary, #202225); border: 1px solid var(--border-color, #40444b);">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                <strong>{{ domain_config.domain }}</strong>
+                                {% if domain_config.verification_status == 'verified' %}
+                                <span class="badge bg-warning text-dark ms-2">Verified</span>
+                                {% elif domain_config.verification_status == 'failed' %}
+                                <span class="badge bg-danger ms-2">Failed</span>
+                                {% else %}
+                                <span class="badge bg-secondary ms-2">Pending</span>
+                                {% endif %}
+                            </div>
+                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeDomain()" title="Remove domain configuration">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+
+                        <!-- CNAME Instructions -->
+                        <div class="alert alert-info mb-3">
+                            <strong><i class="fas fa-info-circle me-1"></i>DNS Configuration:</strong>
+                            <p class="mb-2 mt-2">Point your domain's CNAME record to:</p>
+                            <div class="d-flex align-items-center gap-2">
+                                <code class="flex-grow-1 p-2 bg-light rounded">{{ cname_target }}</code>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText('{{ cname_target }}'); this.innerHTML='<i class=\'fas fa-check\'></i>'">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Verification error -->
+                        {% if domain_config.verification_error %}
+                        <div class="alert alert-warning mb-3">
+                            <i class="fas fa-exclamation-triangle me-1"></i>
+                            {{ domain_config.verification_error }}
+                        </div>
+                        {% endif %}
+
+                        <!-- Action buttons -->
+                        <div class="d-flex gap-2 flex-wrap align-items-center">
+                            <button type="button" class="btn btn-primary" onclick="verifyDomain()">
+                                <i class="fas fa-sync-alt me-1"></i> Verify DNS
+                            </button>
+
+                            {% if domain_config.verification_status == 'verified' %}
+                                {% if is_admin %}
+                                <button type="button" class="btn btn-success" onclick="activateDomainFree()">
+                                    <i class="fas fa-bolt me-1"></i> Activate Free (Admin)
+                                </button>
+                                {% else %}
+                                    {% if user_slots.available > 0 %}
+                                    <button type="button" class="btn btn-success" onclick="activateDomain()">
+                                        <i class="fas fa-toggle-on me-1"></i> Activate (use 1 slot)
+                                    </button>
+                                    <small class="text-muted">{{ user_slots.available }} slot(s) available</small>
+                                    {% else %}
+                                    <button type="button" class="btn btn-warning" onclick="purchaseAndActivate()">
+                                        <i class="fas fa-shopping-cart me-1"></i> Buy Slot & Activate (${{ "%.2f"|format(slot_price) }})
+                                    </button>
+                                    <small class="text-muted">No slots available</small>
+                                    {% endif %}
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% else %}
+                    <!-- No domain configured - show setup option -->
+                    <details class="custom-domain-details" open>
+                        <summary class="d-flex align-items-center" style="cursor: pointer; list-style: none;">
+                            <i class="fas fa-globe text-muted me-2"></i>
+                            <strong>Connect Your Domain</strong>
+                            <i class="fas fa-chevron-down ms-2 text-muted" style="font-size: 0.75rem;"></i>
+                        </summary>
+                        <div class="mt-3">
+                            <!-- URL comparison - the hook -->
+                            <p class="text-muted mb-1">Make your landing page truly yours. Instead of:</p>
+                            <div class="mb-2 ps-3" style="font-family: monospace; font-size: 0.85rem;">
+                                <span class="text-muted text-decoration-line-through">{{ public_url }}</span>
+                            </div>
+                            <p class="text-muted mb-1">Your visitors will see:</p>
+                            <div class="mb-3 ps-3" style="font-family: monospace; font-size: 0.85rem;">
+                                <span class="text-success fw-bold" id="domainPreviewUrl">https://yourproduct.com/</span>
+                            </div>
+
+                            <!-- Benefits row -->
+                            <div class="row mb-3 small">
+                                <div class="col-6">
+                                    <i class="fas fa-check text-success me-1"></i> Professional branding
+                                </div>
+                                <div class="col-6">
+                                    <i class="fas fa-check text-success me-1"></i> Better SEO
+                                </div>
+                                <div class="col-6">
+                                    <i class="fas fa-check text-success me-1"></i> Easier to share
+                                </div>
+                                <div class="col-6">
+                                    <i class="fas fa-check text-success me-1"></i> Free SSL included
+                                </div>
+                            </div>
+
+                            <!-- Configuration form -->
+                            <form id="configureDomainForm" class="rounded p-3" style="background-color: var(--bg-tertiary, #202225); border: 1px solid var(--border-color, #40444b);">
+                                <label for="customDomainInput" class="form-label fw-semibold">Your Domain</label>
+                                <div class="input-group mb-2">
+                                    <span class="input-group-text">https://</span>
+                                    <input type="text" class="form-control" id="customDomainInput"
+                                           placeholder="myproduct.com" required>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-cog me-1"></i> Configure
+                                    </button>
+                                </div>
+                                {% if not is_admin %}
+                                <div class="d-flex align-items-center small text-muted">
+                                    <i class="fas fa-layer-group me-2"></i>
+                                    <span>Uses 1 domain slot</span>
+                                    {% if user_slots.available > 0 %}
+                                    <span class="ms-1 text-success">({{ user_slots.available }} available)</span>
+                                    {% else %}
+                                    <span class="ms-1">|</span>
+                                    <span class="ms-1 text-warning">${{ "%.2f"|format(slot_price) }} to add more</span>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </form>
+
+                            <!-- Buy domain hint -->
+                            <div class="mt-3 pt-2 small" style="border-top: 1px solid var(--border-color, #40444b);">
+                                <i class="fas fa-info-circle text-muted me-1"></i>
+                                <span class="text-muted">Don't have a domain yet? Get one at</span>
+                                <a href="https://www.namecheap.com/?utm_source=spark" target="_blank" rel="noopener" class="ms-1">
+                                    Namecheap <i class="fas fa-external-link-alt" style="font-size: 0.7rem;"></i>
+                                </a>
+                                <span class="text-muted">(from ~$10/year)</span>
+                            </div>
+                        </div>
+                    </details>
+                    {% endif %}
+                </div>
+        </div>
+
+        <!-- AI Wizard Section -->
+        <div class="section-container text-center">
+            <button type="button" class="btn btn-primary btn-lg" onclick="openAIWizard()">
+                <i class="fas fa-magic me-2"></i> Generate with AI
+            </button>
+            <p class="text-muted mt-2 mb-0">Let AI create or modify your landing page</p>
+            <small class="text-muted">
+                Requires <a href="https://docs.anthropic.com/en/docs/claude-code/getting-started" target="_blank" rel="noopener">Claude Code CLI</a>
+            </small>
+        </div>
+
+        <!-- Tabs -->
+        <ul class="nav nav-tabs" id="configTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="pages-tab" data-bs-toggle="tab" data-bs-target="#pages" type="button" role="tab">
+                    <i class="fas fa-file-code me-1"></i> Pages
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="components-tab" data-bs-toggle="tab" data-bs-target="#components" type="button" role="tab">
+                    <i class="fas fa-puzzle-piece me-1"></i> Components
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="images-tab" data-bs-toggle="tab" data-bs-target="#images" type="button" role="tab">
+                    <i class="fas fa-images me-1"></i> Images
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="registration-tab" data-bs-toggle="tab" data-bs-target="#registration" type="button" role="tab">
+                    <i class="fas fa-user-plus me-1"></i> Registration
+                </button>
+            </li>
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="tab-content">
+            <!-- Pages Tab -->
+            <div class="tab-pane fade show active" id="pages" role="tabpanel">
+                <div class="section-container">
+                        <table class="table table-pages mb-4">
+                            <thead>
+                                <tr>
+                                    <th>Page</th>
+                                    <th>URL Path</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for page in pages %}
+                                <tr>
+                                    <td>
+                                        <i class="fas fa-file-alt text-muted me-2"></i>
+                                        {{ page.name }}{% if page.is_home %} <span class="badge bg-primary">Main</span>{% endif %}
+                                    </td>
+                                    <td><code>{{ page.url_path }}</code></td>
+                                    <td class="text-end">
+                                        <a href="{{ public_url }}{{ page.name if not page.is_home else '' }}" target="_blank" class="btn btn-outline-secondary btn-sm btn-icon" title="View">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="/landing/{{ prompt.id }}/pages/{{ page.name }}/edit" class="btn btn-outline-primary btn-sm btn-icon" title="Edit">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        {% if not page.is_home %}
+                                        <button type="button" class="btn btn-outline-danger btn-sm btn-icon" onclick="deletePage('{{ page.name }}')" title="Delete">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted py-4">
+                                        No pages created yet. Add your first page below.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+
+                        <!-- Add New Page -->
+                        <form id="addPageForm" class="row g-2 align-items-end">
+                            <div class="col-auto">
+                                <label for="newPageName" class="form-label">New Page</label>
+                                <input type="text" class="form-control" id="newPageName" placeholder="e.g., pricing, about" pattern="[a-zA-Z0-9_-]+" required>
+                            </div>
+                            <div class="col-auto">
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-plus me-1"></i> Add Page
+                                </button>
+                            </div>
+                        </form>
+                </div>
+            </div>
+
+            <!-- Components Tab -->
+            <div class="tab-pane fade" id="components" role="tabpanel">
+                <div class="section-container">
+                        <!-- Components List -->
+                        {% for type_name, component_list in components.items() %}
+                        {% if component_list %}
+                        <h6 class="text-uppercase text-muted mb-2">
+                            {% if type_name == 'html' %}<i class="fas fa-code me-1"></i>{% elif type_name == 'css' %}<i class="fas fa-palette me-1"></i>{% else %}<i class="fas fa-cog me-1"></i>{% endif %}
+                            {{ type_name }} Components
+                        </h6>
+                        <ul class="list-group mb-4">
+                            {% for comp in component_list %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span>{{ comp }}</span>
+                                <div>
+                                    <a href="/landing/{{ prompt.id }}/components/{{ type_name }}/{{ comp }}/edit" class="btn btn-outline-primary btn-sm btn-icon" title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-outline-danger btn-sm btn-icon" onclick="deleteComponent('{{ type_name }}', '{{ comp }}')" title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                        {% endfor %}
+
+                        {% if not components.html and not components.css and not components.js %}
+                        <p class="text-center text-muted py-4">No components created yet.</p>
+                        {% endif %}
+
+                        <!-- Add New Component -->
+                        <form id="addComponentForm" class="row g-2 align-items-end mt-3">
+                            <div class="col-auto">
+                                <label for="componentName" class="form-label">New Component</label>
+                                <input type="text" name="component_name" class="form-control" id="componentName" placeholder="e.g., navbar, styles" required>
+                            </div>
+                            <div class="col-auto">
+                                <label class="form-label">Type</label>
+                                <div class="btn-group" role="group">
+                                    <input type="radio" class="btn-check" name="component_type" id="typeHtml" value="html" checked>
+                                    <label class="btn btn-outline-secondary" for="typeHtml">HTML</label>
+                                    <input type="radio" class="btn-check" name="component_type" id="typeCss" value="css">
+                                    <label class="btn btn-outline-secondary" for="typeCss">CSS</label>
+                                    <input type="radio" class="btn-check" name="component_type" id="typeJs" value="js">
+                                    <label class="btn btn-outline-secondary" for="typeJs">JS</label>
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-plus me-1"></i> Add Component
+                                </button>
+                            </div>
+                        </form>
+                </div>
+            </div>
+
+            <!-- Images Tab -->
+            <div class="tab-pane fade" id="images" role="tabpanel">
+                <div class="section-container">
+                        <!-- Upload Form -->
+                        <form id="imageUploadForm" enctype="multipart/form-data" class="mb-4">
+                            <div class="row g-2 align-items-end">
+                                <div class="col-auto">
+                                    <label for="imageFiles" class="form-label">Upload Images</label>
+                                    <input type="file" class="form-control" id="imageFiles" name="images" accept="image/*" multiple required>
+                                </div>
+                                <div class="col-auto">
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="fas fa-upload me-1"></i> Upload
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="imageNamesContainer" class="mt-2"></div>
+                        </form>
+
+                        <!-- Images Grid -->
+                        <div id="imagesGrid" class="image-grid">
+                            <!-- Images loaded dynamically -->
+                        </div>
+                        <p id="noImagesMsg" class="text-center text-muted py-4" style="display: none;">No images uploaded yet.</p>
+                </div>
+            </div>
+
+            <!-- Registration Tab -->
+            <div class="tab-pane fade" id="registration" role="tabpanel">
+                <div class="section-container">
+                    <div class="section-title">
+                        <i class="fas fa-user-plus"></i> Registration Settings
+                    </div>
+                    <p class="text-muted mb-3">Configure how users are created when registering from this landing page</p>
+                        <!-- Loading indicator -->
+                        <div id="regConfigLoading" class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status"></div>
+                            <p class="mt-2 text-muted">Loading configuration...</p>
+                        </div>
+
+                        <!-- Configuration form (hidden until loaded) -->
+                        <form id="regConfigForm" style="display: none;">
+                            <!-- Access Section -->
+                            <div class="mb-4">
+                                <h6 class="fw-semibold border-bottom pb-2"><i class="fas fa-key me-2 text-primary"></i>Access</h6>
+                                <div class="form-check mb-2">
+                                    <input type="checkbox" class="form-check-input" id="publicPromptsAccess" name="public_prompts_access">
+                                    <label class="form-check-label" for="publicPromptsAccess">
+                                        Allow access to public prompts
+                                    </label>
+                                    <div class="form-text">If unchecked, users can only see this prompt (captive users)</div>
+                                </div>
+
+                                <div id="categoryAccessSection" class="ms-4 mt-3" style="display: none;">
+                                    <label class="form-label">Category filter (optional)</label>
+                                    <select id="categoryAccess" class="form-select" multiple size="4">
+                                        <!-- Options loaded dynamically -->
+                                    </select>
+                                    <div class="form-text">Hold Ctrl/Cmd to select multiple. Leave empty for all categories.</div>
+                                </div>
+                            </div>
+
+                            <!-- Billing Section -->
+                            <div class="mb-4">
+                                <h6 class="fw-semibold border-bottom pb-2"><i class="fas fa-credit-card me-2 text-primary"></i>Billing Mode</h6>
+                                <div class="form-check">
+                                    <input type="radio" class="form-check-input" id="billingUserPays" name="billing_mode" value="user_pays" checked>
+                                    <label class="form-check-label" for="billingUserPays">
+                                        User pays their own balance
+                                    </label>
+                                    <div class="form-text">Users must add funds to their account to use AI</div>
+                                </div>
+                                <div class="form-check mt-2">
+                                    <input type="radio" class="form-check-input" id="billingManagerPays" name="billing_mode" value="manager_pays">
+                                    <label class="form-check-label" for="billingManagerPays">
+                                        I pay for this user (Team Mode)
+                                    </label>
+                                    <div class="form-text">AI usage costs will be deducted from your balance</div>
+                                </div>
+
+                                <div id="billingLimitSection" class="ms-4 mt-3" style="display: none;">
+                                    <div class="row g-2 align-items-end">
+                                        <div class="col-auto">
+                                            <label class="form-label">Monthly limit per user</label>
+                                            <div class="input-group" style="width: 180px;">
+                                                <span class="input-group-text">$</span>
+                                                <input type="text" class="form-control" id="billingLimit" name="billing_limit" placeholder="No limit" inputmode="decimal" pattern="[0-9]*\.?[0-9]*" oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')">
+                                            </div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <label class="form-label">When limit reached</label>
+                                            <select id="billingLimitAction" name="billing_limit_action" class="form-select" style="width: 160px;" onchange="toggleAutoRefillFields()">
+                                                <option value="block">Block user</option>
+                                                <option value="notify">Notify only</option>
+                                                <option value="auto_refill">Auto-refill</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="form-text">Leave empty for unlimited. Limit resets monthly.</div>
+
+                                    <div id="autoRefillFields" class="mt-3 p-2 border rounded bg-light" style="display: none;">
+                                        <div class="row g-2">
+                                            <div class="col-auto">
+                                                <label class="form-label small">Increment by</label>
+                                                <div class="input-group input-group-sm" style="width: 140px;">
+                                                    <span class="input-group-text">$</span>
+                                                    <input type="number" class="form-control" id="billingAutoRefillAmount" name="billing_auto_refill_amount" value="10" step="0.01" min="1">
+                                                </div>
+                                            </div>
+                                            <div class="col-auto">
+                                                <label class="form-label small">Max limit (optional)</label>
+                                                <div class="input-group input-group-sm" style="width: 140px;">
+                                                    <span class="input-group-text">$</span>
+                                                    <input type="number" class="form-control" id="billingMaxLimit" name="billing_max_limit" placeholder="No cap" step="0.01" min="0">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="form-text small">Auto-refill increases the limit automatically when reached</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- AI Model Section -->
+                            <div class="mb-4">
+                                <h6 class="fw-semibold border-bottom pb-2"><i class="fas fa-robot me-2 text-primary"></i>Default AI Model</h6>
+                                <select id="defaultLlmId" name="default_llm_id" class="form-select" style="max-width: 300px;">
+                                    <option value="">Use prompt's forced model (or system default)</option>
+                                    <!-- Options loaded dynamically -->
+                                </select>
+                                <div class="form-text">The AI model new users will have selected by default</div>
+                            </div>
+
+                            <!-- Permissions Section -->
+                            <div class="mb-4">
+                                <h6 class="fw-semibold border-bottom pb-2"><i class="fas fa-shield-alt me-2 text-primary"></i>Permissions</h6>
+                                <div class="form-check mb-2">
+                                    <input type="checkbox" class="form-check-input" id="allowFileUpload" name="allow_file_upload">
+                                    <label class="form-check-label" for="allowFileUpload">
+                                        Allow file upload
+                                    </label>
+                                    <div class="form-text">Users can upload files (images, PDFs, etc.) in chat</div>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="allowImageGeneration" name="allow_image_generation">
+                                    <label class="form-check-label" for="allowImageGeneration">
+                                        Allow image generation
+                                    </label>
+                                    <div class="form-text">Users can generate images with AI (DALL-E, etc.)</div>
+                                </div>
+                            </div>
+
+                            <!-- Balance Section -->
+                            <div class="mb-4" id="initialBalanceSection">
+                                <h6 class="fw-semibold border-bottom pb-2"><i class="fas fa-wallet me-2 text-primary"></i>Initial Balance</h6>
+                                <div class="input-group" style="max-width: 200px;">
+                                    <span class="input-group-text">$</span>
+                                    <input type="text" class="form-control" id="initialBalance" name="initial_balance" value="0.00" inputmode="decimal" pattern="[0-9]*\.?[0-9]*" oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')">
+                                </div>
+                                <div class="form-text">Starting balance for new users (only when "user pays" is selected)</div>
+                            </div>
+
+                            <!-- Summary Preview -->
+                            <div class="alert alert-info mb-4" id="regSummary">
+                                <strong><i class="fas fa-info-circle me-2"></i>Preview:</strong>
+                                <span id="regSummaryText">Users registering will have default settings.</span>
+                            </div>
+
+                            <!-- Save Button -->
+                            <div class="d-flex justify-content-end">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-1"></i> Save Registration Settings
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Error message -->
+                        <div id="regConfigError" class="alert alert-danger" style="display: none;"></div>
+
+                        <!-- Success message -->
+                        <div id="regConfigSuccess" class="alert alert-success" style="display: none;">
+                            <i class="fas fa-check-circle me-2"></i>Settings saved successfully!
+                        </div>
+                </div>
+            </div>
+        </div>
+
+    <!-- Mode Selection Modal -->
+    <div class="modal fade" id="modeModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="fas fa-magic me-2"></i>AI Landing Page Assistant</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Files summary -->
+                    <div id="modeFileSummary" class="alert alert-info mb-4">
+                        <i class="fas fa-folder-open me-2"></i>
+                        <span id="modeFileSummaryText">Loading files...</span>
+                    </div>
+
+                    <p class="mb-3">What would you like to do?</p>
+
+                    <!-- Mode options -->
+                    <div class="list-group">
+                        <button type="button" class="list-group-item list-group-item-action" onclick="selectMode('create')">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-plus-circle text-success me-3 fa-lg"></i>
+                                <div>
+                                    <strong>Create new landing page</strong>
+                                    <br><small class="text-muted">Generate a complete landing from scratch (replaces home.html)</small>
+                                </div>
+                            </div>
+                        </button>
+                        <button type="button" class="list-group-item list-group-item-action" id="modifyOption" onclick="selectMode('modify')">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-edit text-primary me-3 fa-lg"></i>
+                                <div>
+                                    <strong>Modify existing landing</strong>
+                                    <br><small class="text-muted">Ask Claude to improve, add sections, or make changes</small>
+                                </div>
+                            </div>
+                        </button>
+                        <button type="button" class="list-group-item list-group-item-action" id="freshOption" onclick="selectMode('fresh')">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-trash-alt text-danger me-3 fa-lg"></i>
+                                <div>
+                                    <strong>Start fresh (delete all)</strong>
+                                    <br><small class="text-muted">Remove all files and generate from scratch</small>
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modify Instructions Modal -->
+    <div class="modal fade" id="modifyModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Modify Existing Landing</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Current files info -->
+                    <div class="alert alert-secondary mb-4">
+                        <strong><i class="fas fa-folder-open me-2"></i>Current files:</strong>
+                        <div id="modifyFileList" class="mt-2 small"></div>
+                    </div>
+
+                    <!-- Instructions textarea -->
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">What would you like to change?</label>
+                        <textarea id="modifyInstructions" class="form-control" rows="5"
+                            placeholder="Example: Add a testimonials section with 3 customer reviews below the hero section..."></textarea>
+                    </div>
+
+                    <!-- Timeout -->
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Maximum execution time</label>
+                        <div class="input-group" style="max-width: 200px;">
+                            <input type="number" id="modifyTimeout" class="form-control" value="3" min="1" max="60">
+                            <span class="input-group-text">minutes</span>
+                        </div>
+                        <small class="text-muted">Max: 60 minutes.</small>
+                    </div>
+
+                    <!-- Examples -->
+                    <div class="small text-muted">
+                        <strong>Examples:</strong>
+                        <ul class="mb-0 mt-1">
+                            <li>"Add a FAQ section at the bottom"</li>
+                            <li>"Make the CTA buttons more prominent with the primary color"</li>
+                            <li>"Add a pricing table with 3 tiers: Basic, Pro, Enterprise"</li>
+                            <li>"Translate all text to English"</li>
+                            <li>"Use the logo.png image in the header"</li>
+                        </ul>
+                    </div>
+
+                    <!-- Progress indicator -->
+                    <div id="modifyProgress" class="text-center py-4" style="display: none;">
+                        <div class="spinner-border text-primary mb-3" role="status"></div>
+                        <p class="mb-0 fw-semibold">Applying modifications...</p>
+                        <small class="text-muted">Claude is reading your files and making changes...</small>
+                    </div>
+
+                    <!-- Error message -->
+                    <div id="modifyError" class="alert alert-danger mt-3" style="display: none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="modifyCancelBtn">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="modifyApplyBtn" onclick="applyModifications()">
+                        <i class="fas fa-check me-1"></i> Apply Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Fresh Start Modal -->
+    <div class="modal fade" id="freshConfirmModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>Confirm Delete All</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>This will delete all landing page files:</p>
+                    <ul id="freshDeleteList" class="text-danger"></ul>
+                    <p class="mb-0"><strong>Note:</strong> Images in <code>static/img/</code> will be preserved.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" onclick="confirmFreshStart()">
+                        <i class="fas fa-trash me-1"></i> Delete All & Continue
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Wizard Modal (Create New) -->
+    <div class="modal fade" id="wizardModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="fas fa-magic me-2"></i>Create New Landing Page</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Description -->
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Describe your product or service *</label>
+                        <textarea id="wizardDescription" class="form-control" rows="4"
+                            placeholder="Example: I'm a life coach specialized in productivity for entrepreneurs. I help busy professionals organize their time and achieve their goals through personalized coaching sessions..."></textarea>
+                        <small class="text-muted">The more detailed your description, the better the result.</small>
+                    </div>
+
+                    <!-- Style -->
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Visual style</label>
+                        <div class="btn-group d-flex" role="group">
+                            <input type="radio" class="btn-check" name="wizardStyle" id="styleModern" value="modern" checked>
+                            <label class="btn btn-outline-primary" for="styleModern">Modern</label>
+                            <input type="radio" class="btn-check" name="wizardStyle" id="styleMinimalist" value="minimalist">
+                            <label class="btn btn-outline-primary" for="styleMinimalist">Minimalist</label>
+                            <input type="radio" class="btn-check" name="wizardStyle" id="styleCorporate" value="corporate">
+                            <label class="btn btn-outline-primary" for="styleCorporate">Corporate</label>
+                            <input type="radio" class="btn-check" name="wizardStyle" id="styleCreative" value="creative">
+                            <label class="btn btn-outline-primary" for="styleCreative">Creative</label>
+                        </div>
+                    </div>
+
+                    <!-- Colors -->
+                    <div class="row mb-4">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Primary color</label>
+                            <div class="input-group">
+                                <input type="color" id="wizardPrimaryColor" class="form-control form-control-color" value="#3B82F6">
+                                <input type="text" id="wizardPrimaryColorText" class="form-control" value="#3B82F6" pattern="^#[0-9A-Fa-f]{6}$">
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Secondary color</label>
+                            <div class="input-group">
+                                <input type="color" id="wizardSecondaryColor" class="form-control form-control-color" value="#10B981">
+                                <input type="text" id="wizardSecondaryColorText" class="form-control" value="#10B981" pattern="^#[0-9A-Fa-f]{6}$">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Language -->
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Content language</label>
+                        <select id="wizardLanguage" class="form-select" style="max-width: 200px;">
+                            <option value="es">Spanish</option>
+                            <option value="en">English</option>
+                        </select>
+                    </div>
+
+                    <!-- Timeout -->
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Maximum execution time</label>
+                        <div class="input-group" style="max-width: 200px;">
+                            <input type="number" id="wizardTimeout" class="form-control" value="3" min="1" max="60">
+                            <span class="input-group-text">minutes</span>
+                        </div>
+                        <small class="text-muted">Complex pages may need more time. Max: 60 minutes.</small>
+                    </div>
+
+                    <!-- Warning if home.html exists -->
+                    {% if has_home_page %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Warning:</strong> A <code>home.html</code> already exists. Generating a new one will overwrite it.
+                    </div>
+                    {% endif %}
+
+                    <!-- Progress indicator -->
+                    <div id="wizardProgress" class="text-center py-4" style="display: none;">
+                        <div class="spinner-border text-primary mb-3" role="status"></div>
+                        <p class="mb-0 fw-semibold">Generating your landing page...</p>
+                        <small class="text-muted">Please wait...</small>
+                    </div>
+
+                    <!-- Error message -->
+                    <div id="wizardError" class="alert alert-danger" style="display: none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="wizardCancelBtn">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="wizardGenerateBtn" onclick="generateLanding()">
+                        <i class="fas fa-wand-magic-sparkles me-1"></i> Generate Landing Page
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ get_static_url('/static/js/fullsize-viewer.js') }}"></script>
+{% endblock %}
+
+{% block scripts_inline %}
+    <script>
+        const promptId = {{ prompt.id }};
+        const standardUrl = '{{ public_url }}';
+        {% if domain_config and domain_config.is_active %}
+        const activeCustomDomain = 'https://{{ domain_config.domain }}/';
+        {% else %}
+        const activeCustomDomain = null;
+        {% endif %}
+
+        // === AI Job Polling System ===
+        let activeJobTaskId = null;
+        let pollingInterval = null;
+        const POLLING_INTERVAL_MS = 4000; // Poll every 4 seconds
+
+        async function pollJobStatus(taskId, onComplete, onError, progressElement, errorElement) {
+            try {
+                const response = await secureFetch(`/api/landing/${promptId}/ai/status/${taskId}`);
+                if (!response) {
+                    // Session expired, stop polling
+                    stopPolling();
+                    return;
+                }
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    onError(data.message || 'Failed to get job status');
+                    stopPolling();
+                    return;
+                }
+
+                // Update progress message based on status
+                if (data.status === 'running') {
+                    const elapsed = Math.round((Date.now() - new Date(data.started_at).getTime()) / 1000);
+                    const progressSmall = progressElement.querySelector('small');
+                    if (progressSmall) {
+                        progressSmall.textContent = `Claude is working... (${elapsed}s elapsed)`;
+                    }
+                }
+
+                // Check terminal states
+                if (data.status === 'completed') {
+                    stopPolling();
+                    onComplete(data);
+                } else if (data.status === 'failed' || data.status === 'timeout') {
+                    stopPolling();
+                    onError(data.error || `Job ${data.status}`);
+                }
+                // Otherwise keep polling (pending, running)
+
+            } catch (err) {
+                console.error('Polling error:', err);
+                // Don't stop polling on transient network errors, let it retry
+            }
+        }
+
+        function startPolling(taskId, onComplete, onError, progressElement, errorElement) {
+            activeJobTaskId = taskId;
+            // Poll immediately, then at intervals
+            pollJobStatus(taskId, onComplete, onError, progressElement, errorElement);
+            pollingInterval = setInterval(() => {
+                pollJobStatus(taskId, onComplete, onError, progressElement, errorElement);
+            }, POLLING_INTERVAL_MS);
+        }
+
+        function stopPolling() {
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+            }
+            activeJobTaskId = null;
+        }
+
+        // Check for active job on page load (to resume polling if page was refreshed)
+        async function checkActiveJob() {
+            try {
+                const response = await secureFetch(`/api/landing/${promptId}/ai/active-job`);
+                if (!response) return;
+
+                const data = await response.json();
+                if (data.success && data.has_active_job) {
+                    // Show a notification that a job is in progress
+                    NotificationModal.info(
+                        'Job In Progress',
+                        `A ${data.type} job is currently running. Task ID: ${data.task_id.substring(0, 8)}...`
+                    );
+
+                    // Could optionally show a persistent UI indicator here
+                    // For now just inform the user
+                }
+            } catch (err) {
+                console.error('Error checking active job:', err);
+            }
+        }
+
+        // Check on page load
+        document.addEventListener('DOMContentLoaded', checkActiveJob);
+
+        // Copy URL to clipboard (copies custom domain if active, standard URL otherwise)
+        function copyUrl() {
+            const urlToCopy = activeCustomDomain || standardUrl;
+            navigator.clipboard.writeText(urlToCopy).then(() => {
+                NotificationModal.success('Copied!', 'URL copied to clipboard!');
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+            });
+        }
+
+        // Add new page
+        document.getElementById('addPageForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const pageName = document.getElementById('newPageName').value.trim().toLowerCase();
+
+            if (!pageName || !/^[a-zA-Z0-9_-]+$/.test(pageName)) {
+                NotificationModal.warning('Invalid Page Name', 'Use only letters, numbers, underscores, and hyphens.');
+                return;
+            }
+
+            try {
+                const response = await secureFetch(`/api/landing/${promptId}/pages`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ page_name: pageName })
+                });
+                if (!response) return; // Session expired
+
+                const data = await response.json();
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    NotificationModal.error('Page Creation Failed', data.message || 'Error creating page');
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                NotificationModal.error('Page Creation Failed', 'Error creating page');
+            }
+        });
+
+        // Delete page
+        async function deletePage(pageName) {
+            if (!confirm(`Are you sure you want to delete the page "${pageName}"?`)) return;
+
+            try {
+                const response = await secureFetch(`/api/landing/${promptId}/pages/${pageName}`, {
+                    method: 'DELETE'
+                });
+                if (!response) return; // Session expired
+
+                const data = await response.json();
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    NotificationModal.error('Page Deletion Failed', data.message || 'Error deleting page');
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                NotificationModal.error('Page Deletion Failed', 'Error deleting page');
+            }
+        }
+
+        // Delete component
+        async function deleteComponent(type, name) {
+            if (!confirm(`Are you sure you want to delete the component "${name}"?`)) return;
+
+            try {
+                const response = await secureFetch(`/api/landing/${promptId}/components/${type}/${name}`, {
+                    method: 'DELETE'
+                });
+                if (!response) return; // Session expired
+
+                const data = await response.json();
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    NotificationModal.error('Component Deletion Failed', data.message || 'Error deleting component');
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                NotificationModal.error('Component Deletion Failed', 'Error deleting component');
+            }
+        }
+
+        // Image upload
+        document.getElementById('imageFiles').addEventListener('change', function() {
+            const container = document.getElementById('imageNamesContainer');
+            container.innerHTML = '';
+            for (let i = 0; i < this.files.length; i++) {
+                const file = this.files[i];
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.name = 'names';
+                input.className = 'form-control form-control-sm mt-1';
+                input.value = file.name.split('.')[0];
+                input.placeholder = `Name for ${file.name}`;
+                container.appendChild(input);
+            }
+        });
+
+        document.getElementById('imageUploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const form = this;
+
+            try {
+                const response = await secureFetch(`/api/landing/${promptId}/images`, {
+                    method: 'POST',
+                    body: formData
+                });
+                if (!response) return; // Session expired
+
+                const data = await response.json();
+                if (data.message) {
+                    NotificationModal.info('Image Upload', data.message);
+                    loadImages();
+                    form.reset();
+                    document.getElementById('imageNamesContainer').innerHTML = '';
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                NotificationModal.error('Upload Failed', 'Error uploading images');
+            }
+        });
+
+        // Load images
+        async function loadImages() {
+            try {
+                const response = await secureFetch(`/api/landing/${promptId}/images`);
+                if (!response) return; // Session expired
+
+                const data = await response.json();
+                const grid = document.getElementById('imagesGrid');
+                const noMsg = document.getElementById('noImagesMsg');
+                grid.innerHTML = '';
+
+                if (!data.images || data.images.length === 0) {
+                    noMsg.style.display = 'block';
+                    return;
+                }
+
+                noMsg.style.display = 'none';
+                // Update viewer with images array
+                FullsizeViewer.setImages(data.images);
+
+                data.images.forEach((image, index) => {
+                    const card = document.createElement('div');
+                    card.className = 'image-container';
+                    card.innerHTML = `
+                        <img src="${image.url}" alt="${image.name}" loading="lazy"
+                             onclick="FullsizeViewer.show('${image.url}', ${index})" style="cursor: pointer;">
+                        <div class="image-name" title="${image.name}">${image.name}</div>
+                        <div class="p-2 pt-0">
+                            <button onclick="deleteImage('${image.id}')" class="btn btn-outline-danger btn-sm w-100">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                });
+            } catch (err) {
+                console.error('Error loading images:', err);
+            }
+        }
+
+        // Delete image
+        async function deleteImage(imageId) {
+            if (!confirm('Are you sure you want to delete this image?')) return;
+
+            try {
+                const response = await secureFetch(`/api/landing/${promptId}/images/${imageId}`, {
+                    method: 'DELETE'
+                });
+                if (!response) return; // Session expired
+
+                const data = await response.json();
+                NotificationModal.info('Image Deleted', data.message);
+                loadImages();
+            } catch (err) {
+                console.error('Error:', err);
+                NotificationModal.error('Image Deletion Failed', 'Error deleting image');
+            }
+        }
+
+        // Initialize fullsize viewer
+        FullsizeViewer.init({
+            showNav: true,
+            showDownload: true,
+            showDelete: false,  // Delete handled by individual buttons
+            transformUrl: false // Show original image, not _fullsize variant
+        });
+
+        // Load images on page load
+        document.addEventListener('DOMContentLoaded', loadImages);
+
+        // === AI Wizard ===
+
+        // Sync color pickers with text inputs
+        document.getElementById('wizardPrimaryColor').addEventListener('input', function() {
+            document.getElementById('wizardPrimaryColorText').value = this.value;
+        });
+        document.getElementById('wizardPrimaryColorText').addEventListener('input', function() {
+            if (/^#[0-9A-Fa-f]{6}$/.test(this.value)) {
+                document.getElementById('wizardPrimaryColor').value = this.value;
+            }
+        });
+        document.getElementById('wizardSecondaryColor').addEventListener('input', function() {
+            document.getElementById('wizardSecondaryColorText').value = this.value;
+        });
+        document.getElementById('wizardSecondaryColorText').addEventListener('input', function() {
+            if (/^#[0-9A-Fa-f]{6}$/.test(this.value)) {
+                document.getElementById('wizardSecondaryColor').value = this.value;
+            }
+        });
+
+        async function generateLanding() {
+            const description = document.getElementById('wizardDescription').value.trim();
+            if (!description) {
+                NotificationModal.warning('Description Required', 'Please describe your product or service');
+                document.getElementById('wizardDescription').focus();
+                return;
+            }
+
+            if (description.length < 20) {
+                NotificationModal.warning('Description Too Short', 'Please provide a more detailed description (at least 20 characters)');
+                document.getElementById('wizardDescription').focus();
+                return;
+            }
+
+            const style = document.querySelector('input[name="wizardStyle"]:checked').value;
+            const primaryColor = document.getElementById('wizardPrimaryColor').value;
+            const secondaryColor = document.getElementById('wizardSecondaryColor').value;
+            const language = document.getElementById('wizardLanguage').value;
+
+            // Get and validate timeout (1-60 minutes)
+            let timeoutMinutes = parseInt(document.getElementById('wizardTimeout').value, 10) || 5;
+            timeoutMinutes = Math.max(1, Math.min(60, timeoutMinutes));
+
+            const progressElement = document.getElementById('wizardProgress');
+            const errorElement = document.getElementById('wizardError');
+
+            // Update progress message
+            progressElement.querySelector('small').textContent = 'Starting job...';
+
+            // Show progress, disable buttons
+            progressElement.style.display = 'block';
+            errorElement.style.display = 'none';
+            document.getElementById('wizardGenerateBtn').disabled = true;
+            document.getElementById('wizardCancelBtn').disabled = true;
+
+            try {
+                // Start the background job
+                const response = await secureFetch(`/api/landing/${promptId}/ai/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        description,
+                        style,
+                        primary_color: primaryColor,
+                        secondary_color: secondaryColor,
+                        language,
+                        timeout_minutes: timeoutMinutes
+                    })
+                });
+                if (!response) return; // Session expired
+
+                const data = await response.json();
+
+                if (data.success && data.task_id) {
+                    // Job started, begin polling
+                    progressElement.querySelector('small').textContent = 'Claude is working...';
+
+                    startPolling(
+                        data.task_id,
+                        // onComplete
+                        (result) => {
+                            bootstrap.Modal.getInstance(document.getElementById('wizardModal')).hide();
+                            const filesCreated = result.files_created ? result.files_created.join(', ') : 'home.html';
+                            NotificationModal.success('Landing Page Generated!', 'Files created: ' + filesCreated);
+                            window.location.reload();
+                        },
+                        // onError
+                        (errorMsg) => {
+                            errorElement.textContent = errorMsg;
+                            errorElement.style.display = 'block';
+                            progressElement.style.display = 'none';
+                            document.getElementById('wizardGenerateBtn').disabled = false;
+                            document.getElementById('wizardCancelBtn').disabled = false;
+                        },
+                        progressElement,
+                        errorElement
+                    );
+                } else {
+                    // Failed to start job
+                    errorElement.textContent = data.message || 'Failed to start job';
+                    errorElement.style.display = 'block';
+                    progressElement.style.display = 'none';
+                    document.getElementById('wizardGenerateBtn').disabled = false;
+                    document.getElementById('wizardCancelBtn').disabled = false;
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                errorElement.textContent = 'Network error. Please try again.';
+                errorElement.style.display = 'block';
+                progressElement.style.display = 'none';
+                document.getElementById('wizardGenerateBtn').disabled = false;
+                document.getElementById('wizardCancelBtn').disabled = false;
+            }
+        }
+
+        // === Mode Selection System ===
+
+        let currentFiles = null;
+
+        async function openAIWizard() {
+            // Fetch existing files first
+            try {
+                const response = await secureFetch(`/api/landing/${promptId}/files`);
+                if (!response) return; // Session expired
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    NotificationModal.error('File Check Error', data.message || 'Unknown error');
+                    return;
+                }
+
+                currentFiles = data.files;
+
+                if (currentFiles.total_count === 0) {
+                    // No files exist, go directly to create wizard
+                    new bootstrap.Modal(document.getElementById('wizardModal')).show();
+                } else {
+                    // Files exist, show mode selection
+                    showModeSelection();
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                NotificationModal.error('File Check Error', 'Error checking existing files');
+            }
+        }
+
+        function showModeSelection() {
+            // Build file summary
+            const parts = [];
+            if (currentFiles.pages.length > 0) {
+                parts.push(`${currentFiles.pages.length} page(s)`);
+            }
+            if (currentFiles.css.length > 0) {
+                parts.push(`${currentFiles.css.length} CSS file(s)`);
+            }
+            if (currentFiles.js.length > 0) {
+                parts.push(`${currentFiles.js.length} JS file(s)`);
+            }
+            if (currentFiles.images.length > 0) {
+                parts.push(`${currentFiles.images.length} image(s)`);
+            }
+
+            const summaryText = parts.length > 0
+                ? `Current files: ${parts.join(', ')}`
+                : 'No files found';
+
+            document.getElementById('modeFileSummaryText').textContent = summaryText;
+
+            // Enable/disable modify option based on whether files exist
+            const modifyOption = document.getElementById('modifyOption');
+            if (currentFiles.pages.length === 0) {
+                modifyOption.classList.add('disabled');
+                modifyOption.style.opacity = '0.5';
+                modifyOption.style.pointerEvents = 'none';
+            } else {
+                modifyOption.classList.remove('disabled');
+                modifyOption.style.opacity = '1';
+                modifyOption.style.pointerEvents = 'auto';
+            }
+
+            // Enable/disable fresh option based on whether files exist
+            const freshOption = document.getElementById('freshOption');
+            if (currentFiles.total_count === 0) {
+                freshOption.classList.add('disabled');
+                freshOption.style.opacity = '0.5';
+                freshOption.style.pointerEvents = 'none';
+            } else {
+                freshOption.classList.remove('disabled');
+                freshOption.style.opacity = '1';
+                freshOption.style.pointerEvents = 'auto';
+            }
+
+            new bootstrap.Modal(document.getElementById('modeModal')).show();
+        }
+
+        function selectMode(mode) {
+            // Close mode selection modal
+            bootstrap.Modal.getInstance(document.getElementById('modeModal')).hide();
+
+            setTimeout(() => {
+                if (mode === 'create') {
+                    // Open create wizard
+                    new bootstrap.Modal(document.getElementById('wizardModal')).show();
+                } else if (mode === 'modify') {
+                    // Open modify modal
+                    showModifyModal();
+                } else if (mode === 'fresh') {
+                    // Show confirmation
+                    showFreshConfirmation();
+                }
+            }, 300);
+        }
+
+        function showModifyModal() {
+            // Build file list for display
+            const fileListHtml = [];
+
+            if (currentFiles.pages.length > 0) {
+                fileListHtml.push(`<strong>Pages:</strong> ${currentFiles.pages.join(', ')}`);
+            }
+            if (currentFiles.css.length > 0) {
+                fileListHtml.push(`<strong>CSS:</strong> ${currentFiles.css.join(', ')}`);
+            }
+            if (currentFiles.js.length > 0) {
+                fileListHtml.push(`<strong>JS:</strong> ${currentFiles.js.join(', ')}`);
+            }
+            if (currentFiles.images.length > 0) {
+                fileListHtml.push(`<strong>Images:</strong> ${currentFiles.images.join(', ')}`);
+            }
+
+            document.getElementById('modifyFileList').innerHTML = fileListHtml.join('<br>') || 'No files';
+            document.getElementById('modifyInstructions').value = '';
+            document.getElementById('modifyError').style.display = 'none';
+
+            new bootstrap.Modal(document.getElementById('modifyModal')).show();
+        }
+
+        async function applyModifications() {
+            const instructions = document.getElementById('modifyInstructions').value.trim();
+
+            if (!instructions) {
+                NotificationModal.warning('Instructions Required', 'Please describe what changes you want to make');
+                document.getElementById('modifyInstructions').focus();
+                return;
+            }
+
+            if (instructions.length < 10) {
+                NotificationModal.warning('Instructions Too Short', 'Please provide more detailed instructions (at least 10 characters)');
+                document.getElementById('modifyInstructions').focus();
+                return;
+            }
+
+            // Get and validate timeout (1-60 minutes)
+            let timeoutMinutes = parseInt(document.getElementById('modifyTimeout').value, 10) || 5;
+            timeoutMinutes = Math.max(1, Math.min(60, timeoutMinutes));
+
+            const progressElement = document.getElementById('modifyProgress');
+            const errorElement = document.getElementById('modifyError');
+
+            // Update progress message
+            progressElement.querySelector('small').textContent = 'Starting job...';
+
+            // Show progress
+            progressElement.style.display = 'block';
+            errorElement.style.display = 'none';
+            document.getElementById('modifyApplyBtn').disabled = true;
+            document.getElementById('modifyCancelBtn').disabled = true;
+
+            try {
+                // Start the background job
+                const response = await secureFetch(`/api/landing/${promptId}/ai/modify`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ instructions, timeout_minutes: timeoutMinutes })
+                });
+                if (!response) return; // Session expired
+
+                const data = await response.json();
+
+                if (data.success && data.task_id) {
+                    // Job started, begin polling
+                    progressElement.querySelector('small').textContent = 'Claude is reading your files and making changes...';
+
+                    startPolling(
+                        data.task_id,
+                        // onComplete
+                        (result) => {
+                            bootstrap.Modal.getInstance(document.getElementById('modifyModal')).hide();
+                            NotificationModal.success('Modifications Applied!', 'Your changes have been applied successfully.');
+                            window.location.reload();
+                        },
+                        // onError
+                        (errorMsg) => {
+                            errorElement.textContent = errorMsg;
+                            errorElement.style.display = 'block';
+                            progressElement.style.display = 'none';
+                            document.getElementById('modifyApplyBtn').disabled = false;
+                            document.getElementById('modifyCancelBtn').disabled = false;
+                        },
+                        progressElement,
+                        errorElement
+                    );
+                } else {
+                    // Failed to start job
+                    errorElement.textContent = data.message || 'Failed to start job';
+                    errorElement.style.display = 'block';
+                    progressElement.style.display = 'none';
+                    document.getElementById('modifyApplyBtn').disabled = false;
+                    document.getElementById('modifyCancelBtn').disabled = false;
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                errorElement.textContent = 'Network error. Please try again.';
+                errorElement.style.display = 'block';
+                progressElement.style.display = 'none';
+                document.getElementById('modifyApplyBtn').disabled = false;
+                document.getElementById('modifyCancelBtn').disabled = false;
+            }
+        }
+
+        function showFreshConfirmation() {
+            // Build delete list
+            const deleteItems = [];
+
+            if (currentFiles.pages.length > 0) {
+                currentFiles.pages.forEach(p => deleteItems.push(`<li>${p}</li>`));
+            }
+            if (currentFiles.css.length > 0) {
+                currentFiles.css.forEach(c => deleteItems.push(`<li>static/css/${c}</li>`));
+            }
+            if (currentFiles.js.length > 0) {
+                currentFiles.js.forEach(j => deleteItems.push(`<li>static/js/${j}</li>`));
+            }
+            if (currentFiles.other.length > 0) {
+                currentFiles.other.forEach(o => deleteItems.push(`<li>${o}</li>`));
+            }
+
+            document.getElementById('freshDeleteList').innerHTML = deleteItems.join('') || '<li>No files to delete</li>';
+
+            new bootstrap.Modal(document.getElementById('freshConfirmModal')).show();
+        }
+
+        async function confirmFreshStart() {
+            try {
+                // Delete all files
+                const response = await secureFetch(`/api/landing/${promptId}/files`, {
+                    method: 'DELETE'
+                });
+                if (!response) return; // Session expired
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Close confirmation modal
+                    bootstrap.Modal.getInstance(document.getElementById('freshConfirmModal')).hide();
+
+                    // Open create wizard
+                    setTimeout(() => {
+                        new bootstrap.Modal(document.getElementById('wizardModal')).show();
+                    }, 300);
+                } else {
+                    NotificationModal.error('File Deletion Failed', data.message || 'Unknown error');
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                NotificationModal.error('File Deletion Failed', 'Error deleting files');
+            }
+        }
+
+        // === Registration Configuration ===
+
+        let regConfig = null;
+        let availableLlms = [];
+        let availableCategories = [];
+
+        // Load registration config when tab is shown
+        document.getElementById('registration-tab').addEventListener('shown.bs.tab', loadRegConfig);
+
+        async function loadRegConfig() {
+            // Only load once
+            if (regConfig !== null) return;
+
+            try {
+                const response = await secureFetch(`/api/landing/${promptId}/registration`);
+                if (!response) return; // Session expired
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    showRegError(data.message || 'Failed to load configuration');
+                    return;
+                }
+
+                regConfig = data.config;
+                availableLlms = data.available_llms || [];
+                availableCategories = data.available_categories || [];
+
+                // Populate LLM dropdown
+                const llmSelect = document.getElementById('defaultLlmId');
+                availableLlms.forEach(llm => {
+                    const option = document.createElement('option');
+                    option.value = llm.id;
+                    option.textContent = llm.name;
+                    llmSelect.appendChild(option);
+                });
+
+                // Populate categories dropdown
+                const catSelect = document.getElementById('categoryAccess');
+                availableCategories.forEach(cat => {
+                    const option = document.createElement('option');
+                    option.value = cat.id;
+                    option.textContent = cat.name;
+                    catSelect.appendChild(option);
+                });
+
+                // Fill form with current values
+                populateRegForm(regConfig);
+
+                // Hide loading, show form
+                document.getElementById('regConfigLoading').style.display = 'none';
+                document.getElementById('regConfigForm').style.display = 'block';
+
+            } catch (err) {
+                console.error('Error loading registration config:', err);
+                showRegError('Error loading configuration');
+            }
+        }
+
+        function populateRegForm(config) {
+            // Access
+            document.getElementById('publicPromptsAccess').checked = config.public_prompts_access !== false;
+            toggleCategorySection();
+
+            // Category access
+            if (config.category_access && Array.isArray(config.category_access)) {
+                const catSelect = document.getElementById('categoryAccess');
+                config.category_access.forEach(catId => {
+                    const option = catSelect.querySelector(`option[value="${catId}"]`);
+                    if (option) option.selected = true;
+                });
+            }
+
+            // Billing
+            if (config.billing_mode === 'manager_pays') {
+                document.getElementById('billingManagerPays').checked = true;
+            } else {
+                document.getElementById('billingUserPays').checked = true;
+            }
+            toggleBillingSection();
+
+            if (config.billing_limit !== null && config.billing_limit !== undefined) {
+                document.getElementById('billingLimit').value = config.billing_limit;
+            }
+            document.getElementById('billingLimitAction').value = config.billing_limit_action || 'block';
+
+            // Auto-refill settings
+            if (config.billing_auto_refill_amount !== null && config.billing_auto_refill_amount !== undefined) {
+                document.getElementById('billingAutoRefillAmount').value = config.billing_auto_refill_amount;
+            }
+            if (config.billing_max_limit !== null && config.billing_max_limit !== undefined) {
+                document.getElementById('billingMaxLimit').value = config.billing_max_limit;
+            }
+            toggleAutoRefillFields();
+
+            // LLM
+            if (config.default_llm_id) {
+                document.getElementById('defaultLlmId').value = config.default_llm_id;
+            }
+
+            // Permissions
+            document.getElementById('allowFileUpload').checked = config.allow_file_upload === true;
+            document.getElementById('allowImageGeneration').checked = config.allow_image_generation === true;
+
+            // Balance
+            document.getElementById('initialBalance').value = config.initial_balance || 0;
+            toggleBalanceSection();
+
+            // Update summary
+            updateRegSummary();
+        }
+
+        function toggleCategorySection() {
+            const show = document.getElementById('publicPromptsAccess').checked;
+            document.getElementById('categoryAccessSection').style.display = show ? 'block' : 'none';
+        }
+
+        function toggleBillingSection() {
+            const managerPays = document.getElementById('billingManagerPays').checked;
+            document.getElementById('billingLimitSection').style.display = managerPays ? 'block' : 'none';
+            toggleBalanceSection();
+            toggleAutoRefillFields();
+        }
+
+        function toggleAutoRefillFields() {
+            const autoRefillSelected = document.getElementById('billingLimitAction').value === 'auto_refill';
+            document.getElementById('autoRefillFields').style.display = autoRefillSelected ? 'block' : 'none';
+        }
+
+        function toggleBalanceSection() {
+            const userPays = document.getElementById('billingUserPays').checked;
+            document.getElementById('initialBalanceSection').style.display = userPays ? 'block' : 'none';
+        }
+
+        function updateRegSummary() {
+            const parts = [];
+
+            // Access
+            if (!document.getElementById('publicPromptsAccess').checked) {
+                parts.push('captive (only this prompt)');
+            } else {
+                const selectedCats = Array.from(document.getElementById('categoryAccess').selectedOptions);
+                if (selectedCats.length > 0) {
+                    parts.push(`access to ${selectedCats.length} categor${selectedCats.length === 1 ? 'y' : 'ies'}`);
+                } else {
+                    parts.push('access to all public prompts');
+                }
+            }
+
+            // Billing
+            if (document.getElementById('billingManagerPays').checked) {
+                const limit = document.getElementById('billingLimit').value;
+                if (limit && parseFloat(limit) > 0) {
+                    parts.push(`you pay (max $${parseFloat(limit).toFixed(2)}/month)`);
+                } else {
+                    parts.push('you pay (unlimited)');
+                }
+            } else {
+                const balance = document.getElementById('initialBalance').value;
+                if (balance && parseFloat(balance) > 0) {
+                    parts.push(`user pays (starts with $${parseFloat(balance).toFixed(2)})`);
+                } else {
+                    parts.push('user pays ($0 start)');
+                }
+            }
+
+            // Permissions
+            const perms = [];
+            if (document.getElementById('allowFileUpload').checked) perms.push('file upload');
+            if (document.getElementById('allowImageGeneration').checked) perms.push('image gen');
+            if (perms.length > 0) {
+                parts.push(perms.join(' + '));
+            }
+
+            // LLM
+            const llmSelect = document.getElementById('defaultLlmId');
+            if (llmSelect.value) {
+                const llmName = llmSelect.options[llmSelect.selectedIndex].text;
+                parts.push(`default: ${llmName}`);
+            }
+
+            document.getElementById('regSummaryText').textContent =
+                parts.length > 0 ? `Users registering will have: ${parts.join(', ')}` : 'Users will have default settings.';
+        }
+
+        // Event listeners for form changes
+        document.getElementById('publicPromptsAccess').addEventListener('change', () => {
+            toggleCategorySection();
+            updateRegSummary();
+        });
+        document.getElementById('billingUserPays').addEventListener('change', () => {
+            toggleBillingSection();
+            updateRegSummary();
+        });
+        document.getElementById('billingManagerPays').addEventListener('change', () => {
+            toggleBillingSection();
+            updateRegSummary();
+        });
+        document.getElementById('billingLimit').addEventListener('input', updateRegSummary);
+        document.getElementById('defaultLlmId').addEventListener('change', updateRegSummary);
+        document.getElementById('allowFileUpload').addEventListener('change', updateRegSummary);
+        document.getElementById('allowImageGeneration').addEventListener('change', updateRegSummary);
+        document.getElementById('initialBalance').addEventListener('input', updateRegSummary);
+        document.getElementById('categoryAccess').addEventListener('change', updateRegSummary);
+
+        // Form submit
+        document.getElementById('regConfigForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            // Collect form data
+            const formData = {
+                public_prompts_access: document.getElementById('publicPromptsAccess').checked,
+                billing_mode: document.querySelector('input[name="billing_mode"]:checked').value,
+                billing_limit: document.getElementById('billingLimit').value || null,
+                billing_limit_action: document.getElementById('billingLimitAction').value,
+                billing_auto_refill_amount: parseFloat(document.getElementById('billingAutoRefillAmount').value) || 10.0,
+                billing_max_limit: document.getElementById('billingMaxLimit').value ? parseFloat(document.getElementById('billingMaxLimit').value) : null,
+                default_llm_id: document.getElementById('defaultLlmId').value || null,
+                allow_file_upload: document.getElementById('allowFileUpload').checked,
+                allow_image_generation: document.getElementById('allowImageGeneration').checked,
+                initial_balance: parseFloat(document.getElementById('initialBalance').value) || 0
+            };
+
+            // Category access (only if public prompts enabled)
+            if (formData.public_prompts_access) {
+                const selectedCats = Array.from(document.getElementById('categoryAccess').selectedOptions).map(o => parseInt(o.value));
+                formData.category_access = selectedCats.length > 0 ? selectedCats : null;
+            } else {
+                formData.category_access = null;
+            }
+
+            // Convert billing_limit to number or null
+            if (formData.billing_limit) {
+                formData.billing_limit = parseFloat(formData.billing_limit);
+            }
+
+            // Convert default_llm_id to number or null
+            if (formData.default_llm_id) {
+                formData.default_llm_id = parseInt(formData.default_llm_id);
+            }
+
+            try {
+                hideRegMessages();
+
+                const response = await secureFetch(`/api/landing/${promptId}/registration`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData)
+                });
+                if (!response) return; // Session expired
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showRegSuccess();
+                    // Update local config
+                    regConfig = { ...regConfig, ...formData };
+                } else {
+                    showRegError(data.message || 'Failed to save settings');
+                }
+            } catch (err) {
+                console.error('Error saving registration config:', err);
+                showRegError('Error saving settings');
+            }
+        });
+
+        function showRegError(message) {
+            document.getElementById('regConfigError').textContent = message;
+            document.getElementById('regConfigError').style.display = 'block';
+            document.getElementById('regConfigSuccess').style.display = 'none';
+        }
+
+        function showRegSuccess() {
+            document.getElementById('regConfigSuccess').style.display = 'block';
+            document.getElementById('regConfigError').style.display = 'none';
+            setTimeout(() => {
+                document.getElementById('regConfigSuccess').style.display = 'none';
+            }, 3000);
+        }
+
+        function hideRegMessages() {
+            document.getElementById('regConfigError').style.display = 'none';
+            document.getElementById('regConfigSuccess').style.display = 'none';
+        }
+
+        // === Custom Domain Functions ===
+
+        const SLOT_PRICE = {{ slot_price }};
+
+        // Configure domain form
+        const configureDomainForm = document.getElementById('configureDomainForm');
+        if (configureDomainForm) {
+            // Live preview while typing
+            const domainInput = document.getElementById('customDomainInput');
+            const previewUrl = document.getElementById('domainPreviewUrl');
+            if (domainInput && previewUrl) {
+                domainInput.addEventListener('input', function() {
+                    const sanitized = this.value.trim().toLowerCase().replace(/[^a-z0-9.-]/g, '');
+                    previewUrl.textContent = sanitized ? `https://${sanitized}/` : 'https://yourproduct.com/';
+                });
+            }
+
+            configureDomainForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const domain = document.getElementById('customDomainInput').value.trim().toLowerCase();
+
+                if (!domain) {
+                    NotificationModal.warning('Domain Required', 'Please enter a domain');
+                    return;
+                }
+
+                try {
+                    const response = await secureFetch(`/api/domains/${promptId}/configure`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ domain })
+                    });
+                    if (!response) return; // Session expired
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        NotificationModal.success('Domain Configured!', `Next step: Point your CNAME to:\n${data.cname_target}`);
+                        window.location.reload();
+                    } else {
+                        NotificationModal.error('Domain Configuration Failed', data.detail || data.message || 'Error configuring domain');
+                    }
+                } catch (err) {
+                    console.error('Error:', err);
+                    NotificationModal.error('Domain Configuration Failed', 'Error configuring domain');
+                }
+            });
+        }
+
+        async function verifyDomain() {
+            try {
+                const response = await secureFetch(`/api/domains/${promptId}/verify`, {
+                    method: 'POST'
+                });
+                if (!response) return; // Session expired
+
+                const data = await response.json();
+
+                if (data.success) {
+                    NotificationModal.success('DNS Verification Successful!', data.message);
+                    window.location.reload();
+                } else {
+                    NotificationModal.error('Verification Failed', data.error || data.message || 'Unknown error');
+                    window.location.reload();
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                NotificationModal.error('Verification Error', 'Error verifying domain');
+            }
+        }
+
+        async function activateDomain() {
+            if (!confirm('Activate this domain?\n\nThis will use 1 of your available slots.')) {
+                return;
+            }
+
+            try {
+                const response = await secureFetch(`/api/domains/${promptId}/activate`, {
+                    method: 'POST'
+                });
+                if (!response) return; // Session expired
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    NotificationModal.success('Domain Activated!', 'Slots: ' + data.slots.used + '/' + data.slots.purchased + ' in use');
+                    window.location.reload();
+                } else {
+                    NotificationModal.error('Activation Failed', data.detail || data.message || 'Error activating domain');
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                NotificationModal.error('Activation Error', 'Error activating domain');
+            }
+        }
+
+        async function purchaseAndActivate() {
+            if (!confirm(`Purchase a domain slot and activate?\n\nThis will charge $${SLOT_PRICE.toFixed(2)} from your balance.`)) {
+                return;
+            }
+
+            try {
+                // First purchase a slot
+                const purchaseResponse = await secureFetch('/api/domains/slots/purchase', {
+                    method: 'POST'
+                });
+                if (!purchaseResponse) return; // Session expired
+
+                const purchaseData = await purchaseResponse.json();
+
+                if (!purchaseResponse.ok || !purchaseData.success) {
+                    NotificationModal.error('Slot Purchase Failed', purchaseData.detail || purchaseData.message || 'Error purchasing slot');
+                    return;
+                }
+
+                // Then activate the domain
+                const activateResponse = await secureFetch(`/api/domains/${promptId}/activate`, {
+                    method: 'POST'
+                });
+                if (!activateResponse) return; // Session expired
+
+                const activateData = await activateResponse.json();
+
+                if (activateResponse.ok && activateData.success) {
+                    NotificationModal.success('Domain Activated!', `Slot purchased: $${SLOT_PRICE.toFixed(2)}\nSlots: ${activateData.slots.used}/${activateData.slots.purchased} in use`);
+                    window.location.reload();
+                } else {
+                    NotificationModal.warning('Partial Success', 'Slot purchased but activation failed: ' + (activateData.detail || activateData.message));
+                    window.location.reload();
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                NotificationModal.error('Slot Purchase Error', 'Error purchasing slot');
+            }
+        }
+
+        async function activateDomainFree() {
+            if (!confirm('Activate this domain for free (admin)?')) {
+                return;
+            }
+
+            try {
+                const response = await secureFetch(`/admin/domains/${promptId}/activate-free`, {
+                    method: 'POST'
+                });
+                if (!response) return; // Session expired
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    NotificationModal.success('Domain Activated!', 'Domain activated successfully (free)!');
+                    window.location.reload();
+                } else {
+                    NotificationModal.error('Activation Failed', data.detail || data.message || 'Error activating domain');
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                NotificationModal.error('Activation Error', 'Error activating domain');
+            }
+        }
+
+        async function toggleDomainOff() {
+            if (!confirm('Deactivate this domain?\n\nThe slot will be freed and can be used for another prompt.\nThe domain configuration will be preserved.')) {
+                return;
+            }
+
+            try {
+                const response = await secureFetch(`/api/domains/${promptId}/deactivate`, {
+                    method: 'POST'
+                });
+                if (!response) return; // Session expired
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    NotificationModal.success('Domain Deactivated', 'Slots: ' + data.slots.used + '/' + data.slots.purchased + ' in use');
+                    window.location.reload();
+                } else {
+                    NotificationModal.error('Deactivation Failed', data.detail || data.message || 'Error deactivating domain');
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                NotificationModal.error('Deactivation Error', 'Error deactivating domain');
+            }
+        }
+
+        async function removeDomain() {
+            const msg = 'Remove this domain configuration?\n\n' +
+                        'WARNING: If you remove the domain, you will need to configure and verify it again.\n' +
+                        'The slot remains available for use on any prompt.';
+
+            if (!confirm(msg)) {
+                return;
+            }
+
+            try {
+                const response = await secureFetch(`/api/domains/${promptId}`, {
+                    method: 'DELETE'
+                });
+                if (!response) return; // Session expired
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    NotificationModal.success('Domain Removed', 'Domain configuration has been removed.');
+                    window.location.reload();
+                } else {
+                    NotificationModal.error('Removal Failed', data.detail || data.message || 'Error removing domain');
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                NotificationModal.error('Removal Error', 'Error removing domain');
+            }
+        }
+    </script>
+{% endblock %}

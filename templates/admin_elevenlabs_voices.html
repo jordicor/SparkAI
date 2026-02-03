@@ -1,0 +1,543 @@
+{% extends 'base_admin.html' %}
+
+{% block title %}ElevenLabs Voices - SPARK{% endblock %}
+
+{% block styles %}
+<style>
+    /* Page-specific styles that override or extend admin CSS */
+    .voice-row.in-db {
+        background-color: rgba(25, 135, 84, 0.1);
+    }
+    .voice-row.pending {
+        background-color: rgba(255, 193, 7, 0.15);
+    }
+    .voice-row.to-remove {
+        background-color: rgba(220, 53, 69, 0.1);
+        opacity: 0.7;
+    }
+    .voice-row:hover {
+        background-color: rgba(var(--bs-primary-rgb), 0.15);
+    }
+    .category-badge {
+        font-size: 0.75rem;
+        padding: 0.2em 0.5em;
+    }
+    .category-premade { background-color: #0d6efd; color: white; }
+    .category-cloned { background-color: #6f42c1; color: white; }
+    .category-generated { background-color: #20c997; color: white; }
+    .category-professional { background-color: #fd7e14; color: white; }
+    .category-default { background-color: #6c757d; color: white; }
+    .label-badge {
+        font-size: 0.7rem;
+        padding: 0.15em 0.4em;
+        margin-right: 3px;
+        background-color: rgba(var(--bs-secondary-rgb), 0.2);
+        border-radius: 3px;
+    }
+    .sync-spinner {
+        display: none;
+    }
+    .syncing .sync-spinner {
+        display: inline-block;
+    }
+    .syncing .sync-text {
+        display: none;
+    }
+    .select-all-container {
+        background: rgba(var(--bs-info-rgb), 0.1);
+        padding: 0.75rem 1rem;
+        border-radius: 6px;
+        margin-bottom: 1rem;
+    }
+    .preview-btn {
+        padding: 0.15rem 0.4rem;
+        font-size: 0.75rem;
+    }
+    .preview-btn.playing {
+        background-color: #dc3545;
+        border-color: #dc3545;
+        color: white;
+    }
+    .description-cell {
+        max-width: 200px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+</style>
+{% endblock %}
+
+{% block page_title %}ElevenLabs Voices{% endblock %}
+
+{% block page_subtitle %}
+<p class="page-subtitle">Sync voices from your ElevenLabs account</p>
+{% endblock %}
+
+{% block page_actions %}
+<button class="btn-primary-gold" id="syncBtn" onclick="fetchElevenLabsVoices()">
+    <span class="sync-spinner spinner-border spinner-border-sm me-1"></span>
+    <span class="sync-text"><i class="fas fa-sync-alt me-1"></i> Sync with ElevenLabs</span>
+</button>
+{% endblock %}
+
+{% block tabs %}
+<div class="internal-tabs">
+    <a href="/admin/voices" class="internal-tab">All Voices</a>
+    <a href="/admin/elevenlabs-voices" class="internal-tab active">
+        <i class="fas fa-sync me-1"></i> ElevenLabs Sync
+    </a>
+</div>
+{% endblock %}
+
+{% block alerts %}
+{% if message %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+    {{ message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+{% if error %}
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    {{ error }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<!-- Stats -->
+<div class="stats-row">
+    <span class="stat-badge">
+        <i class="fas fa-check-circle"></i> <strong id="enabledCount">{{ enabled_count }}</strong> Enabled
+    </span>
+    <span class="stat-badge">
+        <i class="fas fa-cloud"></i> <strong id="availableCount">0</strong> Available
+    </span>
+    <span class="stat-badge" id="statsFiltered" style="display: none;">
+        <i class="fas fa-filter"></i> <strong id="filteredCount">0</strong> Shown
+    </span>
+</div>
+
+<!-- Filters Section -->
+<div class="section-container">
+    <div class="section-title">
+        <i class="fas fa-filter"></i> Filters
+    </div>
+    <div class="flex-row">
+        <div class="flex-column">
+            <div class="mb-3">
+                <label class="form-label">Category</label>
+                <select class="form-select" id="categoryFilter" onchange="applyFilters()">
+                    <option value="">All Categories</option>
+                    <option value="premade">Premade</option>
+                    <option value="cloned">Cloned</option>
+                    <option value="generated">Generated</option>
+                    <option value="professional">Professional</option>
+                </select>
+            </div>
+        </div>
+        <div class="flex-column">
+            <div class="mb-3">
+                <label class="form-label">Search</label>
+                <input type="text" class="form-control" id="searchFilter" placeholder="Search by voice name..." oninput="applyFilters()">
+            </div>
+        </div>
+        <div class="flex-column">
+            <div class="mb-3">
+                <label class="form-label">Gender</label>
+                <select class="form-select" id="genderFilter" onchange="applyFilters()">
+                    <option value="">All</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                </select>
+            </div>
+        </div>
+        <div class="flex-column">
+            <div class="mb-3">
+                <label class="form-label">Status</label>
+                <select class="form-select" id="statusFilter" onchange="applyFilters()">
+                    <option value="">All</option>
+                    <option value="enabled">Enabled Only</option>
+                    <option value="disabled">Not Enabled</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Select All and Save -->
+<div class="select-all-container d-flex justify-content-between align-items-center">
+    <div>
+        <input type="checkbox" class="form-check-input me-2" id="selectAllVisible" onchange="toggleSelectAllVisible()">
+        <label class="form-check-label" for="selectAllVisible">Select all visible</label>
+    </div>
+    <button class="btn btn-success" id="saveBtn" onclick="saveSelection()" disabled>
+        <i class="fas fa-save me-1"></i> Save Selection
+    </button>
+</div>
+
+<!-- Voices Table Section -->
+<div class="section-container">
+    <div class="section-title">
+        <i class="fas fa-list"></i> ElevenLabs Voices
+    </div>
+    <div class="table-wrapper">
+        <table class="table" id="voicesTable">
+            <thead>
+                <tr>
+                    <th style="width: 40px;"></th>
+                    <th>Name</th>
+                    <th>Category</th>
+                    <th>Labels</th>
+                    <th>Description</th>
+                    <th style="width: 80px;">Preview</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="voicesTableBody">
+                <tr>
+                    <td colspan="7" class="text-center py-5 text-muted">
+                        <i class="fas fa-cloud-download-alt fa-3x mb-3 d-block"></i>
+                        Click "Sync with ElevenLabs" to load available voices
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Hidden audio element for previews -->
+<audio id="previewAudio" style="display: none;"></audio>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        updateSaveButtonState();
+    });
+
+    // Data storage
+    let allVoices = [];
+    let enabledVoices = new Set({{ enabled_voices | tojson | safe }});
+    let originalEnabled = new Set({{ enabled_voices | tojson | safe }});
+    let currentlyPlaying = null;
+
+    // Fetch voices from ElevenLabs
+    async function fetchElevenLabsVoices() {
+        const btn = document.getElementById('syncBtn');
+        btn.classList.add('syncing');
+        btn.disabled = true;
+
+        try {
+            const response = await fetch('/api/elevenlabs/voices');
+            const data = await response.json();
+
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            allVoices = data.voices || [];
+            renderVoices();
+            updateStats();
+
+        } catch (error) {
+            console.error('Error fetching voices:', error);
+            NotificationModal.error('Fetch Error', 'Error fetching voices: ' + error.message);
+        } finally {
+            btn.classList.remove('syncing');
+            btn.disabled = false;
+        }
+    }
+
+    // Render voices table
+    function renderVoices() {
+        const tbody = document.getElementById('voicesTableBody');
+        const filtered = getFilteredVoices();
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center py-4 text-muted">
+                        No voices match your filters
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = filtered.map(voice => {
+            const isSelected = enabledVoices.has(voice.voice_id);
+            const wasInDb = originalEnabled.has(voice.voice_id);
+
+            let statusBadge, rowClass;
+            if (isSelected && wasInDb) {
+                statusBadge = '<span class="badge bg-success">Enabled</span>';
+                rowClass = 'voice-row in-db';
+            } else if (isSelected && !wasInDb) {
+                statusBadge = '<span class="badge bg-warning text-dark">Pending</span>';
+                rowClass = 'voice-row pending';
+            } else if (!isSelected && wasInDb) {
+                statusBadge = '<span class="badge bg-danger">To Remove</span>';
+                rowClass = 'voice-row to-remove';
+            } else {
+                statusBadge = '<span class="badge bg-secondary">-</span>';
+                rowClass = 'voice-row';
+            }
+
+            const categoryClass = `category-${voice.category}`;
+            const categoryBadge = `<span class="badge category-badge ${categoryClass}">${voice.category}</span>`;
+
+            const labelsHtml = voice.labels.length > 0
+                ? voice.labels.map(l => `<span class="label-badge">${l}</span>`).join('')
+                : '<span class="text-muted">-</span>';
+
+            const previewBtn = voice.preview_url
+                ? `<button class="btn btn-outline-primary preview-btn" data-voice-id="${voice.voice_id}" data-preview-url="${voice.preview_url}" onclick="togglePreview(this)" title="Preview voice" data-bs-toggle="tooltip">
+                     <i class="fas fa-play"></i>
+                   </button>`
+                : '<span class="text-muted">-</span>';
+
+            const description = voice.description
+                ? `<span title="${voice.description.replace(/"/g, '&quot;')}">${voice.description.substring(0, 50)}${voice.description.length > 50 ? '...' : ''}</span>`
+                : '<span class="text-muted">-</span>';
+
+            return `
+                <tr class="${rowClass}" data-voice-id="${voice.voice_id}">
+                    <td>
+                        <input type="checkbox" class="form-check-input voice-checkbox"
+                               data-voice-id="${voice.voice_id}"
+                               ${isSelected ? 'checked' : ''}
+                               onchange="toggleVoice('${voice.voice_id}')">
+                    </td>
+                    <td><strong>${voice.name}</strong><br><small class="text-muted">${voice.voice_id}</small></td>
+                    <td>${categoryBadge}</td>
+                    <td>${labelsHtml}</td>
+                    <td class="description-cell">${description}</td>
+                    <td>${previewBtn}</td>
+                    <td>${statusBadge}</td>
+                </tr>
+            `;
+        }).join('');
+
+        updateSelectAllState();
+
+        const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+        tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+    }
+
+    // Get filtered voices
+    function getFilteredVoices() {
+        const categoryFilter = document.getElementById('categoryFilter').value;
+        const searchFilter = document.getElementById('searchFilter').value.toLowerCase();
+        const genderFilter = document.getElementById('genderFilter').value.toLowerCase();
+        const statusFilter = document.getElementById('statusFilter').value;
+
+        return allVoices.filter(voice => {
+            if (categoryFilter && voice.category !== categoryFilter) return false;
+            if (searchFilter && !voice.name.toLowerCase().includes(searchFilter) && !voice.voice_id.toLowerCase().includes(searchFilter)) return false;
+            if (genderFilter) {
+                const voiceGender = (voice.labels_raw?.gender || '').toLowerCase();
+                if (!voiceGender.includes(genderFilter)) return false;
+            }
+            if (statusFilter === 'enabled' && !enabledVoices.has(voice.voice_id)) return false;
+            if (statusFilter === 'disabled' && enabledVoices.has(voice.voice_id)) return false;
+            return true;
+        });
+    }
+
+    // Apply filters
+    function applyFilters() {
+        renderVoices();
+        updateStats();
+    }
+
+    // Update stats
+    function updateStats() {
+        document.getElementById('enabledCount').textContent = enabledVoices.size;
+        document.getElementById('availableCount').textContent = allVoices.length;
+
+        const filtered = getFilteredVoices();
+        const statsFiltered = document.getElementById('statsFiltered');
+        if (filtered.length !== allVoices.length && allVoices.length > 0) {
+            statsFiltered.style.display = 'inline-flex';
+            document.getElementById('filteredCount').textContent = filtered.length;
+        } else {
+            statsFiltered.style.display = 'none';
+        }
+    }
+
+    // Toggle voice selection
+    function toggleVoice(voiceId) {
+        if (enabledVoices.has(voiceId)) {
+            enabledVoices.delete(voiceId);
+        } else {
+            enabledVoices.add(voiceId);
+        }
+        updateStats();
+        updateSaveButtonState();
+        updateRowState(voiceId);
+    }
+
+    // Update row visual state
+    function updateRowState(voiceId) {
+        const row = document.querySelector(`tr[data-voice-id="${voiceId}"]`);
+        if (!row) return;
+
+        const isSelected = enabledVoices.has(voiceId);
+        const wasInDb = originalEnabled.has(voiceId);
+
+        row.classList.remove('in-db', 'pending', 'to-remove');
+
+        let statusBadge;
+        if (isSelected && wasInDb) {
+            row.classList.add('in-db');
+            statusBadge = '<span class="badge bg-success">Enabled</span>';
+        } else if (isSelected && !wasInDb) {
+            row.classList.add('pending');
+            statusBadge = '<span class="badge bg-warning text-dark">Pending</span>';
+        } else if (!isSelected && wasInDb) {
+            row.classList.add('to-remove');
+            statusBadge = '<span class="badge bg-danger">To Remove</span>';
+        } else {
+            statusBadge = '<span class="badge bg-secondary">-</span>';
+        }
+
+        row.querySelector('td:last-child').innerHTML = statusBadge;
+    }
+
+    // Toggle select all visible
+    function toggleSelectAllVisible() {
+        const selectAll = document.getElementById('selectAllVisible');
+        const filtered = getFilteredVoices();
+
+        filtered.forEach(voice => {
+            if (selectAll.checked) {
+                enabledVoices.add(voice.voice_id);
+            } else {
+                enabledVoices.delete(voice.voice_id);
+            }
+        });
+
+        renderVoices();
+        updateStats();
+        updateSaveButtonState();
+    }
+
+    // Update select all checkbox state
+    function updateSelectAllState() {
+        const filtered = getFilteredVoices();
+        const allChecked = filtered.length > 0 && filtered.every(v => enabledVoices.has(v.voice_id));
+        document.getElementById('selectAllVisible').checked = allChecked;
+    }
+
+    // Check if selection changed
+    function hasChanges() {
+        if (enabledVoices.size !== originalEnabled.size) return true;
+        for (const id of enabledVoices) {
+            if (!originalEnabled.has(id)) return true;
+        }
+        return false;
+    }
+
+    // Update save button state
+    function updateSaveButtonState() {
+        const btn = document.getElementById('saveBtn');
+        btn.disabled = !hasChanges();
+    }
+
+    // Preview audio
+    function togglePreview(btn) {
+        const audio = document.getElementById('previewAudio');
+        const voiceId = btn.dataset.voiceId;
+        const previewUrl = btn.dataset.previewUrl;
+
+        if (currentlyPlaying === voiceId) {
+            audio.pause();
+            audio.currentTime = 0;
+            btn.innerHTML = '<i class="fas fa-play"></i>';
+            btn.classList.remove('playing');
+            currentlyPlaying = null;
+            return;
+        }
+
+        if (currentlyPlaying) {
+            audio.pause();
+            const prevBtn = document.querySelector(`button[data-voice-id="${currentlyPlaying}"]`);
+            if (prevBtn) {
+                prevBtn.innerHTML = '<i class="fas fa-play"></i>';
+                prevBtn.classList.remove('playing');
+            }
+        }
+
+        audio.src = previewUrl;
+        audio.play().then(() => {
+            btn.innerHTML = '<i class="fas fa-stop"></i>';
+            btn.classList.add('playing');
+            currentlyPlaying = voiceId;
+        }).catch(err => {
+            console.error('Error playing audio:', err);
+            NotificationModal.error('Playback Error', 'Could not play audio preview');
+        });
+
+        audio.onended = () => {
+            btn.innerHTML = '<i class="fas fa-play"></i>';
+            btn.classList.remove('playing');
+            currentlyPlaying = null;
+        };
+    }
+
+    // Save selection
+    async function saveSelection() {
+        const btn = document.getElementById('saveBtn');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+        btn.disabled = true;
+
+        try {
+            const voicesToSave = allVoices
+                .filter(v => enabledVoices.has(v.voice_id))
+                .map(v => ({
+                    voice_id: v.voice_id,
+                    name: v.name,
+                    category: v.category
+                }));
+
+            const response = await fetch('/api/elevenlabs/sync', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ voices: voicesToSave })
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            originalEnabled = new Set(enabledVoices);
+
+            btn.innerHTML = '<i class="fas fa-check me-1"></i> Saved!';
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-outline-success');
+
+            renderVoices();
+
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.classList.add('btn-success');
+                btn.classList.remove('btn-outline-success');
+                updateSaveButtonState();
+            }, 2000);
+
+        } catch (error) {
+            console.error('Error saving:', error);
+            NotificationModal.error('Save Error', 'Error saving selection: ' + error.message);
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    }
+</script>
+{% endblock %}

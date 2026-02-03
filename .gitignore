@@ -1,0 +1,63 @@
+SPARK.git/
+data/cache/
+data/users/
+__pycache__/
+tst/
+
+# Documentation - include docs/ folder and its .md files
+!docs/
+!docs/*.md
+
+# Security config - include forbidden names list
+!data/config/
+!data/config/*.json
+
+# Environment and secrets
+.env
+.env.*
+*.pem
+*.key
+*.crt
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Migration scripts (not needed for fresh installs)
+migration*.py
+
+# IDE and local config
+.claude/settings.local.json
+.idea/
+.vscode/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git residue files (accidentally copied from .git)
+config
+description
+HEAD
+nul
+hooks/
+info/
+
+# Local scripts and utilities
+p.bat
+start_cmd.bat
+dump-schema.py
+init_testDB.py
+cookies_local.txt
+stripe.exe
+stripe.bat
+start_app.bat
+start_dramatiq.bat
+testing_*.py

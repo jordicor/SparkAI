@@ -1,0 +1,379 @@
+/* Payment Page - Memphis Theme */
+body {
+    background-color: #00CED1;
+    font-family: 'Inter', sans-serif;
+    color: #000000;
+}
+
+/* ==========================================================
+   Design System - Layout Styles
+   ========================================================== */
+
+/* Main Container */
+.main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 30px 20px;
+}
+
+/* Page Header */
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 3px solid #ff6b9d;
+}
+
+.page-header-text {
+    flex: 1;
+}
+
+/* Page Toolbar (Tabs + Actions) */
+.page-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    gap: 16px;
+}
+
+.page-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.page-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+/* Hide toolbar when both sides are empty */
+.page-toolbar:has(.page-toolbar-left:empty):has(.page-toolbar-right:empty) {
+    display: none;
+}
+
+/* Back Button */
+.btn-back {
+    width: 44px;
+    height: 44px;
+    border-radius: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fef9e7;
+    border: 2px solid #000000;
+    color: #333333;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    box-shadow: 3px 3px 0 #000000;
+}
+
+.btn-back:hover {
+    background: #ff6b9d;
+    border-color: #000000;
+    color: #000000;
+    transform: translateY(-3px);
+    box-shadow: 5px 5px 0 #000000;
+}
+
+/* Page Title */
+.page-title {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: bold;
+    color: #333333;
+    text-transform: uppercase;
+}
+
+.page-subtitle {
+    margin: 4px 0 0 0;
+    color: #666666;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+}
+
+/* ==========================================================
+   Design System - Responsive Layout
+   ========================================================== */
+@media (max-width: 768px) {
+    .main-container {
+        padding: 15px 10px;
+    }
+
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .page-toolbar {
+        flex-wrap: wrap;
+    }
+
+    .page-title {
+        font-size: 1.4rem;
+    }
+
+    .btn-back {
+        width: 38px;
+        height: 38px;
+    }
+}
+
+@media (max-width: 480px) {
+    .page-title {
+        font-size: 1.2rem;
+    }
+}
+
+/* ==========================================================
+   Original Styles
+   ========================================================== */
+
+/* Main Section Container */
+.section-container {
+    background-color: #FFD700;
+    border: 3px solid #000000;
+    border-radius: 0;
+    padding: 25px;
+    margin: 80px auto;
+    box-shadow: 5px 5px 0 #FF4500;
+    transition: transform 0.3s ease;
+    position: relative;
+}
+
+.section-container:hover {
+    transform: translateY(-5px);
+}
+
+.section-container::after {
+    content: '';
+    position: absolute;
+    width: 15px;
+    height: 15px;
+    background-color: #FF69B4;
+    border: 2px solid #000000;
+    border-radius: 50%;
+    top: 10px;
+    right: 10px;
+}
+
+.payment-content {
+    max-width: 600px;
+}
+
+/* Section Title */
+.section-title {
+    color: #000000;
+    font-size: 1.8em;
+    font-weight: bold;
+    margin-bottom: 25px;
+    padding: 15px;
+    text-align: center;
+    text-transform: uppercase;
+    background-color: #FF69B4;
+    border: 3px solid #000000;
+    box-shadow: 5px 5px 0 #FF4500;
+}
+
+/* Form Elements */
+.form-group {
+    margin-bottom: 20px;
+}
+
+label {
+    font-weight: bold;
+    color: #000000;
+    margin-bottom: 10px;
+    display: block;
+    text-transform: uppercase;
+}
+
+.input-wrapper {
+    position: relative;
+}
+
+.form-control {
+    background-color: #FFD700;
+    border: 2px solid #000000;
+    border-radius: 0;
+    padding: 12px;
+    width: 100%;
+    color: #000000;
+    font-weight: 500;
+}
+
+.form-control:focus {
+    background-color: #FFD700;
+    border-color: #FF4500;
+    box-shadow: none;
+    outline: none; 
+}
+.form-control:-webkit-autofill,
+.form-control:-webkit-autofill:hover,
+.form-control:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 30px #FFD700 inset !important;
+    -webkit-text-fill-color: #000000 !important;
+}
+.input-group {
+    display: flex;
+    gap: 0;
+    border: 2px solid #000000;
+    border-radius: 0;
+}
+
+.input-group-text {
+    background-color: #FF69B4;
+    border: none;
+    border-left: 2px solid #000000;
+    color: #000000;
+    border-radius: 0;
+}
+
+/* Buttons */
+.button-container {
+    margin-top: 25px;
+    text-align: center;
+}
+
+.btn:not(.btn-outline-danger) {
+    border: 2px solid #000000;
+    border-radius: 0;
+    font-weight: bold;
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+    position: relative;
+    padding: 12px 24px;
+}
+
+.btn:not(.btn-outline-danger)::after {
+    content: '';
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background-color: #FFD700;
+    border-radius: 50%;
+    top: 5px;
+    right: 5px;
+}
+
+.btn-primary {
+    background-color: #FF69B4;
+    color: #000000;
+}
+
+.btn-primary:hover {
+    background-color: #FF4500;
+    color: #FFFFFF;
+    border-color: #000000;
+    transform: translateY(-3px);
+    box-shadow: 0 5px 0 #000000;
+}
+
+.btn-secondary {
+    background-color: #FFD700;
+    color: #000000;
+}
+
+.btn-secondary:hover {
+    background-color: #FF4500;
+    color: #FFFFFF;
+    border-color: #000000;
+}
+
+/* PayPal Container */
+#paypal-button-container {
+    margin-top: 30px;
+    padding: 20px;
+    border-top: 3px solid #000000;
+    background-color: #FF69B4;
+}
+
+/* Navbar Styles */
+.navbar {
+    background-color: #FF69B4;
+    border-bottom: 3px solid #000000;
+    box-shadow: 5px 5px 0 #FF4500;
+}
+
+.navbar-brand,
+.nav-link {
+    color: #000000 !important;
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 1.2rem;
+}
+
+.navbar-brand:hover,
+.nav-link:hover {
+    color: #FF4500 !important;
+}
+
+/* Animations */
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+.btn:hover {
+    animation: bounce 0.5s ease infinite;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .section-container {
+        margin: 20px auto;
+        padding: 15px;
+    }
+
+    .input-group {
+        flex-direction: column;
+    }
+
+    .btn:not(.btn-outline-danger) {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    .section-title {
+        font-size: 1.5rem;
+        padding: 0.75rem;
+    }
+}
+
+.btn-outline-danger {
+    background-color: #FF0000;
+    color: #FFFFFF;
+    border: 2px solid #000000;
+    transition: all 0.3s ease;
+}
+.btn-outline-danger {
+    background-color: #FF0000;
+    color: #FFFFFF;
+    border: 2px solid #000000;
+}
+
+.btn {
+    border: 2px solid #000000;
+    border-radius: 0;
+    font-weight: bold;
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+.btn::after {
+    content: '';
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background-color: #FFD700;
+    border-radius: 50%;
+    top: 5px;
+    right: 5px;
+}

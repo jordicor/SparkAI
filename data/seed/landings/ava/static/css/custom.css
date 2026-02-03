@@ -1,0 +1,192 @@
+/* Custom CSS for AVA Landing Page */
+
+/* Smooth scrolling */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Custom scrollbar styling */
+::-webkit-scrollbar {
+    width: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: #0a0a0a;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #ff33e0, #00ff00);
+    border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #ff33e0, #ff33e0);
+}
+
+/* Prevent horizontal scroll */
+body {
+    overflow-x: hidden;
+}
+
+/* Additional glow effects on hover */
+.feature-card:hover {
+    box-shadow: 0 0 30px rgba(255, 51, 224, 0.3);
+}
+
+/* Smooth transitions for all interactive elements */
+a, button {
+    transition: all 0.3s ease;
+}
+
+/* Enhanced text gradient animation */
+@keyframes gradient-shift {
+    0% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+/* Japanese-inspired decoration elements */
+.japanese-accent {
+    position: relative;
+}
+
+.japanese-accent::before {
+    content: '';
+    position: absolute;
+    width: 40px;
+    height: 2px;
+    background: linear-gradient(90deg, #ff33e0, transparent);
+    top: -10px;
+    left: 0;
+}
+
+/* Mobile menu styling (if needed) */
+@media (max-width: 768px) {
+    .container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    h1 {
+        font-size: 2.5rem;
+    }
+
+    h2 {
+        font-size: 2rem;
+    }
+}
+
+/* Enhanced card hover effects */
+.bg-dark-card {
+    backdrop-filter: blur(10px);
+    background-color: rgba(21, 21, 21, 0.8);
+}
+
+/* Animated background gradient for special sections */
+.gradient-animate {
+    background-size: 200% 200%;
+    animation: gradient-shift 8s ease infinite;
+}
+
+/* Custom selection color */
+::selection {
+    background-color: #ff33e0;
+    color: white;
+}
+
+::-moz-selection {
+    background-color: #ff33e0;
+    color: white;
+}
+
+/* Loading animation for images */
+img {
+    transition: opacity 0.3s ease-in-out;
+}
+
+/* Accessibility improvements */
+a:focus, button:focus {
+    outline: 2px solid #ff33e0;
+    outline-offset: 2px;
+}
+
+/* Enhanced button effects */
+button, .button {
+    position: relative;
+    overflow: hidden;
+}
+
+button::after, .button::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+button:hover::after, .button:hover::after {
+    width: 300px;
+    height: 300px;
+}
+
+/* Performance optimization */
+.animate-float,
+.animate-glow,
+.animate-slide-up,
+.animate-fade-in {
+    will-change: transform, opacity;
+}
+
+/* Neon text effect for special headings */
+.neon-text {
+    text-shadow:
+        0 0 5px #ff33e0,
+        0 0 10px #ff33e0,
+        0 0 20px #ff33e0,
+        0 0 40px #ff33e0;
+}
+
+/* Glassmorphism effect */
+.glass-effect {
+    background: rgba(21, 21, 21, 0.4);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 51, 224, 0.2);
+}
+
+/* Parallax effect helper */
+.parallax {
+    transform: translateZ(0);
+    will-change: transform;
+}
+
+/* Custom link underline animation */
+a:not(.button):hover {
+    text-decoration: none;
+    position: relative;
+}
+
+a:not(.button)::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #ff33e0, #00ff00);
+    transition: width 0.3s ease;
+}
+
+a:not(.button):hover::after {
+    width: 100%;
+}

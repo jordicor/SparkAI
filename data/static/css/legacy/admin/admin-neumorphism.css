@@ -1,0 +1,888 @@
+/* ==========================================================
+   admin-neumorphism.css
+   SPARK Design System - Neumorphism Theme (Soft UI)
+
+   Color palette:
+   - Background primary: #e0e5ec
+   - Background secondary: #e0e5ec (same, neumorphism uses shadows)
+   - Background tertiary: #d1d9e6
+   - Text primary: #4d5562
+   - Text secondary: #7a8499
+   - Text muted: #9aa3b3
+   - Accent color: #4a90e2 (blue)
+   - Accent hover: #3a7bc8
+   - Shadow light: #ffffff
+   - Shadow dark: #a3b1c6
+   ========================================================== */
+
+/* ==========================================================
+   CSS Variables
+   ========================================================== */
+:root {
+    --admin-bg-primary: #e0e5ec;
+    --admin-bg-secondary: #e0e5ec;
+    --admin-bg-tertiary: #d1d9e6;
+    --admin-text-primary: #4d5562;
+    --admin-text-secondary: #7a8499;
+    --admin-text-muted: #9aa3b3;
+    --admin-accent: #4a90e2;
+    --admin-accent-light: #6ba5eb;
+    --admin-accent-hover: #3a7bc8;
+    --admin-border-color: transparent;
+    --admin-shadow-light: #ffffff;
+    --admin-shadow-dark: #a3b1c6;
+    --admin-shadow-soft: 6px 6px 12px var(--admin-shadow-dark), -6px -6px 12px var(--admin-shadow-light);
+    --admin-shadow-hover: 8px 8px 16px var(--admin-shadow-dark), -8px -8px 16px var(--admin-shadow-light);
+    --admin-shadow-inset: inset 3px 3px 6px var(--admin-shadow-dark), inset -3px -3px 6px var(--admin-shadow-light);
+}
+
+/* ==========================================================
+   Base Styles
+   ========================================================== */
+body {
+    background-color: var(--admin-bg-primary);
+    color: var(--admin-text-primary);
+    font-family: 'Poppins', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    margin: 0;
+}
+
+h1, h2, h3, h4, h5 {
+    color: var(--admin-text-primary);
+    font-weight: 600;
+}
+
+/* ==========================================================
+   Navbar
+   ========================================================== */
+.navbar {
+    background-color: #e0e5ec !important;
+    border-bottom: none;
+    box-shadow: 0 5px 15px rgba(163, 177, 198, 0.5), 0 -5px 15px rgba(255, 255, 255, 0.5) !important;
+}
+
+.navbar-brand,
+.nav-link {
+    color: #4d5562 !important;
+    transition: color 0.3s ease;
+}
+
+.navbar-brand:hover,
+.nav-link:hover {
+    color: #4a90e2 !important;
+}
+
+.navbar-toggler {
+    border: none !important;
+    background-color: #e0e5ec !important;
+    box-shadow: 3px 3px 6px #a3b1c6, -3px -3px 6px #ffffff !important;
+}
+
+.navbar-toggler-icon {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(77, 85, 98, 0.85)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
+}
+
+.navbar-toggler:focus {
+    box-shadow: 4px 4px 8px #a3b1c6, -4px -4px 8px #ffffff !important;
+}
+
+.navbar .btn-outline-danger {
+    color: #e74c3c;
+    border: 2px solid #e74c3c;
+    background-color: #e0e5ec;
+    box-shadow: 3px 3px 6px #a3b1c6, -3px -3px 6px #ffffff;
+    transition: all 0.3s ease;
+}
+
+.navbar .btn-outline-danger:hover {
+    color: #ffffff;
+    background-color: #e74c3c;
+    border-color: #e74c3c;
+    box-shadow: 4px 4px 8px #a3b1c6, -4px -4px 8px #ffffff;
+}
+
+@media (max-width: 991.98px) {
+    .navbar-collapse {
+        background-color: #e0e5ec;
+        padding: 1rem;
+        border-radius: 0 0 15px 15px;
+        border: none;
+        margin-top: 10px;
+        box-shadow: inset 3px 3px 6px #a3b1c6, inset -3px -3px 6px #ffffff;
+    }
+}
+
+/* ==========================================================
+   Main Container
+   ========================================================== */
+.main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 30px 20px;
+}
+
+/* ==========================================================
+   Page Header
+   ========================================================== */
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid var(--admin-accent);
+}
+
+.page-header-text {
+    flex: 1;
+}
+
+/* ==========================================================
+   Page Toolbar (Tabs + Actions)
+   ========================================================== */
+.page-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    gap: 16px;
+}
+
+.page-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.page-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+/* Remove margin from internal-tabs when inside toolbar */
+.page-toolbar .internal-tabs {
+    margin-bottom: 0;
+}
+
+/* Hide toolbar when both sides are empty */
+.page-toolbar:has(.page-toolbar-left:empty):has(.page-toolbar-right:empty) {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .page-toolbar {
+        flex-wrap: wrap;
+    }
+}
+
+/* Back Button */
+.btn-back {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--admin-bg-primary);
+    border: none;
+    color: var(--admin-text-primary);
+    text-decoration: none;
+    transition: all 0.3s ease;
+    box-shadow: 4px 4px 8px var(--admin-shadow-dark), -4px -4px 8px var(--admin-shadow-light);
+}
+
+.btn-back:hover {
+    background: var(--admin-bg-primary);
+    color: var(--admin-accent);
+    transform: translateY(-2px);
+    box-shadow: 6px 6px 12px var(--admin-shadow-dark), -6px -6px 12px var(--admin-shadow-light);
+}
+
+.btn-back:active {
+    transform: translateY(0);
+    box-shadow: inset 2px 2px 4px var(--admin-shadow-dark), inset -2px -2px 4px var(--admin-shadow-light);
+}
+
+/* Page Title */
+.page-title {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--admin-text-primary);
+}
+
+.page-subtitle {
+    margin: 4px 0 0 0;
+    color: var(--admin-text-muted);
+    font-size: 0.9rem;
+}
+
+/* ==========================================================
+   Primary Action Button
+   ========================================================== */
+.btn-primary-action {
+    background: var(--admin-bg-primary);
+    border: none;
+    color: var(--admin-accent);
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 5px 5px 10px var(--admin-shadow-dark), -5px -5px 10px var(--admin-shadow-light);
+    transition: all 0.3s ease;
+}
+
+.btn-primary-action:hover {
+    background: var(--admin-bg-primary);
+    color: var(--admin-accent-hover);
+    transform: translateY(-2px);
+    box-shadow: 7px 7px 14px var(--admin-shadow-dark), -7px -7px 14px var(--admin-shadow-light);
+}
+
+.btn-primary-action:active {
+    transform: translateY(0);
+    box-shadow: inset 3px 3px 6px var(--admin-shadow-dark), inset -3px -3px 6px var(--admin-shadow-light);
+}
+
+/* Alias for backward compatibility with mockup */
+.btn-primary-gold {
+    background: var(--admin-bg-primary);
+    border: none;
+    color: var(--admin-accent);
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 5px 5px 10px var(--admin-shadow-dark), -5px -5px 10px var(--admin-shadow-light);
+    transition: all 0.3s ease;
+}
+
+.btn-primary-gold:hover {
+    background: var(--admin-bg-primary);
+    color: var(--admin-accent-hover);
+    transform: translateY(-2px);
+    box-shadow: 7px 7px 14px var(--admin-shadow-dark), -7px -7px 14px var(--admin-shadow-light);
+}
+
+.btn-primary-gold:active {
+    transform: translateY(0);
+    box-shadow: inset 3px 3px 6px var(--admin-shadow-dark), inset -3px -3px 6px var(--admin-shadow-light);
+}
+
+/* ==========================================================
+   Section Container (Card-like)
+   ========================================================== */
+.section-container {
+    background: var(--admin-bg-primary);
+    border-radius: 20px;
+    padding: 25px;
+    margin-bottom: 25px;
+    box-shadow: 8px 8px 16px var(--admin-shadow-dark), -8px -8px 16px var(--admin-shadow-light);
+    transition: all 0.3s ease;
+    border: none;
+}
+
+.section-container:hover {
+    transform: translateY(-3px);
+    box-shadow: 10px 10px 20px var(--admin-shadow-dark), -10px -10px 20px var(--admin-shadow-light);
+}
+
+/* Section Title */
+.section-title {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--admin-text-primary);
+    border-bottom: none;
+    padding: 14px 18px;
+    margin-bottom: 22px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-radius: 12px;
+    box-shadow: inset 3px 3px 6px var(--admin-shadow-dark), inset -3px -3px 6px var(--admin-shadow-light);
+}
+
+.section-title i {
+    color: var(--admin-accent);
+}
+
+/* ==========================================================
+   Internal Tabs (Navigation within page)
+   ========================================================== */
+.internal-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 25px;
+}
+
+.internal-tab {
+    padding: 10px 20px;
+    border-radius: 12px;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--admin-text-secondary);
+    background: var(--admin-bg-primary);
+    border: none;
+    transition: all 0.3s ease;
+    box-shadow: 4px 4px 8px var(--admin-shadow-dark), -4px -4px 8px var(--admin-shadow-light);
+}
+
+.internal-tab:hover {
+    background: var(--admin-bg-primary);
+    color: var(--admin-text-primary);
+    transform: translateY(-2px);
+    box-shadow: 5px 5px 10px var(--admin-shadow-dark), -5px -5px 10px var(--admin-shadow-light);
+}
+
+.internal-tab.active {
+    background: var(--admin-bg-primary);
+    color: var(--admin-accent);
+    box-shadow: inset 3px 3px 6px var(--admin-shadow-dark), inset -3px -3px 6px var(--admin-shadow-light);
+}
+
+/* ==========================================================
+   Stats Badges (Summary statistics)
+   ========================================================== */
+.stats-row {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+}
+
+.stat-badge {
+    background: var(--admin-bg-primary);
+    border: none;
+    padding: 10px 18px;
+    border-radius: 25px;
+    font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 4px 4px 8px var(--admin-shadow-dark), -4px -4px 8px var(--admin-shadow-light);
+}
+
+.stat-badge i {
+    color: var(--admin-accent);
+    font-size: 1rem;
+}
+
+.stat-badge strong {
+    color: var(--admin-accent);
+}
+
+/* ==========================================================
+   Form Elements (inside section-container)
+   ========================================================== */
+.form-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--admin-text-primary);
+    margin-bottom: 8px;
+}
+
+.form-control,
+.form-select {
+    border: none;
+    border-radius: 10px;
+    padding: 12px 14px;
+    background: var(--admin-bg-primary);
+    color: var(--admin-text-primary);
+    transition: all 0.3s ease;
+    box-shadow: inset 3px 3px 6px var(--admin-shadow-dark), inset -3px -3px 6px var(--admin-shadow-light);
+}
+
+.form-control:focus,
+.form-select:focus {
+    border: none;
+    outline: none;
+    box-shadow: inset 4px 4px 8px var(--admin-shadow-dark), inset -4px -4px 8px var(--admin-shadow-light);
+    background: var(--admin-bg-primary);
+    color: var(--admin-text-primary);
+}
+
+.form-control::placeholder {
+    color: var(--admin-text-muted);
+}
+
+.form-select option {
+    background-color: var(--admin-bg-primary);
+    color: var(--admin-text-primary);
+}
+
+textarea.form-control {
+    resize: vertical;
+    min-height: 80px;
+}
+
+/* ==========================================================
+   Flex Layout (Responsive columns)
+   ========================================================== */
+.flex-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.flex-column {
+    flex: 1;
+    min-width: 250px;
+}
+
+/* ==========================================================
+   Table Wrapper and Styles
+   ========================================================== */
+.table-wrapper {
+    border-radius: 15px;
+    overflow: hidden;
+    border: none;
+    box-shadow: 6px 6px 12px var(--admin-shadow-dark), -6px -6px 12px var(--admin-shadow-light);
+}
+
+.table,
+.table-wrapper .table {
+    margin: 0;
+    background-color: #e0e5ec !important;
+    color: #4d5562 !important;
+    --bs-table-bg: #e0e5ec;
+    --bs-table-color: #4d5562;
+    --bs-table-border-color: #d1d9e6;
+    --bs-table-striped-bg: #d8dde4;
+    --bs-table-hover-bg: #d1d9e6;
+}
+
+.table th,
+.table td,
+.table-wrapper .table th,
+.table-wrapper .table td {
+    border-color: #d1d9e6 !important;
+    padding: 12px 16px;
+    vertical-align: middle;
+    background-color: inherit;
+}
+
+.table thead th,
+.table-wrapper .table thead th {
+    background-color: #d1d9e6 !important;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #7a8499 !important;
+    box-shadow: inset 0 -2px 4px rgba(163, 177, 198, 0.3);
+}
+
+.table tbody td,
+.table-wrapper .table tbody td {
+    color: #4d5562 !important;
+}
+
+.table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.table-hover tbody tr:hover,
+.table tbody tr:hover {
+    background-color: #d1d9e6 !important;
+}
+
+/* ==========================================================
+   Table Actions (Buttons in table rows)
+   ========================================================== */
+.table-actions {
+    white-space: nowrap;
+}
+
+.table-actions .btn {
+    padding: 7px 11px;
+    margin-left: 6px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    border: none;
+    background: var(--admin-bg-primary);
+    box-shadow: 2px 2px 4px var(--admin-shadow-dark), -2px -2px 4px var(--admin-shadow-light);
+}
+
+.table-actions .btn:first-child {
+    margin-left: 0;
+}
+
+.table-actions .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 3px 3px 6px var(--admin-shadow-dark), -3px -3px 6px var(--admin-shadow-light);
+}
+
+.table-actions .btn:active {
+    transform: translateY(0);
+    box-shadow: inset 2px 2px 4px var(--admin-shadow-dark), inset -2px -2px 4px var(--admin-shadow-light);
+}
+
+.table-actions .btn-outline-primary {
+    border: none;
+    color: var(--admin-accent);
+}
+
+.table-actions .btn-outline-primary:hover {
+    background: var(--admin-bg-primary);
+    color: var(--admin-accent-hover);
+}
+
+/* ==========================================================
+   Provider Badges (For LLM management)
+   ========================================================== */
+.provider-badge {
+    font-size: 0.75rem;
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    box-shadow: 2px 2px 4px var(--admin-shadow-dark), -2px -2px 4px var(--admin-shadow-light);
+}
+
+.provider-GPT {
+    background: var(--admin-bg-primary);
+    color: #10a37f;
+}
+
+.provider-Claude {
+    background: var(--admin-bg-primary);
+    color: #d97706;
+}
+
+.provider-Gemini {
+    background: var(--admin-bg-primary);
+    color: #4285f4;
+}
+
+.provider-xAI {
+    background: var(--admin-bg-primary);
+    color: #1d1d1f;
+}
+
+/* ==========================================================
+   Vision Badge
+   ========================================================== */
+.vision-badge {
+    background: var(--admin-bg-primary);
+    color: #8b5cf6;
+    font-size: 0.7rem;
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-weight: 500;
+    box-shadow: 2px 2px 4px var(--admin-shadow-dark), -2px -2px 4px var(--admin-shadow-light);
+}
+
+/* ==========================================================
+   Category Icon
+   ========================================================== */
+.category-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--admin-bg-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--admin-accent);
+    box-shadow: 3px 3px 6px var(--admin-shadow-dark), -3px -3px 6px var(--admin-shadow-light);
+}
+
+/* ==========================================================
+   Empty State (No data placeholder)
+   ========================================================== */
+.empty-state {
+    text-align: center;
+    padding: 50px 20px;
+    color: var(--admin-text-muted);
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 15px;
+    color: var(--admin-text-secondary);
+}
+
+.empty-state p {
+    margin: 10px 0 0;
+    font-size: 0.95rem;
+}
+
+/* ==========================================================
+   Demo Divider (For documentation/examples)
+   ========================================================== */
+.demo-divider {
+    background: var(--admin-bg-primary);
+    color: var(--admin-text-primary);
+    padding: 16px 24px;
+    border-radius: 15px;
+    margin: 50px 0 30px 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 6px 6px 12px var(--admin-shadow-dark), -6px -6px 12px var(--admin-shadow-light);
+}
+
+.demo-divider h4 {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--admin-accent);
+}
+
+.demo-divider p {
+    margin: 0;
+    opacity: 0.8;
+    font-size: 0.85rem;
+}
+
+/* ==========================================================
+   Button Variants
+   ========================================================== */
+.btn-outline-secondary {
+    color: var(--admin-text-secondary);
+    border: none;
+    background: var(--admin-bg-primary);
+    box-shadow: 3px 3px 6px var(--admin-shadow-dark), -3px -3px 6px var(--admin-shadow-light);
+}
+
+.btn-outline-secondary:hover {
+    background: var(--admin-bg-primary);
+    color: var(--admin-text-primary);
+    transform: translateY(-2px);
+    box-shadow: 4px 4px 8px var(--admin-shadow-dark), -4px -4px 8px var(--admin-shadow-light);
+}
+
+.btn-outline-secondary:active {
+    transform: translateY(0);
+    box-shadow: inset 2px 2px 4px var(--admin-shadow-dark), inset -2px -2px 4px var(--admin-shadow-light);
+}
+
+.btn-outline-danger {
+    color: #e74c3c;
+    border: 2px solid #e74c3c;
+    background: var(--admin-bg-primary);
+    box-shadow: 3px 3px 6px var(--admin-shadow-dark), -3px -3px 6px var(--admin-shadow-light);
+}
+
+.btn-outline-danger:hover {
+    background: #e74c3c;
+    border-color: #e74c3c;
+    color: white;
+    box-shadow: 4px 4px 8px var(--admin-shadow-dark), -4px -4px 8px var(--admin-shadow-light);
+}
+
+/* ==========================================================
+   Form Check (Checkboxes/Radio)
+   ========================================================== */
+.form-check-input {
+    background-color: var(--admin-bg-primary);
+    border: none;
+    box-shadow: inset 2px 2px 4px var(--admin-shadow-dark), inset -2px -2px 4px var(--admin-shadow-light);
+}
+
+.form-check-input:checked {
+    background-color: var(--admin-accent);
+    box-shadow: 2px 2px 4px var(--admin-shadow-dark), -2px -2px 4px var(--admin-shadow-light);
+}
+
+.form-check-input:focus {
+    box-shadow: 3px 3px 6px var(--admin-shadow-dark), -3px -3px 6px var(--admin-shadow-light);
+    border: none;
+}
+
+.form-check-label {
+    color: var(--admin-text-primary);
+}
+
+/* ==========================================================
+   Badge Styles
+   ========================================================== */
+.badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.35em 0.65em;
+    border-radius: 10px;
+    box-shadow: 2px 2px 4px var(--admin-shadow-dark), -2px -2px 4px var(--admin-shadow-light);
+}
+
+.badge.bg-secondary {
+    background-color: var(--admin-bg-tertiary) !important;
+    color: var(--admin-text-secondary);
+}
+
+.badge.bg-danger {
+    background-color: #e74c3c !important;
+    color: white;
+}
+
+.badge.bg-success {
+    background-color: #27ae60 !important;
+    color: white;
+}
+
+.badge.bg-warning {
+    background-color: #f1c40f !important;
+    color: #4d5562;
+}
+
+.badge.bg-info {
+    background-color: #3498db !important;
+    color: white;
+}
+
+/* ==========================================================
+   Text Utilities
+   ========================================================== */
+.text-muted {
+    color: var(--admin-text-muted) !important;
+}
+
+.text-primary {
+    color: var(--admin-accent) !important;
+}
+
+/* ==========================================================
+   Alert Styles
+   ========================================================== */
+.alert {
+    border-radius: 12px;
+    padding: 14px 18px;
+    border: none;
+    box-shadow: 4px 4px 8px var(--admin-shadow-dark), -4px -4px 8px var(--admin-shadow-light);
+}
+
+.alert-info {
+    background-color: var(--admin-bg-primary);
+    color: #3498db;
+}
+
+.alert-warning {
+    background-color: var(--admin-bg-primary);
+    color: #f39c12;
+}
+
+.alert-danger {
+    background-color: var(--admin-bg-primary);
+    color: #e74c3c;
+}
+
+.alert-success {
+    background-color: var(--admin-bg-primary);
+    color: #27ae60;
+}
+
+/* ==========================================================
+   Scrollbar Styling
+   ========================================================== */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--admin-bg-primary);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--admin-bg-tertiary);
+    border-radius: 4px;
+    box-shadow: inset 1px 1px 2px var(--admin-shadow-dark), inset -1px -1px 2px var(--admin-shadow-light);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #c5cdd8;
+}
+
+/* ==========================================================
+   Responsive Styles
+   ========================================================== */
+@media (max-width: 768px) {
+    .main-container {
+        padding: 15px 10px;
+    }
+
+    .page-title {
+        font-size: 1.4rem;
+    }
+
+    .flex-column {
+        min-width: 100%;
+    }
+
+    .flex-row {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .internal-tabs {
+        flex-wrap: wrap;
+    }
+
+    .internal-tab {
+        flex: 1;
+        min-width: calc(50% - 5px);
+        text-align: center;
+        justify-content: center;
+    }
+
+    .section-container {
+        padding: 18px;
+        border-radius: 15px;
+        box-shadow: 5px 5px 10px var(--admin-shadow-dark), -5px -5px 10px var(--admin-shadow-light);
+    }
+
+    .section-container:hover {
+        transform: none;
+        box-shadow: 5px 5px 10px var(--admin-shadow-dark), -5px -5px 10px var(--admin-shadow-light);
+    }
+
+    .stats-row {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .stat-badge {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .table-wrapper {
+        overflow-x: auto;
+    }
+
+    .table {
+        min-width: 600px;
+    }
+
+    .btn-back {
+        width: 38px;
+        height: 38px;
+    }
+}
+
+@media (max-width: 480px) {
+    .page-title {
+        font-size: 1.2rem;
+    }
+
+    .section-title {
+        font-size: 1rem;
+    }
+
+    .internal-tab {
+        padding: 8px 14px;
+        font-size: 0.85rem;
+    }
+
+    .btn-primary-action,
+    .btn-primary-gold {
+        padding: 10px 18px;
+        font-size: 0.9rem;
+    }
+}

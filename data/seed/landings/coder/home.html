@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Coder - Professional AI coding assistant that helps developers write, debug, review, and understand code across multiple programming languages. Terminal-style interface for modern developers.">
+    <meta name="robots" content="index, follow">
+    <meta name="author" content="Coder AI">
+
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="Coder - AI Coding Assistant Operating System">
+    <meta property="og:description" content="Professional AI coding assistant with terminal-style interface. Write, debug, review, and understand code across all languages.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="./static/img/og-image.png">
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="./">
+
+    <title>Coder - AI Coding Assistant | Terminal-Style Development Environment</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="./static/css/custom.css">
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Coder",
+      "applicationCategory": "DeveloperApplication",
+      "description": "Professional AI coding assistant that helps developers write, debug, review, and understand code across multiple programming languages",
+      "operatingSystem": "Web-based",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+    </script>
+</head>
+<body class="bg-black text-green-400 font-mono overflow-x-hidden">
+
+    <!-- Boot Sequence Overlay -->
+    <div id="boot-sequence" class="fixed inset-0 z-50 bg-black flex items-center justify-center">
+        <div class="text-left max-w-2xl w-full px-4">
+            <div id="boot-text" class="space-y-1"></div>
+        </div>
+    </div>
+
+    <!-- Main OS Interface -->
+    <div id="main-os" class="hidden">
+
+        <!-- Header/Terminal Bar -->
+        <header class="border-b-2 border-green-400 bg-black sticky top-0 z-40">
+            <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <span class="text-2xl font-bold">CODER_OS v2.1.0</span>
+                    <span class="animate-pulse">_</span>
+                </div>
+                <nav class="hidden md:flex space-x-6">
+                    <a href="#features" class="hover:text-white transition-colors">FEATURES</a>
+                    <a href="#capabilities" class="hover:text-white transition-colors">CAPABILITIES</a>
+                    <a href="#security" class="hover:text-white transition-colors">SECURITY</a>
+                </nav>
+                <a href="register" class="bg-green-400 text-black px-6 py-2 font-bold hover:bg-white transition-all transform hover:scale-105">
+                    INITIALIZE
+                </a>
+            </div>
+        </header>
+
+        <main>
+            <!-- Hero - System Boot Screen -->
+            <section class="min-h-screen flex items-center justify-center relative overflow-hidden" id="hero">
+                <div class="absolute inset-0 opacity-10">
+                    <div class="grid-pattern"></div>
+                </div>
+
+                <div class="container mx-auto px-4 py-20 relative z-10">
+                    <div class="max-w-4xl mx-auto text-center mb-12">
+                        <h1 class="text-5xl md:text-7xl font-bold mb-6 glitch-text" data-text="CODER_AI">
+                            CODER_AI
+                        </h1>
+                        <p class="text-xl md:text-2xl mb-8 text-green-300">
+                            &gt; PROFESSIONAL CODING ASSISTANT OPERATING SYSTEM
+                        </p>
+                        <p class="text-lg mb-12 text-green-500 max-w-2xl mx-auto">
+                            Write, debug, review, and understand code across multiple programming languages.
+                            A terminal-style AI assistant built for developers who think in code.
+                        </p>
+                    </div>
+
+                    <!-- Interactive Control Panel -->
+                    <div class="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+
+                        <!-- System Status Panel -->
+                        <article class="terminal-panel cursor-pointer transform hover:scale-105 transition-all" data-panel="features">
+                            <div class="border-2 border-green-400 bg-black p-6 h-full">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h2 class="text-xl font-bold">SYSTEM.STATUS</h2>
+                                    <span class="text-green-400 animate-pulse">●</span>
+                                </div>
+                                <div class="space-y-2 text-sm">
+                                    <div class="flex justify-between">
+                                        <span>Languages:</span>
+                                        <span class="text-white">ALL</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>Accuracy:</span>
+                                        <span class="text-white">99.8%</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>Security:</span>
+                                        <span class="text-white">MAXIMUM</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>Speed:</span>
+                                        <span class="text-white">INSTANT</span>
+                                    </div>
+                                </div>
+                                <div class="mt-6 text-xs text-center text-green-300">
+                                    [ CLICK TO VIEW DETAILS ]
+                                </div>
+                            </div>
+                        </article>
+
+                        <!-- Features Panel -->
+                        <article class="terminal-panel cursor-pointer transform hover:scale-105 transition-all" data-panel="capabilities">
+                            <div class="border-2 border-green-400 bg-black p-6 h-full">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h2 class="text-xl font-bold">CAPABILITIES</h2>
+                                    <span class="text-green-400">▶</span>
+                                </div>
+                                <ul class="space-y-2 text-sm">
+                                    <li class="flex items-start">
+                                        <span class="mr-2">&gt;</span>
+                                        <span>Code Generation</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <span class="mr-2">&gt;</span>
+                                        <span>Bug Detection</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <span class="mr-2">&gt;</span>
+                                        <span>Code Review</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <span class="mr-2">&gt;</span>
+                                        <span>Refactoring</span>
+                                    </li>
+                                </ul>
+                                <div class="mt-6 text-xs text-center text-green-300">
+                                    [ CLICK TO EXPLORE ]
+                                </div>
+                            </div>
+                        </article>
+
+                        <!-- Security Panel -->
+                        <article class="terminal-panel cursor-pointer transform hover:scale-105 transition-all" data-panel="security">
+                            <div class="border-2 border-green-400 bg-black p-6 h-full">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h2 class="text-xl font-bold">SECURITY.LOG</h2>
+                                    <span class="text-green-400">🔒</span>
+                                </div>
+                                <div class="space-y-2 text-sm">
+                                    <div class="text-green-300">
+                                        [OK] SQL Injection: BLOCKED
+                                    </div>
+                                    <div class="text-green-300">
+                                        [OK] XSS Vectors: SANITIZED
+                                    </div>
+                                    <div class="text-green-300">
+                                        [OK] Code Injection: PREVENTED
+                                    </div>
+                                    <div class="text-green-300">
+                                        [OK] Secrets: PROTECTED
+                                    </div>
+                                </div>
+                                <div class="mt-6 text-xs text-center text-green-300">
+                                    [ CLICK FOR SECURITY INFO ]
+                                </div>
+                            </div>
+                        </article>
+                    </div>
+
+                    <div class="text-center mt-12">
+                        <a href="register" class="inline-block bg-green-400 text-black px-12 py-4 text-xl font-bold hover:bg-white transition-all transform hover:scale-110 animate-pulse-slow">
+                            &gt;&gt; BOOT SYSTEM NOW &lt;&lt;
+                        </a>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Features Screen -->
+            <section id="features" class="min-h-screen py-20 relative">
+                <div class="container mx-auto px-4">
+                    <div class="text-center mb-16">
+                        <h2 class="text-4xl md:text-5xl font-bold mb-4">
+                            &gt; SYSTEM.FEATURES
+                        </h2>
+                        <p class="text-xl text-green-300">Professional-grade development assistance</p>
+                    </div>
+
+                    <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
+
+                        <article class="border-2 border-green-400 bg-black p-6 hover:bg-green-400 hover:text-black transition-all group">
+                            <div class="text-4xl mb-4">
+                                <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-xl font-bold mb-3 text-center">Code Generation</h3>
+                            <p class="text-sm text-center group-hover:text-black">
+                                Write clean, secure, and efficient code across Python, JavaScript, Go, Rust, C++, and more
+                            </p>
+                        </article>
+
+                        <article class="border-2 border-green-400 bg-black p-6 hover:bg-green-400 hover:text-black transition-all group">
+                            <div class="text-4xl mb-4">
+                                <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-xl font-bold mb-3 text-center">Bug Detection</h3>
+                            <p class="text-sm text-center group-hover:text-black">
+                                Identify logic errors, security vulnerabilities, and edge cases before they reach production
+                            </p>
+                        </article>
+
+                        <article class="border-2 border-green-400 bg-black p-6 hover:bg-green-400 hover:text-black transition-all group">
+                            <div class="text-4xl mb-4">
+                                <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-xl font-bold mb-3 text-center">Code Review</h3>
+                            <p class="text-sm text-center group-hover:text-black">
+                                Get expert code reviews with security checks, performance tips, and best practice recommendations
+                            </p>
+                        </article>
+
+                        <article class="border-2 border-green-400 bg-black p-6 hover:bg-green-400 hover:text-black transition-all group">
+                            <div class="text-4xl mb-4">
+                                <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-xl font-bold mb-3 text-center">Refactoring</h3>
+                            <p class="text-sm text-center group-hover:text-black">
+                                Improve code structure, readability, and maintainability with intelligent refactoring suggestions
+                            </p>
+                        </article>
+
+                        <article class="border-2 border-green-400 bg-black p-6 hover:bg-green-400 hover:text-black transition-all group">
+                            <div class="text-4xl mb-4">
+                                <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-xl font-bold mb-3 text-center">Security First</h3>
+                            <p class="text-sm text-center group-hover:text-black">
+                                Never generates vulnerable code patterns. Protects against SQL injection, XSS, and common exploits
+                            </p>
+                        </article>
+
+                        <article class="border-2 border-green-400 bg-black p-6 hover:bg-green-400 hover:text-black transition-all group">
+                            <div class="text-4xl mb-4">
+                                <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-xl font-bold mb-3 text-center">Instant Response</h3>
+                            <p class="text-sm text-center group-hover:text-black">
+                                Real-time code assistance without breaking your development flow or context switching
+                            </p>
+                        </article>
+
+                        <article class="border-2 border-green-400 bg-black p-6 hover:bg-green-400 hover:text-black transition-all group">
+                            <div class="text-4xl mb-4">
+                                <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-xl font-bold mb-3 text-center">Multi-Language</h3>
+                            <p class="text-sm text-center group-hover:text-black">
+                                Master support for Python, JavaScript, TypeScript, Go, Rust, C, C++, SQL, and more
+                            </p>
+                        </article>
+
+                        <article class="border-2 border-green-400 bg-black p-6 hover:bg-green-400 hover:text-black transition-all group">
+                            <div class="text-4xl mb-4">
+                                <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-xl font-bold mb-3 text-center">Best Practices</h3>
+                            <p class="text-sm text-center group-hover:text-black">
+                                Follow official style guides, industry standards, and language-specific conventions automatically
+                            </p>
+                        </article>
+
+                    </div>
+                </div>
+            </section>
+
+            <!-- Capabilities Detail -->
+            <section id="capabilities" class="min-h-screen py-20 bg-gradient-to-b from-black to-green-950">
+                <div class="container mx-auto px-4">
+                    <div class="text-center mb-16">
+                        <h2 class="text-4xl md:text-5xl font-bold mb-4">
+                            &gt; CAPABILITIES.DETAILED
+                        </h2>
+                        <p class="text-xl text-green-300">What Coder AI can do for your development workflow</p>
+                    </div>
+
+                    <div class="max-w-4xl mx-auto space-y-8">
+
+                        <article class="border-2 border-green-400 bg-black p-8">
+                            <h3 class="text-2xl font-bold mb-4 flex items-center">
+                                <span class="mr-3 text-green-400">[01]</span>
+                                Accurate Code Generation
+                            </h3>
+                            <div class="pl-12 space-y-2 text-green-300">
+                                <p>&gt; Clean, readable, well-structured code following best practices</p>
+                                <p>&gt; Type hints, proper error handling, and edge case coverage</p>
+                                <p>&gt; Prefer standard library over external dependencies</p>
+                                <p>&gt; Descriptive variable names and minimal necessary comments</p>
+                            </div>
+                        </article>
+
+                        <article class="border-2 border-green-400 bg-black p-8">
+                            <h3 class="text-2xl font-bold mb-4 flex items-center">
+                                <span class="mr-3 text-green-400">[02]</span>
+                                Comprehensive Debugging
+                            </h3>
+                            <div class="pl-12 space-y-2 text-green-300">
+                                <p>&gt; Analyze error messages and stack traces to find root causes</p>
+                                <p>&gt; Identify logic errors before they cause production issues</p>
+                                <p>&gt; Targeted fixes without unnecessary changes to working code</p>
+                                <p>&gt; Preventive suggestions to avoid similar bugs in the future</p>
+                            </div>
+                        </article>
+
+                        <article class="border-2 border-green-400 bg-black p-8">
+                            <h3 class="text-2xl font-bold mb-4 flex items-center">
+                                <span class="mr-3 text-green-400">[03]</span>
+                                Professional Code Review
+                            </h3>
+                            <div class="pl-12 space-y-2 text-green-300">
+                                <p>&gt; Security vulnerability detection and remediation</p>
+                                <p>&gt; Performance optimization recommendations</p>
+                                <p>&gt; Readability and maintainability improvements</p>
+                                <p>&gt; Issues prioritized by severity: Critical, High, Medium, Low</p>
+                            </div>
+                        </article>
+
+                        <article class="border-2 border-green-400 bg-black p-8">
+                            <h3 class="text-2xl font-bold mb-4 flex items-center">
+                                <span class="mr-3 text-green-400">[04]</span>
+                                Language-Specific Expertise
+                            </h3>
+                            <div class="pl-12 space-y-2 text-green-300">
+                                <p>&gt; Python: Type hints, PEP 8, pathlib, context managers</p>
+                                <p>&gt; JavaScript/TypeScript: Async/await, strict mode, optional chaining</p>
+                                <p>&gt; Go: Error handling, interfaces, defer cleanup</p>
+                                <p>&gt; Rust: Result/Option types, error propagation, RAII patterns</p>
+                                <p>&gt; SQL: Parameterized queries, injection prevention</p>
+                            </div>
+                        </article>
+
+                    </div>
+                </div>
+            </section>
+
+            <!-- Security Section -->
+            <section id="security" class="min-h-screen py-20 relative">
+                <div class="container mx-auto px-4">
+                    <div class="text-center mb-16">
+                        <h2 class="text-4xl md:text-5xl font-bold mb-4">
+                            &gt; SECURITY.PROTOCOL
+                        </h2>
+                        <p class="text-xl text-green-300">Built-in security from the ground up</p>
+                    </div>
+
+                    <div class="max-w-5xl mx-auto grid md:grid-cols-2 gap-8">
+
+                        <article class="border-2 border-red-500 bg-black p-6">
+                            <h3 class="text-xl font-bold mb-4 text-red-400">NEVER GENERATED</h3>
+                            <ul class="space-y-2 text-sm">
+                                <li class="flex items-start">
+                                    <span class="mr-2 text-red-500">✗</span>
+                                    <span>Hardcoded secrets or API keys</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <span class="mr-2 text-red-500">✗</span>
+                                    <span>SQL injection vulnerabilities</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <span class="mr-2 text-red-500">✗</span>
+                                    <span>XSS-vulnerable code patterns</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <span class="mr-2 text-red-500">✗</span>
+                                    <span>eval() or exec() with untrusted input</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <span class="mr-2 text-red-500">✗</span>
+                                    <span>Deprecated crypto functions (MD5, SHA1 for passwords)</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <span class="mr-2 text-red-500">✗</span>
+                                    <span>Disabled security features or certificate validation</span>
+                                </li>
+                            </ul>
+                        </article>
+
+                        <article class="border-2 border-green-400 bg-black p-6">
+                            <h3 class="text-xl font-bold mb-4 text-green-400">ALWAYS ENFORCED</h3>
+                            <ul class="space-y-2 text-sm">
+                                <li class="flex items-start">
+                                    <span class="mr-2 text-green-400">✓</span>
+                                    <span>Input validation for all external data</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <span class="mr-2 text-green-400">✓</span>
+                                    <span>Parameterized queries for database operations</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <span class="mr-2 text-green-400">✓</span>
+                                    <span>Context-appropriate output encoding</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <span class="mr-2 text-green-400">✓</span>
+                                    <span>Established crypto and auth libraries</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <span class="mr-2 text-green-400">✓</span>
+                                    <span>Principle of least privilege</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <span class="mr-2 text-green-400">✓</span>
+                                    <span>Constant-time comparisons for sensitive data</span>
+                                </li>
+                            </ul>
+                        </article>
+
+                        <article class="border-2 border-green-400 bg-black p-6 md:col-span-2">
+                            <h3 class="text-xl font-bold mb-4">SECURITY-FIRST APPROACH</h3>
+                            <p class="text-green-300 mb-4">
+                                Coder AI is trained to prioritize security from the first line of code. Every suggestion follows industry best practices for secure development:
+                            </p>
+                            <div class="grid md:grid-cols-3 gap-4 text-sm">
+                                <div>
+                                    <h4 class="font-bold mb-2 text-green-400">Input Validation</h4>
+                                    <p>All user input, API responses, and file content validated before processing</p>
+                                </div>
+                                <div>
+                                    <h4 class="font-bold mb-2 text-green-400">Safe Dependencies</h4>
+                                    <p>Recommends well-maintained packages with active security updates</p>
+                                </div>
+                                <div>
+                                    <h4 class="font-bold mb-2 text-green-400">Error Handling</h4>
+                                    <p>Proper exception handling without exposing sensitive information</p>
+                                </div>
+                            </div>
+                        </article>
+
+                    </div>
+                </div>
+            </section>
+
+            <!-- Testimonials -->
+            <section class="py-20 bg-gradient-to-b from-black to-green-950">
+                <div class="container mx-auto px-4">
+                    <div class="text-center mb-16">
+                        <h2 class="text-4xl md:text-5xl font-bold mb-4">
+                            &gt; USER.FEEDBACK
+                        </h2>
+                        <p class="text-xl text-green-300">What developers are saying</p>
+                    </div>
+
+                    <div class="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+
+                        <article class="border-2 border-green-400 bg-black p-6">
+                            <div class="mb-4">
+                                <div class="flex items-center mb-2">
+                                    <div class="text-green-400 mr-2">▶</div>
+                                    <span class="font-bold">senior_dev_42</span>
+                                </div>
+                                <div class="text-xs text-green-500">Full Stack Engineer</div>
+                            </div>
+                            <p class="text-sm text-green-300">
+                                "Finally, an AI that understands security. No more reviewing generated code for SQL injection vulnerabilities. It just writes it right the first time."
+                            </p>
+                        </article>
+
+                        <article class="border-2 border-green-400 bg-black p-6">
+                            <div class="mb-4">
+                                <div class="flex items-center mb-2">
+                                    <div class="text-green-400 mr-2">▶</div>
+                                    <span class="font-bold">rustacean_pro</span>
+                                </div>
+                                <div class="text-xs text-green-500">Systems Programmer</div>
+                            </div>
+                            <p class="text-sm text-green-300">
+                                "Coder understands Rust idioms better than some senior developers. The Result type handling and lifetime suggestions are spot-on."
+                            </p>
+                        </article>
+
+                        <article class="border-2 border-green-400 bg-black p-6">
+                            <div class="mb-4">
+                                <div class="flex items-center mb-2">
+                                    <div class="text-green-400 mr-2">▶</div>
+                                    <span class="font-bold">code_reviewer_</span>
+                                </div>
+                                <div class="text-xs text-green-500">Tech Lead</div>
+                            </div>
+                            <p class="text-sm text-green-300">
+                                "Reduced our code review time by 40%. It catches the obvious stuff so we can focus on architecture and business logic. Game changer."
+                            </p>
+                        </article>
+
+                    </div>
+                </div>
+            </section>
+
+            <!-- Final CTA -->
+            <section class="min-h-screen flex items-center justify-center py-20 relative overflow-hidden">
+                <div class="absolute inset-0 opacity-5">
+                    <div class="scan-lines"></div>
+                </div>
+
+                <div class="container mx-auto px-4 text-center relative z-10">
+                    <h2 class="text-5xl md:text-7xl font-bold mb-8 glitch-text" data-text="READY TO CODE">
+                        READY TO CODE
+                    </h2>
+                    <p class="text-2xl md:text-3xl mb-12 text-green-300">
+                        &gt; INITIALIZE YOUR DEVELOPMENT ENVIRONMENT
+                    </p>
+                    <div class="space-y-6 mb-12">
+                        <p class="text-xl text-green-400">✓ No credit card required</p>
+                        <p class="text-xl text-green-400">✓ Start coding in 30 seconds</p>
+                        <p class="text-xl text-green-400">✓ All languages supported</p>
+                    </div>
+                    <a href="register" class="inline-block bg-green-400 text-black px-16 py-6 text-2xl font-bold hover:bg-white transition-all transform hover:scale-110 animate-pulse-slow">
+                        &gt;&gt; BOOT CODER.AI &lt;&lt;
+                    </a>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- Footer -->
+        <footer class="border-t-2 border-green-400 bg-black py-8">
+            <div class="container mx-auto px-4">
+                <div class="grid md:grid-cols-4 gap-8 mb-8">
+                    <div>
+                        <h3 class="font-bold mb-4">PRODUCT</h3>
+                        <ul class="space-y-2 text-sm">
+                            <li><a href="#features" class="hover:text-white transition-colors">Features</a></li>
+                            <li><a href="#capabilities" class="hover:text-white transition-colors">Capabilities</a></li>
+                            <li><a href="#security" class="hover:text-white transition-colors">Security</a></li>
+                            <li><a href="register" class="hover:text-white transition-colors">Get Started</a></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="font-bold mb-4">LANGUAGES</h3>
+                        <ul class="space-y-2 text-sm">
+                            <li>Python</li>
+                            <li>JavaScript / TypeScript</li>
+                            <li>Go</li>
+                            <li>Rust</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="font-bold mb-4">DEVELOPERS</h3>
+                        <ul class="space-y-2 text-sm">
+                            <li><a href="#" class="hover:text-white transition-colors">Documentation</a></li>
+                            <li><a href="#" class="hover:text-white transition-colors">API Reference</a></li>
+                            <li><a href="#" class="hover:text-white transition-colors">Examples</a></li>
+                            <li><a href="#" class="hover:text-white transition-colors">Community</a></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="font-bold mb-4">COMPANY</h3>
+                        <ul class="space-y-2 text-sm">
+                            <li><a href="#" class="hover:text-white transition-colors">About</a></li>
+                            <li><a href="#" class="hover:text-white transition-colors">Privacy</a></li>
+                            <li><a href="#" class="hover:text-white transition-colors">Terms</a></li>
+                            <li><a href="#" class="hover:text-white transition-colors">Contact</a></li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="text-center text-sm text-green-500 border-t border-green-800 pt-8">
+                    <p>&copy; 2025 CODER_AI. Professional AI coding assistant for developers.</p>
+                    <p class="mt-2">SYSTEM STATUS: ONLINE | SECURITY: ACTIVE | VERSION: 2.1.0</p>
+                </div>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- Custom JavaScript -->
+    <script src="./static/js/custom.js"></script>
+</body>
+</html>

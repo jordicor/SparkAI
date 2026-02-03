@@ -1,0 +1,207 @@
+{% extends 'base_admin.html' %}
+
+{% block title %}ElevenLabs Agents - SPARK{% endblock %}
+
+{% block page_title %}ElevenLabs Agents{% endblock %}
+
+{% block page_subtitle %}
+<p class="page-subtitle">Configure AI voice agents for real-time conversations</p>
+{% endblock %}
+
+{% block alerts %}
+{% if message %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="fas fa-check-circle me-2"></i>{{ message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+{% if error %}
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="fas fa-exclamation-circle me-2"></i>{{ error }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<!-- Stats -->
+<div class="stats-row">
+    <span class="stat-badge">
+        <i class="fas fa-robot"></i> <strong>{{ agents|length }}</strong> Agents
+    </span>
+    <span class="stat-badge">
+        <i class="fas fa-link"></i> <strong>{{ mappings|length }}</strong> Prompt Overrides
+    </span>
+</div>
+
+<!-- Add/Update Agent Section -->
+<div class="section-container">
+    <div class="section-title">
+        <i class="fas fa-plus-circle"></i> Add or Update Agent
+    </div>
+    <form method="post" action="/admin/elevenlabs-agents">
+        <div class="flex-row">
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label class="form-label" for="agent_id">Agent ID</label>
+                    <input class="form-control" id="agent_id" name="agent_id" required placeholder="Enter ElevenLabs agent ID">
+                </div>
+            </div>
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label class="form-label" for="agent_name">Display Name</label>
+                    <input class="form-control" id="agent_name" name="agent_name" placeholder="Optional display name">
+                </div>
+            </div>
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label class="form-label">&nbsp;</label>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" id="make_default" name="make_default">
+                        <label class="form-check-label" for="make_default">Set as default</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="mt-2">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save me-1"></i> Save Agent
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Registered Agents Section -->
+<div class="section-container">
+    <div class="section-title">
+        <i class="fas fa-list"></i> Registered Agents
+    </div>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Agent ID</th>
+                    <th>Display Name</th>
+                    <th>Default</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for agent in agents %}
+                <tr>
+                    <td><code>{{ agent.agent_id }}</code></td>
+                    <td>{{ agent.agent_name or '-' }}</td>
+                    <td>
+                        {% if agent.is_default %}
+                        <span class="badge bg-success"><i class="fas fa-check me-1"></i>Default</span>
+                        {% else %}
+                        <form method="post" action="/admin/elevenlabs-agents/{{ agent.agent_id }}/set-default" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-secondary" title="Set as default" data-bs-toggle="tooltip">
+                                <i class="fas fa-star"></i>
+                            </button>
+                        </form>
+                        {% endif %}
+                    </td>
+                    <td class="text-end table-actions">
+                        <form method="post" action="/admin/elevenlabs-agents/{{ agent.agent_id }}/delete" class="d-inline" onsubmit="return confirm('Delete this agent?');">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete" data-bs-toggle="tooltip">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" class="text-center text-muted py-4">
+                        <i class="fas fa-robot fa-2x mb-2 d-block opacity-50"></i>
+                        No agents configured yet.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Prompt Overrides Section -->
+<div class="section-container">
+    <div class="section-title">
+        <i class="fas fa-sliders-h"></i> Prompt Overrides
+    </div>
+    <form method="post" action="/admin/elevenlabs-agents/mapping">
+        <div class="flex-row">
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label class="form-label" for="prompt_id">Prompt</label>
+                    <select class="form-select" id="prompt_id" name="prompt_id" required>
+                        {% for prompt in prompts %}
+                        <option value="{{ prompt.id }}">{{ prompt.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label class="form-label" for="mapping_agent_id">Agent</label>
+                    <select class="form-select" id="mapping_agent_id" name="agent_id">
+                        <option value="">Use default agent</option>
+                        {% for agent in agents %}
+                        <option value="{{ agent.agent_id }}">{{ agent.agent_name or agent.agent_id }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label class="form-label" for="voice_id">Voice Override</label>
+                    <input class="form-control" id="voice_id" name="voice_id" placeholder="Optional voice ID">
+                </div>
+            </div>
+        </div>
+        <div class="mt-2">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save me-1"></i> Save Mapping
+            </button>
+        </div>
+    </form>
+
+    <hr class="my-4">
+
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Prompt</th>
+                    <th>Agent</th>
+                    <th>Voice</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for mapping in mappings %}
+                <tr>
+                    <td><strong>{{ mapping.prompt_name or ('Prompt ' ~ mapping.prompt_id) }}</strong></td>
+                    <td><code>{{ mapping.agent_id }}</code></td>
+                    <td>{{ mapping.voice_id or '-' }}</td>
+                    <td class="text-end table-actions">
+                        <form method="post" action="/admin/elevenlabs-agents/mapping" class="d-inline">
+                            <input type="hidden" name="prompt_id" value="{{ mapping.prompt_id }}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove mapping" data-bs-toggle="tooltip">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" class="text-center text-muted py-4">
+                        <i class="fas fa-link fa-2x mb-2 d-block opacity-50"></i>
+                        No overrides configured.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

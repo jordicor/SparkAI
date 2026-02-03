@@ -1,0 +1,441 @@
+/* V2 - Redesigned Media Gallery */
+
+/* ============================================
+   GRID LAYOUTS
+   ============================================ */
+.image-grid,
+.pdf-grid,
+.mp3-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 24px;
+    padding: 24px;
+}
+
+/* ============================================
+   IMAGE GALLERY
+   ============================================ */
+.image-container {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.image-container:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.image-checkbox {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 10;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #0d6efd;
+}
+
+.gallery-image {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    cursor: pointer;
+    display: block;
+}
+
+/* ============================================
+   FULLSIZE IMAGE VIEWER
+   ============================================ */
+.fullsize-container {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.92);
+    z-index: 2000;
+}
+
+.fullsize-image {
+    max-width: 90%;
+    max-height: 90%;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 8px;
+}
+
+.fullsize-controls {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(255, 255, 255, 0.95);
+    padding: 12px 20px;
+    border-radius: 8px;
+    display: flex;
+    gap: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.nav-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 3em;
+    color: white;
+    cursor: pointer;
+    padding: 20px;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+.nav-arrow:hover {
+    opacity: 1;
+}
+
+.nav-arrow.left {
+    left: 20px;
+}
+
+.nav-arrow.right {
+    right: 20px;
+}
+
+/* ============================================
+   PDF CARDS
+   ============================================ */
+.pdf-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.pdf-container:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.pdf-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.pdf-checkbox {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 10;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #0d6efd;
+}
+
+.pdf-icon {
+    width: 100%;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #fff5f5 0%, #ffe0e0 100%);
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.pdf-icon i {
+    font-size: 4rem;
+    color: #dc3545;
+    transition: transform 0.15s;
+}
+
+.pdf-icon:hover {
+    background: linear-gradient(135deg, #ffe0e0 0%, #ffd0d0 100%);
+}
+
+.pdf-icon:hover i {
+    transform: scale(1.08);
+}
+
+.pdf-info {
+    padding: 12px 14px 8px;
+    background: #fff;
+}
+
+.pdf-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: #333;
+    line-height: 1.4;
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 36px;
+}
+
+.pdf-controls {
+    display: flex;
+    gap: 8px;
+    padding: 8px 14px 14px;
+    background: #fff;
+}
+
+.pdf-controls .btn {
+    flex: 1;
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-weight: 500;
+}
+
+/* ============================================
+   MP3 CARDS
+   ============================================ */
+.mp3-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.mp3-container:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.mp3-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.mp3-checkbox {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 10;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #0d6efd;
+}
+
+.mp3-player-wrapper {
+    width: 100%;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #e8f4ff 0%, #d0e8ff 100%);
+    position: relative;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.mp3-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.mp3-overlay:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.play-icon {
+    font-size: 4rem;
+    color: #0d6efd;
+    transition: transform 0.2s, color 0.2s;
+}
+
+.mp3-overlay:hover .play-icon {
+    transform: scale(1.1);
+    color: #0a58ca;
+}
+
+.pause-icon {
+    display: none;
+}
+
+.audio-player {
+    display: none;
+}
+
+.mp3-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 12px 14px 6px;
+    background: #fff;
+    gap: 8px;
+}
+
+.mp3-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: #333;
+    line-height: 1.4;
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    flex: 1;
+}
+
+.time-display {
+    font-size: 12px;
+    color: #888;
+    white-space: nowrap;
+    font-family: 'SF Mono', 'Consolas', monospace;
+}
+
+.time-display.active {
+    color: #0d6efd;
+}
+
+.mp3-progress-bar {
+    width: calc(100% - 28px);
+    height: 4px;
+    background-color: #e9ecef;
+    border-radius: 2px;
+    margin: 0 14px 8px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.progress-filled {
+    height: 100%;
+    background: linear-gradient(90deg, #0d6efd, #0a58ca);
+    width: 0%;
+    border-radius: 2px;
+    transition: width 0.1s linear;
+}
+
+.mp3-controls {
+    display: flex;
+    gap: 8px;
+    padding: 8px 14px 14px;
+    background: #fff;
+}
+
+.mp3-controls .btn {
+    flex: 1;
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-weight: 500;
+}
+
+/* ============================================
+   PAGINATION
+   ============================================ */
+.pagination {
+    margin-top: 24px;
+    justify-content: center;
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+.hidden {
+    display: none !important;
+}
+
+/* ============================================
+   RESPONSIVE DESIGN
+   ============================================ */
+@media (max-width: 768px) {
+    .image-grid,
+    .pdf-grid,
+    .mp3-grid {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 16px;
+        padding: 16px;
+    }
+
+    .fullsize-controls {
+        width: 90%;
+        justify-content: center;
+    }
+
+    .nav-arrow {
+        font-size: 2em;
+        padding: 10px;
+    }
+
+    .nav-arrow.left {
+        left: 10px;
+    }
+
+    .nav-arrow.right {
+        right: 10px;
+    }
+
+    .pdf-icon i,
+    .play-icon {
+        font-size: 3rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .image-grid,
+    .pdf-grid,
+    .mp3-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        padding: 12px;
+    }
+
+    .pdf-info,
+    .mp3-info {
+        padding: 10px 12px 4px;
+    }
+
+    .pdf-controls,
+    .mp3-controls {
+        padding: 6px 12px 12px;
+        flex-direction: column;
+    }
+
+    .pdf-controls .btn,
+    .mp3-controls .btn {
+        width: 100%;
+    }
+
+    .pdf-name,
+    .mp3-name {
+        font-size: 12px;
+        min-height: 32px;
+    }
+
+    .pdf-icon i,
+    .play-icon {
+        font-size: 2.5rem;
+    }
+}
+

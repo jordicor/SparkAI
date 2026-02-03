@@ -1,0 +1,977 @@
+/**
+ * Theme Template - Copy this file to create a new theme
+ *
+ * Instructions:
+ * 1. Copy this file and rename to {theme-name}.css
+ * 2. Fill in all CSS variable values in :root
+ * 3. Adjust component styles as needed for the theme aesthetic
+ * 4. Test on all admin pages listed in the testing checklist
+ *
+ * Load order: Bootstrap -> common.css -> themes/{theme}.css
+ */
+
+/* ==========================================================
+   1. CSS VARIABLES
+   Define all theme colors and values here
+   ========================================================== */
+:root {
+    /* ----- Backgrounds ----- */
+    --bg-primary: ;       /* Main page background */
+    --bg-secondary: ;     /* Card/section backgrounds */
+    --bg-tertiary: ;      /* Input/nested element backgrounds */
+
+    /* ----- Text ----- */
+    --text-primary: ;     /* Main text, headings */
+    --text-secondary: ;   /* Secondary text, labels */
+    --text-muted: ;       /* Disabled, placeholder text */
+
+    /* ----- Accent (Brand Color) ----- */
+    --accent: ;           /* Primary action color */
+    --accent-hover: ;     /* Hover state */
+    --accent-light: ;     /* Light variant for gradients */
+    --accent-rgb: ;       /* RGB values for rgba() usage, e.g., "114, 137, 218" */
+
+    /* ----- Borders & Shadows ----- */
+    --border-color: ;
+    --shadow-soft: ;      /* Default shadows */
+    --shadow-hover: ;     /* Hover state shadows */
+
+    /* ----- Status Colors ----- */
+    --success: ;          /* Green - positive actions */
+    --success-rgb: ;      /* RGB for rgba() */
+    --danger: ;           /* Red - destructive actions */
+    --danger-rgb: ;
+    --warning: ;          /* Yellow/Orange - caution */
+    --warning-rgb: ;
+    --info: ;             /* Blue - informational */
+    --info-rgb: ;
+}
+
+/* ==========================================================
+   2. BASE STYLES
+   Body, links, and general element styling
+   ========================================================== */
+body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+a {
+    color: var(--accent);
+}
+
+a:hover {
+    color: var(--accent-hover);
+}
+
+/* ==========================================================
+   3. NAVBAR
+   Top navigation bar styling
+   ========================================================== */
+.navbar {
+    background-color: var(--bg-tertiary) !important;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.navbar-brand,
+.nav-link {
+    color: var(--text-primary) !important;
+    transition: color 0.2s;
+}
+
+.navbar-brand:hover,
+.nav-link:hover {
+    color: var(--accent) !important;
+}
+
+.navbar-toggler {
+    border-color: var(--border-color);
+    background-color: var(--bg-secondary);
+}
+
+.navbar-toggler-icon {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(255,255,255,0.7)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+}
+
+.navbar .btn-outline-danger {
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+.navbar .btn-outline-danger:hover {
+    background-color: var(--danger);
+    color: white;
+}
+
+/* ==========================================================
+   4. PAGE LAYOUT
+   Main container, headers, and toolbars
+   ========================================================== */
+.main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 30px 20px;
+}
+
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid var(--accent);
+}
+
+.page-header-text {
+    flex: 1;
+}
+
+.page-title {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.page-subtitle {
+    margin: 4px 0 0 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.page-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    gap: 16px;
+}
+
+.page-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.page-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+/* Back button */
+.btn-back {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.btn-back:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+    transform: translateY(-2px);
+}
+
+/* ==========================================================
+   5. SECTION CONTAINERS
+   Card-like boxes for content grouping
+   ========================================================== */
+.section-container {
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 25px;
+    margin-bottom: 25px;
+    box-shadow: var(--shadow-soft);
+    transition: all 0.2s ease;
+    border: 1px solid var(--border-color);
+}
+
+.section-container:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-hover);
+}
+
+.section-title {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 14px;
+    margin-bottom: 22px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.section-title i {
+    color: var(--accent);
+}
+
+/* ==========================================================
+   6. FORM ELEMENTS
+   Inputs, selects, checkboxes, labels
+   ========================================================== */
+.form-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.form-control,
+.form-select {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 10px 14px;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    transition: all 0.2s;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.2);
+    background: var(--bg-secondary);
+    outline: none;
+}
+
+.form-control::placeholder {
+    color: var(--text-muted);
+}
+
+.form-select option {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+textarea.form-control {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.form-check-input {
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+}
+
+.form-check-input:checked {
+    background-color: var(--accent);
+    border-color: var(--accent);
+}
+
+.form-check-input:focus {
+    box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.2);
+}
+
+.form-check-label {
+    color: var(--text-primary);
+}
+
+/* ==========================================================
+   7. BUTTONS
+   All button variants and states
+   ========================================================== */
+/* Primary action button with gradient */
+.btn-primary-action {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light) 100%);
+    border: none;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.btn-primary-action:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-hover);
+    color: white;
+}
+
+/* Standard Bootstrap overrides */
+.btn-primary {
+    background-color: var(--accent);
+    border-color: var(--accent);
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: var(--accent-hover);
+    border-color: var(--accent-hover);
+    color: white;
+}
+
+.btn-secondary {
+    background-color: var(--bg-tertiary);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+    background-color: var(--bg-secondary);
+    border-color: var(--accent);
+    color: var(--text-primary);
+}
+
+.btn-outline-secondary {
+    color: var(--text-secondary);
+    border-color: var(--border-color);
+}
+
+.btn-outline-secondary:hover {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+.btn-outline-danger {
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+.btn-outline-danger:hover {
+    background-color: var(--danger);
+    border-color: var(--danger);
+    color: white;
+}
+
+.btn-outline-primary {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.btn-outline-primary:hover {
+    background-color: var(--accent);
+    border-color: var(--accent);
+    color: white;
+}
+
+.btn-success {
+    background-color: var(--success);
+    border-color: var(--success);
+    color: white;
+}
+
+.btn-success:hover {
+    background-color: var(--success);
+    filter: brightness(1.1);
+}
+
+.btn-danger {
+    background-color: var(--danger);
+    border-color: var(--danger);
+    color: white;
+}
+
+.btn-danger:hover {
+    background-color: var(--danger);
+    filter: brightness(1.1);
+}
+
+.btn-warning {
+    background-color: var(--warning);
+    border-color: var(--warning);
+    color: #000;
+}
+
+.btn-info {
+    background-color: var(--info);
+    border-color: var(--info);
+    color: white;
+}
+
+/* ==========================================================
+   8. TABLES
+   Table styling including wrapper and headers
+   ========================================================== */
+.table-wrapper {
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+.table,
+.table-wrapper .table {
+    margin: 0;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.table th,
+.table td {
+    border-color: var(--border-color);
+    padding: 12px 16px;
+    vertical-align: middle;
+}
+
+.table thead th {
+    background-color: var(--bg-tertiary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.table tbody td {
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.table tbody tr:hover {
+    background-color: var(--bg-tertiary);
+}
+
+/* Table action buttons */
+.table-actions {
+    white-space: nowrap;
+}
+
+.table-actions .btn {
+    padding: 7px 11px;
+    margin-left: 6px;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.table-actions .btn:first-child {
+    margin-left: 0;
+}
+
+.table-actions .btn:hover {
+    transform: translateY(-2px);
+}
+
+/* Sortable headers */
+.table thead th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s ease;
+}
+
+.table thead th.sortable:hover {
+    background-color: var(--bg-primary);
+}
+
+.table thead th.sortable::after {
+    content: '';
+    margin-left: 6px;
+    opacity: 0.3;
+}
+
+.table thead th.sort-asc::after {
+    content: '\25B2';
+    opacity: 1;
+    color: var(--accent);
+}
+
+.table thead th.sort-desc::after {
+    content: '\25BC';
+    opacity: 1;
+    color: var(--accent);
+}
+
+/* ==========================================================
+   9. BADGES & STATS
+   Status badges and statistics display
+   ========================================================== */
+.badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.35em 0.65em;
+    border-radius: 10px;
+}
+
+.badge.bg-success { background-color: var(--success) !important; }
+.badge.bg-danger { background-color: var(--danger) !important; }
+.badge.bg-warning { background-color: var(--warning) !important; color: #000; }
+.badge.bg-info { background-color: var(--info) !important; }
+.badge.bg-secondary { background-color: var(--bg-tertiary) !important; color: var(--text-primary); }
+
+/* Stats row */
+.stats-row {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+}
+
+.stat-badge {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    padding: 10px 18px;
+    border-radius: 25px;
+    font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: var(--shadow-soft);
+    color: var(--text-secondary);
+}
+
+.stat-badge i {
+    color: var(--accent);
+    font-size: 1rem;
+}
+
+.stat-badge strong {
+    color: var(--accent);
+}
+
+/* Stat badge variants */
+.stat-badge.stat-active,
+.stat-badge.stat-public {
+    background: rgba(var(--success-rgb), 0.15);
+    border-color: rgba(var(--success-rgb), 0.3);
+}
+
+.stat-badge.stat-active strong,
+.stat-badge.stat-public strong {
+    color: var(--success);
+}
+
+.stat-badge.stat-expired,
+.stat-badge.stat-private {
+    background: rgba(var(--danger-rgb), 0.15);
+    border-color: rgba(var(--danger-rgb), 0.3);
+}
+
+.stat-badge.stat-expired strong {
+    color: var(--danger);
+}
+
+.stat-badge.stat-private strong {
+    color: var(--text-muted);
+}
+
+/* Status indicators */
+.status-active { color: var(--success); }
+.status-expired { color: var(--danger); }
+.status-public { color: var(--success); }
+.status-private { color: var(--text-muted); }
+
+/* ==========================================================
+   10. ALERTS
+   Alert/notification boxes
+   ========================================================== */
+.alert {
+    border-radius: 8px;
+    padding: 14px 18px;
+    border: 1px solid;
+}
+
+.alert-success {
+    background-color: rgba(var(--success-rgb), 0.1);
+    border-color: var(--success);
+    color: var(--success);
+}
+
+.alert-danger {
+    background-color: rgba(var(--danger-rgb), 0.1);
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+.alert-warning {
+    background-color: rgba(var(--warning-rgb), 0.1);
+    border-color: var(--warning);
+    color: var(--warning);
+}
+
+.alert-info {
+    background-color: rgba(var(--info-rgb), 0.1);
+    border-color: var(--info);
+    color: var(--info);
+}
+
+/* ==========================================================
+   11. INTERNAL TABS
+   Tab navigation within pages (admin/LLM)
+   ========================================================== */
+.internal-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+}
+
+.internal-tab {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.internal-tab:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.internal-tab.active {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light) 100%);
+    color: white;
+    border-color: transparent;
+}
+
+/* ==========================================================
+   12. PROVIDER BADGES
+   AI provider badges (GPT, Claude, Gemini, xAI)
+   ========================================================== */
+.provider-badge {
+    font-size: 0.75rem;
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-weight: 600;
+    display: inline-block;
+}
+
+.provider-GPT {
+    background: linear-gradient(135deg, #10a37f 0%, #0d8a6a 100%);
+    color: white;
+}
+
+.provider-Claude {
+    background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+    color: white;
+}
+
+.provider-Gemini {
+    background: linear-gradient(135deg, #4285f4 0%, #2b6de8 100%);
+    color: white;
+}
+
+.provider-xAI {
+    background: linear-gradient(135deg, #1d1d1f 0%, #3a3a3c 100%);
+    color: white;
+}
+
+/* Vision badge */
+.vision-badge {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    color: white;
+    font-size: 0.7rem;
+    padding: 4px 10px;
+    border-radius: 5px;
+    font-weight: 600;
+}
+
+/* Category icon */
+.category-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.2) 0%, rgba(var(--accent-rgb), 0.15) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+}
+
+/* Category badge (prompts) */
+.category-badge {
+    background: #5865f2;
+    color: white;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 0.75rem;
+}
+
+/* ==========================================================
+   13. EMPTY STATE
+   Placeholder when no data exists
+   ========================================================== */
+.empty-state {
+    text-align: center;
+    padding: 50px 20px;
+    color: var(--text-muted);
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 15px;
+    opacity: 0.5;
+}
+
+.empty-state h5 {
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+}
+
+.empty-state p {
+    margin-bottom: 20px;
+}
+
+/* ==========================================================
+   14. MODALS
+   Modal dialog styling
+   ========================================================== */
+.modal-content {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.modal-header {
+    background: var(--bg-tertiary);
+    border-color: var(--border-color);
+}
+
+.modal-header .btn-close {
+    filter: invert(1);
+}
+
+.modal-title {
+    color: var(--text-primary);
+}
+
+.modal-footer {
+    border-color: var(--border-color);
+}
+
+/* ==========================================================
+   15. FILTERS SECTION
+   Filter panel styling
+   ========================================================== */
+.filters-section {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.filters-section .section-title {
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+}
+
+.filters-section .section-title .btn {
+    margin-left: auto;
+}
+
+/* ==========================================================
+   16. TABLE TOOLBAR
+   Select all + Actions above table
+   ========================================================== */
+.table-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    background-color: var(--bg-tertiary);
+    border-radius: 8px;
+}
+
+.toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.toolbar-left .form-check-label {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* ==========================================================
+   17. SCROLLBAR
+   Custom scrollbar styling
+   ========================================================== */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--border-color);
+}
+
+/* ==========================================================
+   18. TEXT UTILITIES
+   Utility classes for text styling
+   ========================================================== */
+.text-muted {
+    color: var(--text-muted) !important;
+}
+
+.text-primary {
+    color: var(--accent) !important;
+}
+
+.text-success {
+    color: var(--success) !important;
+}
+
+.text-danger {
+    color: var(--danger) !important;
+}
+
+.text-warning {
+    color: var(--warning) !important;
+}
+
+/* ==========================================================
+   19. FLEX LAYOUT UTILITIES
+   Responsive columns
+   ========================================================== */
+.flex-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.flex-column {
+    flex: 1;
+    min-width: 250px;
+}
+
+/* ==========================================================
+   20. RESPONSIVE BREAKPOINTS
+   Mobile and tablet adjustments
+   ========================================================== */
+@media (max-width: 992px) {
+    .flex-column {
+        min-width: calc(50% - 10px);
+        flex: 0 0 calc(50% - 10px);
+    }
+}
+
+@media (max-width: 768px) {
+    .main-container {
+        padding: 15px 10px;
+    }
+
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .page-title {
+        font-size: 1.4rem;
+    }
+
+    .page-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .page-toolbar-left,
+    .page-toolbar-right {
+        justify-content: center;
+    }
+
+    .flex-column {
+        min-width: 100%;
+        flex: 0 0 100%;
+    }
+
+    .section-container {
+        padding: 18px;
+    }
+
+    .btn-back {
+        width: 38px;
+        height: 38px;
+    }
+
+    .internal-tabs {
+        flex-direction: column;
+    }
+
+    .internal-tab {
+        text-align: center;
+    }
+
+    .table-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .toolbar-left,
+    .toolbar-right {
+        justify-content: center;
+    }
+
+    .toolbar-right {
+        flex-wrap: wrap;
+    }
+
+    .stats-row {
+        gap: 10px;
+    }
+
+    .stat-badge {
+        flex: 1;
+        justify-content: center;
+        padding: 8px 12px;
+        font-size: 0.85rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .page-title {
+        font-size: 1.2rem;
+    }
+
+    .section-title {
+        font-size: 1rem;
+    }
+
+    .section-container {
+        padding: 12px;
+        margin-bottom: 15px;
+    }
+
+    .filters-section .section-title {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .filters-section .section-title .btn {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .toolbar-right .btn {
+        flex: 1;
+    }
+}

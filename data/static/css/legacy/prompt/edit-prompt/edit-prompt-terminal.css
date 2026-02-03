@@ -1,0 +1,745 @@
+/* edit_prompt-terminal.css */
+
+:root {
+    --terminal-bg: #000000;
+    --terminal-text: #00ff00;
+    --terminal-border: #00ff00;
+    --terminal-hover: #003300;
+    --terminal-error: #ff0000;
+    --terminal-warning: #ffff00;
+    --terminal-muted: #008800;
+    --terminal-placeholder: #006600;
+}
+
+body {
+    background-color: var(--terminal-bg);
+    color: var(--terminal-text);
+    font-family: 'Courier New', monospace;
+}
+
+/* ==========================================================
+   Design System - Layout Styles
+   ========================================================== */
+
+/* Main Container */
+.main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 30px 20px;
+}
+
+/* Page Header */
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--terminal-border);
+}
+
+.page-header-text {
+    flex: 1;
+}
+
+/* Page Toolbar (Tabs + Actions) */
+.page-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    gap: 16px;
+}
+
+.page-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.page-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+/* Hide toolbar when both sides are empty */
+.page-toolbar:has(.page-toolbar-left:empty):has(.page-toolbar-right:empty) {
+    display: none;
+}
+
+/* Back Button */
+.btn-back {
+    width: 44px;
+    height: 44px;
+    border-radius: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--terminal-bg);
+    border: 1px solid var(--terminal-border);
+    color: var(--terminal-text);
+    text-decoration: none;
+    transition: all 0.2s;
+    font-family: 'Courier New', monospace;
+}
+
+.btn-back:hover {
+    background: var(--terminal-text);
+    border-color: var(--terminal-text);
+    color: var(--terminal-bg);
+    text-shadow: 0 0 10px var(--terminal-text);
+}
+
+/* Page Title */
+.page-title {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--terminal-text);
+    font-family: 'Courier New', monospace;
+}
+
+.page-title::before {
+    content: "> ";
+}
+
+.page-title::after {
+    content: "_";
+    animation: blink 1s step-end infinite;
+}
+
+.page-subtitle {
+    margin: 4px 0 0 0;
+    color: var(--terminal-muted);
+    font-size: 0.9rem;
+    font-family: 'Courier New', monospace;
+}
+
+/* ==========================================================
+   Design System - Responsive Layout
+   ========================================================== */
+@media (max-width: 768px) {
+    .main-container {
+        padding: 15px 10px;
+    }
+
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .page-toolbar {
+        flex-wrap: wrap;
+    }
+
+    .page-title {
+        font-size: 1.4rem;
+    }
+
+    .btn-back {
+        width: 38px;
+        height: 38px;
+    }
+}
+
+@media (max-width: 480px) {
+    .page-title {
+        font-size: 1.2rem;
+    }
+}
+
+/* ==========================================================
+   Layout Containers
+   ========================================================== */
+.section-container {
+    background-color: var(--terminal-bg);
+    border: 1px solid var(--terminal-border);
+    border-radius: 0;
+    padding: 20px;
+    margin-bottom: 20px;
+    position: relative;
+}
+
+.section-container::before {
+    content: ">";
+    position: absolute;
+    left: 5px;
+    top: 5px;
+    color: var(--terminal-text);
+}
+
+.section-title {
+    color: var(--terminal-text);
+    font-size: 1.2em;
+    margin-bottom: 20px;
+    padding-left: 15px;
+}
+
+.section-title::after {
+    content: "_";
+    animation: blink 1s step-end infinite;
+}
+
+.flex-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.flex-column {
+    flex: 1;
+    min-width: 250px;
+}
+
+/* ==========================================================
+   Main Content and Form Container
+   ========================================================== */
+.main-content {
+    background-color: var(--terminal-bg);
+    padding-top: 20px;
+}
+
+.form-container {
+    max-width: 1800px;
+    margin: auto;
+    padding: 30px;
+    background-color: var(--terminal-bg);
+    border: 1px solid var(--terminal-border);
+    border-radius: 0;
+    position: relative;
+}
+
+.form-container::before {
+    content: ">";
+    position: absolute;
+    left: 5px;
+    top: 5px;
+    color: var(--terminal-text);
+}
+
+/* Efecto de escaneo */
+.form-container::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        to bottom,
+        transparent 50%,
+        rgba(0, 255, 0, 0.05) 50%
+    );
+    background-size: 100% 4px;
+    animation: scan 10s linear infinite;
+    pointer-events: none;
+}
+
+@keyframes scan {
+    0% {
+        background-position: 0 -100vh;
+    }
+    100% {
+        background-position: 0 100vh;
+    }
+}
+
+/* ==========================================================
+   Form Controls
+   ========================================================== */
+.form-label {
+    color: var(--terminal-text);
+    margin-bottom: 8px;
+    padding-left: 15px;
+}
+
+.form-label::after {
+    content: "_";
+    animation: blink 1s step-end infinite;
+}
+
+.form-control {
+    background-color: var(--terminal-bg);
+    color: var(--terminal-text);
+    border: 1px solid var(--terminal-border);
+    border-radius: 0;
+    padding: 10px 15px;
+    font-family: 'Courier New', monospace;
+    transition: border-color 0.3s ease;
+}
+
+.form-control::placeholder {
+    color: var(--terminal-placeholder);
+    opacity: 1;
+}
+
+.form-control:focus {
+    background-color: var(--terminal-bg);
+    color: var(--terminal-text);
+    border-color: var(--terminal-text);
+    box-shadow: none;
+    outline: none;
+}
+
+textarea.form-control {
+    min-height: 120px;
+}
+
+.form-container #promptText {
+    height: 400px;
+    background-color: var(--terminal-bg);
+    color: var(--terminal-text);
+    border: 1px solid var(--terminal-border);
+    padding: 12px;
+    font-family: 'Courier New', monospace;
+}
+
+.form-container #promptText:focus {
+    border-color: var(--terminal-text);
+    box-shadow: none;
+    outline: none;
+}
+
+.form-select {
+    background-color: var(--terminal-bg);
+    color: var(--terminal-text);
+    border: 1px solid var(--terminal-border);
+    border-radius: 0;
+    padding: 10px 15px;
+    font-family: 'Courier New', monospace;
+    cursor: pointer;
+}
+
+.form-select:focus {
+    background-color: var(--terminal-bg);
+    color: var(--terminal-text);
+    border-color: var(--terminal-text);
+    box-shadow: none;
+    outline: none;
+}
+
+.form-select option {
+    background-color: var(--terminal-bg);
+    color: var(--terminal-text);
+}
+
+/* ==========================================================
+   Prompt Image Container
+   ========================================================== */
+.prompt-image-wrapper {
+    position: relative;
+    width: 150px;
+    height: 150px;
+    margin-bottom: 15px;
+}
+
+.prompt-image-container,
+.preview-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background-color: var(--terminal-bg);
+    border: 1px solid var(--terminal-border);
+    border-radius: 0;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+}
+
+.prompt-image-container img,
+.preview-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: grayscale(100%) brightness(0.8) contrast(1.2);
+}
+
+#defaultPromptInitial {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    font-size: 3em;
+    font-weight: bold;
+    color: var(--terminal-text);
+    font-family: 'Courier New', monospace;
+    margin: 0;
+    padding: 0;
+}
+
+/* Icon overlays */
+.icon-container,
+.preview-icons {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.8);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.prompt-image-container:hover .icon-container,
+.preview-container:hover .preview-icons {
+    opacity: 1;
+}
+
+.edit-icon,
+.delete-icon,
+.cancel-icon {
+    color: var(--terminal-text);
+    font-family: monospace;
+    font-size: 1.5em;
+    margin: 5px;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+}
+
+.edit-icon:hover,
+.delete-icon:hover,
+.cancel-icon:hover {
+    transform: scale(1.1);
+    text-shadow: 0 0 10px var(--terminal-text);
+}
+
+#promptImageInput {
+    display: none;
+}
+
+/* ==========================================================
+   Voice Section
+   ========================================================== */
+.voice-section {
+    background-color: var(--terminal-bg);
+    border: 1px solid var(--terminal-border);
+    border-radius: 0;
+    padding: 15px;
+    margin-bottom: 20px;
+    position: relative;
+}
+
+.voice-section::before {
+    content: "> voice";
+    position: absolute;
+    left: 5px;
+    top: 5px;
+    color: var(--terminal-text);
+    font-size: 0.8em;
+}
+
+.voice-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+#voiceSelect,
+#sampleCategory {
+    flex-grow: 1;
+    background-color: var(--terminal-bg);
+    color: var(--terminal-text);
+    border: 1px solid var(--terminal-border);
+    border-radius: 0;
+    padding: 8px 12px;
+    font-family: 'Courier New', monospace;
+}
+
+#playVoiceButton {
+    min-width: 120px;
+    background-color: var(--terminal-bg);
+    color: var(--terminal-text);
+    border: 1px solid var(--terminal-text);
+    border-radius: 0;
+    padding: 8px 16px;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+#playVoiceButton::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0, 255, 0, 0.2), transparent);
+    transition: 0.5s;
+}
+
+#playVoiceButton:hover::after {
+    left: 100%;
+}
+
+#playVoiceButton:hover {
+    background-color: var(--terminal-text);
+    color: var(--terminal-bg);
+}
+
+/* ==========================================================
+   Editors Section
+   ========================================================== */
+.editors-container {
+    background-color: var(--terminal-bg);
+    border: 1px solid var(--terminal-border);
+    border-radius: 0;
+    padding: 15px;
+    margin-bottom: 1rem;
+    position: relative;
+}
+
+.editors-container::before {
+    content: "> editors";
+    position: absolute;
+    left: 5px;
+    top: 5px;
+    color: var(--terminal-text);
+    font-size: 0.8em;
+}
+
+.editor-list {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 20px;
+}
+
+.editor-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    background-color: var(--terminal-bg);
+    border: 1px solid var(--terminal-border);
+    margin-bottom: 8px;
+    color: var(--terminal-text);
+    font-family: 'Courier New', monospace;
+}
+
+.editor-item:hover {
+    background-color: var(--terminal-hover);
+}
+
+.remove-editor {
+    color: var(--terminal-error);
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    transition: color 0.3s ease;
+}
+
+.remove-editor:hover {
+    text-shadow: 0 0 10px var(--terminal-error);
+}
+
+/* ==========================================================
+   Buttons
+   ========================================================== */
+.btn {
+    border-radius: 0;
+    font-family: 'Courier New', monospace;
+    padding: 10px 24px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.btn::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0, 255, 0, 0.2), transparent);
+    transition: 0.5s;
+}
+
+.btn:hover::after {
+    left: 100%;
+}
+
+.btn-primary {
+    background-color: var(--terminal-bg);
+    color: var(--terminal-text);
+    border: 1px solid var(--terminal-text);
+}
+
+.btn-primary:hover {
+    background-color: var(--terminal-text);
+    color: var(--terminal-bg);
+}
+
+.btn-secondary {
+    background-color: var(--terminal-bg);
+    color: var(--terminal-text);
+    border: 1px solid var(--terminal-text);
+}
+
+.btn-secondary:hover {
+    background-color: var(--terminal-hover);
+    color: var(--terminal-text);
+}
+
+.btn-danger {
+    background-color: var(--terminal-bg);
+    color: var(--terminal-error);
+    border: 1px solid var(--terminal-error);
+}
+
+.btn-danger:hover {
+    background-color: var(--terminal-error);
+    color: var(--terminal-bg);
+}
+
+.btn-outline-secondary {
+    background-color: transparent;
+    border: 1px solid var(--terminal-border);
+    color: var(--terminal-text);
+}
+
+.btn-outline-secondary:hover {
+    background-color: var(--terminal-hover);
+    color: var(--terminal-text);
+}
+
+.btn-group {
+    margin-top: 30px;
+}
+
+/* ==========================================================
+   Public Toggle (Checkbox)
+   ========================================================== */
+.form-check {
+    padding-left: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.form-check-input {
+    margin-top: 0.3rem;
+    margin-left: -1.5rem;
+    background-color: var(--terminal-bg);
+    border-color: var(--terminal-text);
+    border-radius: 0;
+}
+
+.form-check-input:checked {
+    background-color: var(--terminal-text);
+    border-color: var(--terminal-text);
+}
+
+.form-check-label {
+    color: var(--terminal-text);
+    font-family: 'Courier New', monospace;
+}
+
+/* ==========================================================
+   Navbar
+   ========================================================== */
+.navbar {
+    background-color: var(--terminal-bg) !important;
+    border-bottom: 2px solid var(--terminal-text);
+    font-family: 'Courier New', monospace;
+    margin-bottom: 20px;
+}
+
+.navbar-brand {
+    color: var(--terminal-text) !important;
+    transition: color 0.3s ease;
+}
+
+.navbar-brand:hover {
+    text-shadow: 0 0 10px var(--terminal-text);
+}
+
+.navbar-nav .nav-link {
+    color: var(--terminal-text) !important;
+    transition: color 0.3s ease;
+}
+
+.nav-link:hover {
+    text-shadow: 0 0 10px var(--terminal-text);
+}
+
+.navbar-nav .nav-link.active {
+    color: var(--terminal-text) !important;
+    font-weight: bold;
+}
+
+/* ==========================================================
+   Error States
+   ========================================================== */
+.is-invalid {
+    border-color: var(--terminal-error);
+    background-color: var(--terminal-bg);
+}
+
+.invalid-feedback {
+    color: var(--terminal-error);
+    font-family: 'Courier New', monospace;
+}
+
+/* ==========================================================
+   Scrollbar Styles
+   ========================================================== */
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--terminal-bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--terminal-text);
+    border: 1px solid var(--terminal-text);
+}
+
+/* ==========================================================
+   Animations
+   ========================================================== */
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+/* ==========================================================
+   Responsive Design
+   ========================================================== */
+@media (max-width: 768px) {
+    .form-container {
+        padding: 20px;
+    }
+
+    .prompt-image-wrapper {
+        width: 120px;
+        height: 120px;
+    }
+
+    .btn {
+        padding: 8px 16px;
+        width: 100%;
+    }
+
+    .voice-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    #playVoiceButton {
+        width: 100%;
+    }
+}

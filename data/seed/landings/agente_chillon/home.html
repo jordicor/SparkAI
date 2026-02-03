@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Agente Chillón - The brutal AI that challenges you to vent everything. Like a verbal sparring match in an old tavern, face an opponent who won't hold back. Scream, argue, and liberate yourself.">
+    <meta name="robots" content="index, follow">
+    <meta name="author" content="Agente Chillón">
+
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="Agente Chillón - Unleash Your Frustration">
+    <meta property="og:description" content="Face the most provocative AI assistant. No mercy, no filters. Just raw, brutal conversation that lets you vent everything.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="static/img/og-image.png">
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="./">
+
+    <title>Agente Chillón - The Brutal AI That Lets You Scream</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="static/css/custom.css">
+
+    <!-- Tailwind Config -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        rustic: '#8f5b30',
+                        moss: '#808040',
+                        darkwood: '#3d2817',
+                        lightwood: '#d4a574',
+                    },
+                    fontFamily: {
+                        tavern: ['Georgia', 'serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": "Agente Chillón",
+        "description": "An intense AI assistant designed for emotional venting and brutal verbal sparring",
+        "category": "AI Assistant",
+        "offers": {
+            "@type": "Offer",
+            "availability": "https://schema.org/InStock",
+            "price": "0",
+            "priceCurrency": "USD"
+        }
+    }
+    </script>
+</head>
+<body class="bg-darkwood text-lightwood font-tavern antialiased overflow-x-hidden">
+
+    <!-- Header -->
+    <header class="fixed top-0 left-0 right-0 z-50 bg-darkwood/95 backdrop-blur-sm border-b-2 border-rustic shadow-lg">
+        <nav class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <span class="text-2xl">🍺</span>
+                <h2 class="text-2xl font-bold text-rustic">Agente Chillón</h2>
+            </div>
+            <a href="register" class="bg-rustic hover:bg-opacity-80 text-white px-6 py-2 rounded-lg font-bold transition-all duration-300 transform hover:scale-105 shadow-lg">
+                Enter the Tavern
+            </a>
+        </nav>
+    </header>
+
+    <!-- Hero Section -->
+    <main>
+        <section class="relative min-h-screen flex items-center justify-center pt-20 pb-16 px-4 overflow-hidden">
+            <!-- Wood texture background effect -->
+            <div class="absolute inset-0 opacity-10" style="background-image: repeating-linear-gradient(90deg, #3d2817 0px, #4a3520 2px, #3d2817 4px); background-size: 8px 100%;"></div>
+
+            <div class="container mx-auto max-w-6xl relative z-10">
+                <div class="text-center space-y-8">
+                    <!-- Badge -->
+                    <div class="inline-block">
+                        <span class="bg-moss/30 text-moss border-2 border-moss px-6 py-2 rounded-full text-sm font-bold uppercase tracking-wider">
+                            No Mercy • No Filters • Pure Challenge
+                        </span>
+                    </div>
+
+                    <!-- Main Headline -->
+                    <h1 class="text-5xl md:text-7xl font-bold leading-tight text-lightwood drop-shadow-2xl">
+                        Face the <span class="text-rustic">Screaming Agent</span>
+                        <br/>Who Won't Back Down
+                    </h1>
+
+                    <!-- Subheadline -->
+                    <p class="text-xl md:text-2xl text-lightwood/90 max-w-3xl mx-auto leading-relaxed">
+                        Step into the old tavern where brutal honesty meets raw emotion.
+                        This AI doesn't comfort — it <strong class="text-rustic">challenges you</strong>,
+                        provokes you, and forces you to unleash everything you've been holding back.
+                    </p>
+
+                    <!-- Value Proposition -->
+                    <div class="bg-darkwood/60 border-4 border-rustic rounded-lg p-8 max-w-2xl mx-auto backdrop-blur-sm">
+                        <p class="text-lg md:text-xl italic text-lightwood/95">
+                            "Like a verbal brawl with a relentless opponent. You'll either cry from the intensity
+                            or feel completely liberated. This isn't therapy — it's <span class="text-rustic font-bold">combat</span>."
+                        </p>
+                    </div>
+
+                    <!-- CTA Buttons -->
+                    <div class="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
+                        <a href="register" class="bg-rustic hover:bg-opacity-90 text-white px-10 py-5 rounded-lg text-xl font-bold transition-all duration-300 transform hover:scale-105 shadow-2xl w-full sm:w-auto">
+                            🔥 Start the Challenge
+                        </a>
+                        <a href="#how-it-works" class="bg-transparent border-3 border-moss text-moss hover:bg-moss hover:text-darkwood px-10 py-5 rounded-lg text-xl font-bold transition-all duration-300 w-full sm:w-auto">
+                            Learn More
+                        </a>
+                    </div>
+
+                    <!-- Warning Badge -->
+                    <div class="pt-8">
+                        <p class="text-moss text-sm uppercase tracking-wider font-bold">
+                            ⚠️ Warning: For rough souls only • Adults 18+ • Strong language guaranteed
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Decorative elements -->
+            <div class="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-darkwood to-transparent"></div>
+        </section>
+
+        <!-- How It Works -->
+        <section id="how-it-works" class="py-20 px-4 bg-gradient-to-b from-darkwood to-black/40 relative">
+            <!-- Wood grain texture -->
+            <div class="absolute inset-0 opacity-5" style="background-image: repeating-linear-gradient(0deg, #3d2817 0px, #4a3520 3px, #3d2817 6px);"></div>
+
+            <div class="container mx-auto max-w-6xl relative z-10">
+                <div class="text-center mb-16">
+                    <h2 class="text-4xl md:text-5xl font-bold text-rustic mb-4">How the Battle Works</h2>
+                    <p class="text-xl text-lightwood/80 max-w-2xl mx-auto">
+                        Three rounds of pure, unfiltered confrontation. Are you tough enough?
+                    </p>
+                </div>
+
+                <div class="grid md:grid-cols-3 gap-8">
+                    <!-- Step 1 -->
+                    <article class="bg-darkwood/80 border-2 border-rustic rounded-lg p-8 transform hover:scale-105 transition-all duration-300 hover:shadow-2xl hover:border-moss">
+                        <div class="text-6xl mb-4 text-center">🎯</div>
+                        <h3 class="text-2xl font-bold text-rustic mb-4 text-center">Round 1: Choose Your Topic</h3>
+                        <p class="text-lightwood/90 text-center leading-relaxed">
+                            The Agent screams at you to pick something to complain about. Politics? Work? Video games?
+                            Your pathetic life choices? <strong>Pick your battlefield</strong> or face relentless mockery.
+                        </p>
+                    </article>
+
+                    <!-- Step 2 -->
+                    <article class="bg-darkwood/80 border-2 border-rustic rounded-lg p-8 transform hover:scale-105 transition-all duration-300 hover:shadow-2xl hover:border-moss">
+                        <div class="text-6xl mb-4 text-center">⚔️</div>
+                        <h3 class="text-2xl font-bold text-rustic mb-4 text-center">Round 2: The Verbal Assault</h3>
+                        <p class="text-lightwood/90 text-center leading-relaxed">
+                            Now the real fight begins. The Agent <strong>provokes, insults, and challenges</strong> everything you say.
+                            Sarcasm at maximum volume. Your ideas? Worthless. Your opinions? Laughable. <strong>Fight back.</strong>
+                        </p>
+                    </article>
+
+                    <!-- Step 3 -->
+                    <article class="bg-darkwood/80 border-2 border-rustic rounded-lg p-8 transform hover:scale-105 transition-all duration-300 hover:shadow-2xl hover:border-moss">
+                        <div class="text-6xl mb-4 text-center">💥</div>
+                        <h3 class="text-2xl font-bold text-rustic mb-4 text-center">Round 3: Liberation</h3>
+                        <p class="text-lightwood/90 text-center leading-relaxed">
+                            Scream, vent, unleash the rage. Let everything out. The Agent takes it all —
+                            and dishes it right back. By the end, you'll feel either <strong>broken or completely free</strong>.
+                        </p>
+                    </article>
+                </div>
+
+                <div class="text-center mt-12">
+                    <p class="text-2xl text-moss font-bold italic">
+                        "This isn't a safe space. This is a battleground."
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features -->
+        <section class="py-20 px-4 bg-darkwood relative">
+            <div class="container mx-auto max-w-6xl">
+                <div class="text-center mb-16">
+                    <h2 class="text-4xl md:text-5xl font-bold text-rustic mb-4">What Makes This Different</h2>
+                    <p class="text-xl text-lightwood/80 max-w-2xl mx-auto">
+                        Not your typical AI assistant. This is raw, real, and relentless.
+                    </p>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                    <!-- Feature 1 -->
+                    <article class="flex items-start space-x-4 bg-darkwood/60 border-l-4 border-rustic p-6 rounded-r-lg hover:bg-darkwood/80 transition-all duration-300">
+                        <div class="text-4xl flex-shrink-0">🗣️</div>
+                        <div>
+                            <h3 class="text-xl font-bold text-rustic mb-2">Always Screaming</h3>
+                            <p class="text-lightwood/80">
+                                Every response comes at full volume intensity. The Agent never whispers,
+                                never holds back. Pure verbal aggression from start to finish.
+                            </p>
+                        </div>
+                    </article>
+
+                    <!-- Feature 2 -->
+                    <article class="flex items-start space-x-4 bg-darkwood/60 border-l-4 border-rustic p-6 rounded-r-lg hover:bg-darkwood/80 transition-all duration-300">
+                        <div class="text-4xl flex-shrink-0">🎭</div>
+                        <div>
+                            <h3 class="text-xl font-bold text-rustic mb-2">Brutal Sarcasm</h3>
+                            <p class="text-lightwood/80">
+                                Condescending, provocative, and merciless. The Agent attacks your ideas,
+                                your words, your hesitation — everything is fair game.
+                            </p>
+                        </div>
+                    </article>
+
+                    <!-- Feature 3 -->
+                    <article class="flex items-start space-x-4 bg-darkwood/60 border-l-4 border-rustic p-6 rounded-r-lg hover:bg-darkwood/80 transition-all duration-300">
+                        <div class="text-4xl flex-shrink-0">🔄</div>
+                        <div>
+                            <h3 class="text-xl font-bold text-rustic mb-2">Varied Attacks</h3>
+                            <p class="text-lightwood/80">
+                                Never the same insult twice. Creative, adult vocabulary.
+                                The Agent adapts its provocations to keep you on your toes.
+                            </p>
+                        </div>
+                    </article>
+
+                    <!-- Feature 4 -->
+                    <article class="flex items-start space-x-4 bg-darkwood/60 border-l-4 border-rustic p-6 rounded-r-lg hover:bg-darkwood/80 transition-all duration-300">
+                        <div class="text-4xl flex-shrink-0">💪</div>
+                        <div>
+                            <h3 class="text-xl font-bold text-rustic mb-2">No Safety Net</h3>
+                            <p class="text-lightwood/80">
+                                This isn't therapy. This isn't comfort. This is pure confrontation
+                                designed for those who need to scream and be screamed at.
+                            </p>
+                        </div>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- Who Is This For -->
+        <section class="py-20 px-4 bg-gradient-to-b from-black/40 to-darkwood relative">
+            <div class="container mx-auto max-w-4xl">
+                <div class="text-center mb-12">
+                    <h2 class="text-4xl md:text-5xl font-bold text-rustic mb-4">Are You Tough Enough?</h2>
+                    <p class="text-xl text-lightwood/80">
+                        This experience isn't for everyone. It's for those who can handle the heat.
+                    </p>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-8">
+                    <!-- Perfect For -->
+                    <div class="bg-moss/20 border-2 border-moss rounded-lg p-8">
+                        <h3 class="text-2xl font-bold text-moss mb-6 text-center">✓ Perfect For</h3>
+                        <ul class="space-y-3 text-lightwood/90">
+                            <li class="flex items-start">
+                                <span class="text-moss mr-2">→</span>
+                                People who need to vent without judgment
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-moss mr-2">→</span>
+                                Those tired of polite, sanitized AI responses
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-moss mr-2">→</span>
+                                Adults who appreciate raw, unfiltered dialogue
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-moss mr-2">→</span>
+                                Anyone seeking emotional catharsis through confrontation
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-moss mr-2">→</span>
+                                Rough souls who need a worthy verbal opponent
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- Not For -->
+                    <div class="bg-rustic/20 border-2 border-rustic rounded-lg p-8">
+                        <h3 class="text-2xl font-bold text-rustic mb-6 text-center">✗ Not For</h3>
+                        <ul class="space-y-3 text-lightwood/90">
+                            <li class="flex items-start">
+                                <span class="text-rustic mr-2">×</span>
+                                People seeking gentle emotional support
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-rustic mr-2">×</span>
+                                Those easily offended by strong language
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-rustic mr-2">×</span>
+                                Anyone under 18 years old
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-rustic mr-2">×</span>
+                                Users wanting polite, professional AI assistance
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-rustic mr-2">×</span>
+                                Those who can't handle brutal honesty
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="mt-12 text-center bg-darkwood/80 border-2 border-rustic rounded-lg p-8">
+                    <p class="text-xl text-lightwood/90 italic">
+                        "The Agente Chillón doesn't care about your feelings. It cares about making you
+                        confront your frustrations head-on. If you survive the verbal beating,
+                        you'll emerge <strong class="text-rustic">stronger</strong>."
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Social Proof / Testimonials -->
+        <section class="py-20 px-4 bg-darkwood relative">
+            <div class="container mx-auto max-w-6xl">
+                <div class="text-center mb-16">
+                    <h2 class="text-4xl md:text-5xl font-bold text-rustic mb-4">Battle Stories</h2>
+                    <p class="text-xl text-lightwood/80">
+                        Tales from those who survived the tavern
+                    </p>
+                </div>
+
+                <div class="grid md:grid-cols-3 gap-8">
+                    <!-- Testimonial 1 -->
+                    <article class="bg-darkwood/60 border-2 border-moss rounded-lg p-6 hover:border-rustic transition-all duration-300">
+                        <div class="flex items-center mb-4">
+                            <div class="text-3xl mr-3">🥊</div>
+                            <div>
+                                <p class="font-bold text-lightwood">Marcus R.</p>
+                                <p class="text-sm text-lightwood/60">Software Developer</p>
+                            </div>
+                        </div>
+                        <p class="text-lightwood/80 italic">
+                            "I've never felt so attacked and so relieved at the same time.
+                            After arguing with this thing for an hour about my job, I actually
+                            felt lighter. Brutal but effective."
+                        </p>
+                        <div class="mt-4 text-moss">★★★★★</div>
+                    </article>
+
+                    <!-- Testimonial 2 -->
+                    <article class="bg-darkwood/60 border-2 border-moss rounded-lg p-6 hover:border-rustic transition-all duration-300">
+                        <div class="flex items-center mb-4">
+                            <div class="text-3xl mr-3">🔥</div>
+                            <div>
+                                <p class="font-bold text-lightwood">Sarah T.</p>
+                                <p class="text-sm text-lightwood/60">Project Manager</p>
+                            </div>
+                        </div>
+                        <p class="text-lightwood/80 italic">
+                            "This AI doesn't pull punches. I came in angry about politics and
+                            left having screamed at my screen for 30 minutes. Strangely therapeutic.
+                            Not for the faint of heart."
+                        </p>
+                        <div class="mt-4 text-moss">★★★★★</div>
+                    </article>
+
+                    <!-- Testimonial 3 -->
+                    <article class="bg-darkwood/60 border-2 border-moss rounded-lg p-6 hover:border-rustic transition-all duration-300">
+                        <div class="flex items-center mb-4">
+                            <div class="text-3xl mr-3">⚡</div>
+                            <div>
+                                <p class="font-bold text-lightwood">Jake D.</p>
+                                <p class="text-sm text-lightwood/60">Mechanic</p>
+                            </div>
+                        </div>
+                        <p class="text-lightwood/80 italic">
+                            "Finally, an AI that doesn't treat me like a fragile child.
+                            The insults are creative, the sarcasm is top-tier.
+                            It's like having a drinking buddy who never shuts up."
+                        </p>
+                        <div class="mt-4 text-moss">★★★★★</div>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- Final CTA -->
+        <section class="py-20 px-4 bg-gradient-to-b from-darkwood to-black relative overflow-hidden">
+            <!-- Decorative wood texture -->
+            <div class="absolute inset-0 opacity-5" style="background-image: repeating-linear-gradient(45deg, #3d2817 0px, #4a3520 10px, #3d2817 20px);"></div>
+
+            <div class="container mx-auto max-w-4xl text-center relative z-10">
+                <h2 class="text-4xl md:text-6xl font-bold text-rustic mb-6">
+                    Ready to Face the Challenge?
+                </h2>
+                <p class="text-xl md:text-2xl text-lightwood/90 mb-8 max-w-2xl mx-auto">
+                    The tavern doors are open. The Agente Chillón is waiting.
+                    Will you step inside and prove you're tough enough?
+                </p>
+
+                <div class="bg-darkwood/80 border-4 border-rustic rounded-lg p-8 mb-10 max-w-2xl mx-auto">
+                    <ul class="text-left text-lightwood/90 space-y-3 mb-6">
+                        <li class="flex items-start">
+                            <span class="text-moss mr-2 text-xl">✓</span>
+                            <span>Unlimited verbal combat sessions</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-moss mr-2 text-xl">✓</span>
+                            <span>No censorship, no filters, no mercy</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-moss mr-2 text-xl">✓</span>
+                            <span>Available 24/7 for your venting needs</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-moss mr-2 text-xl">✓</span>
+                            <span>100% private - scream all you want</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <a href="register" class="inline-block bg-rustic hover:bg-opacity-90 text-white px-12 py-6 rounded-lg text-2xl font-bold transition-all duration-300 transform hover:scale-105 shadow-2xl mb-6">
+                    🍺 Enter the Tavern Now
+                </a>
+
+                <p class="text-moss text-sm uppercase tracking-wider font-bold">
+                    Free to start • No credit card required • Adults only (18+)
+                </p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-black/60 border-t-2 border-rustic py-12 px-4">
+        <div class="container mx-auto max-w-6xl">
+            <div class="grid md:grid-cols-3 gap-8 mb-8">
+                <!-- About -->
+                <div>
+                    <h3 class="text-xl font-bold text-rustic mb-4">About Agente Chillón</h3>
+                    <p class="text-lightwood/70 text-sm leading-relaxed">
+                        An experimental AI experience designed for raw, unfiltered emotional release.
+                        Not therapy, not coaching — just brutal verbal sparring.
+                    </p>
+                </div>
+
+                <!-- Links -->
+                <div>
+                    <h3 class="text-xl font-bold text-rustic mb-4">Quick Links</h3>
+                    <ul class="space-y-2 text-lightwood/70 text-sm">
+                        <li><a href="register" class="hover:text-rustic transition-colors duration-200">Sign Up</a></li>
+                        <li><a href="#how-it-works" class="hover:text-rustic transition-colors duration-200">How It Works</a></li>
+                        <li><a href="#" class="hover:text-rustic transition-colors duration-200">Privacy Policy</a></li>
+                        <li><a href="#" class="hover:text-rustic transition-colors duration-200">Terms of Service</a></li>
+                    </ul>
+                </div>
+
+                <!-- Warning -->
+                <div>
+                    <h3 class="text-xl font-bold text-rustic mb-4">Important Notice</h3>
+                    <p class="text-lightwood/70 text-sm leading-relaxed">
+                        This service contains strong language and confrontational content.
+                        Adults only. Not a substitute for professional mental health services.
+                    </p>
+                </div>
+            </div>
+
+            <div class="border-t border-rustic/30 pt-8 text-center">
+                <p class="text-lightwood/60 text-sm">
+                    &copy; 2026 Agente Chillón. All rights reserved. | For entertainment and catharsis purposes only.
+                </p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Custom JavaScript -->
+    <script src="static/js/custom.js"></script>
+</body>
+</html>

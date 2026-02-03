@@ -1,0 +1,214 @@
+{% extends 'base.html' %}
+
+{% block title %}Users Management - SPARK{% endblock %}
+
+{% block styles %}
+{# Theme CSS loaded by theme-loader.js #}
+{% endblock %}
+
+{% block page_title %}Users Management{% endblock %}
+
+{% block back_url %}/{% endblock %}
+
+{% block page_actions %}
+{% endblock %}
+
+{% block content %}
+<!-- Magic Link Container -->
+<div id="magicLinkContainer" class="section-container magic-link-section mb-4" style="display: none;">
+    <div class="section-title"><i class="fas fa-magic me-2"></i><span id="usernameMagicLink">Magic Link</span></div>
+    <div class="flex-row">
+        <div class="flex-column">
+            <div class="input-group">
+                <span class="input-group-text input-group-text-themed success">
+                    <i class="fas fa-link"></i>
+                </span>
+                <input type="text" class="form-control" id="magicLink" readonly>
+                <button class="btn btn-success" type="button" id="actionButton">
+                    <i class="fas fa-copy me-1"></i> Copy
+                </button>
+                <button class="btn btn-secondary" type="button" onclick="closeMagicLink()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="copyMessage" class="mt-2 text-success" style="display: none;">
+                <i class="fas fa-check-circle me-1"></i> Magic link copied to clipboard!
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Row -->
+<div class="stats-row">
+    <span class="stat-badge">
+        <i class="fas fa-users"></i> <strong id="statTotal">{{ users|length }}</strong> Total
+    </span>
+    <span class="stat-badge stat-active">
+        <i class="fas fa-check-circle"></i> <strong id="statActive">{{ users|selectattr('is_expired', 'ne', 'Expired')|list|length }}</strong> Active
+    </span>
+    <span class="stat-badge stat-expired">
+        <i class="fas fa-times-circle"></i> <strong id="statExpired">{{ users|selectattr('is_expired', 'eq', 'Expired')|list|length }}</strong> Expired
+    </span>
+    <span class="stat-badge" id="statFilteredContainer" style="display: none;">
+        <i class="fas fa-filter"></i> <strong id="statFiltered">0</strong> Shown
+    </span>
+</div>
+
+<!-- Filters Section -->
+<div class="section-container filters-section">
+    <div class="section-title">
+        <i class="fas fa-filter me-2"></i>Filters
+        <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" onclick="resetFilters()">
+            <i class="fas fa-undo me-1"></i>Reset
+        </button>
+    </div>
+    <div class="flex-row">
+        <div class="flex-column">
+            <label class="form-label">Search</label>
+            <input type="text" class="form-control" id="filterSearch" placeholder="Username or phone...">
+        </div>
+        <div class="flex-column">
+            <label class="form-label">Status</label>
+            <select class="form-select" id="filterStatus">
+                <option value="">All Status</option>
+                <option value="active">Active</option>
+                <option value="expired">Expired</option>
+            </select>
+        </div>
+        <div class="flex-column">
+            <label class="form-label">Prompt</label>
+            <select class="form-select" id="filterPrompt">
+                <option value="">All Prompts</option>
+            </select>
+        </div>
+        <div class="flex-column">
+            <label class="form-label">LLM</label>
+            <select class="form-select" id="filterLLM">
+                <option value="">All LLMs</option>
+            </select>
+        </div>
+        <div class="flex-column">
+            <label class="form-label">Balance</label>
+            <select class="form-select" id="filterBalance">
+                <option value="">Any Balance</option>
+                <option value="positive">Has Balance ($>0)</option>
+                <option value="zero">Zero ($0)</option>
+                <option value="negative">Negative ($<0)</option>
+            </select>
+        </div>
+        <div class="flex-column">
+            <label class="form-label">Role</label>
+            <select class="form-select" id="filterRole">
+                <option value="">All Roles</option>
+                <option value="admin">Admin</option>
+                <option value="manager">Manager</option>
+                <option value="user">User</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- Users Table Section -->
+<div class="section-container">
+    <div class="section-title">
+        <i class="fas fa-users"></i> All Users
+    </div>
+    <form action="/admin/delete-users" method="post" id="usersForm">
+        <!-- Toolbar: Select All + Actions -->
+        <div class="table-toolbar">
+            <div class="toolbar-left">
+                <input type="checkbox" id="selectAll" class="form-check-input" title="Select All">
+                <label for="selectAll" class="form-check-label">Select all</label>
+            </div>
+            <div class="toolbar-right">
+                <a href="/create-user" class="btn btn-success">
+                    <i class="fas fa-user-plus me-1"></i> Create User
+                </a>
+                <button type="submit" class="btn btn-outline-danger" id="deleteBtn" disabled>
+                    <i class="fas fa-trash me-1"></i> Delete (<span id="selectedCount">0</span>)
+                </button>
+            </div>
+        </div>
+
+        <!-- Table -->
+        <div class="table-wrapper">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th class="th-checkbox"></th>
+                        <th data-sort="username" class="sortable sort-asc">User</th>
+                        <th data-sort="role" class="sortable">Role</th>
+                        <th data-sort="phone" class="sortable">Phone</th>
+                        <th data-sort="status" class="sortable">Status</th>
+                        <th data-sort="prompt" class="sortable">Prompt</th>
+                        <th data-sort="llm" class="sortable">LLM</th>
+                        <th data-sort="tokens" class="sortable">Tokens</th>
+                        <th data-sort="cost" class="sortable">Cost</th>
+                        <th data-sort="balance" class="sortable">Balance</th>
+                        <th data-sort="chats" class="sortable">Chats</th>
+                        <th class="th-actions">Edit</th>
+                    </tr>
+                </thead>
+                <tbody id="usersTableBody">
+                    {% for user in users %}
+                    <tr data-username="{{ user.username }}"
+                        data-role="{{ user.role }}"
+                        data-phone="{{ user.phone or '' }}"
+                        data-status="{{ 'expired' if user.is_expired == 'Expired' else 'active' }}"
+                        data-prompt="{{ user.prompt_name }}"
+                        data-llm="{{ user.llm_model }}"
+                        data-tokens="{{ user.tokens }}"
+                        data-cost="{{ user.total_cost|float }}"
+                        data-balance="{{ user.balance|float }}"
+                        data-chats="{{ user.conversation_count }}"
+                        data-magic-link="{{ user.magic_link }}">
+                        <td>
+                            <input type="checkbox" name="selected_users" value="{{ user.username }}" class="user-checkbox">
+                        </td>
+                        <td>
+                            <span class="username-link" onclick="showMagicLink('{{ user.magic_link }}', '{{ user.username }}', {{ 'true' if user.is_expired == 'Expired' else 'false' }})" title="Click to view magic link">
+                                <i class="fas fa-user me-1"></i>{{ user.username }}
+                            </span>
+                        </td>
+                        <td class="role-cell">
+                            <span class="role-badge role-{{ user.role }}">{{ user.role|capitalize }}</span>
+                        </td>
+                        <td class="phone-cell">
+                            {% if user.phone %}
+                            <span class="phone-icon" data-phone="{{ user.phone }}" title="Click to copy" onclick="copyPhone(this)">
+                                <i class="fas fa-phone"></i>
+                            </span>
+                            {% else %}
+                            <span class="phone-none">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="status-cell">
+                            {% if user.is_expired == 'Expired' %}
+                            <span class="status-expired"><i class="fas fa-times-circle me-1"></i>Expired</span>
+                            {% else %}
+                            <span class="status-active"><i class="fas fa-check-circle me-1"></i>Active</span>
+                            {% endif %}
+                        </td>
+                        <td><span class="text-truncate d-inline-block" style="max-width: 120px;" title="{{ user.prompt_name }}">{{ user.prompt_name }}</span></td>
+                        <td><span class="text-truncate d-inline-block" style="max-width: 100px;" title="{{ user.llm_model }}">{{ user.llm_model }}</span></td>
+                        <td class="tokens-cell" title="{{ user.tokens }}">{{ user.tokens }}</td>
+                        <td>${{ "%.4f"|format(user.total_cost|float) }}</td>
+                        <td>${{ "%.2f"|format(user.balance|float) }}</td>
+                        <td>{{ user.conversation_count }}</td>
+                        <td class="actions-cell">
+                            <a href="/edit-user/{{ user.username }}" class="btn btn-sm btn-outline-primary" title="Edit user">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ get_static_url('/static/js/users-list.js') }}"></script>
+{% endblock %}

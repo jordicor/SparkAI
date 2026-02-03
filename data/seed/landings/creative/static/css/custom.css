@@ -1,0 +1,335 @@
+/* Creative Landing Page - Neural Network Theme */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    cursor: none;
+}
+
+/* Custom Cursor */
+#customCursor {
+    position: fixed;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #33ff4d 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 9999;
+    transition: transform 0.1s ease;
+    mix-blend-mode: screen;
+}
+
+#customCursor.active {
+    transform: scale(2);
+}
+
+/* Neural Canvas Styling */
+#neuralCanvas {
+    opacity: 0.6;
+}
+
+/* Idea Spark Animation */
+@keyframes sparkIn {
+    from {
+        opacity: 0;
+        transform: translateY(30px) scale(0.9);
+        filter: blur(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        filter: blur(0);
+    }
+}
+
+.idea-spark {
+    animation: sparkIn 0.8s ease-out forwards;
+    opacity: 0;
+}
+
+.idea-spark[data-delay="0"] {
+    animation-delay: 0s;
+}
+
+.idea-spark[data-delay="200"] {
+    animation-delay: 0.2s;
+}
+
+.idea-spark[data-delay="400"] {
+    animation-delay: 0.4s;
+}
+
+.idea-spark[data-delay="600"] {
+    animation-delay: 0.6s;
+}
+
+.idea-spark[data-delay="800"] {
+    animation-delay: 0.8s;
+}
+
+/* Pulse Divider */
+.pulse-divider {
+    height: 2px;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        #33ff4d 20%,
+        #ff8080 50%,
+        #33ff4d 80%,
+        transparent 100%);
+    margin: 4rem 0;
+    animation: pulse 3s ease-in-out infinite;
+    box-shadow: 0 0 20px #33ff4d;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 0.5;
+        transform: scaleX(0.8);
+    }
+    50% {
+        opacity: 1;
+        transform: scaleX(1);
+    }
+}
+
+/* Feature Cards */
+.feature-card {
+    padding: 2rem;
+    border-radius: 1rem;
+    background: linear-gradient(135deg, rgba(51, 255, 77, 0.05), rgba(255, 128, 128, 0.05));
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.feature-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(51, 255, 77, 0.1), rgba(255, 128, 128, 0.1));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.feature-card:hover {
+    transform: translateY(-8px);
+    border-color: #33ff4d;
+    box-shadow: 0 20px 40px rgba(51, 255, 77, 0.2);
+}
+
+.feature-card:hover::before {
+    opacity: 1;
+}
+
+.feature-icon-wrapper {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #33ff4d, #ff8080);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+    position: relative;
+    z-index: 1;
+    transition: all 0.3s ease;
+}
+
+.feature-card:hover .feature-icon-wrapper {
+    transform: rotate(360deg) scale(1.1);
+}
+
+.feature-icon {
+    width: 40px;
+    height: 40px;
+    color: #000;
+}
+
+/* Process Steps */
+.process-step {
+    opacity: 0;
+    transform: translateX(-50px);
+    transition: all 0.6s ease;
+}
+
+.process-step.visible {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+/* Testimonial Cards */
+.testimonial-card {
+    padding: 2rem;
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+}
+
+.testimonial-card:hover {
+    transform: translateY(-5px);
+    border-color: #33ff4d;
+    box-shadow: 0 10px 30px rgba(51, 255, 77, 0.15);
+}
+
+/* Scroll Reveal Animation */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.reveal {
+    opacity: 0;
+}
+
+.reveal.active {
+    animation: fadeInUp 0.8s ease-out forwards;
+}
+
+/* Glow Effects */
+@keyframes glow {
+    0%, 100% {
+        text-shadow: 0 0 20px rgba(51, 255, 77, 0.5),
+                     0 0 40px rgba(51, 255, 77, 0.3);
+    }
+    50% {
+        text-shadow: 0 0 30px rgba(51, 255, 77, 0.8),
+                     0 0 60px rgba(51, 255, 77, 0.5);
+    }
+}
+
+h1 {
+    animation: glow 3s ease-in-out infinite;
+}
+
+/* Gradient Animation */
+@keyframes gradientShift {
+    0% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+.bg-gradient-to-r {
+    background-size: 200% 200%;
+    animation: gradientShift 3s ease infinite;
+}
+
+/* Smooth Scrolling */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Button Pulse Effect */
+@keyframes buttonPulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(51, 255, 77, 0.7);
+    }
+    50% {
+        box-shadow: 0 0 0 20px rgba(51, 255, 77, 0);
+    }
+}
+
+a[href="register"] {
+    animation: buttonPulse 2s infinite;
+}
+
+/* Particle Trail Effect */
+.particle {
+    position: fixed;
+    pointer-events: none;
+    border-radius: 50%;
+    background: radial-gradient(circle, #33ff4d, transparent);
+    animation: particleFade 1s ease-out forwards;
+    z-index: 9998;
+}
+
+@keyframes particleFade {
+    from {
+        opacity: 1;
+        transform: scale(1);
+    }
+    to {
+        opacity: 0;
+        transform: scale(0);
+    }
+}
+
+/* Loading Shimmer */
+@keyframes shimmer {
+    0% {
+        background-position: -1000px 0;
+    }
+    100% {
+        background-position: 1000px 0;
+    }
+}
+
+.shimmer {
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(51, 255, 77, 0.1) 50%,
+        transparent 100%);
+    background-size: 1000px 100%;
+    animation: shimmer 2s infinite;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    h1 {
+        font-size: 3rem;
+    }
+
+    h2 {
+        font-size: 2.5rem;
+    }
+
+    .feature-card {
+        padding: 1.5rem;
+    }
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Selection Styling */
+::selection {
+    background: #33ff4d;
+    color: #000;
+}
+
+::-moz-selection {
+    background: #33ff4d;
+    color: #000;
+}

@@ -1,0 +1,199 @@
+{% extends 'base_admin.html' %}
+
+{% block title %}Security Guard LLM Configuration - SPARK{% endblock %}
+
+{% block styles %}
+<style>
+    .security-icon {
+        font-size: 3rem;
+        color: var(--success-color, #198754);
+    }
+    .llm-option {
+        padding: 10px 15px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        background-color: var(--bg-secondary);
+    }
+    .llm-option:hover {
+        background-color: var(--bg-tertiary);
+        border-color: var(--primary-color);
+    }
+    .llm-option.selected {
+        background-color: var(--bg-tertiary);
+        border-color: var(--primary-color);
+    }
+    .llm-option input[type="radio"] {
+        margin-right: 10px;
+    }
+    .provider-badge {
+        font-size: 0.75rem;
+        padding: 2px 8px;
+        border-radius: 12px;
+    }
+    .provider-claude { background-color: #d4a574; color: #fff; }
+    .provider-gpt { background-color: #74aa9c; color: #fff; }
+    .provider-gemini { background-color: #4285f4; color: #fff; }
+    .provider-xai { background-color: #1d1d1d; color: #fff; }
+    .provider-o1 { background-color: #ff6b6b; color: #fff; }
+    .info-box {
+        background-color: var(--bg-tertiary);
+        border-left: 4px solid var(--primary-color);
+        padding: 15px;
+        border-radius: 4px;
+    }
+    .warning-box {
+        background-color: var(--bg-tertiary);
+        border-left: 4px solid var(--warning-color, #ffc107);
+        padding: 15px;
+        border-radius: 4px;
+    }
+</style>
+{% endblock %}
+
+{% block page_title %}Security Guard LLM{% endblock %}
+
+{% block page_subtitle %}
+<p class="page-subtitle">Configure AI-based security checks for the Landing Page Wizard</p>
+{% endblock %}
+
+{% block alerts %}
+<div id="alertContainer">
+    {% if request.query_params.get('saved') %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-check-circle me-2"></i>
+        Configuration saved successfully!
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px;">
+    <!-- Info Card -->
+    <div class="section-container mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <i class="fas fa-shield-alt security-icon"></i>
+            </div>
+            <div class="col">
+                <h5 class="mb-2">What is Security Guard LLM?</h5>
+                <p class="text-muted mb-0">
+                    Security Guard uses an AI model to analyze user requests before executing the Landing Page Wizard.
+                    It detects and blocks potential security threats like:
+                </p>
+                <ul class="mt-2 mb-0 text-muted">
+                    <li><strong>Prompt injection</strong> - Attempts to override instructions</li>
+                    <li><strong>System info extraction</strong> - Requests for server paths, environment variables</li>
+                    <li><strong>Malicious code</strong> - Scripts that could harm the system</li>
+                    <li><strong>Jailbreak attempts</strong> - Attempts to bypass safety measures</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Configuration Form -->
+    <div class="section-container">
+        <div class="section-title">
+            <i class="fas fa-cog me-2"></i>Configuration
+        </div>
+        <form method="POST" action="/admin/security-guard">
+            <!-- Disabled option -->
+            <div class="llm-option {{ 'selected' if not current_llm_id else '' }}">
+                <label class="d-flex align-items-center w-100 mb-0" style="cursor: pointer;">
+                    <input type="radio" name="llm_id" value="" {{ 'checked' if not current_llm_id else '' }}>
+                    <div class="flex-grow-1">
+                        <strong>Disabled</strong>
+                        <span class="text-muted ms-2">- No security checks (not recommended for production)</span>
+                    </div>
+                </label>
+            </div>
+
+            <hr class="my-3">
+            <p class="text-muted mb-3"><strong>Select an LLM for security checks:</strong></p>
+
+            <!-- Group LLMs by provider -->
+            {% set providers = {} %}
+            {% for llm in llms %}
+                {% set provider = llm[1] %}
+                {% if provider not in providers %}
+                    {% set _ = providers.update({provider: []}) %}
+                {% endif %}
+                {% set _ = providers[provider].append(llm) %}
+            {% endfor %}
+
+            {% for provider, provider_llms in providers.items() %}
+            {% if provider in ['Claude', 'GPT', 'Gemini', 'xAI', 'O1'] %}
+            <div class="mb-3">
+                <h6 class="text-muted mb-2">
+                    <span class="provider-badge provider-{{ provider.lower() }}">{{ provider }}</span>
+                </h6>
+                {% for llm in provider_llms %}
+                <div class="llm-option {{ 'selected' if current_llm_id == llm[0] else '' }}">
+                    <label class="d-flex align-items-center w-100 mb-0" style="cursor: pointer;">
+                        <input type="radio" name="llm_id" value="{{ llm[0] }}" {{ 'checked' if current_llm_id == llm[0] else '' }}>
+                        <div class="flex-grow-1">
+                            <strong>{{ llm[2] }}</strong>
+                            <span class="text-muted ms-2">ID: {{ llm[0] }}</span>
+                        </div>
+                    </label>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endfor %}
+
+            <hr class="my-4">
+
+            <!-- Cost info -->
+            <div class="info-box mb-4">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>Cost:</strong> Each security check uses approximately 500-1000 input tokens and 50-100 output tokens.
+                With most models, this costs less than $0.01 per check.
+                <br>
+                <strong>Recommendation:</strong> Use a fast, cost-effective model like <em>Claude Haiku</em> or <em>GPT-4o-mini</em>.
+            </div>
+
+            <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="fas fa-save me-2"></i>Save Configuration
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Current Status -->
+    <div class="section-container mt-4">
+        <div class="section-title">
+            <i class="fas fa-info-circle me-2"></i>Current Status
+        </div>
+        {% if current_llm_id %}
+        <div class="d-flex align-items-center">
+            <span class="badge bg-success me-2">ENABLED</span>
+            <span>Security Guard is active using LLM ID {{ current_llm_id }}</span>
+        </div>
+        {% else %}
+        <div class="d-flex align-items-center">
+            <span class="badge bg-warning text-dark me-2">DISABLED</span>
+            <span>Security Guard is not configured. AI Wizard requests are not being checked.</span>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    // Highlight selected option
+    document.querySelectorAll('.llm-option').forEach(option => {
+        const radio = option.querySelector('input[type="radio"]');
+        radio.addEventListener('change', () => {
+            document.querySelectorAll('.llm-option').forEach(o => o.classList.remove('selected'));
+            option.classList.add('selected');
+        });
+    });
+</script>
+{% endblock %}

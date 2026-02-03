@@ -1,0 +1,396 @@
+{% extends 'base.html' %}
+
+{% block title %}Add Balance - SPARK{% endblock %}
+
+{% block styles %}
+{# Theme CSS loaded by theme-loader.js #}
+<style>
+    .container {
+        max-width: 600px;
+    }
+    .price-display {
+        background: rgba(114, 137, 218, 0.1);
+        border: 1px solid rgba(114, 137, 218, 0.3);
+        border-radius: 8px;
+        padding: 1.5rem;
+        text-align: center;
+        margin-bottom: 1.5rem;
+    }
+    .price-display .amount {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #7289da;
+    }
+    .price-display .label {
+        font-size: 0.9rem;
+        color: #72767d;
+    }
+    .price-display .original-price {
+        text-decoration: line-through;
+        color: #72767d;
+        font-size: 1.2rem;
+    }
+    .price-display .discount-badge {
+        display: inline-block;
+        background: #43b581;
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        margin-top: 0.5rem;
+    }
+    .payment-info {
+        background: rgba(67, 181, 129, 0.1);
+        border: 1px solid rgba(67, 181, 129, 0.3);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    .payment-info i {
+        color: #43b581;
+    }
+    .amount-presets {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+    .amount-presets .btn {
+        flex: 1;
+        min-width: 60px;
+    }
+    .btn-preset {
+        background-color: #40444b;
+        border-color: #40444b;
+        color: #fff;
+    }
+    .btn-preset:hover, .btn-preset.active {
+        background-color: #7289da;
+        border-color: #7289da;
+        color: #fff;
+    }
+    .btn-stripe {
+        background-color: #635bff;
+        border-color: #635bff;
+        color: white;
+        font-size: 1.1rem;
+        padding: 0.75rem 1.5rem;
+    }
+    .btn-stripe:hover {
+        background-color: #5046e5;
+        border-color: #5046e5;
+        color: white;
+    }
+    .btn-stripe:disabled {
+        background-color: #9a94ff;
+        border-color: #9a94ff;
+    }
+    .stripe-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.8rem;
+        color: #72767d;
+        margin-top: 1rem;
+    }
+    .stripe-badge img {
+        height: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block page_title %}Add Balance{% endblock %}
+
+{% block back_url %}/{% endblock %}
+
+{% block back_title %}Back to Chat{% endblock %}
+
+{% block toolbar %}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Current Balance Info -->
+    <div class="payment-info">
+        <i class="fas fa-info-circle me-2"></i>
+        Add funds to your account to use AI services. Payments are processed securely via Stripe.
+    </div>
+
+    {% if request.query_params.get('cancelled') %}
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        Payment was cancelled. You can try again when ready.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    <!-- Amount Section -->
+    <div class="section-container">
+        <div class="section-title"><i class="fas fa-dollar-sign me-2"></i>Select Amount</div>
+
+        <form id="payment-form">
+            <!-- Quick Amount Presets -->
+            <div class="mb-3">
+                <label class="form-label">Quick Select</label>
+                <div class="amount-presets">
+                    <button type="button" class="btn btn-preset" onclick="setAmount(5)">$5</button>
+                    <button type="button" class="btn btn-preset" onclick="setAmount(10)">$10</button>
+                    <button type="button" class="btn btn-preset" onclick="setAmount(25)">$25</button>
+                    <button type="button" class="btn btn-preset" onclick="setAmount(50)">$50</button>
+                    <button type="button" class="btn btn-preset" onclick="setAmount(100)">$100</button>
+                </div>
+            </div>
+
+            <!-- Custom Amount -->
+            <div class="mb-3">
+                <label for="amount" class="form-label">Custom Amount ($5 - $500)</label>
+                <div class="input-group">
+                    <span class="input-group-text input-group-text-themed accent">
+                        <i class="fas fa-dollar-sign"></i>
+                    </span>
+                    <input type="text" class="form-control" id="amount" name="amount"
+                           placeholder="Enter amount" inputmode="decimal" pattern="[0-9]*\.?[0-9]*" required
+                           oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1'); updatePriceDisplay()">
+                </div>
+            </div>
+
+            <!-- Discount Code -->
+            <div class="mb-3">
+                <label for="discount_code" class="form-label">Discount Code (optional)</label>
+                <div class="input-group">
+                    <span class="input-group-text input-group-text-themed">
+                        <i class="fas fa-tag"></i>
+                    </span>
+                    <input type="text" class="form-control" id="discount_code" name="discount_code"
+                           placeholder="Enter discount code">
+                    <button type="button" class="btn btn-secondary" onclick="applyDiscount()" id="applyBtn">
+                        <i class="fas fa-check me-1"></i> Apply
+                    </button>
+                </div>
+                <div id="discount-message" class="mt-2" style="display: none;"></div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Price Summary -->
+    <div class="section-container">
+        <div class="section-title"><i class="fas fa-receipt me-2"></i>Summary</div>
+
+        <div class="price-display">
+            <div class="label">Amount to Pay</div>
+            <div id="original-price-display" class="original-price" style="display: none;"></div>
+            <div class="amount">$<span id="final-price-display">0.00</span></div>
+            <div id="discount-badge" class="discount-badge" style="display: none;">
+                <i class="fas fa-percent me-1"></i><span id="discount-percent"></span>% OFF
+            </div>
+        </div>
+
+        <button type="button" class="btn btn-stripe w-100" onclick="redirectToStripe()" id="stripeBtn">
+            <i class="fas fa-lock me-2"></i>Pay with Stripe
+        </button>
+
+        <div class="stripe-badge justify-content-center">
+            <i class="fas fa-shield-alt"></i>
+            Secure payment powered by Stripe
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    let finalAmount = 0;
+    let originalAmount = 0;
+    let discountApplied = false;
+    let appliedDiscountCode = '';
+
+    // Set amount from preset buttons
+    function setAmount(value) {
+        document.getElementById('amount').value = value;
+        updatePriceDisplay();
+
+        // Update button states
+        document.querySelectorAll('.amount-presets .btn').forEach(btn => {
+            btn.classList.remove('active');
+            if (parseFloat(btn.textContent.replace('$', '')) === value) {
+                btn.classList.add('active');
+            }
+        });
+
+        // Reset discount if amount changes
+        if (discountApplied) {
+            resetDiscount();
+        }
+    }
+
+    // Update price display
+    function updatePriceDisplay() {
+        const amount = parseFloat(document.getElementById('amount').value) || 0;
+        finalAmount = amount;
+        originalAmount = amount;
+
+        document.getElementById('final-price-display').textContent = amount.toFixed(2);
+        document.getElementById('original-price-display').style.display = 'none';
+        document.getElementById('discount-badge').style.display = 'none';
+
+        // Reset discount
+        if (discountApplied) {
+            resetDiscount();
+        }
+    }
+
+    // Reset discount
+    function resetDiscount() {
+        discountApplied = false;
+        appliedDiscountCode = '';
+        document.getElementById('discount-message').style.display = 'none';
+    }
+
+    // Apply discount code
+    async function applyDiscount() {
+        const discountCode = document.getElementById('discount_code').value.trim();
+        const amount = parseFloat(document.getElementById('amount').value);
+        const applyBtn = document.getElementById('applyBtn');
+        const messageDiv = document.getElementById('discount-message');
+
+        if (!discountCode) {
+            messageDiv.innerHTML = '<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Please enter a discount code</span>';
+            messageDiv.style.display = 'block';
+            return;
+        }
+
+        if (isNaN(amount) || amount < 5 || amount > 500) {
+            messageDiv.innerHTML = '<span class="text-danger"><i class="fas fa-times-circle me-1"></i>Please enter a valid amount between $5 and $500</span>';
+            messageDiv.style.display = 'block';
+            return;
+        }
+
+        applyBtn.disabled = true;
+        applyBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+        try {
+            const formData = new URLSearchParams();
+            formData.append('discount_code', discountCode);
+            formData.append('amount', amount);
+
+            const response = await fetch('/apply-discount', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                finalAmount = data.newPrice;
+                originalAmount = data.originalAmount;
+                discountApplied = true;
+                appliedDiscountCode = discountCode;
+
+                // Update display
+                document.getElementById('original-price-display').textContent = '$' + originalAmount.toFixed(2);
+                document.getElementById('original-price-display').style.display = 'block';
+                document.getElementById('final-price-display').textContent = finalAmount.toFixed(2);
+
+                const discountPercent = Math.round((1 - finalAmount / originalAmount) * 100);
+                document.getElementById('discount-percent').textContent = discountPercent;
+                document.getElementById('discount-badge').style.display = 'inline-block';
+
+                messageDiv.innerHTML = '<span class="text-success"><i class="fas fa-check-circle me-1"></i>Discount applied successfully!</span>';
+                messageDiv.style.display = 'block';
+
+                // If 100% discount, process immediately
+                if (finalAmount === 0) {
+                    processFreePurchase(discountCode);
+                }
+            } else {
+                messageDiv.innerHTML = '<span class="text-danger"><i class="fas fa-times-circle me-1"></i>' + (data.message || 'Invalid discount code') + '</span>';
+                messageDiv.style.display = 'block';
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            messageDiv.innerHTML = '<span class="text-danger"><i class="fas fa-times-circle me-1"></i>Error applying discount</span>';
+            messageDiv.style.display = 'block';
+        }
+
+        applyBtn.disabled = false;
+        applyBtn.innerHTML = '<i class="fas fa-check me-1"></i> Apply';
+    }
+
+    // Process free purchase (100% discount)
+    async function processFreePurchase(discountCode) {
+        try {
+            const response = await fetch('/payment-success-simulated', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    originalAmount: originalAmount,
+                    finalAmount: 0,
+                    discount_code: discountCode
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                window.location.href = data.redirectUrl;
+            } else {
+                throw new Error('Server error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            NotificationModal.error('Error', 'Error processing free balance. Please try again.');
+        }
+    }
+
+    // Redirect to Stripe Checkout
+    async function redirectToStripe() {
+        const amount = parseFloat(document.getElementById('amount').value);
+        const stripeBtn = document.getElementById('stripeBtn');
+
+        if (isNaN(amount) || amount < 5 || amount > 500) {
+            NotificationModal.warning('Invalid Amount', 'Please enter a valid amount between $5 and $500.');
+            return;
+        }
+
+        // If 100% discount, already handled
+        if (finalAmount === 0) {
+            return;
+        }
+
+        // Disable button and show loading
+        stripeBtn.disabled = true;
+        stripeBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Redirecting to Stripe...';
+
+        try {
+            const response = await fetch('/api/stripe/create-checkout-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    amount: discountApplied ? originalAmount : amount,
+                    discount_code: appliedDiscountCode || ''
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                if (data.free_purchase) {
+                    // 100% discount - process without Stripe
+                    await processFreePurchase(appliedDiscountCode);
+                } else if (data.url) {
+                    // Redirect to Stripe Checkout
+                    window.location.href = data.url;
+                } else {
+                    throw new Error('No redirect URL received');
+                }
+            } else {
+                throw new Error(data.detail || 'Failed to create checkout session');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            NotificationModal.error('Payment Error', 'Error: ' + error.message);
+            stripeBtn.disabled = false;
+            stripeBtn.innerHTML = '<i class="fas fa-lock me-2"></i>Pay with Stripe';
+        }
+    }
+</script>
+{% endblock %}

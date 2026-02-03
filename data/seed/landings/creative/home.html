@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Creative - Your AI brainstorming partner that amplifies innovation. Generate breakthrough ideas through interactive neural network-inspired collaboration. Experience the future of creative thinking.">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="./">
+
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="Creative - AI Brainstorming Partner">
+    <meta property="og:description" content="Amplify your creativity with an AI assistant that helps you generate innovative ideas through dynamic brainstorming techniques.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="./static/img/og-image.jpg">
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Creative AI Assistant",
+      "applicationCategory": "BusinessApplication",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "description": "AI brainstorming partner designed to help generate innovative ideas and explore creative possibilities."
+    }
+    </script>
+
+    <title>Creative - AI Brainstorming Partner | Amplify Your Ideas</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./static/css/custom.css">
+</head>
+<body class="bg-black text-white overflow-x-hidden">
+
+    <!-- Neural Network Canvas Background -->
+    <canvas id="neuralCanvas" class="fixed top-0 left-0 w-full h-full pointer-events-none z-0"></canvas>
+
+    <!-- Content Container -->
+    <div class="relative z-10">
+
+        <!-- Navigation -->
+        <header class="fixed top-0 w-full backdrop-blur-md bg-black/30 border-b border-white/10 z-50">
+            <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
+                <div class="text-2xl font-bold">
+                    <span class="text-transparent bg-clip-text bg-gradient-to-r from-[#33ff4d] to-[#ff8080]">Creative</span>
+                </div>
+                <a href="register" class="px-6 py-2 rounded-full bg-gradient-to-r from-[#33ff4d] to-[#ff8080] text-black font-semibold hover:shadow-lg hover:shadow-[#33ff4d]/50 transition-all duration-300 transform hover:scale-105">
+                    Start Creating
+                </a>
+            </nav>
+        </header>
+
+        <!-- Hero Section -->
+        <main>
+            <section class="min-h-screen flex items-center justify-center px-6 pt-20">
+                <div class="container mx-auto text-center">
+                    <h1 class="text-6xl md:text-8xl font-black mb-6 leading-tight">
+                        <span class="inline-block idea-spark" data-delay="0">Think</span>
+                        <span class="inline-block idea-spark text-transparent bg-clip-text bg-gradient-to-r from-[#33ff4d] to-[#ff8080]" data-delay="200">Bigger</span>
+                    </h1>
+                    <p class="text-xl md:text-3xl mb-4 text-gray-300 max-w-3xl mx-auto idea-spark" data-delay="400">
+                        Your AI brainstorming partner that turns wild ideas into breakthrough innovations
+                    </p>
+                    <p class="text-lg md:text-xl mb-12 text-gray-400 max-w-2xl mx-auto idea-spark" data-delay="600">
+                        No judgment. No limits. Just pure creative exploration powered by neural collaboration.
+                    </p>
+                    <div class="flex flex-col sm:flex-row gap-4 justify-center items-center idea-spark" data-delay="800">
+                        <a href="register" class="group px-8 py-4 rounded-full bg-gradient-to-r from-[#33ff4d] to-[#ff8080] text-black text-lg font-bold hover:shadow-2xl hover:shadow-[#33ff4d]/50 transition-all duration-300 transform hover:scale-110">
+                            Launch Your Ideas
+                            <span class="inline-block ml-2 transform group-hover:translate-x-1 transition-transform">→</span>
+                        </a>
+                        <a href="#features" class="px-8 py-4 rounded-full border-2 border-white/30 text-white text-lg font-semibold hover:border-[#33ff4d] hover:text-[#33ff4d] transition-all duration-300 backdrop-blur-sm">
+                            Explore Features
+                        </a>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Interactive Divider -->
+            <div class="pulse-divider"></div>
+
+            <!-- Features Section -->
+            <section id="features" class="py-32 px-6">
+                <div class="container mx-auto">
+                    <h2 class="text-5xl md:text-6xl font-black text-center mb-20">
+                        <span class="text-transparent bg-clip-text bg-gradient-to-r from-[#33ff4d] to-[#ff8080]">
+                            Unleash Creative Superpowers
+                        </span>
+                    </h2>
+
+                    <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-7xl mx-auto">
+
+                        <!-- Feature 1 -->
+                        <article class="feature-card group">
+                            <div class="feature-icon-wrapper">
+                                <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                                    <path d="M2 17l10 5 10-5"/>
+                                    <path d="M2 12l10 5 10-5"/>
+                                </svg>
+                            </div>
+                            <h3 class="text-2xl font-bold mb-4">Wild Thinking</h3>
+                            <p class="text-gray-400">
+                                Generate 10-20+ ideas rapidly. The wilder, the better. We amplify your creativity without judgment or limits.
+                            </p>
+                        </article>
+
+                        <!-- Feature 2 -->
+                        <article class="feature-card group">
+                            <div class="feature-icon-wrapper">
+                                <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <path d="M12 6v6l4 2"/>
+                                </svg>
+                            </div>
+                            <h3 class="text-2xl font-bold mb-4">Real-Time Collaboration</h3>
+                            <p class="text-gray-400">
+                                Experience "Yes, and..." thinking. Every idea builds into something greater through dynamic AI partnership.
+                            </p>
+                        </article>
+
+                        <!-- Feature 3 -->
+                        <article class="feature-card group">
+                            <div class="feature-icon-wrapper">
+                                <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                                </svg>
+                            </div>
+                            <h3 class="text-2xl font-bold mb-4">Creative Techniques</h3>
+                            <p class="text-gray-400">
+                                Master SCAMPER, Six Thinking Hats, Reverse Brainstorming, and more. Professional ideation methods at your fingertips.
+                            </p>
+                        </article>
+
+                        <!-- Feature 4 -->
+                        <article class="feature-card group">
+                            <div class="feature-icon-wrapper">
+                                <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                                    <line x1="12" y1="22.08" x2="12" y2="12"/>
+                                </svg>
+                            </div>
+                            <h3 class="text-2xl font-bold mb-4">Unexpected Connections</h3>
+                            <p class="text-gray-400">
+                                Cross-domain inspiration. Alternative worlds. Random associations. Find breakthroughs where others see noise.
+                            </p>
+                        </article>
+
+                    </div>
+                </div>
+            </section>
+
+            <!-- How It Works -->
+            <section class="py-32 px-6 bg-gradient-to-b from-transparent via-[#33ff4d]/5 to-transparent">
+                <div class="container mx-auto max-w-6xl">
+                    <h2 class="text-5xl md:text-6xl font-black text-center mb-20">
+                        Your Creative Journey
+                    </h2>
+
+                    <div class="space-y-16">
+
+                        <article class="flex flex-col md:flex-row items-center gap-8 process-step">
+                            <div class="flex-shrink-0 w-20 h-20 rounded-full bg-gradient-to-br from-[#33ff4d] to-[#ff8080] flex items-center justify-center text-3xl font-black text-black">
+                                1
+                            </div>
+                            <div class="flex-1">
+                                <h3 class="text-3xl font-bold mb-4 text-[#33ff4d]">Spark the Challenge</h3>
+                                <p class="text-xl text-gray-300">
+                                    Share your creative challenge. No matter how vague or specific, we immediately start generating initial ideas to prime your thinking.
+                                </p>
+                            </div>
+                        </article>
+
+                        <article class="flex flex-col md:flex-row-reverse items-center gap-8 process-step">
+                            <div class="flex-shrink-0 w-20 h-20 rounded-full bg-gradient-to-br from-[#ff8080] to-[#33ff4d] flex items-center justify-center text-3xl font-black text-black">
+                                2
+                            </div>
+                            <div class="flex-1 md:text-right">
+                                <h3 class="text-3xl font-bold mb-4 text-[#ff8080]">Explore Wildly</h3>
+                                <p class="text-xl text-gray-300">
+                                    Dive into rapid-fire ideation. We apply proven creative techniques, introduce random stimuli, and push for the unexpected. Quantity unlocks quality.
+                                </p>
+                            </div>
+                        </article>
+
+                        <article class="flex flex-col md:flex-row items-center gap-8 process-step">
+                            <div class="flex-shrink-0 w-20 h-20 rounded-full bg-gradient-to-br from-[#33ff4d] to-[#ff8080] flex items-center justify-center text-3xl font-black text-black">
+                                3
+                            </div>
+                            <div class="flex-1">
+                                <h3 class="text-3xl font-bold mb-4 text-[#33ff4d]">Build and Combine</h3>
+                                <p class="text-xl text-gray-300">
+                                    The magic happens here. We connect ideas from different domains, mashup concepts, and build on what sparks your interest. "Yes, and..." thinking in action.
+                                </p>
+                            </div>
+                        </article>
+
+                        <article class="flex flex-col md:flex-row-reverse items-center gap-8 process-step">
+                            <div class="flex-shrink-0 w-20 h-20 rounded-full bg-gradient-to-br from-[#ff8080] to-[#33ff4d] flex items-center justify-center text-3xl font-black text-black">
+                                4
+                            </div>
+                            <div class="flex-1 md:text-right">
+                                <h3 class="text-3xl font-bold mb-4 text-[#ff8080]">Discover Breakthroughs</h3>
+                                <p class="text-xl text-gray-300">
+                                    Find the diamonds in the rough. Organize, evaluate, and refine when you're ready. The 100th idea often becomes the breakthrough.
+                                </p>
+                            </div>
+                        </article>
+
+                    </div>
+                </div>
+            </section>
+
+            <!-- Social Proof -->
+            <section class="py-32 px-6">
+                <div class="container mx-auto max-w-6xl">
+                    <h2 class="text-5xl md:text-6xl font-black text-center mb-20">
+                        <span class="text-transparent bg-clip-text bg-gradient-to-r from-[#33ff4d] to-[#ff8080]">
+                            What Creators Say
+                        </span>
+                    </h2>
+
+                    <div class="grid md:grid-cols-3 gap-8">
+
+                        <article class="testimonial-card">
+                            <div class="text-4xl mb-4 text-[#33ff4d]">"</div>
+                            <p class="text-lg mb-6 text-gray-300">
+                                Creative helped me break through a months-long creative block. The wild thinking approach unlocked ideas I never would have found alone.
+                            </p>
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-full bg-gradient-to-br from-[#33ff4d] to-[#ff8080]"></div>
+                                <div>
+                                    <p class="font-bold">Sarah Chen</p>
+                                    <p class="text-sm text-gray-400">Product Designer</p>
+                                </div>
+                            </div>
+                        </article>
+
+                        <article class="testimonial-card">
+                            <div class="text-4xl mb-4 text-[#ff8080]">"</div>
+                            <p class="text-lg mb-6 text-gray-300">
+                                The 'Yes, and...' approach is pure gold. It's like having the world's most encouraging brainstorming partner available 24/7.
+                            </p>
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-full bg-gradient-to-br from-[#ff8080] to-[#33ff4d]"></div>
+                                <div>
+                                    <p class="font-bold">Marcus Rodriguez</p>
+                                    <p class="text-sm text-gray-400">Startup Founder</p>
+                                </div>
+                            </div>
+                        </article>
+
+                        <article class="testimonial-card">
+                            <div class="text-4xl mb-4 text-[#33ff4d]">"</div>
+                            <p class="text-lg mb-6 text-gray-300">
+                                The creative techniques library is incredible. SCAMPER and reverse brainstorming have become my go-to tools for innovation.
+                            </p>
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-full bg-gradient-to-br from-[#33ff4d] to-[#ff8080]"></div>
+                                <div>
+                                    <p class="font-bold">Emma Williams</p>
+                                    <p class="text-sm text-gray-400">Marketing Director</p>
+                                </div>
+                            </div>
+                        </article>
+
+                    </div>
+                </div>
+            </section>
+
+            <!-- Final CTA -->
+            <section class="py-32 px-6 relative">
+                <div class="container mx-auto max-w-4xl text-center">
+                    <h2 class="text-5xl md:text-7xl font-black mb-8 leading-tight">
+                        Ready to Think<br/>
+                        <span class="text-transparent bg-clip-text bg-gradient-to-r from-[#33ff4d] to-[#ff8080]">
+                            Beyond Boundaries?
+                        </span>
+                    </h2>
+                    <p class="text-xl md:text-2xl mb-12 text-gray-300">
+                        Join thousands of innovators using Creative to amplify their ideas
+                    </p>
+                    <a href="register" class="inline-block group px-12 py-6 rounded-full bg-gradient-to-r from-[#33ff4d] to-[#ff8080] text-black text-xl font-black hover:shadow-2xl hover:shadow-[#33ff4d]/50 transition-all duration-300 transform hover:scale-110">
+                        Start Creating Free
+                        <span class="inline-block ml-2 transform group-hover:translate-x-2 transition-transform">→</span>
+                    </a>
+                    <p class="mt-6 text-gray-500">No credit card required. Start brainstorming in seconds.</p>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- Footer -->
+        <footer class="border-t border-white/10 py-12 px-6 backdrop-blur-md bg-black/30">
+            <div class="container mx-auto max-w-6xl">
+                <div class="grid md:grid-cols-4 gap-8 mb-8">
+                    <div>
+                        <h3 class="text-2xl font-bold mb-4">
+                            <span class="text-transparent bg-clip-text bg-gradient-to-r from-[#33ff4d] to-[#ff8080]">Creative</span>
+                        </h3>
+                        <p class="text-gray-400">Amplifying human creativity through AI-powered brainstorming.</p>
+                    </div>
+                    <div>
+                        <h4 class="font-bold mb-4">Product</h4>
+                        <ul class="space-y-2 text-gray-400">
+                            <li><a href="#features" class="hover:text-[#33ff4d] transition-colors">Features</a></li>
+                            <li><a href="register" class="hover:text-[#33ff4d] transition-colors">Get Started</a></li>
+                            <li><a href="#" class="hover:text-[#33ff4d] transition-colors">Techniques</a></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="font-bold mb-4">Resources</h4>
+                        <ul class="space-y-2 text-gray-400">
+                            <li><a href="#" class="hover:text-[#33ff4d] transition-colors">Blog</a></li>
+                            <li><a href="#" class="hover:text-[#33ff4d] transition-colors">Guides</a></li>
+                            <li><a href="#" class="hover:text-[#33ff4d] transition-colors">Support</a></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="font-bold mb-4">Company</h4>
+                        <ul class="space-y-2 text-gray-400">
+                            <li><a href="#" class="hover:text-[#33ff4d] transition-colors">About</a></li>
+                            <li><a href="#" class="hover:text-[#33ff4d] transition-colors">Privacy</a></li>
+                            <li><a href="#" class="hover:text-[#33ff4d] transition-colors">Terms</a></li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="border-t border-white/10 pt-8 text-center text-gray-500">
+                    <p>&copy; 2026 Creative AI. All rights reserved. Think bigger, together.</p>
+                </div>
+            </div>
+        </footer>
+
+    </div>
+
+    <script src="./static/js/custom.js"></script>
+</body>
+</html>

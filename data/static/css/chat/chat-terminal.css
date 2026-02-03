@@ -1,0 +1,2469 @@
+/* chat-terminal.css */
+:root {
+    --irc-bg-color: #000000;
+    --irc-text-color: #00ff00;
+    --irc-input-bg-color: #000000;
+    --irc-input-text-color: #00ff00;
+    --irc-sidebar-bg-color: #1a1a1a;
+    --irc-sidebar-text-color: #00ff00;
+    --irc-message-user-bg-color: #000000;
+    --irc-message-bot-bg-color: #000000;
+    --irc-message-user-text-color: #ffffff;
+    --irc-message-bot-text-color: #00ff00;
+    --irc-message-user-icon-color: #ffffff;
+    --irc-bookmark-color: #ffff00;
+    --irc-border-color: #00ff00;
+    --irc-hover-color: #003300;
+    --irc-placeholder-color: #006600;
+    --terminal-btn-primary: #00ccff;    /* Primary button color */
+    --terminal-btn-primary-hover: #00ffff;  /* Button hover color */
+    --terminal-btn-danger: #ff3333;     /* Danger button color */
+    --terminal-btn-danger-hover: #ff4d4d;  /* Danger hover color */
+    --terminal-glow: rgba(0, 255, 255, 0.3);  /* Glow effect color */
+    --terminal-glow-danger: rgba(255, 51, 51, 0.3);  /* Danger glow color */	
+}
+
+body, h5 {
+    margin: 0;
+    padding: 0;
+    font-family: 'Courier New', monospace;
+}
+
+body {
+    display: flex;
+    height: 100vh;
+    background-color: var(--irc-bg-color);
+    color: var(--irc-text-color);
+}
+
+#sidebar {
+    min-width: 240px;
+    max-width: 10vw;
+    background-color: var(--irc-sidebar-bg-color);
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+    border-right: 1px solid var(--irc-border-color);
+    z-index: 1001;
+}
+
+.list-group {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 15px;
+}
+
+.list-group-item {
+    background-color: transparent;
+    color: var(--irc-sidebar-text-color);
+    border-radius: 0;
+    margin-bottom: 2px;
+    transition: background-color 0.3s ease;
+    padding: 10px 40px 10px 15px;
+    border: none;
+    position: relative;
+}
+
+.list-group-item.active-chat,
+.list-group-item:hover {
+    background-color: var(--irc-hover-color);
+    color: var(--irc-text-color);
+}
+
+.btn-toggle-sidebar {
+    background-color: var(--irc-sidebar-bg-color);
+    color: var(--irc-sidebar-text-color);
+    border: 1px solid var(--irc-border-color);
+}
+
+#window-chat {
+    flex: 1;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: calc(100% - min(240px, 10vw));
+    box-sizing: border-box;
+}
+
+.chat-window {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: var(--irc-bg-color);
+}
+
+.chat-messages-container {
+    width: 100%;
+    max-width: 48rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.chatbot-info {
+    background-color: var(--irc-bg-color);
+    color: var(--irc-text-color);
+    padding: 15px;
+    border-bottom: 1px solid var(--irc-border-color);
+}
+
+.user-info {
+    background-color: var(--irc-sidebar-bg-color);
+    padding: 30px;
+    height: 89px;
+    color: var(--irc-text-color);
+    align-items: center;
+    display: flex;
+}
+
+.message-input {
+    padding: 20px;
+    background-color: var(--irc-bg-color);
+    display: flex;
+    justify-content: center;
+    border-top: 1px solid var(--irc-border-color);
+    position: relative;
+    z-index: 11;
+}
+
+.input-container {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    background-color: var(--irc-input-bg-color);
+    border: 1px solid var(--irc-border-color);
+    border-radius: 0;
+    width: 100%;
+    max-width: 48em;
+    margin: 0 auto;
+    padding: 8px;
+}
+.attach-icon,
+#audio-control {
+    position: relative; 
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    margin-right: 10px; 
+}
+
+#audio-control i,
+.attach-icon {
+    font-size: 14px;
+    line-height: 1;
+}
+.attach-icon {
+    margin-right: 12px;
+}
+
+#message-text {
+    flex: 1;
+    min-height: 20px;
+    max-height: 33vh;
+    padding: 8px;
+    padding-left: 0;
+    background: transparent;
+    resize: none;
+    overflow-y: auto;
+    line-height: 1.5;
+    margin-left: 0;
+}
+
+.input-icons {
+    display: flex;
+    align-items: flex-end; 
+    min-width: 70px;
+    margin-right: 8px;
+    align-self: flex-end; 
+    padding-bottom: 8px; 
+}
+.input-container i {
+    color: var(--irc-text-color);
+    font-size: 14px;
+    cursor: pointer;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.input-container i.mic-icon {
+    left: 45px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+#audio-button {
+    margin-left: 12px;
+}
+
+.form-control {
+    background-color: var(--irc-input-bg-color);
+    border: none;
+    color: var(--irc-input-text-color);
+    width: 100%;
+    padding-left: 75px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    box-sizing: border-box;
+    border-radius: 0;
+}
+
+.form-control::placeholder {
+    color: var(--irc-placeholder-color);
+}
+
+.form-control:focus {
+    outline: none;
+    box-shadow: none;
+    background-color: var(--irc-input-bg-color);
+    color: var(--irc-input-text-color);
+}
+
+.send-btn {
+    background-color: var(--irc-text-color);
+    color: var(--irc-bg-color);
+    border: none;
+    padding: 12px 20px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    border-radius: 0;
+}
+
+.send-btn:hover {
+    background-color: var(--irc-hover-color);
+}
+
+.message-content-container {
+    display: flex;
+    align-items: flex-start;
+}
+
+.avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background-color: var(--irc-text-color);
+    margin-right: 10px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    cursor: default;
+}
+
+.message {
+    max-width: calc(100% - 40px);
+    padding: 10px 15px;
+    border-radius: 0;
+    margin-bottom: 10px;
+    font-size: 16px;
+    line-height: 1.4;
+    word-wrap: break-word;
+    width: calc(100% - 40px);
+}
+
+.message.user {
+    background-color: var(--irc-message-user-bg-color);
+    color: var(--irc-message-user-text-color);
+}
+
+.message.bot {
+    background-color: var(--irc-message-bot-bg-color);
+    color: var(--irc-message-bot-text-color);
+}
+
+.message.bot p {
+    color: var(--irc-message-bot-text-color);
+}
+
+.message-content {
+    flex-grow: 1;
+}
+
+.message-content img {
+    max-width: 256px;
+    max-height: 256px;
+    object-fit: cover;
+    cursor: pointer;
+    border: 1px solid var(--irc-border-color);
+}
+
+.btn-group {
+    display: flex;
+    margin-top: 15px;
+    width: 100%;
+}
+
+.custom-new-chat-btn {
+    background-color: var(--irc-text-color);
+    color: var(--irc-bg-color);
+    border: none;
+    border-radius: 0;
+    padding: 8px 15px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.3s ease, filter 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.custom-new-chat-btn:hover {
+    background-color: var(--irc-hover-color);
+    filter: brightness(1.1);
+}
+
+.custom-new-chat-btn i {
+    margin-right: 8px;
+}
+
+.btn-group .custom-new-chat-btn:first-child {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    flex-grow: 1;
+}
+
+.btn-group .dropdown-toggle-split {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+.btn-group .dropdown-toggle-split::after {
+    margin-left: 0;
+}
+
+.new-chat-settings {
+    width: 300px;
+    padding: 15px;
+    background-color: var(--irc-bg-color);
+    border: 1px solid var(--irc-border-color);
+}
+
+.new-chat-settings .dropdown-header {
+    color: var(--irc-text-color);
+}
+
+.new-chat-settings .form-select {
+    margin-top: 5px;
+    background-color: var(--irc-input-bg-color);
+    color: var(--irc-text-color);
+    border: 1px solid var(--irc-border-color);
+}
+
+.new-chat-settings .dropdown-divider {
+    border-top-color: var(--irc-border-color);
+}
+
+/* Theme Button Styles */
+.custom-theme-btn {
+    background-color: var(--irc-text-color);
+    color: var(--irc-bg-color);
+    border: none;
+    border-radius: 0;
+    padding: 8px 15px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    font-family: 'Courier New', monospace;
+}
+
+.custom-theme-btn:hover {
+    background-color: var(--irc-hover-color);
+    color: var(--irc-text-color);
+    text-shadow: 0 0 5px var(--irc-text-color);
+    border: 1px solid var(--irc-text-color);
+}
+
+.custom-theme-btn:active {
+    background-color: var(--irc-bg-color);
+    color: var(--irc-text-color);
+    border: 1px solid var(--irc-text-color);
+}
+
+.custom-theme-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--irc-text-color);
+}
+
+.custom-theme-btn i {
+    margin-right: 8px;
+}
+
+/* Theme Dropdown Menu */
+.theme-dropdown-menu {
+    width: 200px;
+    padding: 0;
+    background-color: var(--irc-bg-color);
+    border: 1px solid var(--irc-text-color);
+    border-radius: 0;
+    margin-top: 5px;
+    font-family: 'Courier New', monospace;
+}
+
+.theme-dropdown-menu .dropdown-item {
+    color: var(--irc-text-color);
+    padding: 8px 15px;
+    font-size: 12px;
+    transition: all 0.3s ease;
+    border: none;
+    background: none;
+    font-family: 'Courier New', monospace;
+    position: relative;
+    padding-left: 25px;
+}
+
+.theme-dropdown-menu .dropdown-item::before {
+    content: "> ";
+    position: absolute;
+    left: 8px;
+    color: var(--irc-text-color);
+}
+
+.theme-dropdown-menu .dropdown-item:hover {
+    background-color: var(--irc-text-color);
+    color: var(--irc-bg-color);
+    text-shadow: none;
+}
+
+.theme-dropdown-menu .dropdown-item:hover::before {
+    color: var(--irc-bg-color);
+}
+
+.theme-dropdown-menu .dropdown-item:focus {
+    background-color: var(--irc-text-color);
+    color: var(--irc-bg-color);
+    outline: none;
+}
+
+.theme-dropdown-menu .dropdown-item:focus::before {
+    color: var(--irc-bg-color);
+}
+
+.theme-dropdown-menu .dropdown-item.active {
+    background-color: var(--irc-hover-color);
+    color: var(--irc-text-color);
+    font-weight: bold;
+}
+
+.theme-dropdown-menu .dropdown-item.active::before {
+    content: "* ";
+    color: var(--irc-text-color);
+}
+
+@media (max-width: 768px) {
+    .custom-theme-btn {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+    
+    .theme-dropdown-menu {
+        width: 180px;
+        padding: 0;
+    }
+    
+    .theme-dropdown-menu .dropdown-item {
+        padding: 6px 12px 6px 20px;
+        font-size: 11px;
+    }
+    
+    .theme-dropdown-menu .dropdown-item::before {
+        left: 6px;
+    }
+}
+
+.sidebar-section h3 {
+    font-size: 12px;
+    color: var(--irc-text-color);
+    margin: 10px 0 10px 0;
+    text-transform: uppercase;
+}
+
+#dynamic-chats-container .list-group-item {
+    padding: 8px 10px;
+    margin-bottom: 2px;
+    background-color: transparent;
+    border-radius: 0;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    font-size: 14px;
+}
+
+#dynamic-chats-container .list-group-item:hover {
+    background-color: var(--irc-hover-color);
+}
+
+#dynamic-chats-container .list-group-item.active-chat {
+    background-color: var(--irc-text-color);
+    color: var(--irc-bg-color);
+}
+
+#dynamic-chats-container .list-group-item i {
+    margin-left: 10px;
+    color: var(--irc-text-color);
+    cursor: pointer;
+    transition: color 0.3s ease;
+}
+
+#dynamic-chats-container .list-group-item i:hover {
+    color: var(--irc-hover-color);
+}
+
+#load-more-button {
+    background-color: transparent;
+    color: var(--irc-text-color);
+    border: 1px solid var(--irc-border-color);
+    padding: 10px;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 10px 0;
+    transition: background-color 0.3s ease;
+}
+
+#load-more-button:hover {
+    background-color: var(--irc-hover-color);
+}
+
+#load-more-button .dots {
+    margin-right: 5px;
+    font-size: 18px;
+    line-height: 0;
+}
+
+#load-more-button i {
+    margin-left: 5px;
+}
+
+#image-previews {
+    position: absolute;
+    bottom: 80px;
+    left: 0;
+    right: 0;
+    height: 100px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background-color: var(--irc-bg-color);
+    border: 1px solid var(--irc-border-color);
+    z-index: 10;
+    max-width: 100%;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+#image-previews img,
+.preview-image {
+    max-width: 100px;
+    max-height: 100px;
+    border-radius: 5px;
+    border: 1px solid var(--irc-border-color);
+    margin: 0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+#image-previews.hidden {
+    display: none;
+}
+
+.drop-zone--over {
+    border: 2px dashed var(--irc-text-color);
+}
+
+.select-container {
+    margin-bottom: 15px;
+    padding: 8px;
+    border-radius: 0;
+}
+
+.form-select,
+.select {
+    width: 100%;
+    padding: 8px;
+    background-color: var(--irc-input-bg-color);
+    color: var(--irc-text-color);
+    border: 1px solid var(--irc-border-color);
+    border-radius: 0;
+    font-size: 14px;
+}
+
+.chat-title-container {
+    display: flex;
+    align-items: center;
+}
+
+#chat-title {
+    transition: max-width 0.3s ease-in-out, opacity 0.3s ease-in-out;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 300px;
+    padding-left: 3em;
+}
+
+#info-icon {
+    margin-left: 10px;
+    cursor: pointer;
+    font-size: 1.2em;
+    transition: transform 0.3s ease-in-out;
+    color: var(--irc-text-color);
+}
+
+#info-icon:hover {
+    transform: scale(1.1);
+}
+
+#message-text {
+    max-height: 33vh;
+    overflow-y: auto;
+    resize: none;
+}
+
+.message-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: var(--irc-text-color);
+    margin-top: 5px;
+    background-color: transparent;
+}
+
+.message-info i {
+    margin-right: 10px;
+    color: var(--irc-text-color);
+}
+
+.message-info span {
+    color: var(--irc-text-color);
+    cursor: default;
+    padding-left: 15px;
+    transition: color 0.3s ease;
+}
+
+.message-info span:hover {
+    color: var(--irc-hover-color);
+}
+
+.bookmark-icon {
+    color: var(--irc-text-color);
+    transition: all 0.3s ease;
+}
+
+.bookmark-icon.check {
+    color: #4CAF50;
+    font-family: 'FontAwesome';
+    content: "\f00c";
+    transform: scale(1.2);
+    transition: transform 0.3s ease-in-out, color 0.3s ease-in-out;
+}
+
+.bookmark-icon.fade-out {
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+}
+
+.bookmark-icon.bookmarked {
+    color: var(--irc-bookmark-color);
+}
+
+.previously-active-chat {
+    background-color: var(--irc-hover-color) !important;
+    color: var(--irc-text-color) !important;
+}
+
+.code-block {
+    margin-top: 16px;
+    margin-bottom: 16px;
+    border-radius: 0;
+    overflow: hidden;
+    background-color: var(--irc-bg-color);
+    border: 1px solid var(--irc-border-color);
+}
+
+.code-language {
+    color: var(--irc-text-color);
+    text-transform: uppercase;
+}
+
+.code-header {
+    margin: 0;
+    padding: 8px 12px;
+    background-color: var(--irc-bg-color);
+    border-bottom: 1px solid var(--irc-border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.copy-button {
+    background: none;
+    border: none;
+    color: var(--irc-text-color);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0;
+    height: 24px;
+    display: flex;
+    align-items: center;
+}
+
+.copy-button:hover {
+    color: var(--irc-hover-color);
+}
+
+.code-block pre {
+    margin: 0;
+    padding: 12px;
+    background-color: var(--irc-bg-color);
+    border-radius: 0;
+    overflow-x: auto;
+}
+
+.code-block code {
+    margin: 0;
+    padding: 0;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--irc-text-color);
+}
+
+.copy-button i {
+    font-size: 14px;
+    transition: color 0.3s ease;
+}
+
+.copy-button i.fa-check {
+    color: #4CAF50;
+}
+
+.copy-button i.fa-copy {
+    color: var(--irc-text-color);
+}
+
+.list-group-item-action.active-bookmarks,
+.list-group-item-action.active-bookmarks:hover,
+.list-group-item-action.active-bookmarks:focus {
+    background-color: var(--irc-text-color);
+    color: var(--irc-bg-color);
+}
+
+#my-bookmarks-btn {
+    background-color: var(--irc-sidebar-bg-color);
+    color: var(--irc-sidebar-text-color);
+}
+
+#my-bookmarks-btn:hover {
+    background-color: var(--irc-hover-color);
+}
+
+#my-bookmarks-btn.active-bookmarks:hover {
+    background-color: var(--irc-text-color);
+}
+
+.rollback-icon {
+    color: var(--irc-text-color);
+    transition: all 0.3s ease;
+}
+
+.rollback-icon:hover {
+    color: var(--irc-hover-color);
+    transform: scale(1.1);
+}
+
+#form-message {
+    width: 100%;
+    max-width: 48rem;
+    display: flex;
+    background-color: var(--irc-input-bg-color);
+    border-radius: 0;
+    overflow: hidden;
+}
+
+.input-group {
+    width: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.input-group textarea {
+    flex-grow: 1;
+    margin-right: 10px;
+}
+
+.input-group .btn {
+    white-space: nowrap;
+}
+
+.list-group-item-action.active-chat {
+    background-color: var(--irc-text-color);
+    color: var(--irc-bg-color);
+}
+
+.hidden {
+    display: none !important;
+}
+
+.chat-menu {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-block;
+    cursor: pointer;
+}
+
+.chat-menu .fa-ellipsis-h {
+    color: var(--irc-text-color);
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
+}
+
+.chat-menu:hover .fa-ellipsis-h {
+    opacity: 1;
+}
+
+.chat-menu .chat-menu-content {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    background-color: var(--irc-bg-color);
+    border: 1px solid var(--irc-border-color);
+    border-radius: 0;
+    padding: 10px;
+    z-index: 1001;
+}
+
+.chat-menu .chat-menu-content a {
+    display: block;
+    color: var(--irc-text-color);
+    padding: 8px;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.chat-menu .chat-menu-content a i {
+    margin-right: 10px;
+}
+
+.chat-menu .chat-menu-content a:hover {
+    background-color: var(--irc-hover-color);
+}
+
+.chat-menu .chat-menu-content .delete-chat i {
+    color: #ff4d4d;
+}
+
+.menu-separator {
+    height: 1px;
+    background-color: var(--irc-border-color);
+    margin: 5px 0;
+}
+
+.dropdown-menu {
+    background-color: var(--irc-bg-color);
+    border: 1px solid var(--irc-border-color);
+    z-index: 1050;
+}
+
+.dropdown-item {
+    color: var(--irc-text-color);
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+    background-color: var(--irc-hover-color);
+    color: var(--irc-text-color);
+}
+
+.preserve-whitespace {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+#chat-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: none;
+}
+
+.chat-deactivated #chat-overlay {
+    display: block;
+}
+
+.chat-deactivated #chat-window {
+    pointer-events: none;
+}
+
+.nav-menu {
+    position: fixed;
+    right: 20px;
+    bottom: 100px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 1000;
+}
+
+.nav-button {
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--irc-border-color);
+    border-radius: 0;
+    background-color: var(--irc-bg-color);
+    color: var(--irc-text-color);
+    font-size: 18px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.nav-button:hover {
+    background-color: var(--irc-hover-color);
+    transform: scale(1.05);
+}
+
+.nav-button:active {
+    transform: scale(0.95);
+}
+
+@keyframes highlight {
+    0% { box-shadow: 0 0 0 0 rgba(0, 255, 0, 0.7); }
+    70% { box-shadow: 0 0 0 20px rgba(0, 255, 0, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(0, 255, 0, 0); }
+}
+
+.highlight {
+    animation: highlight 1s ease-out;
+}
+
+@keyframes shake {
+    0% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    50% { transform: translateX(5px); }
+    75% { transform: translateX(-5px); }
+    100% { transform: translateX(0); }
+}
+
+.shake {
+    animation: shake 0.5s ease-in-out;
+}
+
+.number-bubble {
+    position: absolute;
+    background-color: var(--irc-text-color);
+    color: var(--irc-bg-color);
+    border-radius: 0;
+    width: 45px;
+    height: 45px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 12px;
+    animation: float-away 1s ease-out;
+    pointer-events: none;
+}
+
+@keyframes float-away {
+    0% {
+        transform: translate(0, 0);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-50px, -50px);
+        opacity: 0;
+    }
+}
+
+.loading-indicator {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+.list-group-item-action[href="/"] {
+    background-color: transparent;
+    color: var(--irc-text-color);
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 10px 15px;
+}
+
+.list-group-item-action[href="/"] i {
+    margin-right: 10px;
+}
+
+.list-group-item-action[href="/"] span {
+    flex-grow: 1;
+    text-align: center;
+}
+
+.fullsize-container {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.9);
+    z-index: 1000;
+    font-family: 'Courier New', monospace;
+}
+
+.fullsize-image {
+    max-width: 90%;
+    max-height: 90%;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border: 1px solid var(--irc-text-color);
+}
+
+.fullsize-controls {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--irc-bg-color);
+    padding: 10px;
+    border: 1px solid var(--irc-border-color);
+}
+
+.user-menu-mobile {
+    display: none;
+}
+
+@media (max-width: 767px) {
+    .user-menu-mobile {
+        display: block;
+        margin-bottom: 15px;
+    }
+    .user-menu-desktop {
+        display: none;
+    }
+}
+
+.list-group-item-action {
+    transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+
+@keyframes popIn {
+    0% { transform: scale(0.8); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.pop-in {
+    animation: popIn 0.3s ease-out forwards;
+}
+
+#audio-recording-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px;
+    background-color: var(--irc-bg-color);
+    font-family: 'Courier New', Courier, monospace;
+}
+
+#time-counter {
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--irc-text-color);
+    margin-bottom: 10px;
+}
+
+.audio-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+
+#audio-recording-controls button {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: 2px solid var(--irc-text-color);
+    background-color: var(--irc-bg-color);
+    color: var(--irc-text-color);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.3s, transform 0.2s;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+#audio-recording-controls button:hover {
+    transform: scale(1.1);
+    background-color: var(--irc-hover-color);
+}
+
+#cancel-audio {
+    border-color: #ff0000;
+    color: #ff0000;
+}
+
+#cancel-audio:hover {
+    background-color: #330000;
+}
+
+#send-audio {
+    border-color: var(--irc-text-color);
+    color: var(--irc-text-color);
+}
+
+#send-audio:hover {
+    background-color: var(--irc-hover-color);
+}
+
+.chat-title-container {
+    display: flex;
+    align-items: center;
+}
+
+.chat-title-avatar {
+    margin-right: 10px;
+}
+
+.chat-title-avatar .avatar {
+    width: 30px;
+    height: 30px;
+}
+
+.chat-title-avatar .avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+@media (max-width: 768px) {
+    .chat-title-avatar {
+        padding-left: 10%;
+    }
+    #chat-title{
+        padding-left: 0;
+    }
+}
+@media (max-width: 768px) {
+    .btn-toggle-sidebar {
+        margin-top: 2%;
+    }
+}
+
+.new-chat-settings {
+    width: 300px;
+    padding: 15px;
+}
+
+.new-chat-settings .form-select {
+    margin-top: 5px;
+}
+
+.dropdown-menu.new-chat-settings {
+    position: absolute;
+    right: 0;
+    left: auto;
+    top: 100%;
+    z-index: 1050;
+    width: auto;
+    min-width: 200px;
+    max-width: 215px;
+    overflow: visible;
+}
+
+.sidebar-section {
+    position: relative;
+    overflow: visible;
+}
+
+.btn-group {
+    position: relative;
+}
+
+#sidebar .dropdown-menu,
+.new-chat-settings.dropdown-menu {
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+@media (max-width: 768px) {
+    .dropdown-menu.new-chat-settings {
+        position: fixed;
+        top: auto;
+        bottom: 60px;
+        left: 10px;
+        right: 10px;
+        width: auto;
+        max-width: none;
+    }
+}
+
+.dropdown-menu .dropdown-item {
+    white-space: normal;
+    word-wrap: break-word;
+}
+
+.btn-group .dropdown-toggle-split {
+    z-index: 1051;
+}
+
+.btn-group .dropdown-toggle-split:active,
+.btn-group .dropdown-toggle-split.show {
+    background-color: var(--irc-hover-color);
+    color: var(--irc-text-color);
+    box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.125);
+}
+
+.btn-group .dropdown-toggle-split:active:hover,
+.btn-group .dropdown-toggle-split.show:hover {
+    background-color: var(--irc-hover-color);
+}
+
+.btn-group .dropdown-toggle-split:active,
+.btn-group .dropdown-toggle-split.show,
+.btn-group .dropdown-toggle-split:active:hover,
+.btn-group .dropdown-toggle-split.show:hover {
+    border-color: var(--irc-border-color);
+}
+
+.btn-group .dropdown-toggle-split:active::after,
+.btn-group .dropdown-toggle-split.show::after {
+    border-top-color: var(--irc-text-color);
+}
+
+@media (max-width: 768px) {
+    #sidebar {
+        position: fixed;
+        left: -100%;
+        width: 80%;
+        height: 100%;
+        overflow-y: auto;
+        transition: left 0.3s;
+        z-index: 1002;
+    }
+
+    #sidebar.active {
+        left: 0;
+    }
+
+    .btn-toggle-sidebar {
+        display: block;
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        z-index: 1003;
+    }
+
+    #window-chat {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .chatbot-info h5 {
+        font-size: 16px;
+        padding-left: 40px;
+    }
+
+    .message {
+        max-width: 90%;
+        font-size: 14px;
+    }
+
+    .custom-new-chat-btn, .custom-theme-btn {
+        font-size: 12px;
+        padding: 6px 10px;
+    }
+
+    .sidebar-section h3 {
+        font-size: 10px;
+    }
+
+    #dynamic-chats-container .list-group-item {
+        font-size: 12px;
+    }
+
+    #load-more-button {
+        font-size: 12px;
+    }
+
+    .code-block {
+        font-size: 12px;
+    }
+
+    .code-header {
+        padding: 6px 8px;
+    }
+
+    .copy-button {
+        font-size: 12px;
+    }
+}
+
+.prompt-info {
+    padding: 2rem;
+    margin: 1rem;
+    border-radius: 0;
+    background: var(--irc-bg-color);
+    border: 1px solid var(--irc-border-color);
+    margin-left: 0;
+    position: relative;
+}
+
+.prompt-info::before {
+    content: '>';
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    color: var(--irc-text-color);
+    font-family: 'Courier New', monospace;
+}
+
+.prompt-info-container {
+    display: flex;
+    align-items: flex-start;
+    gap: 2rem;
+}
+
+.prompt-image-section img {
+    width: 80px;
+    height: 80px;
+    border-radius: 0;
+    object-fit: cover;
+    border: 1px solid var(--irc-border-color);
+}
+
+.prompt-text-section {
+    flex: 1;
+}
+
+.prompt-name {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--irc-text-color);
+    font-family: 'Courier New', monospace;
+    position: relative;
+    padding-left: 20px;
+}
+
+.prompt-name::before {
+    content: '$';
+    position: absolute;
+    left: 0;
+    color: var(--irc-text-color);
+}
+
+.prompt-description {
+    font-size: 1rem;
+    line-height: 1.5;
+    color: var(--irc-text-color);
+    margin: 0;
+    font-family: 'Courier New', monospace;
+}
+
+.prompt-info {
+    animation: typing 0.5s steps(30, end);
+}
+
+.prompt-image-section {
+    width: 80px;
+    height: 80px;
+}
+
+.prompt-initial {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+    background-color: var(--irc-bg-color);
+    color: var(--irc-text-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    font-weight: bold;
+    border: 1px solid var(--irc-border-color);
+    font-family: 'Courier New', monospace;
+}
+
+@keyframes typing {
+    from {
+        width: 0;
+    }
+    to {
+        width: 100%;
+    }
+}
+
+@keyframes blink {
+    50% {
+        border-color: transparent;
+    }
+}
+
+.prompt-description::after {
+    content: '_';
+    animation: blink 1s step-end infinite;
+}
+
+.fullsize-controls button,
+.pdf-controls button {
+    background-color: var(--terminal-bg);
+    color: var(--terminal-btn-primary);
+    border: 1px solid var(--terminal-btn-primary);
+    padding: 8px 15px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+}
+
+.fullsize-controls button:hover,
+.pdf-controls button:hover {
+    background-color: #001a1a;
+    color: var(--terminal-btn-primary-hover);
+    border-color: var(--terminal-btn-primary-hover);
+    box-shadow: 0 0 10px var(--terminal-glow);
+}
+
+/* Specific style for delete button */
+.fullsize-controls button.btn-danger,
+.pdf-controls button.btn-danger {
+    background-color: #1a0000;
+    color: var(--terminal-btn-danger);
+    border: 1px solid var(--terminal-btn-danger);
+}
+
+.fullsize-controls button.btn-danger:hover,
+.pdf-controls button.btn-danger:hover {
+    background-color: #330000;
+    color: var(--terminal-btn-danger-hover);
+    border-color: var(--terminal-btn-danger-hover);
+    box-shadow: 0 0 10px var(--terminal-glow-danger);
+}
+
+/* ========== FOLDER SYSTEM STYLES ========== */
+
+/* Folder Container Styles */
+.folder-container {
+    margin-bottom: 8px;
+    padding: 0;
+    border: 1px solid var(--irc-border-color);
+    background: var(--irc-bg-color);
+    transition: all 0.3s ease;
+    overflow: hidden;
+    position: relative;
+    font-family: 'Courier New', monospace;
+}
+
+.folder-container:hover {
+    border-color: var(--irc-text-color);
+    box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+}
+
+.folder-container.collapsed {
+    border-color: var(--irc-hover-color);
+}
+
+/* Folder Header Styles */
+.folder-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--irc-sidebar-bg-color);
+    border-bottom: 1px solid var(--irc-border-color);
+    color: var(--irc-text-color);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    position: relative;
+}
+
+.folder-header:hover {
+    background: var(--irc-hover-color);
+    color: var(--irc-text-color);
+}
+
+.folder-header::before {
+    content: '[';
+    position: absolute;
+    left: 2px;
+    color: var(--irc-text-color);
+}
+
+.folder-header::after {
+    content: ']';
+    position: absolute;
+    right: 40px;
+    color: var(--irc-text-color);
+}
+
+.folder-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-grow: 1;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    padding-left: 15px;
+}
+
+.folder-icon {
+    font-size: 16px;
+    color: var(--irc-text-color);
+    min-width: 18px;
+}
+
+.folder-toggle {
+    background: none;
+    border: none;
+    color: var(--irc-text-color);
+    cursor: pointer;
+    transition: transform 0.3s ease, color 0.3s ease;
+    padding: 4px;
+    font-size: 12px;
+    font-family: 'Courier New', monospace;
+}
+
+.folder-toggle:hover {
+    color: var(--irc-text-color);
+    transform: scale(1.1);
+}
+
+.folder-toggle.collapsed {
+    transform: rotate(-90deg);
+}
+
+.folder-toggle.expanded {
+    transform: rotate(0deg);
+}
+
+.folder-chats {
+    transition: max-height 0.3s ease-in-out, opacity 0.3s ease;
+    overflow: hidden;
+    max-height: 1000px;
+    opacity: 1;
+    background: var(--irc-bg-color);
+}
+
+.folder-chats.collapsed {
+    max-height: 0;
+    opacity: 0;
+}
+
+.folder-chats .list-group-item {
+    background-color: var(--irc-bg-color);
+    border: none;
+    border-bottom: 1px solid rgba(0, 255, 0, 0.1);
+    color: var(--irc-sidebar-text-color);
+    padding: 8px 15px 8px 25px;
+    margin: 0;
+    position: relative;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    transition: all 0.3s ease;
+}
+
+.folder-chats .list-group-item::before {
+    content: '>';
+    position: absolute;
+    left: 8px;
+    color: var(--irc-text-color);
+    opacity: 0.5;
+    transition: opacity 0.3s ease;
+}
+
+.folder-chats .list-group-item:hover {
+    background-color: var(--irc-hover-color);
+    color: var(--irc-text-color);
+    padding-left: 30px;
+}
+
+.folder-chats .list-group-item:hover::before {
+    opacity: 1;
+}
+
+.folder-chats .list-group-item.active-chat {
+    background-color: var(--irc-text-color);
+    color: var(--irc-bg-color);
+    border-color: var(--irc-text-color);
+}
+
+.folder-chats .list-group-item.active-chat::before {
+    color: var(--irc-bg-color);
+    opacity: 1;
+}
+
+/* Loose Chats Section */
+.loose-chats-section {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--irc-border-color);
+}
+
+.loose-chats-header {
+    color: var(--irc-text-color);
+    font-size: 12px;
+    text-transform: uppercase;
+    margin: 10px 0;
+    padding: 0 10px;
+    font-family: 'Courier New', monospace;
+    position: relative;
+}
+
+.loose-chats-header::before {
+    content: '// ';
+    color: var(--irc-text-color);
+    opacity: 0.7;
+}
+
+.loose-chats .list-group-item {
+    background-color: transparent;
+    color: var(--irc-sidebar-text-color);
+    position: relative;
+    font-family: 'Courier New', monospace;
+}
+
+.loose-chats .list-group-item::before {
+    content: '-';
+    position: absolute;
+    left: 5px;
+    color: var(--irc-text-color);
+    opacity: 0.5;
+}
+
+.loose-chats .list-group-item:hover::before {
+    opacity: 1;
+}
+
+/* Folder Management Styles */
+.folder-management {
+    margin: 15px 10px;
+    padding: 10px;
+    border: 1px solid var(--irc-border-color);
+    background: var(--irc-sidebar-bg-color);
+    font-family: 'Courier New', monospace;
+}
+
+.folder-management h4 {
+    color: var(--irc-text-color);
+    margin-bottom: 10px;
+    font-size: 14px;
+    font-family: 'Courier New', monospace;
+}
+
+.folder-management h4::before {
+    content: '$ ';
+    color: var(--irc-text-color);
+}
+
+.folder-input {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 10px;
+    background-color: var(--irc-bg-color);
+    color: var(--irc-text-color);
+    border: 1px solid var(--irc-border-color);
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+}
+
+.folder-input:focus {
+    outline: none;
+    border-color: var(--irc-text-color);
+    box-shadow: 0 0 5px rgba(0, 255, 0, 0.3);
+}
+
+.folder-input::placeholder {
+    color: var(--irc-placeholder-color);
+    font-family: 'Courier New', monospace;
+}
+
+.folder-actions {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+}
+
+.folder-btn {
+    background-color: var(--irc-bg-color);
+    color: var(--irc-text-color);
+    border: 1px solid var(--irc-border-color);
+    padding: 6px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Courier New', monospace;
+    text-transform: uppercase;
+}
+
+.folder-btn:hover {
+    background-color: var(--irc-hover-color);
+    border-color: var(--irc-text-color);
+    box-shadow: 0 0 5px rgba(0, 255, 0, 0.2);
+}
+
+.folder-btn:active {
+    background-color: var(--irc-text-color);
+    color: var(--irc-bg-color);
+}
+
+.folder-btn.danger {
+    border-color: #ff3333;
+    color: #ff3333;
+}
+
+.folder-btn.danger:hover {
+    background-color: rgba(255, 51, 51, 0.1);
+    border-color: #ff4d4d;
+    box-shadow: 0 0 5px rgba(255, 51, 51, 0.3);
+}
+
+/* Drag and Drop Styles */
+.folder-container.drag-over {
+    border-color: var(--irc-text-color);
+    background-color: var(--irc-hover-color);
+    box-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
+}
+
+.list-group-item.dragging {
+    opacity: 0.5;
+    transform: scale(0.98);
+    background-color: var(--irc-hover-color) !important;
+    border: 1px dashed var(--irc-text-color) !important;
+}
+
+.drag-placeholder {
+    height: 2px;
+    background: var(--irc-text-color);
+    margin: 2px 0;
+    opacity: 0.7;
+    border-radius: 1px;
+    box-shadow: 0 0 3px rgba(0, 255, 0, 0.5);
+}
+
+/* Context Menu Styles */
+.context-menu {
+    position: absolute;
+    background: var(--irc-bg-color);
+    border: 1px solid var(--irc-border-color);
+    padding: 5px 0;
+    z-index: 1050;
+    min-width: 150px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+    font-family: 'Courier New', monospace;
+}
+
+.context-menu-item {
+    padding: 8px 15px;
+    cursor: pointer;
+    color: var(--irc-text-color);
+    font-size: 12px;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Courier New', monospace;
+    position: relative;
+}
+
+.context-menu-item::before {
+    content: '>';
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.context-menu-item:hover {
+    background: var(--irc-hover-color);
+    color: var(--irc-text-color);
+}
+
+.context-menu-item:hover::before {
+    opacity: 1;
+}
+
+.context-menu-item.danger {
+    color: #ff3333;
+}
+
+.context-menu-item.danger:hover {
+    background: rgba(255, 51, 51, 0.1);
+    color: #ff4d4d;
+}
+
+.context-menu-separator {
+    height: 1px;
+    background: var(--irc-border-color);
+    margin: 5px 0;
+    opacity: 0.5;
+}
+
+/* Animation Keyframes */
+@keyframes folderExpand {
+    0% {
+        max-height: 0;
+        opacity: 0;
+    }
+    100% {
+        max-height: 1000px;
+        opacity: 1;
+    }
+}
+
+@keyframes folderCollapse {
+    0% {
+        max-height: 1000px;
+        opacity: 1;
+    }
+    100% {
+        max-height: 0;
+        opacity: 0;
+    }
+}
+
+@keyframes terminalBlink {
+    0%, 50% {
+        opacity: 1;
+    }
+    51%, 100% {
+        opacity: 0;
+    }
+}
+
+.terminal-cursor::after {
+    content: '█';
+    animation: terminalBlink 1s infinite;
+    color: var(--irc-text-color);
+}
+
+/* Focus management */
+.folder-container:focus-within {
+    border-color: var(--irc-text-color);
+    box-shadow: 0 0 8px rgba(0, 255, 0, 0.3);
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    .folder-header {
+        padding: 10px 15px;
+        font-size: 13px;
+    }
+    
+    .folder-chats .list-group-item {
+        padding: 10px 15px 10px 25px;
+        font-size: 12px;
+    }
+    
+    .folder-management {
+        margin: 10px 5px;
+        padding: 8px;
+    }
+    
+    .folder-input {
+        font-size: 14px;
+        padding: 10px;
+    }
+    
+    .folder-btn {
+        font-size: 10px;
+        padding: 8px 12px;
+    }
+    
+    .context-menu {
+        min-width: 120px;
+    }
+    
+    .context-menu-item {
+        padding: 10px 12px;
+        font-size: 11px;
+    }
+}
+
+/* Terminal-specific enhancements */
+.folder-header .terminal-prompt {
+    color: var(--irc-text-color);
+    opacity: 0.7;
+    margin-right: 5px;
+}
+
+.folder-stats {
+    font-size: 10px;
+    color: var(--irc-text-color);
+    opacity: 0.6;
+    margin-left: 5px;
+    font-family: 'Courier New', monospace;
+}
+
+.folder-stats::before {
+    content: '(';
+}
+
+.folder-stats::after {
+    content: ')';
+}
+
+/* Terminal loading effect */
+.folder-loading {
+    position: relative;
+    overflow: hidden;
+}
+
+.folder-loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(0, 255, 0, 0.1),
+        transparent
+    );
+    animation: terminalScan 2s infinite;
+}
+
+@keyframes terminalScan {
+    0% {
+        left: -100%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .folder-container {
+        border-width: 2px;
+    }
+    
+    .folder-header {
+        border-bottom-width: 2px;
+    }
+    
+    .context-menu {
+        border-width: 2px;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .folder-container,
+    .folder-header,
+    .folder-chats,
+    .folder-toggle,
+    .list-group-item,
+    .folder-btn,
+    .context-menu-item {
+        transition: none;
+    }
+    
+    .folder-toggle.collapsed {
+        transform: none;
+    }
+    
+    .folder-loading::after {
+        animation: none;
+    }
+    
+    .terminal-cursor::after {
+        animation: none;
+        opacity: 1;
+    }
+}
+
+/* AI Model Selector Dropdown */
+.model-selector-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+    position: relative;
+    border: 1px solid rgba(0, 255, 0, 0.3);
+}
+
+.model-selector-container:hover {
+    background-color: var(--irc-hover-color);
+    border-color: var(--irc-border-color);
+    box-shadow: 0 0 5px var(--terminal-glow);
+}
+
+.chat-model-info {
+    font-size: 0.75rem;
+    color: var(--irc-placeholder-color);
+    font-style: italic;
+    pointer-events: none;
+    font-family: 'Courier New', monospace;
+}
+
+/* Model Dropdown Icon */
+.model-dropdown-icon {
+    font-size: 0.65rem;
+    color: var(--irc-placeholder-color);
+    transition: all 0.2s ease;
+    opacity: 0.7;
+}
+
+.model-selector-container:hover .model-dropdown-icon {
+    opacity: 1;
+    color: var(--irc-text-color);
+    text-shadow: 0 0 3px currentColor;
+}
+
+.model-dropdown-icon.expanded {
+    transform: rotate(180deg);
+}
+
+/* Model Dropdown Menu */
+.model-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 5px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--irc-bg-color);
+    border: 2px solid var(--irc-border-color);
+    border-radius: 8px;
+    box-shadow: 0 0 15px var(--terminal-glow), inset 0 0 10px rgba(0, 255, 0, 0.1);
+    z-index: 1000;
+    min-width: 280px;
+    max-width: 320px;
+    max-height: 400px;
+    overflow: hidden;
+    display: none;
+    font-family: 'Courier New', monospace;
+}
+
+.model-dropdown-menu.show {
+    display: block;
+    animation: fadeInScale 0.2s ease-out;
+}
+
+/* Model Dropdown Header */
+.model-dropdown-header {
+    padding: 12px 16px;
+    background: rgba(0, 255, 0, 0.1);
+    border-bottom: 1px solid var(--irc-border-color);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--irc-text-color);
+    text-shadow: 0 0 5px currentColor;
+    text-transform: uppercase;
+}
+
+.model-dropdown-header i {
+    color: var(--irc-text-color);
+    text-shadow: 0 0 3px currentColor;
+}
+
+/* Model Dropdown Content */
+.model-dropdown-content {
+    max-height: 320px;
+    overflow-y: auto;
+    padding: 4px 0;
+}
+
+/* Model Groups */
+.model-group {
+    margin-bottom: 4px;
+}
+
+.model-group-header {
+    padding: 8px 16px 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--irc-placeholder-color);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: rgba(0, 255, 0, 0.05);
+    border-bottom: 1px dotted var(--irc-placeholder-color);
+}
+
+/* Model Items */
+.model-item {
+    padding: 8px 20px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: var(--irc-text-color);
+    border-bottom: 1px solid rgba(0, 255, 0, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.model-item:last-child {
+    border-bottom: none;
+}
+
+.model-item:hover {
+    background: var(--irc-hover-color);
+    transform: translateX(3px);
+    box-shadow: inset 0 0 10px rgba(0, 255, 0, 0.1);
+    text-shadow: 0 0 3px currentColor;
+}
+
+.model-item.current {
+    background: rgba(0, 204, 255, 0.2);
+    color: var(--terminal-btn-primary);
+    font-weight: 500;
+    text-shadow: 0 0 5px currentColor;
+    border-color: var(--terminal-btn-primary);
+}
+
+.model-item.current::before {
+    content: '> ';
+    position: absolute;
+    left: 8px;
+    color: var(--terminal-btn-primary);
+    font-weight: bold;
+    text-shadow: 0 0 3px currentColor;
+}
+
+.model-item.current {
+    padding-left: 28px;
+}
+
+/* Vision Badge */
+.vision-badge {
+    background: rgba(0, 204, 255, 0.2);
+    color: var(--terminal-btn-primary);
+    font-size: 0.6rem;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    border: 1px solid var(--terminal-btn-primary);
+    text-shadow: 0 0 2px currentColor;
+}
+
+/* Animation */
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) scale(0.95);
+        box-shadow: 0 0 5px var(--terminal-glow);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) scale(1);
+        box-shadow: 0 0 15px var(--terminal-glow), inset 0 0 10px rgba(0, 255, 0, 0.1);
+    }
+}
+
+/* Scrollbar styling for dropdown */
+.model-dropdown-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.model-dropdown-content::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(0, 255, 0, 0.2);
+}
+
+.model-dropdown-content::-webkit-scrollbar-thumb {
+    background: var(--irc-border-color);
+    border-radius: 2px;
+    box-shadow: 0 0 3px var(--terminal-glow);
+}
+
+.model-dropdown-content::-webkit-scrollbar-thumb:hover {
+    background: var(--terminal-btn-primary);
+    box-shadow: 0 0 5px var(--terminal-glow);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .model-dropdown-menu {
+        min-width: 240px;
+        max-width: calc(100vw - 40px);
+        left: 20px;
+        transform: none;
+    }
+    
+    .model-item {
+        padding: 10px 16px;
+        font-size: 0.85rem;
+    }
+}
+
+/* Thinking Tokens Styles */
+#thinking-tokens-control {
+    position: relative;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    margin-right: 12px;
+    overflow: visible;
+}
+
+.thinking-tokens-icon {
+    color: var(--irc-text-color);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 900;
+    transition: all 0.3s ease;
+    text-shadow: 0 0 5px currentColor;
+}
+
+.thinking-tokens-icon:hover {
+    color: var(--terminal-btn-primary);
+    text-shadow: 0 0 10px currentColor;
+}
+
+.thinking-tokens-icon.active {
+    color: var(--terminal-btn-primary-hover);
+    animation: terminal-blink 1s infinite;
+    text-shadow: 0 0 15px currentColor;
+}
+
+@keyframes terminal-blink {
+    0% { opacity: 1; }
+    50% { opacity: 0.3; }
+    100% { opacity: 1; }
+}
+
+.thinking-tokens-popup {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 320px;
+    background: var(--irc-bg-color);
+    border: 2px solid var(--irc-border-color);
+    border-radius: 0;
+    padding: 15px;
+    z-index: 1100;
+    box-shadow: 
+        0 0 20px var(--terminal-glow),
+        inset 0 0 10px rgba(0, 255, 0, 0.1);
+    font-family: 'Courier New', monospace;
+}
+
+.thinking-tokens-popup::before {
+    content: "[THINKING_TOKENS_CONFIG]";
+    display: block;
+    color: var(--terminal-btn-primary);
+    font-size: 0.7rem;
+    margin-bottom: 10px;
+    text-align: center;
+    font-weight: bold;
+}
+
+.thinking-tokens-popup h4 {
+    margin: 0 0 10px 0;
+    color: var(--irc-text-color);
+    font-size: 1rem;
+    font-family: 'Courier New', monospace;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.thinking-tokens-popup p {
+    margin: 0 0 15px 0;
+    color: var(--irc-text-color);
+    font-size: 0.8rem;
+    font-family: 'Courier New', monospace;
+    opacity: 0.8;
+}
+
+.thinking-tokens-value {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 10px 0;
+    padding: 5px;
+    border: 1px solid var(--irc-border-color);
+    background: rgba(0, 255, 0, 0.05);
+}
+
+.thinking-tokens-value::before {
+    content: ">";
+    color: var(--terminal-btn-primary);
+    font-weight: bold;
+}
+
+.thinking-tokens-value span {
+    color: var(--irc-text-color);
+    font-weight: bold;
+    min-width: 60px;
+    font-family: 'Courier New', monospace;
+    text-transform: uppercase;
+}
+
+.thinking-tokens-value input[type="number"] {
+    width: 100px;
+    padding: 4px 8px;
+    background: var(--irc-bg-color);
+    border: 1px solid var(--irc-border-color);
+    border-radius: 0;
+    color: var(--irc-text-color);
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+}
+
+.thinking-tokens-value input[type="number"]:focus {
+    outline: none;
+    box-shadow: 0 0 5px var(--terminal-glow);
+}
+
+input[type="range"] {
+    width: 100%;
+    margin: 10px 0;
+    height: 4px;
+    background: var(--irc-bg-color);
+    border: 1px solid var(--irc-border-color);
+    outline: none;
+    appearance: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 0;
+    background: var(--irc-text-color);
+    cursor: pointer;
+    border: 1px solid var(--irc-border-color);
+    box-shadow: 0 0 5px var(--terminal-glow);
+}
+
+.thinking-tokens-presets {
+    display: flex;
+    gap: 5px;
+    margin: 15px 0;
+    flex-wrap: wrap;
+}
+
+.preset-btn {
+    padding: 4px 12px;
+    background: var(--irc-bg-color);
+    border: 1px solid var(--irc-border-color);
+    border-radius: 0;
+    color: var(--irc-text-color);
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    text-transform: uppercase;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.preset-btn::before {
+    content: "[";
+    position: absolute;
+    left: 2px;
+    color: var(--terminal-btn-primary);
+}
+
+.preset-btn::after {
+    content: "]";
+    position: absolute;
+    right: 2px;
+    color: var(--terminal-btn-primary);
+}
+
+.preset-btn:hover {
+    background: rgba(0, 255, 0, 0.1);
+    box-shadow: 0 0 5px var(--terminal-glow);
+}
+
+.preset-btn.active {
+    background: rgba(0, 204, 255, 0.2);
+    color: var(--terminal-btn-primary);
+    box-shadow: 0 0 10px var(--terminal-glow);
+}
+
+#thinking-tokens-apply {
+    width: 100%;
+    margin-top: 10px;
+    background: var(--irc-bg-color);
+    border: 2px solid var(--terminal-btn-primary);
+    color: var(--terminal-btn-primary);
+    padding: 8px;
+    border-radius: 0;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+#thinking-tokens-apply::before {
+    content: ">> ";
+}
+
+#thinking-tokens-apply::after {
+    content: " <<";
+}
+
+#thinking-tokens-apply:hover {
+    background: rgba(0, 204, 255, 0.1);
+    color: var(--terminal-btn-primary-hover);
+    box-shadow: 0 0 15px var(--terminal-glow);
+    border-color: var(--terminal-btn-primary-hover);
+}
+
+#thinking-tokens-apply:active {
+    background: rgba(0, 204, 255, 0.2);
+}
+

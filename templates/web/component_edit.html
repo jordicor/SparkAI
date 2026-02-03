@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+
+{% block title %}Edit Component: {{ component_name }}{% endblock %}
+
+{% block styles %}
+<style>
+    .editor-container {
+        width: 100%;
+        max-width: 1600px;
+        margin: 0 auto;
+    }
+</style>
+{% endblock %}
+
+{% block head_extra %}
+<!-- jQuery (needed for form submission) -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- CodeMirror CSS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/codemirror.min.css">
+<!-- CodeMirror JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/mode/xml/xml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/mode/javascript/javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/mode/css/css.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/mode/htmlmixed/htmlmixed.min.js"></script>
+{% endblock %}
+
+{% block header %}{% endblock %}
+{% block toolbar %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-5">
+    <div class="editor-container">
+        <h1>Edit Component: {{ component_name }}</h1>
+        <h2>Prompt: {{ prompt_name }}</h2>
+        <div id="message"></div>
+        <form id="editForm">
+            <div class="mb-3">
+                <label for="content" class="form-label">Component Content</label>
+                <textarea id="content" name="content" class="form-control" rows="20">{{ content }}</textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <a href="/landing/{{ prompt_id }}/components" class="btn btn-secondary ms-2">Back to List</a>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        var editor = CodeMirror.fromTextArea(document.getElementById("content"), {
+            lineNumbers: true,
+            mode: "htmlmixed",
+            theme: "default",
+            viewportMargin: Infinity
+        });
+
+        function setEditorSize() {
+            var container = document.querySelector('.editor-container');
+            var width = container.offsetWidth;
+            var height = Math.max(500, window.innerHeight - 250); // Minimum 500px, or window height minus 250px
+
+            editor.setSize(width, height);
+        }
+
+        // Set initial size
+        setEditorSize();
+
+        // Update size when window is resized
+        window.addEventListener('resize', setEditorSize);
+
+        // Handle form submission
+        $("#editForm").submit(function(e) {
+            e.preventDefault();
+            var content = editor.getValue();
+
+            // Encode in base64
+            var encodedContent = btoa(unescape(encodeURIComponent(content)));
+
+            $.ajax({
+                url: "/api/landing/{{ prompt_id }}/components/{{ component_type }}/{{ component_name }}",
+                type: "PUT",
+                data: {
+                    encodedContent: encodedContent
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $("#message").html('<div class="alert alert-success">' + response.message + '</div>');
+                    } else {
+                        $("#message").html('<div class="alert alert-danger">' + response.message + '</div>');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    $("#message").html('<div class="alert alert-danger">Error: ' + error + '</div>');
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Test Management System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    {% include 'navbar.html' %}
+
+    <div class="container mt-4">
+        <h1 class="mb-4">Daily Test Management</h1>
+
+        <!-- Button to open modal -->
+        <button type="button" class="btn btn-primary mb-4" data-bs-toggle="modal" data-bs-target="#createTestModal">
+            Create New Test
+        </button>
+
+        <!-- Modal to create a new test -->
+        <div class="modal fade" id="createTestModal" tabindex="-1" aria-labelledby="createTestModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="createTestModalLabel">Create New Test</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="createTestForm">
+                            <div class="mb-3">
+                                <label for="testName" class="form-label">Test Name</label>
+                                <input type="text" class="form-control" id="testName" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="description" class="form-label">Description</label>
+                                <textarea class="form-control" id="description" rows="3" required></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="expectedResult" class="form-label">Expected Result</label>
+                                <input type="text" class="form-control" id="expectedResult" required>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary" id="submitCreateTest">Create Test</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- List of existing tests -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2 class="h5 mb-0">Existing Tests</h2>
+            </div>
+            <div class="card-body">
+                <ul id="testList" class="list-group">
+                    <!-- Tests will be loaded here dynamically -->
+                </ul>
+            </div>
+        </div>
+
+        <!-- Form to update test results -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2 class="h5 mb-0">Update Test Results</h2>
+            </div>
+            <div class="card-body">
+                <form id="updateTestForm">
+                    <div id="testResults">
+                        <!-- Radio buttons and comment fields will be loaded here dynamically -->
+                    </div>
+                    <button type="submit" class="btn btn-primary mt-3">Save Results</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Daily summary -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="h5 mb-0">Daily Summary</h2>
+            </div>
+            <div class="card-body">
+                <div id="dailySummary">
+                    <!-- Daily summary will be loaded here dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Function to load tests list
+        function loadTests() {
+            fetch('/tests/')
+                .then(response => response.json())
+                .then(tests => {
+                    const testList = document.getElementById('testList');
+                    const testResults = document.getElementById('testResults');
+                    testList.innerHTML = '';
+                    testResults.innerHTML = '';
+                    tests.forEach(test => {
+                        testList.innerHTML += `
+                            <li class="list-group-item">
+                                <strong>${test.test_name}</strong> - ${test.description}
+                            </li>
+                        `;
+                        testResults.innerHTML += `
+                            <div class="mb-3">
+                                <fieldset>
+                                    <legend>${test.test_name}</legend>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="test${test.id}" id="test${test.id}_0" value="0" data-test-id="${test.id}" required>
+                                        <label class="form-check-label" for="test${test.id}_0">
+                                            Not performed
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="test${test.id}" id="test${test.id}_1" value="1" data-test-id="${test.id}" required>
+                                        <label class="form-check-label" for="test${test.id}_1">
+                                            Works correctly
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="test${test.id}" id="test${test.id}_3" value="3" data-test-id="${test.id}" required>
+                                        <label class="form-check-label" for="test${test.id}_3">
+                                            Does not work
+                                        </label>
+                                    </div>
+                                </fieldset>
+                                <div class="mt-2 d-none" id="commentDiv${test.id}">
+                                    <textarea class="form-control" id="comment${test.id}" rows="2" placeholder="Optional comment"></textarea>
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    // Add event listeners to radio buttons
+                    document.querySelectorAll('[id^="test"]').forEach(radio => {
+                        radio.addEventListener('change', function() {
+                            const commentDiv = document.getElementById(`commentDiv${this.dataset.testId}`);
+                            if (this.value === '0' || this.value === '3') {
+                                commentDiv.classList.remove('d-none');
+                            } else {
+                                commentDiv.classList.add('d-none');
+                            }
+                        });
+                    });
+                });
+        }
+
+        // Function to create a new test
+        document.getElementById('submitCreateTest').addEventListener('click', function() {
+            const testData = {
+                test_name: document.getElementById('testName').value,
+                description: document.getElementById('description').value,
+                expected_result: document.getElementById('expectedResult').value
+            };
+            fetch('/tests/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(testData),
+            })
+            .then(response => response.json())
+            .then(data => {
+                NotificationModal.success('Test Created', 'Test created successfully');
+                loadTests();
+                var modal = bootstrap.Modal.getInstance(document.getElementById('createTestModal'));
+                modal.hide();
+            });
+        });
+        
+        // Function to update test results
+        document.getElementById('updateTestForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const testResults = [];
+            document.querySelectorAll('[id^="test"][type="radio"]:checked').forEach(radio => {
+                const testId = radio.dataset.testId;
+                const result = parseInt(radio.value);
+                const comment = document.getElementById(`comment${testId}`).value;
+                testResults.push({
+                    id: parseInt(testId),
+                    result: result === 1 ? true : (result === 3 ? false : null),
+                    failure_comment: comment.trim()
+                });
+            });
+
+            Promise.all(testResults.map(result => 
+                fetch(`/tests/${result.id}/results`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        result: result.result,
+                        failure_comment: result.failure_comment
+                    }),
+                })
+            ))
+            .then(() => {
+                NotificationModal.success('Results Saved', 'Results saved successfully');
+                loadDailySummary();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                NotificationModal.error('Error', 'Error saving results');
+            });
+        });
+
+        // Function to load daily summary
+        function loadDailySummary() {
+        fetch('/tests/summary')
+            .then(response => response.json())
+            .then(summary => {
+                const summaryDiv = document.getElementById('dailySummary');
+                summaryDiv.innerHTML = `
+                    <p>Date: ${summary.date}</p>
+                    <p>Total Tests: ${summary.total_tests}</p>
+                    <p>Working correctly: ${summary.passed_tests}</p>
+                    <p>Not working: ${summary.failed_tests}</p>
+                    <p>Not performed: ${summary.not_executed_tests}</p>
+                    <h3>Tests that are not working:</h3>
+                    <ul>
+                        ${summary.failed_tests_details.map(test => `
+                            <li>${test.test_name} - ${test.failure_comment}</li>
+                        `).join('')}
+                    </ul>
+                    <h3>Tests not performed:</h3>
+                    <ul>
+                        ${summary.not_executed_tests_details.map(test => `
+                            <li>${test.test_name} - ${test.failure_comment}</li>
+                        `).join('')}
+                    </ul>
+                `;
+            });
+    }
+
+        // Load initial data
+        loadTests();
+        loadDailySummary();
+    </script>
+    <script src="/static/js/common/notification-modal.js"></script>
+</body>
+</html>

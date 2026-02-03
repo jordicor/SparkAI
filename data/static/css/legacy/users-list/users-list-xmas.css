@@ -1,0 +1,874 @@
+:root {
+    --xmas-dark: #0f0d0e;
+    --xmas-green: #146b3a;
+    --xmas-green-dark: #1a472a;
+    --xmas-red: #d3212f;
+    --xmas-red-hover: #ff4d4d;
+    --xmas-border: #5d9b84;
+    --xmas-text: #ffffff;
+}
+
+body {
+    background-color: var(--xmas-dark);
+    color: var(--xmas-text);
+    font-family: 'Inter', sans-serif;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50"><text x="50%" y="50%" font-size="20" text-anchor="middle" dy=".35em" font-family="Arial, sans-serif" fill="rgba(255,255,255,0.1)">🎄</text></svg>');
+}
+
+/* ==========================================================
+   Design System - Layout Styles
+   ========================================================== */
+
+/* Main Container */
+.main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 30px 20px;
+}
+
+/* Page Header */
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #c41e3a;
+}
+
+.page-header-text {
+    flex: 1;
+}
+
+/* Page Toolbar (Tabs + Actions) */
+.page-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    gap: 16px;
+}
+
+.page-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.page-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+/* Hide toolbar when both sides are empty */
+.page-toolbar:has(.page-toolbar-left:empty):has(.page-toolbar-right:empty) {
+    display: none;
+}
+
+/* Back Button */
+.btn-back {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #1a472a;
+    border: 2px solid #2d5a3d;
+    color: #ffffff;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.btn-back:hover {
+    background: #c41e3a;
+    border-color: #c41e3a;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(211, 33, 47, 0.3);
+}
+
+/* Page Title */
+.page-title {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: #ffffff;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.page-subtitle {
+    margin: 4px 0 0 0;
+    color: #a8d5a2;
+    font-size: 0.9rem;
+}
+
+/* ==========================================================
+   Design System - Responsive Layout
+   ========================================================== */
+@media (max-width: 768px) {
+    .main-container {
+        padding: 15px 10px;
+    }
+
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .page-toolbar {
+        flex-wrap: wrap;
+    }
+
+    .page-title {
+        font-size: 1.4rem;
+    }
+
+    .btn-back {
+        width: 38px;
+        height: 38px;
+    }
+}
+
+@media (max-width: 480px) {
+    .page-title {
+        font-size: 1.2rem;
+    }
+}
+
+/* Table */
+.table-container {
+    background-color: var(--xmas-green-dark);
+    border: 2px solid var(--xmas-border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 20px 0;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.table {
+    margin-bottom: 0;
+    color: var(--xmas-text) !important;
+}
+
+.table > thead > tr > th {
+    background-color: var(--xmas-green) !important;
+    color: var(--xmas-text) !important;
+    border-bottom: 2px solid var(--xmas-border) !important;
+    padding: 15px !important;
+}
+
+.table > tbody > tr > td {
+    background-color: transparent !important;
+    color: var(--xmas-text) !important;
+    border-color: var(--xmas-border) !important;
+    padding: 15px !important;
+}
+
+.table tbody tr:hover {
+    background-color: rgba(20, 107, 58, 0.3) !important;
+}
+
+/* Buttons */
+.btn-danger {
+    background-color: var(--xmas-red);
+    border-color: var(--xmas-red);
+    transition: all 0.3s ease;
+}
+
+.btn-danger:hover {
+    background-color: var(--xmas-red-hover);
+    border-color: var(--xmas-red-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(211, 33, 47, 0.3);
+}
+
+.btn-primary {
+    background-color: var(--xmas-green);
+    border-color: var(--xmas-border);
+    color: var(--xmas-text);
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+    background-color: var(--xmas-green-dark);
+    border-color: var(--xmas-border);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(93, 155, 132, 0.3);
+}
+
+/* Magic Link Container */
+#magicLinkContainer {
+    background-color: var(--xmas-green);
+    border: 2px solid var(--xmas-border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    position: relative;
+}
+
+#magicLinkContainer::before {
+    content: "🎁";
+    position: absolute;
+    top: -15px;
+    right: 15px;
+    font-size: 30px;
+}
+
+.input-group .form-control {
+    background-color: var(--xmas-green-dark);
+    border: 1px solid var(--xmas-border);
+    color: var(--xmas-text);
+}
+
+.input-group .btn-outline-secondary {
+    border: 1px solid var(--xmas-border);
+    color: var(--xmas-text);
+    background-color: var(--xmas-green);
+}
+
+.input-group .btn-outline-secondary:hover {
+    background-color: var(--xmas-red);
+    border-color: var(--xmas-red);
+    color: var(--xmas-text);
+}
+
+/* Custom checkbox */
+.user-checkbox {
+    width: 20px;
+    height: 20px;
+    margin-right: 10px;
+    accent-color: var(--xmas-red);
+}
+
+/* Username styling */
+.username {
+    cursor: pointer;
+    color: var(--xmas-text);
+    transition: all 0.3s ease;
+}
+
+.username:hover {
+    color: var(--xmas-red);
+    text-decoration: none;
+}
+
+/* Edit button */
+.edit-button {
+    opacity: 0;
+    background-color: var(--xmas-red) !important;
+    border-color: var(--xmas-red) !important;
+    transition: all 0.3s ease !important;
+}
+
+tr:hover .edit-button {
+    opacity: 1;
+}
+
+.edit-button:hover {
+    background-color: var(--xmas-red-hover) !important;
+    border-color: var(--xmas-red-hover) !important;
+    transform: translateY(-2px);
+}
+
+/* Navbar */
+.navbar {
+    background: linear-gradient(135deg, var(--xmas-green) 0%, var(--xmas-green-dark) 100%) !important;
+    border-bottom: 3px solid var(--xmas-red);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.navbar-brand {
+    color: #ffffff !important;
+    font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+    position: relative;
+    padding-left: 35px;
+}
+
+.navbar-brand::before {
+    content: "🎄";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1.5em;
+}
+
+.navbar-brand i {
+    opacity: 0; /* Hide home icon */
+}
+
+.nav-link {
+    color: var(--xmas-text) !important;
+    transition: all 0.3s ease;
+}
+
+.nav-link:hover {
+    color: var(--xmas-red) !important;
+}
+
+.btn-outline-danger {
+    color: var(--xmas-text);
+    border: 2px solid var(--xmas-red);
+    transition: all 0.3s ease;
+}
+
+.btn-outline-danger:hover {
+    background-color: var(--xmas-red);
+    border-color: var(--xmas-red);
+    color: var(--xmas-text);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--xmas-dark);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--xmas-red);
+    border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--xmas-red-hover);
+}
+
+/* Snowfall animation */
+@keyframes snowfall {
+    0% {
+        transform: translateY(-100vh) rotate(0deg);
+    }
+    100% {
+        transform: translateY(100vh) rotate(360deg);
+    }
+}
+
+.snowflake {
+    position: fixed;
+    color: white;
+    font-size: 20px;
+    animation: snowfall linear infinite;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+/* Copy message */
+#copyMessage {
+    color: var(--xmas-text);
+    background-color: var(--xmas-green);
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid var(--xmas-border);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .table-container {
+        overflow-x: auto;
+    }
+
+    .edit-button {
+        opacity: 1;
+    }
+}
+
+th.edit-column {
+    font-size: 0 !important;
+}
+
+/* ==========================================================
+   Users List Specific Styles
+   ========================================================== */
+
+/* Table container scrolling */
+.table-container {
+    max-height: 65vh;
+    overflow-y: auto;
+}
+
+.table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--xmas-green);
+    z-index: 10;
+    border-bottom: 2px solid var(--xmas-red);
+}
+
+.table td, .table th {
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+/* Username link */
+.username-link {
+    color: var(--xmas-red);
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.username-link:hover {
+    color: var(--xmas-red-hover);
+    text-decoration: underline;
+}
+
+/* Status indicators */
+.status-active {
+    color: #43b581;
+}
+
+.status-expired {
+    color: var(--xmas-red);
+}
+
+/* Stats cards */
+.stats-card {
+    background: rgba(211, 33, 47, 0.1);
+    border: 1px solid rgba(211, 33, 47, 0.3);
+    border-radius: 8px;
+    padding: 1rem 1.5rem;
+    text-align: center;
+}
+
+.stats-card .stats-number {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: var(--xmas-red);
+}
+
+.stats-card .stats-label {
+    font-size: 0.85rem;
+    color: #a8d5a2;
+}
+
+/* Magic link section */
+.magic-link-section {
+    background: rgba(67, 181, 129, 0.1);
+    border: 1px solid rgba(67, 181, 129, 0.3);
+}
+
+/* Edit button */
+.btn-edit {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8rem;
+}
+
+/* Action buttons container */
+.action-buttons {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+/* Select all container */
+.select-all-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: rgba(211, 33, 47, 0.1);
+    border-radius: 4px;
+    margin-bottom: 1rem;
+}
+
+/* ==========================================================
+   New Styles for Filters, Stats, Sorting
+   ========================================================== */
+
+/* Stats Row */
+.stats-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.stat-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--xmas-green-dark);
+    border: 1px solid var(--xmas-border);
+    border-radius: 20px;
+    font-size: 0.9rem;
+    color: var(--xmas-text);
+    transition: all 0.3s ease;
+}
+
+.stat-badge:hover {
+    background: var(--xmas-green);
+    transform: translateY(-1px);
+}
+
+.stat-badge .stat-value {
+    font-weight: 600;
+}
+
+.stat-active {
+    background: rgba(67, 181, 129, 0.15);
+    border-color: #43b581;
+}
+
+.stat-active .stat-value {
+    color: #43b581;
+}
+
+.stat-expired {
+    background: rgba(211, 33, 47, 0.15);
+    border-color: var(--xmas-red);
+}
+
+.stat-expired .stat-value {
+    color: var(--xmas-red);
+}
+
+/* Filters Section */
+.filters-section {
+    background: var(--xmas-green-dark);
+    border: 1px solid var(--xmas-border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.filters-section .section-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--xmas-border);
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--xmas-text);
+}
+
+.filters-section .section-title button {
+    padding: 4px 12px;
+    font-size: 0.8rem;
+    background: var(--xmas-red);
+    border: none;
+    border-radius: 4px;
+    color: var(--xmas-text);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.filters-section .section-title button:hover {
+    background: var(--xmas-red-hover);
+}
+
+.flex-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.flex-column {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 150px;
+    flex: 1;
+}
+
+.flex-column label {
+    font-size: 0.85rem;
+    color: #a8d5a2;
+    font-weight: 500;
+}
+
+.flex-column select,
+.flex-column input {
+    padding: 8px 12px;
+    background: var(--xmas-dark);
+    border: 1px solid var(--xmas-border);
+    border-radius: 6px;
+    color: var(--xmas-text);
+    font-size: 0.9rem;
+    transition: border-color 0.3s ease;
+}
+
+.flex-column select:focus,
+.flex-column input:focus {
+    outline: none;
+    border-color: var(--xmas-red);
+}
+
+/* Table Toolbar */
+.table-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    background: var(--xmas-green-dark);
+    border: 1px solid var(--xmas-border);
+    border-radius: 8px;
+}
+
+.toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.toolbar-left input[type="text"],
+.toolbar-left input[type="search"] {
+    padding: 8px 12px;
+    background: var(--xmas-dark);
+    border: 1px solid var(--xmas-border);
+    border-radius: 6px;
+    color: var(--xmas-text);
+    min-width: 200px;
+    transition: border-color 0.3s ease;
+}
+
+.toolbar-left input:focus {
+    outline: none;
+    border-color: var(--xmas-red);
+}
+
+/* Sortable Headers */
+.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: 20px !important;
+    transition: background-color 0.2s ease;
+}
+
+.sortable:hover {
+    background-color: rgba(211, 33, 47, 0.2) !important;
+}
+
+.sortable::after {
+    content: '';
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.7rem;
+    color: #a8d5a2;
+    opacity: 0.5;
+}
+
+.sortable:hover::after {
+    opacity: 1;
+}
+
+.sort-asc::after {
+    content: '\25B2';
+    opacity: 1;
+    color: var(--xmas-red);
+}
+
+.sort-desc::after {
+    content: '\25BC';
+    opacity: 1;
+    color: var(--xmas-red);
+}
+
+/* Actions Column */
+.th-actions {
+    width: 70px;
+    min-width: 70px;
+    max-width: 70px;
+    text-align: center;
+}
+
+.actions-cell {
+    width: 70px;
+    min-width: 70px;
+    max-width: 70px;
+    text-align: center;
+}
+
+.actions-cell .btn {
+    padding: 4px 8px;
+    font-size: 0.8rem;
+}
+
+/* Responsive adjustments for new elements */
+@media (max-width: 768px) {
+    .stats-row {
+        gap: 8px;
+    }
+
+    .stat-badge {
+        padding: 6px 12px;
+        font-size: 0.85rem;
+    }
+
+    .filters-section {
+        padding: 15px;
+    }
+
+    .flex-row {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .flex-column {
+        min-width: 100%;
+    }
+
+    .table-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .toolbar-left,
+    .toolbar-right {
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .toolbar-left input[type="text"],
+    .toolbar-left input[type="search"] {
+        min-width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .stat-badge {
+        padding: 5px 10px;
+        font-size: 0.8rem;
+        gap: 6px;
+    }
+
+    .filters-section .section-title {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+}
+/* ==========================================================
+   Phone Column - Privacy Tooltip
+   ========================================================== */
+.phone-cell {
+    text-align: center;
+}
+
+.phone-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(114, 137, 218, 0.15);
+    color: #7289da;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.phone-icon:hover {
+    background: rgba(114, 137, 218, 0.3);
+    transform: scale(1.1);
+}
+
+.phone-icon.copied {
+    background: rgba(67, 181, 129, 0.3);
+    color: #43b581;
+}
+
+.phone-icon::after {
+    content: attr(data-phone);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 6px 12px;
+    background: #202225;
+    color: #ffffff;
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    z-index: 100;
+    margin-bottom: 6px;
+}
+
+.phone-icon::before {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: #202225;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    z-index: 100;
+}
+
+.phone-icon:hover::after,
+.phone-icon:hover::before {
+    opacity: 1;
+    visibility: visible;
+}
+
+.phone-none {
+    color: #72767d;
+}
+
+
+/* ==========================================================
+   Role Column - Badges
+   ========================================================== */
+.role-cell {
+    text-align: center;
+}
+
+.role-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.role-badge.role-admin {
+    background: rgba(237, 66, 69, 0.2);
+    color: #ed4245;
+    border: 1px solid rgba(237, 66, 69, 0.4);
+}
+
+.role-badge.role-manager {
+    background: rgba(114, 137, 218, 0.2);
+    color: #7289da;
+    border: 1px solid rgba(114, 137, 218, 0.4);
+}
+
+.role-badge.role-user {
+    background: rgba(153, 170, 181, 0.2);
+    color: #99aab5;
+    border: 1px solid rgba(153, 170, 181, 0.4);
+}

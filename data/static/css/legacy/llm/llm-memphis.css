@@ -1,0 +1,773 @@
+/* llm-memphis.css */
+/* 80s Memphis Design Movement Theme */
+
+body {
+    background-color: #00CED1;
+    font-family: 'Inter', sans-serif;
+    color: #000000;
+    background-image:
+        radial-gradient(circle at 100% 100%, #FF69B4 10px, transparent 10px),
+        radial-gradient(circle at 0% 0%, #FFD700 10px, transparent 10px);
+    background-size: 50px 50px;
+}
+
+/* ==========================================================
+   Design System - Layout Styles
+   ========================================================== */
+
+/* Main Container */
+.main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 30px 20px;
+}
+
+/* Page Header */
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 3px solid #ff6b9d;
+}
+
+.page-header-text {
+    flex: 1;
+}
+
+/* Page Toolbar (Tabs + Actions) */
+.page-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    gap: 16px;
+}
+
+.page-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.page-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+/* Hide toolbar when both sides are empty */
+.page-toolbar:has(.page-toolbar-left:empty):has(.page-toolbar-right:empty) {
+    display: none;
+}
+
+/* Back Button */
+.btn-back {
+    width: 44px;
+    height: 44px;
+    border-radius: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fef9e7;
+    border: 3px solid #000000;
+    color: #333333;
+    text-decoration: none;
+    transition: all 0.2s;
+    box-shadow: 3px 3px 0 #FF4500;
+}
+
+.btn-back:hover {
+    background: #ff6b9d;
+    border-color: #000000;
+    color: #000000;
+    transform: translate(-2px, -2px);
+    box-shadow: 5px 5px 0 #FF4500;
+}
+
+/* Page Title */
+.page-title {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: bold;
+    color: #333333;
+    text-transform: uppercase;
+}
+
+.page-subtitle {
+    margin: 4px 0 0 0;
+    color: #666666;
+    font-size: 0.9rem;
+}
+
+h2 {
+    color: #000000;
+    font-size: 2.5em;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin-bottom: 30px;
+    padding: 15px;
+    background-color: #FF69B4;
+    border: 3px solid #000000;
+    box-shadow: 5px 5px 0 #FF4500;
+    text-align: center;
+}
+
+/* ==========================================================
+   Section Containers
+   ========================================================== */
+
+.section-container {
+    background-color: #FFD700;
+    border: 3px solid #000000;
+    padding: 20px;
+    margin-bottom: 30px;
+    box-shadow: 5px 5px 0 #FF4500;
+    position: relative;
+}
+
+.section-container::before {
+    content: "";
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 15px;
+    height: 15px;
+    background-color: #FF69B4;
+    border: 2px solid #000000;
+    border-radius: 50%;
+}
+
+.section-container:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 7px 7px 0 #FF4500;
+}
+
+.section-title {
+    color: #000000;
+    font-size: 1.3em;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    padding: 10px;
+    background-color: #FF69B4;
+    border: 2px solid #000000;
+}
+
+/* ==========================================================
+   Flex Layout System
+   ========================================================== */
+
+.flex-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.flex-column {
+    flex: 1;
+    min-width: 250px;
+}
+
+/* ==========================================================
+   Form Styles
+   ========================================================== */
+
+.form-label {
+    font-weight: bold;
+    color: #000000;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+}
+
+.form-control, .form-select {
+    background-color: #FFD700;
+    border: 2px solid #000000;
+    border-radius: 0;
+    color: #000000;
+    padding: 10px;
+    margin-bottom: 15px;
+}
+
+.form-control:focus, .form-select:focus {
+    box-shadow: 5px 5px 0 #FF4500;
+    border-color: #000000;
+    background-color: #FFD700;
+    color: #000000;
+}
+
+.form-control::placeholder {
+    color: #666666;
+}
+
+.form-check-input {
+    background-color: #FFD700;
+    border: 2px solid #000000;
+    border-radius: 0;
+}
+
+.form-check-input:checked {
+    background-color: #FF69B4;
+    border-color: #000000;
+}
+
+.form-check-label {
+    font-weight: bold;
+    color: #000000;
+}
+
+textarea.form-control {
+    min-height: 100px;
+    resize: vertical;
+}
+
+/* ==========================================================
+   Button Styles
+   ========================================================== */
+
+.btn {
+    font-weight: bold;
+    text-transform: uppercase;
+    padding: 10px 20px;
+    border: 2px solid #000000;
+    border-radius: 0;
+    transition: all 0.3s ease;
+}
+
+.btn-primary {
+    background-color: #FF69B4;
+    color: #000000;
+}
+
+.btn-primary:hover, .btn-primary:focus {
+    background-color: #FF4500;
+    color: #FFFFFF;
+    transform: translateY(-3px);
+    box-shadow: 0 5px 0 #000000;
+}
+
+.btn-secondary {
+    background-color: #FFD700;
+    color: #000000;
+}
+
+.btn-secondary:hover, .btn-secondary:focus {
+    background-color: #FF4500;
+    color: #FFFFFF;
+}
+
+.btn-outline-primary {
+    background-color: transparent;
+    color: #FF69B4;
+    border-color: #FF69B4;
+}
+
+.btn-outline-primary:hover, .btn-outline-primary:focus {
+    background-color: #FF69B4;
+    color: #000000;
+    border-color: #000000;
+}
+
+.btn-outline-secondary {
+    background-color: #FFD700;
+    color: #000000;
+    border-color: #000000;
+}
+
+.btn-outline-secondary:hover, .btn-outline-secondary:focus {
+    background-color: #FF4500;
+    color: #FFFFFF;
+}
+
+.btn-outline-danger {
+    background-color: #FF0000;
+    color: #FFFFFF;
+    border: 2px solid #000000;
+    padding: 6px 12px;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-outline-danger:hover, .btn-outline-danger:focus {
+    background-color: #FF4500;
+    color: #FFFFFF;
+    transform: translateY(-3px);
+    box-shadow: 0 5px 0 #000000;
+}
+
+.btn-outline-danger::after {
+    content: '';
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background-color: #FFD700;
+    border-radius: 50%;
+    top: 5px;
+    right: 5px;
+}
+
+.btn-success {
+    background-color: #32CD32;
+    color: #000000;
+    border-color: #000000;
+}
+
+.btn-success:hover, .btn-success:focus {
+    background-color: #228B22;
+    color: #FFFFFF;
+    transform: translateY(-3px);
+    box-shadow: 0 5px 0 #000000;
+}
+
+.btn-warning {
+    background-color: #FFD700;
+    color: #000000;
+    border-color: #000000;
+}
+
+.btn-warning:hover, .btn-warning:focus {
+    background-color: #FFA500;
+    color: #000000;
+    transform: translateY(-3px);
+    box-shadow: 0 5px 0 #000000;
+}
+
+.btn-info {
+    background-color: #00CED1;
+    color: #000000;
+    border-color: #000000;
+}
+
+.btn-info:hover, .btn-info:focus {
+    background-color: #008B8B;
+    color: #FFFFFF;
+    transform: translateY(-3px);
+    box-shadow: 0 5px 0 #000000;
+}
+
+/* ==========================================================
+   Navbar Styles
+   ========================================================== */
+
+.navbar {
+    background-color: #FF69B4;
+    border-bottom: 3px solid #000000;
+    box-shadow: 0 5px 0 #FF4500;
+}
+
+.navbar-brand,
+.nav-link {
+    color: #000000 !important;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.navbar-brand:hover,
+.nav-link:hover {
+    color: #FF4500 !important;
+}
+
+.navbar-toggler {
+    border-color: #000000;
+    background-color: #FFD700;
+}
+
+.navbar-toggler-icon {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(0, 0, 0, 0.85)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
+}
+
+/* ==========================================================
+   Tooltip Styles
+   ========================================================== */
+
+.tooltip-inner {
+    background-color: #000000;
+    color: #FFD700;
+    max-width: 300px;
+    text-align: left;
+    border: 2px solid #FF69B4;
+}
+
+.bs-tooltip-auto[x-placement^=top] .arrow::before,
+.bs-tooltip-top .arrow::before {
+    border-top-color: #000000;
+}
+
+/* ==========================================================
+   Error States
+   ========================================================== */
+
+.form-control.is-invalid {
+    border-color: #FF0000;
+    background-color: #FFE4E1;
+}
+
+.invalid-feedback {
+    color: #FF0000;
+    font-weight: bold;
+}
+
+/* ==========================================================
+   Table Styles (for LLM lists)
+   ========================================================== */
+
+.table {
+    background-color: #FFD700;
+    border: 3px solid #000000;
+}
+
+.table thead th {
+    background-color: #FF69B4;
+    color: #000000;
+    font-weight: bold;
+    text-transform: uppercase;
+    border: 2px solid #000000;
+}
+
+.table tbody td {
+    border: 2px solid #000000;
+    color: #000000;
+}
+
+.table tbody tr:hover {
+    background-color: #FFA500;
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: #FFEC8B;
+}
+
+/* ==========================================================
+   Card Styles (for LLM display)
+   ========================================================== */
+
+.card {
+    background-color: #FFD700;
+    border: 3px solid #000000;
+    border-radius: 0;
+    box-shadow: 5px 5px 0 #FF4500;
+    position: relative;
+}
+
+.card::before {
+    content: "";
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 15px;
+    height: 15px;
+    background-color: #FF69B4;
+    border: 2px solid #000000;
+    border-radius: 50%;
+}
+
+.card-header {
+    background-color: #FF69B4;
+    border-bottom: 3px solid #000000;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.card-body {
+    padding: 20px;
+}
+
+.card-footer {
+    background-color: #00CED1;
+    border-top: 3px solid #000000;
+}
+
+/* ==========================================================
+   Badge Styles
+   ========================================================== */
+
+.badge {
+    border: 2px solid #000000;
+    border-radius: 0;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.badge-primary, .bg-primary {
+    background-color: #FF69B4 !important;
+    color: #000000;
+}
+
+.badge-secondary, .bg-secondary {
+    background-color: #FFD700 !important;
+    color: #000000;
+}
+
+.badge-success, .bg-success {
+    background-color: #32CD32 !important;
+    color: #000000;
+}
+
+.badge-danger, .bg-danger {
+    background-color: #FF0000 !important;
+    color: #FFFFFF;
+}
+
+.badge-warning, .bg-warning {
+    background-color: #FFA500 !important;
+    color: #000000;
+}
+
+.badge-info, .bg-info {
+    background-color: #00CED1 !important;
+    color: #000000;
+}
+
+/* ==========================================================
+   Alert Styles
+   ========================================================== */
+
+.alert {
+    border: 3px solid #000000;
+    border-radius: 0;
+    font-weight: bold;
+}
+
+.alert-success {
+    background-color: #32CD32;
+    color: #000000;
+}
+
+.alert-danger {
+    background-color: #FF0000;
+    color: #FFFFFF;
+}
+
+.alert-warning {
+    background-color: #FFD700;
+    color: #000000;
+}
+
+.alert-info {
+    background-color: #00CED1;
+    color: #000000;
+}
+
+/* ==========================================================
+   Scrollbar
+   ========================================================== */
+
+::-webkit-scrollbar {
+    width: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: #FFD700;
+    border: 2px solid #000000;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #FF69B4;
+    border: 2px solid #000000;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #FF4500;
+}
+
+/* ==========================================================
+   Animations
+   ========================================================== */
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+.btn:hover {
+    animation: bounce 0.5s ease infinite;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+/* ==========================================================
+   Modal Styles
+   ========================================================== */
+
+.modal-content {
+    background-color: #FFD700;
+    border: 3px solid #000000;
+    border-radius: 0;
+    box-shadow: 10px 10px 0 #FF4500;
+}
+
+.modal-header {
+    background-color: #FF69B4;
+    border-bottom: 3px solid #000000;
+}
+
+.modal-title {
+    font-weight: bold;
+    text-transform: uppercase;
+    color: #000000;
+}
+
+.modal-footer {
+    background-color: #00CED1;
+    border-top: 3px solid #000000;
+}
+
+.btn-close {
+    background-color: #FF0000;
+    border: 2px solid #000000;
+    opacity: 1;
+}
+
+/* ==========================================================
+   Pagination Styles
+   ========================================================== */
+
+.pagination {
+    gap: 5px;
+}
+
+.page-link {
+    background-color: #FFD700;
+    border: 2px solid #000000;
+    color: #000000;
+    font-weight: bold;
+}
+
+.page-link:hover {
+    background-color: #FF69B4;
+    border-color: #000000;
+    color: #000000;
+}
+
+.page-item.active .page-link {
+    background-color: #FF4500;
+    border-color: #000000;
+    color: #FFFFFF;
+}
+
+.page-item.disabled .page-link {
+    background-color: #CCCCCC;
+    border-color: #000000;
+    color: #666666;
+}
+
+/* ==========================================================
+   Dropdown Styles
+   ========================================================== */
+
+.dropdown-menu {
+    background-color: #FFD700;
+    border: 3px solid #000000;
+    border-radius: 0;
+    box-shadow: 5px 5px 0 #FF4500;
+}
+
+.dropdown-item {
+    color: #000000;
+    font-weight: bold;
+}
+
+.dropdown-item:hover {
+    background-color: #FF69B4;
+    color: #000000;
+}
+
+.dropdown-divider {
+    border-color: #000000;
+}
+
+/* ==========================================================
+   Responsive Adjustments
+   ========================================================== */
+
+@media (max-width: 768px) {
+    .main-container {
+        padding: 15px 10px;
+    }
+
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .page-toolbar {
+        flex-wrap: wrap;
+    }
+
+    .page-title {
+        font-size: 1.4rem;
+    }
+
+    .btn-back {
+        width: 38px;
+        height: 38px;
+    }
+
+    h2 {
+        font-size: 2em;
+    }
+
+    .flex-row {
+        flex-direction: column;
+    }
+
+    .flex-column {
+        min-width: 100%;
+    }
+
+    .section-container {
+        padding: 15px;
+    }
+
+    .section-container:hover {
+        transform: none;
+        box-shadow: 5px 5px 0 #FF4500;
+    }
+
+    .form-control, .form-select, .btn {
+        font-size: 0.9rem;
+    }
+
+    .btn {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    .card::before {
+        display: none;
+    }
+
+    .section-container::before {
+        display: none;
+    }
+}
+
+@media (max-width: 576px) {
+    .navbar {
+        padding: 5px 0;
+    }
+
+    .navbar-brand {
+        font-size: 1.2rem;
+    }
+
+    .nav-link {
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .page-title {
+        font-size: 1.2rem;
+    }
+}

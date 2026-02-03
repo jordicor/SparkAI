@@ -1,0 +1,396 @@
+/* Terminal OS Landing Page - Custom Styles */
+
+/* Base Typography */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
+body {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+}
+
+/* Animations */
+@keyframes flicker {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
+}
+
+@keyframes scanline {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(100%); }
+}
+
+@keyframes glitch {
+    0% { transform: translate(0); }
+    20% { transform: translate(-2px, 2px); }
+    40% { transform: translate(-2px, -2px); }
+    60% { transform: translate(2px, 2px); }
+    80% { transform: translate(2px, -2px); }
+    100% { transform: translate(0); }
+}
+
+@keyframes pulse-slow {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.8; transform: scale(1.05); }
+}
+
+@keyframes typing {
+    from { width: 0; }
+    to { width: 100%; }
+}
+
+@keyframes blink {
+    50% { border-color: transparent; }
+}
+
+/* Grid Pattern Background */
+.grid-pattern {
+    width: 100%;
+    height: 100%;
+    background-image:
+        linear-gradient(rgba(0, 255, 0, 0.1) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 0, 0.1) 1px, transparent 1px);
+    background-size: 50px 50px;
+    animation: flicker 3s infinite;
+}
+
+/* Scan Lines Effect */
+.scan-lines {
+    width: 100%;
+    height: 100%;
+    background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 255, 0, 0.03),
+        rgba(0, 255, 0, 0.03) 1px,
+        transparent 1px,
+        transparent 2px
+    );
+    pointer-events: none;
+}
+
+.scan-lines::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100px;
+    background: linear-gradient(
+        to bottom,
+        rgba(0, 255, 0, 0.1),
+        transparent
+    );
+    animation: scanline 6s linear infinite;
+}
+
+/* Glitch Text Effect */
+.glitch-text {
+    position: relative;
+    animation: flicker 2s infinite;
+}
+
+.glitch-text::before,
+.glitch-text::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.glitch-text::before {
+    left: 2px;
+    text-shadow: -2px 0 #ff00ff;
+    clip: rect(44px, 450px, 56px, 0);
+    animation: glitch 5s infinite linear alternate-reverse;
+}
+
+.glitch-text::after {
+    left: -2px;
+    text-shadow: -2px 0 #00ffff;
+    clip: rect(44px, 450px, 56px, 0);
+    animation: glitch 3s infinite linear alternate-reverse;
+}
+
+/* Terminal Panel Hover Effect */
+.terminal-panel {
+    transition: all 0.3s ease;
+}
+
+.terminal-panel:hover {
+    box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+}
+
+/* Pulse Animation for CTA */
+.animate-pulse-slow {
+    animation: pulse-slow 3s ease-in-out infinite;
+}
+
+/* CRT Screen Effect */
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: linear-gradient(
+        rgba(18, 16, 16, 0) 50%,
+        rgba(0, 0, 0, 0.25) 50%
+    );
+    background-size: 100% 4px;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0.05;
+}
+
+/* Terminal Cursor */
+.cursor {
+    display: inline-block;
+    width: 10px;
+    height: 20px;
+    background-color: #00ff00;
+    animation: blink 1s step-end infinite;
+}
+
+/* Boot Text Animation */
+#boot-text .boot-line {
+    white-space: nowrap;
+    overflow: hidden;
+    border-right: 2px solid #00ff00;
+    animation: typing 0.05s steps(40, end), blink 0.75s step-end;
+    animation-fill-mode: forwards;
+    margin: 0;
+}
+
+/* Status Indicators */
+.status-online {
+    width: 10px;
+    height: 10px;
+    background-color: #00ff00;
+    border-radius: 50%;
+    display: inline-block;
+    box-shadow: 0 0 10px #00ff00;
+    animation: pulse-slow 2s infinite;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: #000;
+    border-left: 2px solid #00ff00;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #00ff00;
+    border: 2px solid #000;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #00ff00;
+    box-shadow: 0 0 10px #00ff00;
+}
+
+/* Button Glow Effect */
+.bg-green-400:hover {
+    box-shadow: 0 0 30px rgba(0, 255, 0, 0.8);
+}
+
+/* Smooth Scroll */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Panel Active State */
+.terminal-panel.active {
+    border-color: #fff;
+    background: rgba(0, 255, 0, 0.1);
+}
+
+/* Loading Animation */
+.loading-dots::after {
+    content: '...';
+    animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+    0% { content: '.'; }
+    33% { content: '..'; }
+    66% { content: '...'; }
+}
+
+/* Screen Glow */
+#main-os {
+    box-shadow: inset 0 0 100px rgba(0, 255, 0, 0.05);
+}
+
+/* Text Selection */
+::selection {
+    background-color: #00ff00;
+    color: #000;
+}
+
+::-moz-selection {
+    background-color: #00ff00;
+    color: #000;
+}
+
+/* Responsive Typography */
+@media (max-width: 768px) {
+    body {
+        font-size: 14px;
+    }
+
+    .glitch-text {
+        font-size: 2rem;
+    }
+}
+
+/* Focus States */
+a:focus,
+button:focus {
+    outline: 2px solid #00ff00;
+    outline-offset: 4px;
+}
+
+/* Panel Grid Animations */
+.terminal-panel {
+    opacity: 0;
+    transform: translateY(20px);
+    animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.terminal-panel:nth-child(1) { animation-delay: 0.1s; }
+.terminal-panel:nth-child(2) { animation-delay: 0.2s; }
+.terminal-panel:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes fadeInUp {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Boot Sequence Fade Out */
+#boot-sequence.fade-out {
+    animation: fadeOut 1s ease-out forwards;
+}
+
+@keyframes fadeOut {
+    to {
+        opacity: 0;
+        visibility: hidden;
+    }
+}
+
+/* Screen Flicker on Load */
+@keyframes screen-flicker {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.95; }
+}
+
+#main-os {
+    animation: screen-flicker 0.1s 3;
+}
+
+/* Neon Border Effect */
+.neon-border {
+    position: relative;
+}
+
+.neon-border::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    background: linear-gradient(45deg, #00ff00, #000, #00ff00);
+    border-radius: inherit;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: -1;
+}
+
+.neon-border:hover::before {
+    opacity: 1;
+    animation: rotate-gradient 2s linear infinite;
+}
+
+@keyframes rotate-gradient {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Command Line Input Style */
+.command-input {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid #00ff00;
+    color: #00ff00;
+    font-family: 'JetBrains Mono', monospace;
+    outline: none;
+    padding: 8px 0;
+}
+
+.command-input::placeholder {
+    color: rgba(0, 255, 0, 0.5);
+}
+
+/* System Status Badge */
+.status-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border: 1px solid #00ff00;
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+}
+
+/* Terminal Window Chrome */
+.terminal-chrome {
+    display: flex;
+    gap: 8px;
+    padding: 12px;
+    background: rgba(0, 255, 0, 0.1);
+    border-bottom: 1px solid #00ff00;
+}
+
+.terminal-chrome-button {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1px solid #00ff00;
+}
+
+/* Matrix Rain Effect (subtle background) */
+@keyframes matrix-rain {
+    0% { transform: translateY(-100%); opacity: 1; }
+    100% { transform: translateY(100vh); opacity: 0; }
+}
+
+.matrix-char {
+    position: absolute;
+    color: #00ff00;
+    font-size: 20px;
+    animation: matrix-rain 10s linear infinite;
+    opacity: 0.3;
+}
+
+/* Accessibility Improvements */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Print Styles */
+@media print {
+    body::before,
+    .scan-lines,
+    .grid-pattern {
+        display: none;
+    }
+}

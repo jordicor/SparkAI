@@ -1,0 +1,443 @@
+/**
+ * Skeleton Loader CSS
+ *
+ * Provides skeleton placeholder styles that show while content loads.
+ * Works with any theme by using CSS custom properties for colors.
+ */
+
+/* Base skeleton container - covers the page until content is ready */
+.skeleton-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* When content is ready, hide skeleton */
+.skeleton-container.hidden {
+    display: none;
+}
+
+/* Base skeleton item - the gray pulsing rectangles */
+.skeleton-item {
+    background: var(--skeleton-bg, #e0e0e0);
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Pulse animation */
+.skeleton-pulse {
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Shimmer animation (alternative to pulse) */
+.skeleton-shimmer {
+    background: linear-gradient(
+        90deg,
+        var(--skeleton-bg, #e0e0e0) 0%,
+        var(--skeleton-highlight, #f0f0f0) 50%,
+        var(--skeleton-bg, #e0e0e0) 100%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* Common skeleton shapes */
+.skeleton-text {
+    height: 16px;
+    margin-bottom: 8px;
+}
+
+.skeleton-text-sm {
+    height: 12px;
+    margin-bottom: 6px;
+}
+
+.skeleton-text-lg {
+    height: 24px;
+    margin-bottom: 12px;
+}
+
+.skeleton-title {
+    height: 32px;
+    margin-bottom: 16px;
+    width: 60%;
+}
+
+.skeleton-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.skeleton-avatar-lg {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.skeleton-button {
+    height: 38px;
+    width: 100px;
+    border-radius: 6px;
+}
+
+.skeleton-input {
+    height: 38px;
+    width: 100%;
+    border-radius: 6px;
+}
+
+.skeleton-card {
+    border-radius: 8px;
+    padding: 16px;
+    background: var(--skeleton-card-bg, #f5f5f5);
+}
+
+/* Layout helpers */
+.skeleton-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.skeleton-col {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.skeleton-flex-1 {
+    flex: 1;
+}
+
+/* ========================
+   NAVBAR SKELETON
+   ======================== */
+.skeleton-navbar {
+    height: 60px;
+    background: var(--skeleton-navbar-bg, #1a1a2e);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 20px;
+    flex-shrink: 0;
+}
+
+.skeleton-navbar .skeleton-item {
+    background: var(--skeleton-navbar-item, rgba(255,255,255,0.1));
+}
+
+.skeleton-navbar-brand {
+    width: 120px;
+    height: 30px;
+}
+
+.skeleton-navbar-links {
+    display: flex;
+    gap: 16px;
+    flex: 1;
+}
+
+.skeleton-navbar-link {
+    width: 80px;
+    height: 20px;
+}
+
+.skeleton-navbar-user {
+    width: 100px;
+    height: 32px;
+    border-radius: 16px;
+}
+
+/* ========================
+   PAGE CONTENT SKELETON
+   ======================== */
+.skeleton-page {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--skeleton-page-bg, #f8f9fa);
+    overflow: hidden;
+}
+
+.skeleton-page-header {
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--skeleton-header-bg, transparent);
+}
+
+.skeleton-page-content {
+    flex: 1;
+    padding: 0 24px 24px;
+    overflow: hidden;
+}
+
+/* ========================
+   CHAT SKELETON (Sidebar + Messages)
+   ======================== */
+.skeleton-chat-layout {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+.skeleton-chat-sidebar {
+    width: 280px;
+    background: var(--skeleton-sidebar-bg, #1a1a2e);
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.skeleton-chat-sidebar .skeleton-item {
+    background: var(--skeleton-sidebar-item, rgba(255,255,255,0.1));
+}
+
+.skeleton-chat-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--skeleton-chat-bg, #0f0f1a);
+}
+
+.skeleton-chat-header {
+    height: 60px;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--skeleton-border, rgba(255,255,255,0.1));
+}
+
+.skeleton-chat-messages {
+    flex: 1;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.skeleton-message {
+    display: flex;
+    gap: 12px;
+    max-width: 70%;
+}
+
+.skeleton-message.user {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+}
+
+.skeleton-message-content {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.skeleton-message-bubble {
+    padding: 12px 16px;
+    border-radius: 12px;
+    background: var(--skeleton-message-bg, rgba(255,255,255,0.05));
+}
+
+.skeleton-chat-input {
+    height: 80px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-top: 1px solid var(--skeleton-border, rgba(255,255,255,0.1));
+}
+
+.skeleton-chat-input .skeleton-input {
+    flex: 1;
+    height: 48px;
+    background: var(--skeleton-input-bg, rgba(255,255,255,0.05));
+}
+
+/* ========================
+   TABLE SKELETON (Admin lists)
+   ======================== */
+.skeleton-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.skeleton-table-header {
+    display: flex;
+    gap: 16px;
+    padding: 12px 16px;
+    background: var(--skeleton-table-header-bg, rgba(0,0,0,0.05));
+    border-radius: 8px 8px 0 0;
+}
+
+.skeleton-table-row {
+    display: flex;
+    gap: 16px;
+    padding: 16px;
+    border-bottom: 1px solid var(--skeleton-border, rgba(0,0,0,0.1));
+}
+
+.skeleton-table-cell {
+    flex: 1;
+}
+
+/* ========================
+   FORM SKELETON
+   ======================== */
+.skeleton-form {
+    max-width: 600px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.skeleton-form-section {
+    background: var(--skeleton-card-bg, #ffffff);
+    border-radius: 12px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.skeleton-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.skeleton-label {
+    height: 14px;
+    width: 100px;
+}
+
+/* ========================
+   AUTH/LOGIN SKELETON
+   ======================== */
+.skeleton-auth {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--skeleton-auth-bg, linear-gradient(135deg, #1a1a2e 0%, #16213e 100%));
+}
+
+.skeleton-auth-card {
+    width: 100%;
+    max-width: 400px;
+    padding: 40px;
+    background: var(--skeleton-card-bg, rgba(255,255,255,0.95));
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+}
+
+.skeleton-auth-logo {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+}
+
+.skeleton-auth-title {
+    height: 28px;
+    width: 200px;
+}
+
+.skeleton-auth-form {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* ========================
+   DARK THEME OVERRIDES
+   ======================== */
+[data-theme="default"],
+[data-theme="dark"],
+[data-theme="coder"],
+[data-theme="terminal"],
+[data-theme="halloween"] {
+    --skeleton-bg: rgba(255,255,255,0.1);
+    --skeleton-highlight: rgba(255,255,255,0.2);
+    --skeleton-page-bg: #0f0f1a;
+    --skeleton-card-bg: rgba(255,255,255,0.05);
+    --skeleton-border: rgba(255,255,255,0.1);
+    --skeleton-navbar-bg: #1a1a2e;
+    --skeleton-navbar-item: rgba(255,255,255,0.1);
+    --skeleton-sidebar-bg: #1a1a2e;
+    --skeleton-sidebar-item: rgba(255,255,255,0.1);
+    --skeleton-chat-bg: #0f0f1a;
+    --skeleton-message-bg: rgba(255,255,255,0.05);
+    --skeleton-input-bg: rgba(255,255,255,0.05);
+    --skeleton-table-header-bg: rgba(255,255,255,0.05);
+}
+
+/* ========================
+   LIGHT THEME OVERRIDES
+   ======================== */
+[data-theme="light"],
+[data-theme="writer"],
+[data-theme="eink"] {
+    --skeleton-bg: #e0e0e0;
+    --skeleton-highlight: #f0f0f0;
+    --skeleton-page-bg: #f8f9fa;
+    --skeleton-card-bg: #ffffff;
+    --skeleton-border: rgba(0,0,0,0.1);
+    --skeleton-navbar-bg: #ffffff;
+    --skeleton-navbar-item: rgba(0,0,0,0.1);
+    --skeleton-sidebar-bg: #f0f0f0;
+    --skeleton-sidebar-item: rgba(0,0,0,0.1);
+    --skeleton-chat-bg: #ffffff;
+    --skeleton-message-bg: rgba(0,0,0,0.05);
+    --skeleton-input-bg: rgba(0,0,0,0.05);
+    --skeleton-table-header-bg: rgba(0,0,0,0.05);
+}
+
+/* ========================
+   RESPONSIVE
+   ======================== */
+@media (max-width: 768px) {
+    .skeleton-chat-sidebar {
+        display: none;
+    }
+
+    .skeleton-navbar-links {
+        display: none;
+    }
+
+    .skeleton-page-header {
+        padding: 16px;
+    }
+
+    .skeleton-page-content {
+        padding: 0 16px 16px;
+    }
+}

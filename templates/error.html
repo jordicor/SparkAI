@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+
+{% block title %}Error - Application{% endblock %}
+
+{% block page_title %}Error {{ error_code }}{% endblock %}
+
+{% block back_url %}/{% endblock %}
+{% block back_title %}Return to Home{% endblock %}
+
+{% block toolbar %}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h4 class="mb-0">Error {{ error_code }}</h4>
+            </div>
+            <div class="card-body">
+                <h5 class="card-title">Sorry, an error has occurred</h5>
+                <p class="card-text">{{ error_message }}</p>
+                <a href="/" class="btn btn-primary">Return to home</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

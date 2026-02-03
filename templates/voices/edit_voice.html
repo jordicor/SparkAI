@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block title %}Edit Voice - SPARK{% endblock %}
+
+{% block styles %}
+{# Theme CSS loaded by theme-loader.js #}
+{% endblock %}
+
+{% block page_title %}Edit Voice{% endblock %}
+
+{% block back_url %}/admin/voices{% endblock %}
+{% block back_title %}Back to Voices{% endblock %}
+
+{% block content %}
+<form action="/admin/voices/update/{{ voice_id }}" method="post">
+    <!-- Voice Configuration Section -->
+    <div class="section-container">
+        <div class="section-title"><i class="fas fa-microphone me-2"></i>Voice Configuration</div>
+        <div class="flex-row">
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label for="name" class="form-label">Voice Name</label>
+                    <input type="text" class="form-control" id="name" name="name"
+                           value="{{ voice_name }}" required>
+                    <small class="form-text text-muted">Display name for this voice</small>
+                </div>
+            </div>
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label for="voice_code" class="form-label">Voice Code</label>
+                    <input type="text" class="form-control" id="voice_code" name="voice_code"
+                           value="{{ voice_code }}" required>
+                    <small class="form-text text-muted">OpenAI voice identifier (alloy, ash, ballad, coral, echo, fable, marin, nova, onyx, sage, shimmer, verse, cedar)</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TTS Provider Section -->
+    <div class="section-container">
+        <div class="section-title"><i class="fas fa-cog me-2"></i>TTS Provider</div>
+        <div class="flex-row">
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label class="form-label">Provider</label>
+                    <div class="form-control provider-info-box">
+                        <i class="fas fa-robot me-2"></i>OpenAI TTS
+                    </div>
+                    <small class="form-text text-muted">ElevenLabs voices are managed via the Sync page</small>
+                    <input type="hidden" name="tts_service" value="5">
+                </div>
+            </div>
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label class="form-label">Voice ID</label>
+                    <div class="form-control provider-info-box muted">
+                        #{{ voice_id }}
+                    </div>
+                    <small class="form-text text-muted">Internal database identifier</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save me-1"></i> Update Voice
+        </button>
+        <a href="/admin/voices" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Back to List
+        </a>
+    </div>
+</form>
+{% endblock %}

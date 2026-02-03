@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block">
+    <title>Project SparkAI</title>
+
+    <!-- Theme detection - sets data-theme for skeleton CSS -->
+    <script>
+        var savedTheme = 'default';
+        try { savedTheme = localStorage.getItem('theme') || 'default'; } catch(e) {}
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
+
+    <!-- Skeleton CSS - loads immediately for skeleton display -->
+    <link rel="stylesheet" href="{{ get_static_url('/static/css/skeleton.css') }}">
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ get_static_url('/static/css/common.css') }}">
+
+    <!-- CDN Base URL (must be defined before theme-loader.js) -->
+    <script>window.CDN_BASE_URL = "{{ get_static_url('/static/').rstrip('/') }}";</script>
+
+    <!-- Theme loader AFTER Bootstrap and common.css so theme styles have priority -->
+    <script src="{{ get_static_url('/static/js/theme-loader.js') }}"></script>
+    <!-- <script src="/static/js/countdown.js"></script> -->
+    <style>
+        /* Page content wrapper inherits body layout styles for skeleton system */
+        #page-content {
+            display: flex;
+            flex-direction: row;
+            height: 100svh;
+            width: 100%;
+            box-sizing: border-box;
+        }
+    </style>
+    <link rel="stylesheet" href="{{ get_static_url('/static/css/style.css') }}">
+    <!-- Theme CSS is now loaded dynamically by theme-loader.js -->
+    <link rel="stylesheet" href="{{ get_static_url('/static/css/chat/voice-call.css') }}">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js"></script>
+</head>
+<body>
+    <!-- Skeleton loader - shown while page content loads -->
+    <div id="page-skeleton" class="skeleton-container">
+        <div class="skeleton-chat-layout">
+            <!-- Sidebar skeleton -->
+            <div class="skeleton-chat-sidebar">
+                <!-- User info skeleton -->
+                <div class="skeleton-item" style="padding: 12px;">
+                    <div class="skeleton-text skeleton-pulse" style="width: 60%; height: 20px;"></div>
+                </div>
+                <!-- New chat button skeleton -->
+                <div class="skeleton-item" style="padding: 8px 12px;">
+                    <div class="skeleton-text skeleton-pulse" style="width: 100%; height: 36px; border-radius: 4px;"></div>
+                </div>
+                <!-- Folders section skeleton -->
+                <div class="skeleton-item" style="padding: 8px 12px;">
+                    <div class="skeleton-text skeleton-pulse" style="width: 40%; height: 14px; margin-bottom: 8px;"></div>
+                    <div class="skeleton-text skeleton-pulse" style="width: 80%; height: 28px; border-radius: 4px;"></div>
+                </div>
+                <!-- Chats section skeleton -->
+                <div class="skeleton-item" style="padding: 8px 12px;">
+                    <div class="skeleton-text skeleton-pulse" style="width: 30%; height: 14px; margin-bottom: 8px;"></div>
+                </div>
+                <!-- Conversation list placeholders -->
+                <div class="skeleton-item" style="padding: 4px 12px;">
+                    <div class="skeleton-text skeleton-pulse" style="width: 90%; height: 40px; border-radius: 4px; margin-bottom: 6px;"></div>
+                    <div class="skeleton-text skeleton-pulse" style="width: 85%; height: 40px; border-radius: 4px; margin-bottom: 6px;"></div>
+                    <div class="skeleton-text skeleton-pulse" style="width: 92%; height: 40px; border-radius: 4px; margin-bottom: 6px;"></div>
+                    <div class="skeleton-text skeleton-pulse" style="width: 78%; height: 40px; border-radius: 4px; margin-bottom: 6px;"></div>
+                    <div class="skeleton-text skeleton-pulse" style="width: 88%; height: 40px; border-radius: 4px; margin-bottom: 6px;"></div>
+                </div>
+            </div>
+
+            <!-- Main chat area skeleton -->
+            <div class="skeleton-chat-main">
+                <!-- Chat header skeleton -->
+                <div class="skeleton-chat-header">
+                    <div class="skeleton-avatar skeleton-pulse" style="width: 40px; height: 40px;"></div>
+                    <div style="flex: 1; margin-left: 12px;">
+                        <div class="skeleton-text skeleton-pulse" style="width: 150px; height: 18px; margin-bottom: 6px;"></div>
+                        <div class="skeleton-text skeleton-pulse" style="width: 100px; height: 12px;"></div>
+                    </div>
+                </div>
+
+                <!-- Messages area skeleton -->
+                <div class="skeleton-chat-messages">
+                    <!-- Message 1 - bot message -->
+                    <div class="skeleton-message" style="justify-content: flex-start;">
+                        <div class="skeleton-avatar skeleton-pulse" style="width: 32px; height: 32px;"></div>
+                        <div class="skeleton-message-content" style="margin-left: 8px;">
+                            <div class="skeleton-text skeleton-pulse" style="width: 280px; height: 16px; margin-bottom: 6px;"></div>
+                            <div class="skeleton-text skeleton-pulse" style="width: 220px; height: 16px; margin-bottom: 6px;"></div>
+                            <div class="skeleton-text skeleton-pulse" style="width: 180px; height: 16px;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Message 2 - user message -->
+                    <div class="skeleton-message" style="justify-content: flex-end;">
+                        <div class="skeleton-message-content" style="margin-right: 8px;">
+                            <div class="skeleton-text skeleton-pulse" style="width: 200px; height: 16px; margin-bottom: 6px;"></div>
+                            <div class="skeleton-text skeleton-pulse" style="width: 160px; height: 16px;"></div>
+                        </div>
+                        <div class="skeleton-avatar skeleton-pulse" style="width: 32px; height: 32px;"></div>
+                    </div>
+
+                    <!-- Message 3 - bot message -->
+                    <div class="skeleton-message" style="justify-content: flex-start;">
+                        <div class="skeleton-avatar skeleton-pulse" style="width: 32px; height: 32px;"></div>
+                        <div class="skeleton-message-content" style="margin-left: 8px;">
+                            <div class="skeleton-text skeleton-pulse" style="width: 300px; height: 16px; margin-bottom: 6px;"></div>
+                            <div class="skeleton-text skeleton-pulse" style="width: 250px; height: 16px; margin-bottom: 6px;"></div>
+                            <div class="skeleton-text skeleton-pulse" style="width: 200px; height: 16px; margin-bottom: 6px;"></div>
+                            <div class="skeleton-text skeleton-pulse" style="width: 150px; height: 16px;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Message 4 - user message -->
+                    <div class="skeleton-message" style="justify-content: flex-end;">
+                        <div class="skeleton-message-content" style="margin-right: 8px;">
+                            <div class="skeleton-text skeleton-pulse" style="width: 180px; height: 16px;"></div>
+                        </div>
+                        <div class="skeleton-avatar skeleton-pulse" style="width: 32px; height: 32px;"></div>
+                    </div>
+                </div>
+
+                <!-- Input area skeleton -->
+                <div class="skeleton-chat-input">
+                    <div class="skeleton-text skeleton-pulse" style="flex: 1; height: 44px; border-radius: 22px;"></div>
+                    <div class="skeleton-text skeleton-pulse" style="width: 60px; height: 36px; border-radius: 4px; margin-left: 8px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page content - hidden until loaded -->
+    <div id="page-content" style="display: none;">
+    <div class="overlay" id="drop-zone-overlay"></div>
+    <div id="sidebar">
+        <div class="list-group">
+            <!-- User menu for mobile version -->
+            <div class="user-menu-mobile">
+                <div class="dropdown">
+                    <a class="dropdown-toggle list-group-item list-group-item-action" href="#" role="button" id="userDropdownMobile" data-bs-toggle="dropdown" aria-expanded="false">
+                        {{ username }}
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="userDropdownMobile">
+                        <li><a class="dropdown-item" href="/edit-profile"><i class="fas fa-user-edit"></i> Edit Profile</a></li>
+                        <li><a class="dropdown-item" href="/api-credentials"><i class="fas fa-key"></i> API Credentials</a></li>
+                        <li><a class="dropdown-item" href="/payment"><i class="fas fa-credit-card"></i> Payments</a></li>
+                        <li><a class="dropdown-item" href="/media-gallery"><i class="fas fa-images"></i> Media Gallery</a></li>
+                        {% if is_manager or is_admin %}
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="/curation-settings"><i class="fas fa-layer-group"></i> Curation Settings</a></li>
+                        <li><a class="dropdown-item" href="/manager/team-billing"><i class="fas fa-users-cog"></i> Team Billing</a></li>
+                        <li><a class="dropdown-item" href="/my-branding"><i class="fas fa-palette"></i> My Branding</a></li>
+                        <li><a class="dropdown-item" href="/manager/landing-analytics"><i class="fas fa-chart-area"></i> Landing Analytics</a></li>
+                        <li><a class="dropdown-item" href="/my-earnings"><i class="fas fa-chart-line"></i> My Earnings</a></li>
+                        {% endif %}
+                        <li><hr class="dropdown-divider"></li>
+                        <!-- Theme submenu -->
+                        <li class="dropend">
+                          <a class="dropdown-item dropdown-toggle" href="#" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-palette"></i> Theme
+                          </a>
+                          <ul class="dropdown-menu theme-submenu">
+                            <li><a class="dropdown-item theme-option" href="#" data-theme="default">Default</a></li>
+                            <li><a class="dropdown-item theme-option" href="#" data-theme="light">Light</a></li>
+                            <li><a class="dropdown-item theme-option" href="#" data-theme="writer">Writer</a></li>
+                            <li><a class="dropdown-item theme-option" href="#" data-theme="coder">Coder</a></li>
+                            <li><a class="dropdown-item theme-option" href="#" data-theme="terminal">Terminal</a></li>
+                            <li><a class="dropdown-item theme-option" href="#" data-theme="eink">E-Ink</a></li>
+                            <li><a class="dropdown-item theme-option" href="#" data-theme="neumorphism">Neumorphism</a></li>
+                            <li><a class="dropdown-item theme-option" href="#" data-theme="frutigeraero">Frutiger Aero</a></li>
+                            <li><a class="dropdown-item theme-option" href="#" data-theme="memphis">Memphis</a></li>
+                            <li><a class="dropdown-item theme-option" href="#" data-theme="katarishoji">Katari Shoji</a></li>
+                            <li><a class="dropdown-item theme-option" href="#" data-theme="xmas">Christmas</a></li>
+                            <li><a class="dropdown-item theme-option" href="#" data-theme="halloween">Halloween</a></li>
+                            <li><a class="dropdown-item theme-option" href="#" data-theme="valentinesday">Valentine's Day</a></li>
+                                                      </ul>
+                        </li>
+                    </ul>
+                </div>
+                <a href="/logout" class="btn btn-sm btn-danger w-100 mt-2">Log Out</a>
+            </div>
+
+            <a href="/" class="list-group-item list-group-item-action home-link"><i class="fas fa-home"></i> Home</a>
+            <div class="modal fade" id="insufficientBalancePopup" tabindex="-1" role="dialog"
+                aria-labelledby="modalLabel" aria-hidden="true">
+                <div class="modal-dialog" role="document">
+                    <div class="modal-content bg-dark text-white">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="modalLabel">Insufficient Balance!</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true" class="text-white">×</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <p>Unable to perform <span id="failedAction">the action</span> due to insufficient
+                                balance.</p>
+                            <p>Reload your balance here: <span id="reloadLink"><a href="/" class="text-warning">here</a></span>
+                            </p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+			<div class="sidebar-section">
+			  <div class="btn-group w-100" role="group" aria-label="New Chat Button">
+				<button type="button" class="btn custom-new-chat-btn" id="new-chat-main-btn">
+				  <i class="fas fa-comment-alt"></i> New Chat
+				</button>
+				<button type="button" class="btn custom-new-chat-btn dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+				  <span class="visually-hidden">Toggle Dropdown</span>
+				</button>
+				<ul class="dropdown-menu new-chat-settings" aria-labelledby="new-chat-btn">
+				  <li><h6 class="dropdown-header">New Chat Settings <i class="fas fa-info-circle" data-bs-toggle="tooltip" data-bs-placement="right" title="These settings will be used when creating a new chat"></i></h6></li>
+				  <li><hr class="dropdown-divider"></li>
+				  <li>
+					<h6 class="dropdown-header">Select Prompt</h6>
+					<select class="form-select" id="promptDropdown" name="prompt_id">
+					  {% for prompt in prompts %}
+					  <option value="{{ prompt.id }}" {% if prompt.id == current_prompt_id %}selected{% endif %}>
+						{{ prompt.text }}
+					  </option>
+					  {% endfor %}
+					</select>
+				  </li>
+				  <li><hr class="dropdown-divider"></li>
+				  <li>
+					<h6 class="dropdown-header">Select LLM Engine</h6>
+					<select class="form-select" id="llmDropdown" name="type_of_model">
+					  {% for model in llm_models %}
+					  <option value="{{ model['id'] }}" {% if current_model_type == model['id'] %}selected{% endif %}>
+						{{ model['machine'] }} - {{ model['model'] }}
+					  </option>
+					  {% endfor %}
+					</select>
+				  </li>
+				</ul>
+			  </div>
+			</div>
+
+
+
+            <div class="sidebar-section">
+                <h3>Bookmarks</h3>
+                <a href="#" id="my-bookmarks-btn" class="list-group-item list-group-item-action">
+                    <i class="fas fa-bookmark"></i> My Bookmarks
+                </a>
+            </div>
+
+            <!-- Chat Folders Section -->
+            <div class="sidebar-section folders-section">
+                <h3>Folders</h3>
+                <div id="chat-folders-container">
+                    <div class="new-folder-item" id="add-folder-btn" title="New Folder">
+                        <i class="fas fa-folder-plus"></i>
+                        <span>New Folder</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-section external-section" style="display: none;">
+                <h3>External</h3>
+                <div id="external-chats-container"></div>
+            </div>
+            <div class="sidebar-section">
+                <h3>Chats</h3>
+                <div id="dynamic-chats-container"></div>
+            </div>
+            <div id="dynamic-chats-container"></div>
+            <button id="load-more-button" onclick="loadMoreConversations()">
+                Load more <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+
+        <div class="user-info d-none d-md-block mt-2">
+            <div id="user-balance" data-balance="{{ user_balance }}"></div>
+            <div class="dropdown d-inline-block">
+                <h5 class="mb-0 ml-2 d-inline dropdown-toggle" href="#" role="button" id="userDropdownDesktop" data-bs-toggle="dropdown" aria-expanded="false">
+                    {{ username }}
+                </h5>
+                <ul class="dropdown-menu" aria-labelledby="userDropdownDesktop">
+                    <li><a class="dropdown-item" href="/edit-profile"><i class="fas fa-user-edit"></i> Edit Profile</a></li>
+                    <li><a class="dropdown-item" href="/api-credentials"><i class="fas fa-key"></i> API Credentials</a></li>
+                    <li><a class="dropdown-item" href="/payment"><i class="fas fa-credit-card"></i> Payments</a></li>
+                    <li><a class="dropdown-item" href="/media-gallery"><i class="fas fa-images"></i> Media Gallery</a></li>
+                    {% if is_manager or is_admin %}
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="/curation-settings"><i class="fas fa-layer-group"></i> Curation Settings</a></li>
+                    <li><a class="dropdown-item" href="/manager/team-billing"><i class="fas fa-users-cog"></i> Team Billing</a></li>
+                    <li><a class="dropdown-item" href="/my-branding"><i class="fas fa-palette"></i> My Branding</a></li>
+                    <li><a class="dropdown-item" href="/manager/landing-analytics"><i class="fas fa-chart-area"></i> Landing Analytics</a></li>
+                    <li><a class="dropdown-item" href="/my-earnings"><i class="fas fa-chart-line"></i> My Earnings</a></li>
+                    {% endif %}
+                    <li><hr class="dropdown-divider"></li>
+                    <!-- Theme submenu -->
+                    <li class="dropend">
+                      <a class="dropdown-item dropdown-toggle" href="#" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-palette"></i> Theme
+                      </a>
+                      <ul class="dropdown-menu theme-submenu">
+                        <li><a class="dropdown-item theme-option" href="#" data-theme="default">Default</a></li>
+                        <li><a class="dropdown-item theme-option" href="#" data-theme="light">Light</a></li>
+                        <li><a class="dropdown-item theme-option" href="#" data-theme="writer">Writer</a></li>
+                        <li><a class="dropdown-item theme-option" href="#" data-theme="coder">Coder</a></li>
+                        <li><a class="dropdown-item theme-option" href="#" data-theme="terminal">Terminal</a></li>
+                        <li><a class="dropdown-item theme-option" href="#" data-theme="eink">E-Ink</a></li>
+                        <li><a class="dropdown-item theme-option" href="#" data-theme="neumorphism">Neumorphism</a></li>
+                        <li><a class="dropdown-item theme-option" href="#" data-theme="frutigeraero">Frutiger Aero</a></li>
+                        <li><a class="dropdown-item theme-option" href="#" data-theme="memphis">Memphis</a></li>
+                        <li><a class="dropdown-item theme-option" href="#" data-theme="katarishoji">Katari Shoji</a></li>
+                        <li><a class="dropdown-item theme-option" href="#" data-theme="xmas">Christmas</a></li>
+                        <li><a class="dropdown-item theme-option" href="#" data-theme="halloween">Halloween</a></li>
+                        <li><a class="dropdown-item theme-option" href="#" data-theme="valentinesday">Valentine's Day</a></li>
+                                              </ul>
+                    </li>
+                </ul>
+            </div>
+            <a href="/logout" class="btn btn-sm btn-danger ml-2">Log Out</a>
+        </div>
+    </div>
+
+    <div id="window-chat">
+        <div class="chatbot-info">
+            <button class="btn btn-toggle-sidebar d-md-none">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="chat-title-container">
+                <div id="chat-title-avatar" class="chat-title-avatar"></div>
+                <div class="chat-title-info">
+                    <h4 class="mb-0" id="chat-title" title="">Prompt Tests</h4>
+                    <div class="model-selector-container">
+                        <small id="chat-model" class="chat-model-info"></small>
+                        <i class="fas fa-chevron-down model-dropdown-icon" id="model-dropdown-icon" title="Change AI model"></i>
+                        <!-- Model Selector Dropdown -->
+                        <div class="model-dropdown-menu" id="model-dropdown-menu">
+                            <div class="model-dropdown-header">
+                                <i class="fas fa-robot"></i>
+                                <span>Select AI Model</span>
+                            </div>
+                            <div class="model-dropdown-content" id="model-dropdown-content">
+                                <!-- Models will be populated by JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="voice-overlay" class="voice-overlay hidden" aria-hidden="true">
+            <div class="voice-overlay-card">
+                <div class="voice-overlay-header">
+                    <div>
+                        <h3 class="voice-overlay-title">Real-time conversation</h3>
+                        <p class="voice-overlay-caption" id="voice-overlay-caption">Activate your microphone to start the ElevenLabs session.</p>
+                    </div>
+                    <button type="button" id="close-voice-overlay" class="voice-overlay-close" aria-label="Close voice panel">
+                        <i class="fas fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="voice-overlay-body">
+                    <div class="voice-status">
+                        <span class="voice-status-icon loading" id="voice-status-icon">
+                            <i class="fas fa-clock"></i>
+                        </span>
+                        <span id="voice-status-text">Preparing configuration...</span>
+                    </div>
+                    <div class="voice-overlay-context">
+                        <div id="voice-overlay-prompt" class="voice-prompt-display hidden">
+                            <div class="voice-prompt-image-section">
+                                <div id="voice-overlay-avatar" class="voice-prompt-avatar"></div>
+                            </div>
+                            <div class="voice-prompt-text-section">
+                                <h3 id="voice-overlay-prompt-name" class="voice-prompt-title"></h3>
+                            </div>
+                        </div>
+                        <span class="voice-helper-text" id="voice-helper-text">We will request permission to use your microphone.</span>
+                    </div>
+                </div>
+                <div class="voice-overlay-footer">
+                    <button type="button" id="voice-start-stop" class="voice-primary-btn" disabled>Configuring...</button>
+                    <button type="button" id="voice-mute-toggle" class="voice-secondary-btn hidden" aria-pressed="false" aria-label="Mute microphone">
+                        <i class="fas fa-microphone"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-window" id="chat-window">
+            <div class="chat-messages-container" id="chat-messages-container">
+                <!-- The prompt-info will be added dynamically here -->
+            </div>
+            <div id="loading-indicator" style="display: none; text-align: center; padding: 10px;">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading messages...</span>
+                </div>
+                <div>Loading messages...</div>
+            </div>
+        </div>
+
+        <div id="image-previews" class="hidden"></div>
+
+        <div class="nav-menu">
+            <button class="nav-button" title="Go to top" onclick="scrollToTop()">⏫</button>
+            <button class="nav-button" title="Go one message up" onclick="scrollUp()">↑</button>
+            <button class="nav-button" title="Go one message down" onclick="scrollDown()">↓</button>
+            <button class="nav-button" title="Go to bottom" onclick="scrollToBottom()">⏬</button>
+        </div>
+
+        <!-- API Keys Required Banner -->
+        {% if not can_send_messages %}
+        <div id="api-keys-required-banner" class="api-keys-banner">
+            <div class="api-keys-banner-content">
+                <i class="fas fa-key"></i>
+                <span>You need to configure your API keys to send messages.</span>
+                <a href="/api-credentials" class="btn btn-sm btn-primary">Configure API Keys</a>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Locked Conversation Banner (hidden by default, shown via JS) -->
+        <div id="locked-conversation-banner" class="api-keys-banner" style="display: none;">
+            <div class="api-keys-banner-content">
+                <i class="fas fa-comment-slash"></i>
+                <span>This conversation has been locked and cannot receive new messages.</span>
+            </div>
+        </div>
+
+        <div class="message-input" id="message-input-container" {% if not can_send_messages %}data-disabled="true"{% endif %}>
+            <form id="form-message" class="input-group" enctype="multipart/form-data">
+                <div class="input-container">
+                    <div class="input-icons">
+                        {% if have_vision %}
+                        <i class="fas fa-paperclip attach-icon" onclick="document.getElementById('image-files').click();" style="pointer-events: none;"></i>
+                        {% endif %}
+
+                        <div id="audio-control">
+                            <i class="fas fa-microphone" id="audio-button"></i>
+                        </div>
+
+                        <!-- Thinking tokens control for Claude models -->
+                        <div id="thinking-tokens-control" style="display: none;">
+                            <i class="fas fa-brain thinking-tokens-icon" title="Thinking Tokens Budget"></i>
+                            <div id="thinking-tokens-popup" class="thinking-tokens-popup" style="display: none;">
+                                <h4>Thinking Tokens Budget</h4>
+                                <p>Adjust thinking tokens for deeper reasoning (Claude 3.7/4+ only)</p>
+                                <input type="range" id="thinking-tokens-slider" min="0" max="20000" value="0" step="1000">
+                                <div class="thinking-tokens-value">
+                                    <span id="thinking-tokens-display">Off</span>
+                                    <input type="number" id="thinking-tokens-input" min="0" max="128000" value="0" step="1000">
+                                </div>
+                                <div class="thinking-tokens-presets">
+                                    <button class="preset-btn" data-value="0">Off</button>
+                                    <button class="preset-btn" data-value="2000">Low</button>
+                                    <button class="preset-btn" data-value="8000">Medium</button>
+                                    <button class="preset-btn" data-value="20000">High</button>
+                                    <button class="preset-btn" data-value="50000">Very High</button>
+                                </div>
+                                <button id="thinking-tokens-apply" class="btn btn-sm btn-primary">Apply</button>
+                            </div>
+                        </div>
+                    </div>
+                    <textarea id="message-text" class="form-control" placeholder="Write a message" rows="1" disabled></textarea>
+                    <div class="send-controls">
+                        <div class="voice-call-control">
+                            <i class="fas fa-phone-volume" id="voice-call-button" title="Real-time call"></i>
+                        </div>
+                        <button class="btn send-btn" type="submit" id="send-button" onclick="handleSendButtonClick(event)" disabled>
+                            <span class="send-label">Send</span>
+                            <span class="send-icon" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </div>
+                <input id="image-files" type="file" class="hidden" accept="image/*" multiple disabled>
+                <audio id="audioPlayer" style="display: none;"></audio>
+            </form>
+            <div id="audio-recording-controls" class="hidden">
+                <div id="time-counter">00:00</div>
+                <div class="audio-buttons">
+                    <button id="cancel-audio" class="btn btn-danger">
+                        <i class="fas fa-times button-icon"></i>
+                    </button>
+                    <button id="send-audio" class="btn btn-success">
+                        <i class="fas fa-paper-plane button-icon"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="insufficient-balance-message" class="alert alert-warning" style="display: none;">
+                Your current balance is 0, please <a href="/payment">recharge your balance</a>.
+            </div>
+        </div>
+        {% if have_vision %}
+        <div id="drop-zone-overlay"
+            class="drop-zone-overlay position-absolute d-none justify-content-center align-items-center"
+            style="top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 1050;">
+            <p class="text-white">
+                Drop file here
+            </p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="modal fade" id="genericModal" tabindex="-1" aria-labelledby="genericModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="genericModalLabel"></h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body" id="genericModalBody">
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="genericModalCancelBtn">Cancel</button>
+            <button type="button" class="btn" id="genericModalConfirmBtn">Confirm</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="fullsizeContainer" class="fullsize-container">
+        <img id="fullsizeImage" class="fullsize-image" src="" alt="Fullsize Image">
+        <div class="fullsize-controls">
+            <button id="downloadButton" class="btn btn-primary">Download</button>
+            <button id="deleteButton" class="btn btn-danger">Delete</button>
+        </div>
+    </div>
+
+    <!-- Folder Management Modals -->
+    <!-- Add/Edit Folder Modal -->
+    <div class="modal fade" id="folderModal" tabindex="-1" aria-labelledby="folderModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-white">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="folderModalLabel">Add Folder</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="folderName" class="form-label">Folder Name</label>
+                        <input type="text" class="form-control" id="folderName" placeholder="Enter folder name">
+                    </div>
+                    <div class="mb-3">
+                        <label for="folderColor" class="form-label">Color</label>
+                        <input type="color" class="form-control form-control-color" id="folderColor" value="#3B82F6">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Color Presets</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            <div class="color-preset" style="width: 30px; height: 30px; background-color: #3B82F6; cursor: pointer; border-radius: 50%;" data-color="#3B82F6"></div>
+                            <div class="color-preset" style="width: 30px; height: 30px; background-color: #EF4444; cursor: pointer; border-radius: 50%;" data-color="#EF4444"></div>
+                            <div class="color-preset" style="width: 30px; height: 30px; background-color: #10B981; cursor: pointer; border-radius: 50%;" data-color="#10B981"></div>
+                            <div class="color-preset" style="width: 30px; height: 30px; background-color: #F59E0B; cursor: pointer; border-radius: 50%;" data-color="#F59E0B"></div>
+                            <div class="color-preset" style="width: 30px; height: 30px; background-color: #8B5CF6; cursor: pointer; border-radius: 50%;" data-color="#8B5CF6"></div>
+                            <div class="color-preset" style="width: 30px; height: 30px; background-color: #EC4899; cursor: pointer; border-radius: 50%;" data-color="#EC4899"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="saveFolderBtn">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Move Chat to Folder Modal -->
+    <div class="modal fade" id="moveChatModal" tabindex="-1" aria-labelledby="moveChatModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-white">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="moveChatModalLabel">Move Chat to Folder</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Select a folder to move this chat to:</p>
+                    <div class="list-group" id="foldersList">
+                        <!-- Folders will be populated here -->
+                    </div>
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-outline-secondary" id="removeFromFolderBtn">
+                            <i class="fas fa-times"></i> Remove from Folder
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div><!-- End page-content -->
+
+    <!-- Skeleton to content swap script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var skeleton = document.getElementById('page-skeleton');
+            var content = document.getElementById('page-content');
+            if (skeleton && content) {
+                skeleton.style.display = 'none';
+                // Remove inline display:none, let CSS #page-content styles take over
+                content.style.removeProperty('display');
+            }
+        });
+    </script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+    <script src="{{ get_static_url('/static/js/api-credentials-client.js') }}"></script>
+    <script src="{{ get_static_url('/static/js/common/notification-modal.js') }}"></script>
+    <script src="{{ get_static_url('/static/js/chat/session-utils.js') }}"></script>
+    <script src="{{ get_static_url('/static/js/chat/utils.js') }}"></script>
+    <script src="{{ get_static_url('/static/js/chat/fileHandling.js') }}"></script>
+    <script src="{{ get_static_url('/static/js/chat/audio.js') }}"></script>
+    <script src="{{ get_static_url('/static/js/chat/main.js') }}"></script>
+    <script src="{{ get_static_url('/static/js/chat/chat.js') }}"></script>
+
+    <script src="{{ get_static_url('/static/js/chat/folders.js') }}"></script>
+    <script src="{{ get_static_url('/static/js/themeManager.js') }}"></script>
+    <script src="/sdk/elevenlabs-client.js"></script>
+    <script src="{{ get_static_url('/static/js/chat/voice-call.js') }}"></script>
+    <script>
+        // CDN Configuration for JavaScript
+        window.CDN_CONFIG = {
+            enabled: {{ get_static_url('/static/').startswith('http')|tojson }},
+            baseUrl: "{{ get_static_url('/static/').rstrip('/') }}"
+        };
+
+        var admin_view = {{ admin_view|tojson }};
+        var startDate = {{ start_date_iso | tojson }};
+        var currentConversationId = {{ conversation_id|tojson }};
+        var have_vision = {{ have_vision | tojson }};
+        var user_id = {{ user_id }};
+        var username = "{{ username }}";
+        var userProfilePicture = "{{ user_profile_picture | default('', true) }}";
+        var botProfilePicture = "{{ bot_profile_picture | default('', true) }}";
+        var isAdmin = {{ is_admin|tojson }};
+        var isManager = {{ is_manager|tojson }};
+        var promptDescription = {{ prompt_description|tojson|safe }};
+        var availableModels = {{ llm_models|tojson|safe }};
+        // API Key Mode variables
+        var apiKeyMode = {{ api_key_mode|tojson }};
+        var canSendMessages = {{ can_send_messages|tojson }};
+        var requiresOwnKeys = {{ requires_own_keys|tojson }};
+        var hasOwnKeys = {{ has_own_keys|tojson }};
+        // Embedded data to reduce HTTP requests on page load
+        var embeddedChatFolders = {{ chat_folders|tojson|safe }};
+        var embeddedInitialConversations = {{ initial_conversations|tojson|safe }};
+        var messageInputContainer = document.getElementById('message-input-container');
+        var messageText = document.getElementById('message-text');
+        var formMessage = document.getElementById('form-message');
+        var sendButton = document.querySelector('#form-message button[type="submit"]');
+
+        if (admin_view) {
+            formMessage.classList.add('hidden');
+        } else {
+            formMessage.classList.remove('hidden');
+        }
+    </script>
+</body>
+
+</html>

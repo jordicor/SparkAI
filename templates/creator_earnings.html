@@ -1,0 +1,524 @@
+{% extends 'base.html' %}
+
+{% block title %}Creator Earnings - SPARK{% endblock %}
+
+{% block styles %}
+{# Theme CSS loaded by theme-loader.js #}
+<style>
+    /* Stat cards - subtle accent borders */
+    .stat-card {
+        background: var(--bg-secondary, #2f3136);
+        border: 1px solid var(--border-color, #40444b);
+        border-radius: 12px;
+        padding: 1.25rem;
+        height: 100%;
+        border-left: 3px solid var(--accent, #5865f2);
+    }
+    .stat-card.primary { border-left-color: var(--accent, #5865f2); }
+    .stat-card.success { border-left-color: var(--success, #43b581); }
+    .stat-card.info { border-left-color: var(--info, #3498db); }
+    .stat-card.warning { border-left-color: var(--warning, #faa61a); }
+    .stat-card .amount {
+        font-size: 1.75rem;
+        font-weight: bold;
+        color: var(--text-primary, #dcddde);
+    }
+    .stat-card .label {
+        font-size: 0.85rem;
+        color: var(--text-secondary, #b9bbbe);
+        margin-bottom: 0.25rem;
+    }
+    /* Withdrawal button - theme aware */
+    .stat-card .btn-light {
+        background: var(--bg-tertiary, #202225);
+        border-color: var(--border-color, #40444b);
+        color: var(--text-primary, #dcddde);
+    }
+    .stat-card .btn-light:hover:not(:disabled) {
+        background: var(--accent, #5865f2);
+        border-color: var(--accent, #5865f2);
+        color: white;
+    }
+    .stat-card .btn-light:disabled {
+        opacity: 0.5;
+    }
+    /* Transaction items */
+    .transaction-item {
+        border-left: 3px solid var(--success, #43b581);
+        padding-left: 1rem;
+        margin-bottom: 0.75rem;
+    }
+    .transaction-item .date {
+        font-size: 0.8rem;
+        color: var(--text-muted, #72767d);
+    }
+    .transaction-item .amount {
+        font-weight: bold;
+        color: var(--success, #43b581);
+    }
+    /* Connect status badge */
+    .connect-status {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+    .connect-status.connected {
+        background: rgba(67, 181, 129, 0.15);
+        color: var(--success, #43b581);
+        border: 1px solid var(--success, #43b581);
+    }
+    .connect-status.pending {
+        background: rgba(250, 166, 26, 0.15);
+        color: var(--warning, #faa61a);
+        border: 1px solid var(--warning, #faa61a);
+    }
+    .connect-status.not-connected {
+        background: rgba(114, 118, 125, 0.15);
+        color: var(--text-muted, #72767d);
+        border: 1px solid var(--border-color, #40444b);
+    }
+    /* Connect card specific styles */
+    .connect-card {
+        min-height: auto;
+    }
+    .connect-card .connect-info {
+        font-size: 0.85rem;
+        color: var(--text-secondary, #b9bbbe);
+        margin-top: 0.5rem;
+    }
+    .btn-stripe {
+        background: #635bff;
+        border-color: #635bff;
+        color: white;
+    }
+    .btn-stripe:hover:not(:disabled) {
+        background: #5046e5;
+        border-color: #5046e5;
+        color: white;
+    }
+    .btn-stripe:disabled {
+        opacity: 0.6;
+    }
+</style>
+{% endblock %}
+
+{% block page_title %}Creator Earnings{% endblock %}
+
+{% block back_url %}/{% endblock %}
+
+{% block page_subtitle %}
+<p class="text-muted mb-0">Track your earnings from paid prompts. You earn 70% of markup when users use your prompts.</p>
+{% endblock %}
+
+{% block content %}
+<!-- Bank Account Card -->
+<div class="row mt-4">
+    <div class="col-12 mb-4">
+        <div class="stat-card warning connect-card">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+                <div>
+                    <div class="label"><i class="fas fa-university me-1"></i>Bank Account</div>
+                    <div id="connectStatus" class="mt-2">
+                        <span class="connect-status not-connected">
+                            <i class="fas fa-spinner fa-spin me-1"></i> Loading...
+                        </span>
+                    </div>
+                    <div class="connect-info" id="connectInfo">
+                        Connect your bank account to receive automatic payouts.
+                    </div>
+                </div>
+                <div id="connectActions">
+                    <!-- Buttons populated by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row">
+    <div class="col-md-4 mb-4">
+        <div class="stat-card primary">
+            <div class="label"><i class="fas fa-coins me-1"></i>Total Earned (All Time)</div>
+            <div class="amount" id="totalEarned">$0.00</div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="stat-card success">
+            <div class="label"><i class="fas fa-calendar-alt me-1"></i>This Month</div>
+            <div class="amount" id="thisMonth">$0.00</div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="stat-card info">
+            <div class="label"><i class="fas fa-wallet me-1"></i>Available for Withdrawal</div>
+            <div class="amount" id="pendingEarnings">$0.00</div>
+            <div class="mt-2">
+                <button class="btn btn-light btn-sm" id="withdrawBtn" onclick="requestPayout()" disabled>
+                    <i class="fas fa-money-bill-wave me-1"></i> Request Withdrawal
+                </button>
+                <small class="d-block mt-1" id="withdrawNote">Minimum: $50</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Earnings by Prompt -->
+    <div class="col-lg-8 mb-4">
+        <div class="section-container">
+            <div class="section-title"><i class="fas fa-list me-2"></i>Earnings by Prompt</div>
+            <div class="table-responsive">
+                <table class="table earnings-table">
+                    <thead>
+                        <tr>
+                            <th>Prompt</th>
+                            <th class="text-center">Users</th>
+                            <th class="text-end">Tokens</th>
+                            <th class="text-end">Earned</th>
+                        </tr>
+                    </thead>
+                    <tbody id="promptEarningsTable">
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-4">
+                                <i class="fas fa-spinner fa-spin me-2"></i>Loading...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Transactions -->
+    <div class="col-lg-4 mb-4">
+        <div class="section-container">
+            <div class="section-title"><i class="fas fa-history me-2"></i>Recent Earnings</div>
+            <div id="recentTransactions">
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-spinner fa-spin me-2"></i>Loading...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    // Global state
+    let connectState = {
+        connected: false,
+        onboarding_complete: false,
+        payouts_enabled: false
+    };
+    let pendingEarningsAmount = 0;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Handle URL parameters (success/warning/error from Stripe redirect)
+        handleUrlParams();
+        // Load both Connect status and earnings data
+        loadConnectStatus();
+        loadEarningsData();
+    });
+
+    function handleUrlParams() {
+        const params = new URLSearchParams(window.location.search);
+
+        if (params.get('success') === 'connected') {
+            NotificationModal.success('Bank Account Connected', 'Your bank account has been successfully connected. You can now receive payouts!');
+            // Clean URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+        } else if (params.get('warning') === 'pending_verification') {
+            NotificationModal.warning('Verification Pending', 'Your account setup is almost complete. Stripe is verifying your information.');
+            window.history.replaceState({}, document.title, window.location.pathname);
+        } else if (params.get('warning') === 'incomplete') {
+            NotificationModal.warning('Setup Incomplete', 'Please complete the bank account setup to receive payouts.');
+            window.history.replaceState({}, document.title, window.location.pathname);
+        } else if (params.get('warning') === 'link_expired') {
+            NotificationModal.warning('Link Expired', 'Your onboarding link has expired. Please click "Connect Bank Account" to start again.');
+            window.history.replaceState({}, document.title, window.location.pathname);
+        } else if (params.get('error')) {
+            const errorMsg = params.get('error') === 'stripe_error' ? 'A Stripe error occurred. Please try again.' :
+                            params.get('error') === 'no_account' ? 'No account found. Please start the connection process again.' :
+                            'An error occurred. Please try again.';
+            NotificationModal.error('Error', errorMsg);
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }
+
+    async function loadConnectStatus() {
+        const statusDiv = document.getElementById('connectStatus');
+        const infoDiv = document.getElementById('connectInfo');
+        const actionsDiv = document.getElementById('connectActions');
+
+        try {
+            const response = await fetch('/api/connect/status');
+            if (!response.ok) throw new Error('Failed to load status');
+            const data = await response.json();
+
+            connectState = data;
+
+            if (data.connected && data.payouts_enabled) {
+                // Fully connected and ready
+                statusDiv.innerHTML = `
+                    <span class="connect-status connected">
+                        <i class="fas fa-check-circle me-1"></i> Connected & Ready
+                    </span>
+                `;
+                infoDiv.textContent = 'Your bank account is connected. Payouts will be sent automatically when you request them.';
+                actionsDiv.innerHTML = ''; // No action needed
+            } else if (data.connected && data.onboarding_complete && !data.payouts_enabled) {
+                // Onboarding done but verification pending
+                statusDiv.innerHTML = `
+                    <span class="connect-status pending">
+                        <i class="fas fa-clock me-1"></i> Verification Pending
+                    </span>
+                `;
+                infoDiv.textContent = 'Stripe is verifying your information. This usually takes a few minutes.';
+                actionsDiv.innerHTML = `
+                    <button class="btn btn-stripe btn-sm" onclick="startOnboarding()">
+                        <i class="fas fa-redo me-1"></i> Check Status
+                    </button>
+                `;
+            } else if (data.connected && !data.onboarding_complete) {
+                // Started but not completed
+                statusDiv.innerHTML = `
+                    <span class="connect-status pending">
+                        <i class="fas fa-exclamation-circle me-1"></i> Setup Incomplete
+                    </span>
+                `;
+                infoDiv.textContent = 'Please complete your bank account setup to receive payouts.';
+                actionsDiv.innerHTML = `
+                    <button class="btn btn-stripe btn-sm" onclick="startOnboarding()">
+                        <i class="fas fa-arrow-right me-1"></i> Complete Setup
+                    </button>
+                `;
+            } else {
+                // Not connected at all
+                statusDiv.innerHTML = `
+                    <span class="connect-status not-connected">
+                        <i class="fas fa-link-slash me-1"></i> Not Connected
+                    </span>
+                `;
+                infoDiv.textContent = 'Connect your bank account to receive automatic payouts when you request withdrawals.';
+                actionsDiv.innerHTML = `
+                    <button class="btn btn-stripe btn-sm" onclick="startOnboarding()">
+                        <i class="fab fa-stripe me-1"></i> Connect Bank Account
+                    </button>
+                `;
+            }
+
+            // Update withdrawal button state based on Connect status
+            updateWithdrawButton();
+
+        } catch (error) {
+            console.error('Error loading Connect status:', error);
+            statusDiv.innerHTML = `
+                <span class="connect-status not-connected">
+                    <i class="fas fa-exclamation-triangle me-1"></i> Error loading status
+                </span>
+            `;
+            actionsDiv.innerHTML = `
+                <button class="btn btn-light btn-sm" onclick="loadConnectStatus()">
+                    <i class="fas fa-redo me-1"></i> Retry
+                </button>
+            `;
+        }
+    }
+
+    async function startOnboarding() {
+        const actionsDiv = document.getElementById('connectActions');
+        actionsDiv.innerHTML = `
+            <button class="btn btn-stripe btn-sm" disabled>
+                <i class="fas fa-spinner fa-spin me-1"></i> Connecting...
+            </button>
+        `;
+
+        try {
+            const response = await fetch('/api/connect/onboard', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success && data.url) {
+                // Redirect to Stripe onboarding
+                window.location.href = data.url;
+            } else {
+                NotificationModal.error('Connection Failed', data.message || 'Failed to start bank account connection.');
+                loadConnectStatus(); // Reload to restore button
+            }
+        } catch (error) {
+            console.error('Error starting onboarding:', error);
+            NotificationModal.error('Error', 'An error occurred. Please try again.');
+            loadConnectStatus();
+        }
+    }
+
+    function updateWithdrawButton() {
+        const withdrawBtn = document.getElementById('withdrawBtn');
+        const withdrawNote = document.getElementById('withdrawNote');
+
+        const hasMinimum = pendingEarningsAmount >= 50;
+        const canPayout = connectState.connected && connectState.payouts_enabled;
+
+        if (!canPayout) {
+            withdrawBtn.disabled = true;
+            withdrawNote.innerHTML = '<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Connect bank account first</span>';
+        } else if (!hasMinimum) {
+            withdrawBtn.disabled = true;
+            const remaining = (50 - pendingEarningsAmount).toFixed(2);
+            withdrawNote.textContent = `$${remaining} more to reach $50 minimum`;
+        } else {
+            withdrawBtn.disabled = false;
+            withdrawNote.textContent = 'Click to withdraw to your bank account';
+        }
+    }
+
+    async function loadEarningsData() {
+        try {
+            const response = await fetch('/api/my-earnings');
+            if (!response.ok) throw new Error('Failed to load earnings data');
+            const data = await response.json();
+
+            // Update stats
+            document.getElementById('totalEarned').textContent = formatCurrency(data.total_earned);
+            document.getElementById('thisMonth').textContent = formatCurrency(data.this_month);
+            document.getElementById('pendingEarnings').textContent = formatCurrency(data.pending_earnings);
+
+            // Store for button logic
+            pendingEarningsAmount = data.pending_earnings || 0;
+
+            // Update withdrawal button
+            updateWithdrawButton();
+
+            // Update prompt earnings table
+            const tableBody = document.getElementById('promptEarningsTable');
+            if (data.by_prompt && data.by_prompt.length > 0) {
+                tableBody.innerHTML = data.by_prompt.map(p => `
+                    <tr>
+                        <td>
+                            <strong>${escapeHtml(p.prompt_name)}</strong>
+                            ${p.is_paid ? '<span class="badge bg-warning text-dark ms-1">Paid</span>' : ''}
+                        </td>
+                        <td class="text-center">${p.unique_users}</td>
+                        <td class="text-end">${formatTokens(p.total_tokens)}</td>
+                        <td class="text-end text-success fw-bold">${formatCurrency(p.total_earned)}</td>
+                    </tr>
+                `).join('');
+            } else {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="text-center text-muted py-4">
+                            <i class="fas fa-info-circle me-2"></i>No earnings yet. Create paid prompts to start earning!
+                        </td>
+                    </tr>
+                `;
+            }
+
+            // Update recent transactions
+            const transDiv = document.getElementById('recentTransactions');
+            if (data.recent && data.recent.length > 0) {
+                transDiv.innerHTML = data.recent.map(t => `
+                    <div class="transaction-item">
+                        <div class="d-flex justify-content-between">
+                            <span>${escapeHtml(t.prompt_name)}</span>
+                            <span class="amount">+${formatCurrency(t.net_earnings)}</span>
+                        </div>
+                        <div class="date">${formatDate(t.created_at)}</div>
+                    </div>
+                `).join('');
+            } else {
+                transDiv.innerHTML = `
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-info-circle me-2"></i>No recent transactions
+                    </div>
+                `;
+            }
+
+        } catch (error) {
+            console.error('Error loading earnings:', error);
+            document.getElementById('promptEarningsTable').innerHTML = `
+                <tr>
+                    <td colspan="4" class="text-center text-danger py-4">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Error loading data
+                    </td>
+                </tr>
+            `;
+        }
+    }
+
+    async function requestPayout() {
+        // Double-check Connect status
+        if (!connectState.payouts_enabled) {
+            NotificationModal.error('Bank Account Required', 'Please connect your bank account before requesting a withdrawal.');
+            return;
+        }
+
+        if (!confirm('Withdraw your pending earnings? The funds will be sent to your connected bank account and typically arrive within 2-3 business days.')) {
+            return;
+        }
+
+        const withdrawBtn = document.getElementById('withdrawBtn');
+        withdrawBtn.disabled = true;
+        withdrawBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Processing...';
+
+        try {
+            const response = await fetch('/api/creator/request-payout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                NotificationModal.success('Payout Sent!', data.message || 'Your payout has been sent to your bank account.');
+                loadEarningsData();
+            } else {
+                NotificationModal.error('Payout Failed', data.message || 'Failed to process payout. Please try again.');
+            }
+        } catch (error) {
+            console.error('Error requesting payout:', error);
+            NotificationModal.error('Error', 'An error occurred. Please try again.');
+        } finally {
+            withdrawBtn.innerHTML = '<i class="fas fa-money-bill-wave me-1"></i> Request Withdrawal';
+            updateWithdrawButton();
+        }
+    }
+
+    function formatCurrency(amount) {
+        return '$' + (parseFloat(amount) || 0).toFixed(2);
+    }
+
+    function formatTokens(tokens) {
+        const num = parseInt(tokens) || 0;
+        if (num >= 1000000) {
+            return (num / 1000000).toFixed(1) + 'M';
+        } else if (num >= 1000) {
+            return (num / 1000).toFixed(1) + 'K';
+        }
+        return num.toString();
+    }
+
+    function formatDate(dateStr) {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+{% endblock %}
