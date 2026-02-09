@@ -37,7 +37,7 @@ body {
 }
 
 #sidebar {
-    min-width: 240px;
+    min-width: 260px;
     max-width: 10vw;
     background-color: var(--sidebar-bg-color);
     display: flex;
@@ -72,14 +72,15 @@ body {
     color: var(--sidebar-text-color);
 }
 
-.list-group-item-action[href="/"] {
-    background-color: transparent; 
-    color: var(--sidebar-text-color);
-    pointer-events: auto; 
+.btn-home-sidebar,
+.btn-collapse-sidebar,
+.btn-expand-sidebar {
+    --sidebar-btn-color: var(--sidebar-text-color);
 }
-.list-group-item-action[href="/"]:hover {
-    background-color: transparent; 
-    color: var(--sidebar-text-color);
+.btn-home-sidebar:hover,
+.btn-collapse-sidebar:hover,
+.btn-expand-sidebar:hover {
+    --sidebar-btn-hover-color: var(--sidebar-text-color);
 }
 
 .btn-toggle-sidebar {
@@ -162,7 +163,7 @@ body {
     position: relative;
     display: flex;
     flex-direction: column;
-    width: calc(100% - min(240px, 10vw));
+    width: calc(100% - min(260px, 10vw));
     box-sizing: border-box;
 }
 
@@ -374,6 +375,29 @@ textarea {
     background-color: #eeeeee;
     border: 1px solid #cccccc;
 }
+
+/* Fix dropdown menu being cut off by chat window */
+.dropdown-menu.new-chat-settings.show {
+    position: fixed !important;
+    z-index: 1060 !important;
+    width: 300px;
+    left: 15px !important;
+    top: 115px !important;
+    transform: none !important;
+}
+
+/* Mobile adjustment for dropdown */
+@media (max-width: 768px) {
+    .dropdown-menu.new-chat-settings.show {
+        top: auto !important;
+        bottom: 60px;
+        left: 10px !important;
+        right: 10px;
+        width: auto;
+        max-width: none;
+        transform: none !important;
+    }
+}
 .new-chat-settings .dropdown-header {
     color: #333333;
 }
@@ -462,6 +486,11 @@ textarea {
     border-radius: 4px;
     cursor: pointer;
     font-size: 14px;
+}
+#dynamic-chats-container .list-group-item .chat-name {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
 }
 #dynamic-chats-container .list-group-item:hover {
     background-color: #eeeeee;
@@ -724,6 +753,7 @@ textarea {
     background-color: #eeeeee;
     border-radius: 8px;
     overflow: hidden;
+    border: 1px solid #000000;
 }
 .input-group {
     width: 100%;
@@ -773,6 +803,13 @@ textarea {
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
     z-index: 1000;
 }
+
+.chat-menu .chat-menu-content.menu-above {
+    top: auto;
+    bottom: 100%;
+    margin-bottom: 5px;
+}
+
 .chat-menu .chat-menu-content a {
     display: block;
     color: #000000;
@@ -1245,6 +1282,36 @@ body {
 
 /* =========== FOLDER SYSTEM STYLES =========== */
 
+/* New Folder button */
+.new-folder-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    margin-bottom: 15px;
+    border: 1px dashed var(--sidebar-border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    color: #666666;
+    transition: none !important;
+    background-color: transparent;
+}
+
+.new-folder-item:hover {
+    border-color: #000000;
+    background-color: #eeeeee;
+    color: #000000;
+}
+
+.new-folder-item i {
+    margin-right: 10px;
+    font-size: 16px;
+}
+
+.new-folder-item span {
+    font-size: 14px;
+    font-weight: 500;
+}
+
 .folder-item {
     background-color: #eeeeee;
     color: #000000;
@@ -1332,6 +1399,36 @@ body {
     padding: 10px;
     text-align: center;
     font-size: 12px;
+}
+
+/* Folder chats container - for JS compatibility */
+.folder-chats-container {
+    margin-left: 15px;
+    padding-left: 12px;
+    border-left: 2px solid #999999;
+    margin-top: 5px;
+}
+
+.folder-chats-container .list-group-item {
+    background-color: transparent;
+    border: none;
+    padding: 5px 10px;
+    margin-bottom: 2px;
+    font-size: 13px;
+    color: #000000;
+}
+
+.folder-chats-container .list-group-item:hover {
+    background-color: #e5e5e5;
+}
+
+.folder-chats-container .list-group-item.active-chat {
+    background-color: #d0d0d0;
+    color: #000000;
+}
+
+.folder-collapsed .folder-chats-container {
+    display: none;
 }
 
 .folder-item.drag-over {
@@ -2034,4 +2131,35 @@ input[type="range"]::-webkit-slider-thumb {
 #thinking-tokens-apply:hover {
     background: #000000;
     color: #ffffff;
+}
+
+
+
+/* =============================================
+   Web Search Toggle
+   ============================================= */
+
+#web-search-control {
+    display: none;
+}
+
+#web-search-control.visible {
+    position: relative;
+    display: flex;
+    align-items: center;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+#web-search-control i {
+    font-size: 14px;
+    line-height: 1;
+}
+
+#web-search-control:hover {
+    color: var(--text-primary);
+}
+
+#web-search-control i.active {
+    color: var(--accent);
 }

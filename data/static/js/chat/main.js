@@ -151,9 +151,28 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Pull-to-refresh for mobile
+    initPullToRefresh();
+
     // Close sidebar on mobile devices when loading
     if (isMobile()) {
         closeSidebar();
+    }
+
+    // Desktop sidebar collapse/expand
+    var collapseSidebarBtn = document.getElementById('collapse-sidebar-btn');
+    var expandSidebarBtn = document.getElementById('expand-sidebar-btn');
+
+    function toggleDesktopSidebar() {
+        var isCollapsed = document.documentElement.classList.toggle('sidebar-collapsed');
+        try { localStorage.setItem('sidebarCollapsed', isCollapsed ? '1' : '0'); } catch(e) {}
+    }
+
+    if (collapseSidebarBtn) {
+        collapseSidebarBtn.addEventListener('click', toggleDesktopSidebar);
+    }
+    if (expandSidebarBtn) {
+        expandSidebarBtn.addEventListener('click', toggleDesktopSidebar);
     }
 
     // Show loading indicator at start
@@ -179,11 +198,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // New code for "New Chat" split button
     var newChatMainBtn = document.getElementById('new-chat-main-btn');
-    
+
     if (newChatMainBtn) {
         newChatMainBtn.addEventListener('click', function(e) {
             e.preventDefault();
-            
+
+            // Close the dropdown menu if it's open
+            var dropdownToggle = document.querySelector('.btn-group .dropdown-toggle-split[data-bs-toggle="dropdown"]');
+            if (dropdownToggle && typeof bootstrap !== 'undefined') {
+                var bsDropdown = bootstrap.Dropdown.getOrCreateInstance(dropdownToggle);
+                bsDropdown.hide();
+            }
+
             // Check session before creating new conversation (force check for critical action)
             SessionManager.validateSession(true).then((isValid) => {
                 if (isValid) {
@@ -489,5 +515,152 @@ class TextareaImagePreviewManager {
 function updatePreviewsPosition() {
     if (window.textareaImagePreviewManager) {
         window.textareaImagePreviewManager.updatePreviewsPosition();
+    }
+}
+
+/**
+ * Pull-to-refresh for mobile devices
+ * Allows refreshing the chat by pulling down when at the top of the messages
+ */
+function initPullToRefresh() {
+    if (!isMobile()) return;
+
+    const chatWindow = document.getElementById('chat-window');
+    if (!chatWindow) return;
+
+    // Create the pull-to-refresh indicator
+    const ptrIndicator = document.createElement('div');
+    ptrIndicator.id = 'ptr-indicator';
+    ptrIndicator.innerHTML = '<div class="ptr-spinner"></div><span class="ptr-text">Pull to refresh</span>';
+
+    // Inject styles
+    const style = document.createElement('style');
+    style.textContent = `
+        #ptr-indicator {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 15px;
+            background: var(--chat-window-bg-color, #36393f);
+            color: var(--text-secondary, #b9bbbe);
+            font-size: 14px;
+            transform: translateY(-100%);
+            transition: transform 0.2s ease, opacity 0.2s ease;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+        }
+        #ptr-indicator.visible {
+            opacity: 1;
+        }
+        #ptr-indicator.refreshing .ptr-spinner {
+            animation: ptr-spin 0.8s linear infinite;
+        }
+        #ptr-indicator.refreshing .ptr-text {
+            display: none;
+        }
+        .ptr-spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--text-muted, rgba(255,255,255,0.3));
+            border-top-color: var(--accent, #7289da);
+            border-radius: 50%;
+            transition: transform 0.1s ease;
+        }
+        .ptr-text {
+            font-weight: 500;
+        }
+        @keyframes ptr-spin {
+            to { transform: rotate(360deg); }
+        }
+    `;
+    document.head.appendChild(style);
+    chatWindow.style.position = 'relative';
+    chatWindow.insertBefore(ptrIndicator, chatWindow.firstChild);
+
+    // Pull-to-refresh state
+    let touchStartY = 0;
+    let pullDistance = 0;
+    let isPulling = false;
+    let isRefreshing = false;
+    const THRESHOLD = 80;
+    const MAX_PULL = 120;
+
+    chatWindow.addEventListener('touchstart', (e) => {
+        if (isRefreshing) return;
+        if (chatWindow.scrollTop <= 0) {
+            touchStartY = e.touches[0].clientY;
+            isPulling = true;
+        }
+    }, { passive: true });
+
+    chatWindow.addEventListener('touchmove', (e) => {
+        if (!isPulling || isRefreshing) return;
+
+        const touchY = e.touches[0].clientY;
+        pullDistance = Math.min(touchY - touchStartY, MAX_PULL);
+
+        if (pullDistance > 0 && chatWindow.scrollTop <= 0) {
+            // Prevent default scroll when pulling
+            e.preventDefault();
+
+            // Update indicator position and appearance
+            const progress = Math.min(pullDistance / THRESHOLD, 1);
+            ptrIndicator.style.transform = `translateY(${pullDistance - ptrIndicator.offsetHeight}px)`;
+            ptrIndicator.classList.add('visible');
+
+            // Rotate spinner based on pull distance
+            const spinner = ptrIndicator.querySelector('.ptr-spinner');
+            spinner.style.transform = `rotate(${progress * 180}deg)`;
+
+            // Update text
+            const text = ptrIndicator.querySelector('.ptr-text');
+            text.textContent = pullDistance >= THRESHOLD ? 'Release to refresh' : 'Pull to refresh';
+        }
+    }, { passive: false });
+
+    chatWindow.addEventListener('touchend', async () => {
+        if (!isPulling || isRefreshing) return;
+
+        if (pullDistance >= THRESHOLD) {
+            // Trigger refresh
+            isRefreshing = true;
+            ptrIndicator.classList.add('refreshing');
+            ptrIndicator.style.transform = 'translateY(0)';
+
+            try {
+                if (typeof window.refreshActiveConversation === 'function') {
+                    await window.refreshActiveConversation();
+                } else {
+                    // Fallback: reload messages if refreshActiveConversation is not available
+                    if (typeof loadMessages === 'function' && typeof currentConversationId !== 'undefined' && currentConversationId) {
+                        await loadMessages(currentConversationId, false);
+                    }
+                }
+            } catch (error) {
+                console.error('Pull-to-refresh error:', error);
+            }
+
+            // Small delay before hiding to show completion
+            setTimeout(() => {
+                hideIndicator();
+                isRefreshing = false;
+            }, 300);
+        } else {
+            hideIndicator();
+        }
+
+        isPulling = false;
+        pullDistance = 0;
+    }, { passive: true });
+
+    function hideIndicator() {
+        ptrIndicator.style.transform = 'translateY(-100%)';
+        ptrIndicator.classList.remove('visible', 'refreshing');
     }
 }

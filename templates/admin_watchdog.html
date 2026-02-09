@@ -1,0 +1,183 @@
+{% extends 'base_admin.html' %}
+
+{% block title %}Watchdog Events - SPARK{% endblock %}
+
+{% block page_title %}Watchdog Events{% endblock %}
+
+{% block page_subtitle %}
+<p class="page-subtitle">Monitor conversation steering events and diagnostics</p>
+{% endblock %}
+
+{% block alerts %}
+{% if error %}
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="fas fa-exclamation-circle me-2"></i>{{ error }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<!-- Stats -->
+<div class="stats-row">
+    <span class="stat-badge">
+        <i class="fas fa-list-check"></i> <strong>{{ events|length }}</strong> Events shown
+    </span>
+    <span class="stat-badge">
+        <i class="fas fa-bolt"></i> <strong>{{ stats.hints }}</strong> Hints generated
+    </span>
+    <span class="stat-badge">
+        <i class="fas fa-bug"></i> <strong>{{ stats.errors }}</strong> Errors
+    </span>
+</div>
+
+<!-- Filters -->
+<div class="section-container">
+    <div class="section-title">
+        <i class="fas fa-filter"></i> Filters
+    </div>
+    <form method="get" action="/admin/watchdog-events" id="filterForm">
+        <div class="flex-row">
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label class="form-label" for="filter_event_type">Event Type</label>
+                    <select class="form-select" id="filter_event_type" name="event_type" onchange="this.form.submit()">
+                        <option value="">All types</option>
+                        {% for et in event_types %}
+                        <option value="{{ et }}" {% if filters.event_type == et %}selected{% endif %}>{{ et }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label class="form-label" for="filter_severity">Severity</label>
+                    <select class="form-select" id="filter_severity" name="severity" onchange="this.form.submit()">
+                        <option value="">All severities</option>
+                        {% for sev in severities %}
+                        <option value="{{ sev }}" {% if filters.severity == sev %}selected{% endif %}>{{ sev }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label class="form-label" for="filter_prompt_id">Prompt</label>
+                    <select class="form-select" id="filter_prompt_id" name="prompt_id" onchange="this.form.submit()">
+                        <option value="">All prompts</option>
+                        {% for p in prompts %}
+                        <option value="{{ p.id }}" {% if filters.prompt_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label class="form-label" for="filter_conversation_id">Conversation ID</label>
+                    <input class="form-control" id="filter_conversation_id" name="conversation_id"
+                           value="{{ filters.conversation_id or '' }}"
+                           placeholder="Filter by conv ID" type="number" min="1">
+                </div>
+            </div>
+        </div>
+        <div class="mt-2 d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-sm">
+                <i class="fas fa-search me-1"></i> Apply
+            </button>
+            <a href="/admin/watchdog-events" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-times me-1"></i> Clear
+            </a>
+        </div>
+    </form>
+</div>
+
+<!-- Events Table -->
+<div class="section-container">
+    <div class="section-title">
+        <i class="fas fa-eye"></i> Events
+    </div>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="width: 140px;">Date</th>
+                    <th style="width: 80px;">Conv</th>
+                    <th>Prompt</th>
+                    <th style="width: 110px;">Event</th>
+                    <th style="width: 80px;">Severity</th>
+                    <th>Analysis</th>
+                    <th>Hint</th>
+                    <th style="width: 100px;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for event in events %}
+                <tr>
+                    <td><small>{{ event.created_at }}</small></td>
+                    <td>
+                        <span title="{{ event.chat_name or '' }}" data-bs-toggle="tooltip">
+                            {{ event.conversation_id }}
+                        </span>
+                    </td>
+                    <td><small>{{ event.prompt_name or ('-') }}</small></td>
+                    <td>
+                        {% if event.event_type == 'none' %}
+                        <span class="badge bg-secondary">none</span>
+                        {% elif event.event_type == 'error' %}
+                        <span class="badge bg-danger">error</span>
+                        {% elif event.event_type == 'drift' %}
+                        <span class="badge bg-warning text-dark">drift</span>
+                        {% elif event.event_type == 'rabbit_hole' %}
+                        <span class="badge bg-warning text-dark">rabbit_hole</span>
+                        {% elif event.event_type == 'stuck' %}
+                        <span class="badge bg-info text-dark">stuck</span>
+                        {% elif event.event_type == 'inconsistency' %}
+                        <span class="badge bg-danger">inconsistency</span>
+                        {% elif event.event_type == 'saturation' %}
+                        <span class="badge bg-info text-dark">saturation</span>
+                        {% elif event.event_type == 'security' %}
+                        <span class="badge bg-dark">security</span>
+                        {% else %}
+                        <span class="badge bg-secondary">{{ event.event_type }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if event.severity == 'info' %}
+                        <span class="badge bg-secondary">info</span>
+                        {% elif event.severity == 'nudge' %}
+                        <span class="badge bg-primary">nudge</span>
+                        {% elif event.severity == 'redirect' %}
+                        <span class="badge bg-warning text-dark">redirect</span>
+                        {% elif event.severity == 'alert' %}
+                        <span class="badge bg-danger">alert</span>
+                        {% else %}
+                        <span class="badge bg-secondary">{{ event.severity }}</span>
+                        {% endif %}
+                    </td>
+                    <td><small class="text-break">{{ event.analysis[:200] if event.analysis else '-' }}{% if event.analysis and event.analysis|length > 200 %}...{% endif %}</small></td>
+                    <td><small class="text-break">{{ event.hint[:150] if event.hint else '-' }}{% if event.hint and event.hint|length > 150 %}...{% endif %}</small></td>
+                    <td>
+                        {% if event.action_taken == 'hint_generated' %}
+                        <span class="badge bg-success">hint</span>
+                        {% elif event.action_taken == 'error' %}
+                        <span class="badge bg-danger">error</span>
+                        {% elif event.action_taken == 'blocked' %}
+                        <span class="badge bg-dark">blocked</span>
+                        {% else %}
+                        <span class="badge bg-secondary">none</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">
+                        <i class="fas fa-eye fa-2x mb-2 d-block opacity-50"></i>
+                        No watchdog events found.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

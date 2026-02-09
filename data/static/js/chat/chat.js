@@ -16,6 +16,25 @@ const processedMessageIds = new Set();
 let currentThinkingBudget = 0;
 let isCurrentConversationLocked = false;
 
+// Auto-scroll state management
+let isUserScrolledUp = false;
+const SCROLL_THRESHOLD = 100; // px from bottom to consider "locked" to bottom
+
+function isNearBottom(element) {
+    return element.scrollHeight - element.scrollTop - element.clientHeight < SCROLL_THRESHOLD;
+}
+
+function scrollToBottomIfNeeded() {
+    const chatWindow = document.getElementById('chat-window');
+    if (!isUserScrolledUp) {
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+}
+
+// Web Search Toggle state
+let webSearchEnabled = true;   // User preference (default ON)
+let webSearchAllowed = true;   // Prompt allows web search
+
 // =============================================
 // API Key Mode Manager
 // =============================================
@@ -338,8 +357,7 @@ function addMessage(author, message, timestampInfo = null, isTemporary = false, 
             chatMessagesContainer.insertBefore(divMessage, chatMessagesContainer.firstChild);
         } else {
             chatMessagesContainer.appendChild(divMessage);
-            var chatWindow = document.getElementById('chat-window');
-            chatWindow.scrollTop = chatWindow.scrollHeight;
+            scrollToBottomIfNeeded();
         }
     }
 
@@ -487,6 +505,10 @@ function sendMessage(messageText) {
     if (!messageText.trim()) {
         return;
     }
+
+    // Reset auto-scroll state when user sends a message
+    isUserScrolledUp = false;
+
     // Send the compressed message with pako
     const messageText_raw = messageText;
 
@@ -554,6 +576,24 @@ function sendMessage(messageText) {
                     return null;
                 }
             });
+        }
+        if (response.status === 403) {
+            // Conversation is locked (e.g. watchdog force-lock)
+            // Remove the user message we optimistically added to the DOM
+            if (userMessageElement) userMessageElement.remove();
+            isCurrentConversationLocked = true;
+            const lockedBanner = document.getElementById('locked-conversation-banner');
+            if (lockedBanner) lockedBanner.style.display = 'flex';
+            const msgInput = document.getElementById('message-text');
+            msgInput.placeholder = 'This conversation is locked';
+            msgInput.disabled = true;
+            const submitBtn = document.querySelector('#form-message button[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
+            document.getElementById('loading-indicator').style.display = 'none';
+            toggleSendButton('Send');
+            // Reload conversation to show the system lock message
+            loadConversation(currentConversationId);
+            return null;
         }
         return response.body.getReader();
     })
@@ -646,7 +686,7 @@ function sendMessage(messageText) {
         // Reset text field to original size
         document.getElementById('message-text').style.height = 'auto';
         addLoadingIndicator();
-        document.getElementById('chat-window').scrollTop = document.getElementById('chat-window').scrollHeight;
+        scrollToBottomIfNeeded();
 
         function readStream() {
             return reader.read().then(({ done, value }) => {
@@ -724,7 +764,7 @@ function sendMessage(messageText) {
                                 } catch (e) {
                                     console.error('Error parsing video content:', e);
                                 }
-                                document.getElementById('chat-window').scrollTop = document.getElementById('chat-window').scrollHeight;
+                                scrollToBottomIfNeeded();
                             } else if (parsedData.content) {
                                 // Handle replace_last for progress updates
                                 if (parsedData.replace_last) {
@@ -745,7 +785,7 @@ function sendMessage(messageText) {
                                 // Initialize newly added images
                                 initializeNewImages(botMessageElement);
 
-                                document.getElementById('chat-window').scrollTop = document.getElementById('chat-window').scrollHeight;
+                                scrollToBottomIfNeeded();
                             } else if (parsedData.message_ids) {
 								if (parsedData.message_ids.bot) {
 									newMessageId = parsedData.message_ids.bot;
@@ -789,7 +829,7 @@ function sendMessage(messageText) {
             document.getElementById('message-text').disabled = false;
             document.querySelector('#form-message button[type="submit"]').disabled = false;
             document.getElementById('message-text').focus();
-            document.getElementById('chat-window').scrollTop = document.getElementById('chat-window').scrollHeight;
+            scrollToBottomIfNeeded();
 
             isCurrentConversationEmpty = false;
             attachedFiles = [];
@@ -979,6 +1019,7 @@ function addConversationElement(conversation, chatName, currentConversationId, i
     conversationElement.dataset.machine = conversation.machine;
     conversationElement.dataset.llmModel = conversation.llm_model || '';
     conversationElement.dataset.locked = conversation.locked ? 'true' : 'false';
+    conversationElement.dataset.webSearchAllowed = conversation.web_search_allowed !== false ? 'true' : 'false';
     if (conversation.locked) {
         conversationElement.classList.add('conversation-locked');
     }
@@ -1078,20 +1119,39 @@ function createChatMenu(conversation) {
     const whatsappLink = createPlatformLink('whatsapp', conversation);
     chatMenuContent.appendChild(whatsappLink);
 
-    let isMenuOpen = false;
-
     // Click handler for the chat-menu-content div
     chatMenu.addEventListener('click', (e) => {
         e.stopPropagation();
-        isMenuOpen = !isMenuOpen;
-        chatMenuContent.style.display = isMenuOpen ? 'block' : 'none';
+
+        const isCurrentlyOpen = chatMenuContent.style.display === 'block';
+
+        // Close all open menus first
+        document.querySelectorAll('.chat-menu-content').forEach(menu => {
+            menu.style.display = 'none';
+            menu.classList.remove('menu-above');
+        });
+
+        // Toggle current menu
+        if (!isCurrentlyOpen) {
+            chatMenuContent.style.display = 'block';
+
+            // Check if menu overflows viewport bottom
+            const menuRect = chatMenuContent.getBoundingClientRect();
+            const viewportHeight = window.innerHeight;
+
+            if (menuRect.bottom > viewportHeight) {
+                chatMenuContent.classList.add('menu-above');
+            } else {
+                chatMenuContent.classList.remove('menu-above');
+            }
+        }
     });
 
     // Handler to close menu when clicking outside
     document.addEventListener('click', (e) => {
-        if (!chatMenu.contains(e.target) && isMenuOpen) {
-            isMenuOpen = false;
+        if (!chatMenu.contains(e.target) && chatMenuContent.style.display === 'block') {
             chatMenuContent.style.display = 'none';
+            chatMenuContent.classList.remove('menu-above');
         }
     });
 
@@ -1649,6 +1709,16 @@ function continueConversation(conversationId, chatName, machine, isInit = false,
             
             initializeCurrentMessageIndex();
             showPromptInfo();
+
+            // Initialize web search toggle control with data from conversation element or passed data
+            let webSearchAllowedByPrompt = null;
+            if (selectedChat?.dataset?.webSearchAllowed !== undefined) {
+                webSearchAllowedByPrompt = selectedChat.dataset.webSearchAllowed === 'true';
+            } else if (conversationData?.web_search_allowed !== undefined) {
+                webSearchAllowedByPrompt = conversationData.web_search_allowed;
+            }
+            initWebSearchControl(conversationId, webSearchAllowedByPrompt);
+
             resolve();
         });
     });
@@ -1995,8 +2065,16 @@ function disableInputControls() {
 function setupInfiniteScroll(conversationId) {
     const chatWindow = document.getElementById('chat-window');
     chatWindow.onscroll = function() {
+        // Infinite scroll: load older messages when at top
         if (chatWindow.scrollTop === 0 && !isLoading && !allMessagesLoaded) {
             loadMessages(conversationId, true);
+        }
+
+        // Auto-scroll management: detect user scroll intent
+        if (isNearBottom(chatWindow)) {
+            isUserScrolledUp = false;
+        } else {
+            isUserScrolledUp = true;
         }
     };
 }
@@ -2995,14 +3073,83 @@ function initializeThinkingTokensControl() {
     
     // Make function globally accessible
     window.updateThinkingTokensVisibility = updateThinkingTokensVisibility;
-    
+
     // Initial check
     updateThinkingTokensVisibility();
+}
+
+// =============================================
+// Web Search Toggle Control
+// =============================================
+
+function initWebSearchControl(conversationId, webSearchAllowedByPrompt = null) {
+    const control = document.getElementById('web-search-control');
+    const button = document.getElementById('web-search-button');
+
+    if (!control || !button) return;
+
+    if (!conversationId) {
+        control.classList.remove('visible');
+        return;
+    }
+
+    // Use passed data or fall back to default (true = allowed)
+    webSearchAllowed = webSearchAllowedByPrompt !== null ? webSearchAllowedByPrompt : true;
+    // Use global user preference from template
+    webSearchEnabled = typeof webSearchUserEnabled !== 'undefined' ? webSearchUserEnabled : true;
+
+    if (webSearchAllowed) {
+        // Prompt allows web search - show the toggle
+        control.classList.add('visible');
+        updateWebSearchButtonState();
+    } else {
+        // Prompt disables web search - hide the toggle completely
+        control.classList.remove('visible');
+    }
+}
+
+function updateWebSearchButtonState() {
+    const button = document.getElementById('web-search-button');
+    if (!button) return;
+
+    if (webSearchEnabled) {
+        button.classList.add('active');
+        button.title = 'Web Search: ON (click to disable)';
+    } else {
+        button.classList.remove('active');
+        button.title = 'Web Search: OFF (click to enable)';
+    }
+}
+
+async function toggleWebSearch() {
+    if (!webSearchAllowed) return;
+
+    try {
+        const response = await secureFetch('/api/user/web-search-toggle', {
+            method: 'POST'
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        webSearchEnabled = data.web_search_enabled;
+        // Update global so it persists when switching conversations
+        webSearchUserEnabled = webSearchEnabled;
+        updateWebSearchButtonState();
+    } catch (error) {
+        console.error('Error toggling web search:', error);
+    }
+}
+
+function initWebSearchEventListeners() {
+    const button = document.getElementById('web-search-button');
+    if (button) {
+        button.addEventListener('click', toggleWebSearch);
+    }
 }
 
 // Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', function() {
     initializeThinkingTokensControl();
+    initWebSearchEventListeners();
     // Check again after a short delay to ensure model info is loaded
     setTimeout(() => {
         if (window.updateThinkingTokensVisibility) {

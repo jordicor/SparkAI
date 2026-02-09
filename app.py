@@ -49,7 +49,7 @@ from twilio.request_validator import RequestValidator
 import jwt
 from jwt import PyJWTError as JWTError
 from pydantic import BaseModel
-from cachetools import TTLCache
+from cachetools import TTLCache, LRUCache
 from reportlab.lib import colors
 from html import escape, unescape
 from unicodedata import normalize
@@ -107,7 +107,7 @@ from email_service import email_service
 from email_validation import validate_email_robust
 from common import Cost, generate_user_hash, has_sufficient_balance, cost_tts, cache_directory, users_directory, tts_engine, get_balance, deduct_balance, record_daily_usage, load_service_costs, estimate_message_tokens, custom_unescape, sanitize_name, templates, validate_path_within_directory, slugify, is_internal_ip, generate_public_id, get_template_context
 from common import SCRIPT_DIR, DATA_DIR, CLOUDFLARE_API_KEY, CLOUDFLARE_EMAIL, CLOUDFLARE_ZONE_ID, CLOUDFLARE_API_URL, CLOUDFLARE_FOR_IMAGES, CLOUDFLARE_SECRET, CLOUDFLARE_IMAGE_SUBDOMAIN, CLOUDFLARE_BASE_URL, generate_cloudflare_signature, generate_signed_url_cloudflare, CLOUDFLARE_DOMAIN, CLOUDFLARE_CNAME_TARGET
-from common import ALGORITHM, MAX_TOKENS, TOKEN_LIMIT, MAX_MESSAGE_SIZE, MAX_IMAGE_UPLOAD_SIZE, MAX_IMAGE_PIXELS, USE_MODERATION_API, PERPLEXITY_API_KEY, elevenlabs_key, openai_key, claude_key, gemini_key, openrouter_key, service_sid, twilio_sid, twilio_auth, decode_jwt_cached, validate_twilio_media_url, AVATAR_TOKEN_EXPIRE_HOURS, MEDIA_TOKEN_EXPIRE_HOURS
+from common import ALGORITHM, MAX_TOKENS, TOKEN_LIMIT, MAX_MESSAGE_SIZE, MAX_IMAGE_UPLOAD_SIZE, MAX_IMAGE_PIXELS, PERPLEXITY_API_KEY, elevenlabs_key, openai_key, claude_key, gemini_key, openrouter_key, service_sid, twilio_sid, twilio_auth, decode_jwt_cached, validate_twilio_media_url, AVATAR_TOKEN_EXPIRE_HOURS, MEDIA_TOKEN_EXPIRE_HOURS
 from common import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
 from common import STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET
 from common import encrypt_api_key, decrypt_api_key, mask_api_key
@@ -136,7 +136,16 @@ from captcha_service import verify_captcha, get_captcha_config, set_captcha_enab
 # Custom domains for landing pages
 from middleware.custom_domains import CustomDomainMiddleware, set_primary_domains
 # Security middleware for scanner/bot protection
-from middleware.security import SecurityMiddleware
+from middleware.security import (
+    SecurityMiddleware,
+    get_security_stats_async,
+    get_security_events_async,
+    get_security_blocked_ips_async,
+    manually_block_ip_async,
+    manually_unblock_ip_async,
+    is_ip_blocked_async,
+    retry_cloudflare_sync_async,
+)
 # Security config for forbidden names
 from security_config import is_forbidden_username
 from routes.custom_domains import router as custom_domains_router, admin_router as custom_domains_admin_router
@@ -175,6 +184,9 @@ async def lifespan(app: FastAPI):
             logger.error("Error initializing in-memory SQLite: %s", e)
             logger.warning("Continuing without memory DB initialization...")
             # Don't raise - continue startup
+
+    # Warm up landing page cache with most visited prompts
+    await warmup_landing_cache()
 
     yield
 
@@ -256,6 +268,14 @@ stt_engine = os.getenv('STT_ENGINE', 'deepgram')
 stt_fallback_enabled = os.getenv('STT_FALLBACK_ENABLED', '0') == '1'
 
 user_costs_cache = TTLCache(maxsize=1024, ttl=3600)
+
+# Landing page LRU cache configuration
+LANDING_CACHE_SIZE = int(os.getenv("LANDING_CACHE_SIZE", "10000"))
+LANDING_CACHE_WARMUP = int(os.getenv("LANDING_CACHE_WARMUP", "1000"))
+_landing_path_cache: LRUCache = LRUCache(maxsize=LANDING_CACHE_SIZE)
+_landing_cache_locks: dict = {}  # Singleflight locks per public_id
+_landing_cache_stats = {"hits": 0, "misses": 0}
+
 PEPPER = os.getenv('PEPPER')
 
 rol = "santa"
@@ -264,7 +284,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 app.add_middleware(SessionMiddleware, secret_key=os.urandom(24))
 
 # Custom Domain Middleware - configure primary domains that skip DB lookup
-PRIMARY_APP_DOMAIN = os.getenv("PRIMARY_APP_DOMAIN", "localhost")
+PRIMARY_APP_DOMAIN = os.getenv("PRIMARY_APP_DOMAIN", "yourdomain.com")
 set_primary_domains([
     PRIMARY_APP_DOMAIN,
     CLOUDFLARE_DOMAIN,
@@ -289,6 +309,21 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: Optional[str] = None
+
+
+class SecurityManualBlockRequest(BaseModel):
+    ip: str
+    hours: int = 24
+    reason: str = "Manual block"
+
+
+class SecurityManualUnblockRequest(BaseModel):
+    ip: str
+
+
+class SecurityRetrySyncRequest(BaseModel):
+    ip: str
+    reason: str = "Manual sync retry from admin panel"
 
 
 class TextToSpeechRequest(BaseModel):
@@ -547,7 +582,7 @@ async def get_user_accessible_prompts(user: User, cursor, all_prompts_access: bo
             FROM PROMPTS p
             JOIN USERS u ON p.created_by_user_id = u.id
             LEFT JOIN PROMPT_CUSTOM_DOMAINS pcd ON p.id = pcd.prompt_id
-            ORDER BY p.name
+            ORDER BY p.name COLLATE NOCASE
         ''')
     elif await user.is_manager:
         query = '''
@@ -576,7 +611,7 @@ async def get_user_accessible_prompts(user: User, cursor, all_prompts_access: bo
                 ))"""
                 params.append(category_access)
 
-        query += " ORDER BY p.name"
+        query += " ORDER BY p.name COLLATE NOCASE"
         await cursor.execute(query, params)
     else:
         query = '''
@@ -605,7 +640,7 @@ async def get_user_accessible_prompts(user: User, cursor, all_prompts_access: bo
                 ))"""
                 params.append(category_access)
 
-        query += " ORDER BY p.name"
+        query += " ORDER BY p.name COLLATE NOCASE"
 
         await cursor.execute(query, params)
 
@@ -2556,6 +2591,29 @@ async def export_admin_usage_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=usage_export_{days}days.csv"}
     )
+
+
+@app.get("/admin/cache-stats")
+async def get_cache_stats(current_user: User = Depends(get_current_user)):
+    """Get landing page cache statistics for monitoring."""
+    if current_user is None:
+        return unauthenticated_response()
+    if not await current_user.is_admin:
+        return JSONResponse(content={"error": "Admin access required"}, status_code=403)
+
+    total_requests = _landing_cache_stats["hits"] + _landing_cache_stats["misses"]
+    hit_rate = _landing_cache_stats["hits"] / max(1, total_requests)
+
+    return JSONResponse(content={
+        "landing_cache": {
+            "size": len(_landing_path_cache),
+            "max_size": LANDING_CACHE_SIZE,
+            "hits": _landing_cache_stats["hits"],
+            "misses": _landing_cache_stats["misses"],
+            "hit_rate": round(hit_rate, 4),
+            "hit_rate_percent": f"{hit_rate * 100:.2f}%"
+        }
+    })
 
 
 @app.post("/api/creator/request-payout")
@@ -5039,7 +5097,7 @@ async def handle_get_request(request, user_id, current_user, conn, admin_view=Fa
 
     async with conn.cursor() as cursor:
         await cursor.execute('''
-            SELECT 
+            SELECT
                 u.username,
                 u.profile_picture,
                 ud.current_prompt_id,
@@ -5050,13 +5108,14 @@ async def handle_get_request(request, user_id, current_user, conn, admin_view=Fa
                 ud.category_access,
                 ud.allow_image_generation,
                 ud.llm_id AS current_model_type,
+                COALESCE(ud.web_search_enabled, 1) AS web_search_enabled,
                 (SELECT COUNT(*) FROM conversations WHERE user_id = u.id) AS conversation_count,
                 c.id AS conversation_id,
                 c.start_date AS start_date,
                 c.role_id,
                 COALESCE(p.image, p2.image) AS bot_picture,
                 COALESCE(p.description, p2.description) AS prompt_description,
-                (SELECT json_group_array(json_object('id', id, 'machine', machine, 'model', model)) FROM LLM) AS llm_models_json,
+                (SELECT json_group_array(json_object('id', id, 'machine', machine, 'model', model)) FROM (SELECT id, machine, model FROM LLM ORDER BY machine, model)) AS llm_models_json,
                 (SELECT json_group_array(json_object('id', id, 'name', name)) FROM Voices) AS voices_json,
                 ud.current_alter_ego_id,
                 ae.name AS alter_ego_name,
@@ -5164,10 +5223,12 @@ async def handle_get_request(request, user_id, current_user, conn, admin_view=Fa
                      WHEN json_extract(u.external_platforms, '$.whatsapp.conversation_id') = c.id THEN 'whatsapp'
                      ELSE NULL
                    END as external_platform,
-                   c.locked, l.model as llm_model
+                   c.locked, l.model as llm_model,
+                   COALESCE(p.disable_web_search, 0) as web_search_disabled
             FROM conversations c
             JOIN user_details u ON c.user_id = u.user_id
             JOIN llm l ON c.llm_id = l.id
+            LEFT JOIN prompts p ON c.role_id = p.id
             WHERE c.user_id = ? AND (c.folder_id IS NULL OR c.folder_id = 0)
             ORDER BY c.id DESC
             LIMIT 10
@@ -5181,7 +5242,8 @@ async def handle_get_request(request, user_id, current_user, conn, admin_view=Fa
                 "chat_name": row[3] if row[3] else "New Chat",
                 "external_platform": row[4],
                 "locked": bool(row[5]) if row[5] is not None else False,
-                "llm_model": row[6]
+                "llm_model": row[6],
+                "web_search_allowed": not bool(row[7])
             }
             for row in conversations_rows
         ]
@@ -5219,6 +5281,7 @@ async def handle_get_request(request, user_id, current_user, conn, admin_view=Fa
             # Embedded data to reduce HTTP requests
             "chat_folders": chat_folders,
             "initial_conversations": initial_conversations,
+            "web_search_enabled": bool(full_data['web_search_enabled']),
         }
     # print("Debug - Prompt Description:", full_data['prompt_description'])
     # print("Debug - Context:", {
@@ -5279,7 +5342,7 @@ async def admin_elevenlabs_agents(request: Request, current_user: User = Depends
         agents = [dict(row) for row in await cursor.fetchall()]
 
         cursor = await conn.execute(
-            "SELECT pam.prompt_id, p.name AS prompt_name, pam.agent_id, pam.voice_id FROM PROMPT_AGENT_MAPPING pam LEFT JOIN PROMPTS p ON p.id = pam.prompt_id ORDER BY p.name ASC"
+            "SELECT pam.prompt_id, p.name AS prompt_name, pam.agent_id, pam.voice_id FROM PROMPT_AGENT_MAPPING pam LEFT JOIN PROMPTS p ON p.id = pam.prompt_id ORDER BY p.name COLLATE NOCASE ASC"
         )
         mappings = [dict(row) for row in await cursor.fetchall()]
 
@@ -5596,6 +5659,36 @@ async def delete_llm(llm_id: int, current_user: User = Depends(get_current_user)
             raise HTTPException(status_code=500, detail=str(e))
     
     return JSONResponse(content={"success": True}, status_code=200)
+
+
+@app.post("/admin/llm/bulk-delete")
+async def bulk_delete_llms(request: Request, current_user: User = Depends(get_current_user)):
+    if current_user is None:
+        return unauthenticated_response()
+
+    if not await current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    body = await request.json()
+    llm_ids = body.get("llm_ids", [])
+
+    if not llm_ids or not isinstance(llm_ids, list):
+        raise HTTPException(status_code=400, detail="No LLM IDs provided")
+
+    placeholders = ",".join("?" for _ in llm_ids)
+    async with get_db_connection() as conn:
+        try:
+            cursor = await conn.execute(
+                f"DELETE FROM LLM WHERE id IN ({placeholders}) AND machine != 'OpenRouter'",
+                llm_ids
+            )
+            await conn.commit()
+            deleted = cursor.rowcount
+        except Exception as e:
+            await conn.rollback()
+            raise HTTPException(status_code=500, detail=str(e))
+
+    return JSONResponse(content={"success": True, "deleted": deleted}, status_code=200)
 
 
 # ============================================================
@@ -6421,10 +6514,11 @@ async def get_conversations(
             # First, get WhatsApp conversation (if exists)
             whatsapp_query = f'''
                 SELECT c.id, c.user_id, c.start_date, c.chat_name, 'whatsapp' as external_platform,
-                       c.locked, l.model as llm_model
+                       c.locked, l.model as llm_model, COALESCE(p.disable_web_search, 0) as web_search_disabled
                 FROM conversations c
                 JOIN user_details u ON c.user_id = u.user_id
                 JOIN llm l ON c.llm_id = l.id
+                LEFT JOIN prompts p ON c.role_id = p.id
                 WHERE c.user_id = ? AND json_extract(u.external_platforms, '$.whatsapp.conversation_id') = c.id{folder_condition}
             '''
             whatsapp_params = [user_id] + folder_params
@@ -6438,10 +6532,11 @@ async def get_conversations(
                          WHEN json_extract(u.external_platforms, '$.telegram.conversation_id') = c.id THEN 'telegram'
                          ELSE NULL
                        END as external_platform,
-                       c.locked, l.model as llm_model
+                       c.locked, l.model as llm_model, COALESCE(p.disable_web_search, 0) as web_search_disabled
                 FROM conversations c
                 JOIN user_details u ON c.user_id = u.user_id
                 JOIN llm l ON c.llm_id = l.id
+                LEFT JOIN prompts p ON c.role_id = p.id
                 WHERE c.user_id = ?{folder_condition}
             '''
             params = [user_id] + folder_params
@@ -6473,7 +6568,8 @@ async def get_conversations(
                     "chat_name": conv[3] if conv[3] else "New Chat",
                     "external_platform": conv[4],
                     "locked": bool(conv[5]) if conv[5] is not None else False,
-                    "llm_model": conv[6]
+                    "llm_model": conv[6],
+                    "web_search_allowed": not bool(conv[7])
                 }
                 for conv in all_conversations
             ])
@@ -6826,6 +6922,26 @@ async def start_elevenlabs_session(conversation_id: int, request: Request, curre
         return JSONResponse(content={'status': 'active', 'session_id': session_id})
 
     await elevenlabs_service.mark_session_started(conversation_id, session_id)
+
+    # Watchdog: consume pending hint via CAS if frontend sent the eval_id token
+    watchdog_hint_eval_id = payload.get('watchdog_hint_eval_id')
+    if watchdog_hint_eval_id is not None:
+        prompt_id = conversation.get('role_id')
+        if prompt_id is not None:
+            try:
+                async with get_db_connection() as wconn:
+                    await wconn.execute(
+                        """UPDATE WATCHDOG_STATE SET pending_hint = NULL, hint_severity = NULL
+                           WHERE conversation_id = ? AND prompt_id = ? AND last_evaluated_message_id = ?""",
+                        (conversation_id, prompt_id, watchdog_hint_eval_id)
+                    )
+                    await wconn.commit()
+            except Exception:
+                logging.getLogger("watchdog").warning(
+                    "Failed to consume hint via CAS for conv=%d in /elevenlabs/session",
+                    conversation_id, exc_info=True
+                )
+
     return JSONResponse(content={'status': 'active', 'session_id': session_id, 'previous_status': existing_status or None})
 
 
@@ -6895,7 +7011,7 @@ async def complete_elevenlabs_session(conversation_id: int, request: Request, cu
         return JSONResponse(content={'error': 'Failed to fetch ElevenLabs transcript', 'detail': str(exc)}, status_code=502)
 
     try:
-        saved = await elevenlabs_service.save_transcript_to_db(conversation_id, session_id, conversation['user_id'], transcript)
+        saved, last_user_id, last_bot_id = await elevenlabs_service.save_transcript_to_db(conversation_id, session_id, conversation['user_id'], transcript)
     except Exception as exc:
         logger.exception("[ElevenLabs] Failed to persist transcript for conversation %s", conversation_id)
         await elevenlabs_service.mark_session_status(conversation_id, session_id, 'failed')
@@ -6907,6 +7023,32 @@ async def complete_elevenlabs_session(conversation_id: int, request: Request, cu
             logger.info("[ElevenLabs] Enqueued audio download for conversation %s (session %s)", conversation_id, session_id)
         except Exception as enqueue_exc:
             logger.warning("[ElevenLabs] Could not enqueue audio download for conversation %s: %s", conversation_id, enqueue_exc)
+
+    # Watchdog: enqueue evaluation post-transcript if both user and bot IDs exist
+    prompt_id = conversation.get('role_id')
+    if last_user_id and last_bot_id and prompt_id:
+        try:
+            import orjson as _orjson
+            async with get_db_connection(readonly=True) as _wconn:
+                _cursor = await _wconn.execute("SELECT watchdog_config FROM PROMPTS WHERE id = ?", (prompt_id,))
+                _row = await _cursor.fetchone()
+                _wconfig = None
+                if _row and _row['watchdog_config']:
+                    try:
+                        _wconfig = _orjson.loads(_row['watchdog_config'])
+                    except Exception:
+                        _wconfig = None
+            _post_wconfig = None
+            if isinstance(_wconfig, dict):
+                _post_wconfig = _wconfig.get("post_watchdog") if isinstance(_wconfig.get("post_watchdog"), dict) else _wconfig
+            if _post_wconfig and _post_wconfig.get("enabled"):
+                from tools.watchdog import watchdog_evaluate_task
+                watchdog_evaluate_task.send(conversation_id, last_user_id, last_bot_id, prompt_id, True)
+                logger.info("[ElevenLabs] Enqueued watchdog evaluation for voice conv=%d (skip_frequency=True)", conversation_id)
+        except Exception:
+            logging.getLogger("watchdog").error(
+                "Failed to enqueue watchdog for voice conv=%d", conversation_id, exc_info=True
+            )
 
     return JSONResponse(content={'messages_saved': saved, 'status': 'completed'})
 
@@ -7446,6 +7588,59 @@ async def conversation_status(conversation_id: int, current_user: User = Depends
             return JSONResponse(content={'isActive': True}, status_code=200)
         else:
             return JSONResponse(content={'isActive': False}, status_code=200)
+
+
+@app.get("/api/conversations/{conversation_id}/web-search-status")
+async def get_web_search_status(conversation_id: int, current_user: User = Depends(get_current_user)):
+    """Get web search status: is it allowed by prompt + user's current preference"""
+    if current_user is None:
+        return unauthenticated_response()
+
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.execute("""
+            SELECT
+                COALESCE(p.disable_web_search, 0) as prompt_disabled,
+                COALESCE(ud.web_search_enabled, 1) as user_enabled
+            FROM CONVERSATIONS c
+            LEFT JOIN PROMPTS p ON c.role_id = p.id
+            LEFT JOIN USER_DETAILS ud ON ud.user_id = c.user_id
+            WHERE c.id = ? AND c.user_id = ?
+        """, (conversation_id, current_user.id))
+        row = await cursor.fetchone()
+        if row:
+            prompt_disabled, user_enabled = row
+            return JSONResponse(content={
+                "allowed_by_prompt": not bool(prompt_disabled),
+                "user_enabled": bool(user_enabled)
+            })
+        return JSONResponse(content={"allowed_by_prompt": True, "user_enabled": True})
+
+
+@app.post("/api/user/web-search-toggle")
+async def toggle_web_search(current_user: User = Depends(get_current_user)):
+    """Toggle user's global web search preference"""
+    if current_user is None:
+        return unauthenticated_response()
+
+    async with get_db_connection() as conn:
+        # Get current value
+        cursor = await conn.execute(
+            "SELECT COALESCE(web_search_enabled, 1) FROM USER_DETAILS WHERE user_id = ?",
+            (current_user.id,)
+        )
+        row = await cursor.fetchone()
+        current_value = row[0] if row else 1
+        new_value = 0 if current_value else 1
+
+        # Update
+        await conn.execute(
+            "UPDATE USER_DETAILS SET web_search_enabled = ? WHERE user_id = ?",
+            (new_value, current_user.id)
+        )
+        await conn.commit()
+
+        return JSONResponse(content={"web_search_enabled": bool(new_value)})
+
 
 def strip_html(text):
     """Remove HTML tags from a string."""
@@ -9265,6 +9460,238 @@ async def clear_dramatiq(current_user: User = Depends(get_current_user)):
         logger.error(f"Error cleaning Dramatiq: {e}")
         return JSONResponse({"success": False, "error": str(e)})
 
+
+@app.get("/admin/security", response_class=HTMLResponse)
+async def admin_security_page(request: Request, current_user: User = Depends(get_current_user)):
+    """Admin security operations panel."""
+    if current_user is None:
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x})
+
+    if not await current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only administrators can access this function")
+
+    context = await get_template_context(request, current_user)
+    context.update({
+        "events_default_limit": 100,
+        "blocked_ips_default_limit": 200,
+    })
+    return templates.TemplateResponse("admin/security_operations.html", context)
+
+
+@app.get("/admin/security/stats")
+async def admin_security_stats(current_user: User = Depends(get_current_user)):
+    """Security tracker telemetry (backend, counters, blocked IPs)."""
+    if current_user is None:
+        return unauthenticated_response()
+    if not await current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only administrators can access this function")
+    stats = await get_security_stats_async()
+    return JSONResponse(stats)
+
+
+@app.get("/admin/security/blocked-ips")
+async def admin_security_blocked_ips(
+    limit: int = Query(default=200, ge=1, le=500),
+    current_user: User = Depends(get_current_user),
+):
+    """List currently blocked IPs with metadata and Cloudflare sync status."""
+    if current_user is None:
+        return unauthenticated_response()
+    if not await current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only administrators can access this function")
+    blocked_ips = await get_security_blocked_ips_async(limit=limit)
+    return JSONResponse({"blocked_ips": blocked_ips, "count": len(blocked_ips)})
+
+
+@app.get("/admin/security/events")
+async def admin_security_events(
+    limit: int = Query(default=50, ge=1, le=500),
+    current_user: User = Depends(get_current_user),
+):
+    """Recent security block events."""
+    if current_user is None:
+        return unauthenticated_response()
+    if not await current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only administrators can access this function")
+    events = await get_security_events_async(limit=limit)
+    return JSONResponse({"events": events, "count": len(events)})
+
+
+@app.get("/admin/security/ip-status")
+async def admin_security_ip_status(
+    ip: str = Query(..., min_length=1),
+    current_user: User = Depends(get_current_user),
+):
+    """Check if an IP is currently blocked by middleware tracker."""
+    if current_user is None:
+        return unauthenticated_response()
+    if not await current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only administrators can access this function")
+    try:
+        blocked = await is_ip_blocked_async(ip)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return JSONResponse({"ip": ip, "blocked": blocked})
+
+
+@app.post("/admin/security/block-ip")
+async def admin_security_block_ip(
+    request: Request,
+    payload: SecurityManualBlockRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Manually block an IP in security tracker."""
+    if current_user is None:
+        return unauthenticated_response()
+    if not await current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only administrators can access this function")
+    try:
+        result = await manually_block_ip_async(
+            ip=payload.ip,
+            hours=payload.hours,
+            reason=payload.reason,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    await log_admin_action(
+        admin_id=current_user.id,
+        action_type="security_manual_block_ip",
+        request=request,
+        target_resource_type="ip_security",
+        details=f"ip={result.get('ip')};hours={payload.hours};reason={payload.reason}",
+    )
+    return JSONResponse({"success": True, "result": result})
+
+
+@app.post("/admin/security/unblock-ip")
+async def admin_security_unblock_ip(
+    request: Request,
+    payload: SecurityManualUnblockRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Manually unblock an IP in security tracker."""
+    if current_user is None:
+        return unauthenticated_response()
+    if not await current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only administrators can access this function")
+    try:
+        result = await manually_unblock_ip_async(payload.ip)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    await log_admin_action(
+        admin_id=current_user.id,
+        action_type="security_manual_unblock_ip",
+        request=request,
+        target_resource_type="ip_security",
+        details=f"ip={payload.ip};unblocked={result.get('unblocked')};cf_deleted={result.get('cloudflare_deleted')}",
+    )
+    return JSONResponse({"success": True, **result})
+
+
+@app.post("/admin/security/retry-sync")
+async def admin_security_retry_sync(
+    request: Request,
+    payload: SecurityRetrySyncRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Retry Cloudflare sync for a blocked IP."""
+    if current_user is None:
+        return unauthenticated_response()
+    if not await current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only administrators can access this function")
+
+    try:
+        result = await retry_cloudflare_sync_async(ip=payload.ip, reason=payload.reason)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    await log_admin_action(
+        admin_id=current_user.id,
+        action_type="security_retry_cloudflare_sync",
+        request=request,
+        target_resource_type="ip_cloudflare_sync",
+        details=f"ip={payload.ip};status={result.get('status')};rule_id={result.get('rule_id')}",
+    )
+    return JSONResponse({"success": True, "result": result})
+
+
+# ---------------------------------------------------------------------------
+# Watchdog admin panel
+# ---------------------------------------------------------------------------
+
+@app.get("/admin/watchdog-events", response_class=HTMLResponse)
+async def admin_watchdog_events(request: Request, current_user: User = Depends(get_current_user)):
+    """Admin panel to inspect watchdog evaluation events."""
+    if current_user is None:
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x})
+    if not await current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Read optional filters from query params
+    f_prompt_id = request.query_params.get("prompt_id", "").strip()
+    f_severity = request.query_params.get("severity", "").strip()
+    f_event_type = request.query_params.get("event_type", "").strip()
+    f_conversation_id = request.query_params.get("conversation_id", "").strip()
+
+    # Build dynamic WHERE clause
+    conditions = []
+    params = []
+    if f_prompt_id.isdigit():
+        conditions.append("we.prompt_id = ?")
+        params.append(int(f_prompt_id))
+    if f_severity:
+        conditions.append("we.severity = ?")
+        params.append(f_severity)
+    if f_event_type:
+        conditions.append("we.event_type = ?")
+        params.append(f_event_type)
+    if f_conversation_id.isdigit():
+        conditions.append("we.conversation_id = ?")
+        params.append(int(f_conversation_id))
+
+    where_clause = (" WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.execute(
+            f"""SELECT we.*, c.chat_name, p.name AS prompt_name
+                FROM WATCHDOG_EVENTS we
+                LEFT JOIN CONVERSATIONS c ON we.conversation_id = c.id
+                LEFT JOIN PROMPTS p ON we.prompt_id = p.id
+                {where_clause}
+                ORDER BY we.created_at DESC LIMIT 200""",
+            tuple(params),
+        )
+        events = [dict(row) for row in await cursor.fetchall()]
+
+        # Stats for the current result set
+        hints = sum(1 for e in events if e["action_taken"] == "hint_generated")
+        errors = sum(1 for e in events if e["action_taken"] == "error")
+
+        # Prompts list for filter dropdown
+        cursor = await conn.execute("SELECT id, name FROM PROMPTS ORDER BY name ASC")
+        prompts = [dict(row) for row in await cursor.fetchall()]
+
+    return templates.TemplateResponse(
+        "admin_watchdog.html",
+        {
+            "request": request,
+            "events": events,
+            "prompts": prompts,
+            "stats": {"hints": hints, "errors": errors},
+            "filters": {
+                "prompt_id": int(f_prompt_id) if f_prompt_id.isdigit() else None,
+                "severity": f_severity or None,
+                "event_type": f_event_type or None,
+                "conversation_id": int(f_conversation_id) if f_conversation_id.isdigit() else None,
+            },
+            "event_types": ["drift", "rabbit_hole", "stuck", "inconsistency", "saturation", "none", "error", "security"],
+            "severities": ["info", "nudge", "redirect", "alert"],
+        },
+    )
+
+
 # Whatsapp
 
 phone_user_not_found = """Hello! 👋 Did you know you can increase your chances of success in your visa interview? 🚀 With our innovative AI training service, you'll have a virtual immigration officer who will prepare you for the big day. 💼
@@ -9437,7 +9864,7 @@ async def whatsapp_webhook(request: Request):
                             print("enters image_url from whatsapp / enters image_url in whatsapp")
                             image_url = json_content[0]['image_url']['url']
                             alt_text = json_content[0]['image_url']['alt']
-                            # [GITHUB_RELEASE] print(f"---------------> image_url para twilio: {image_url}")
+                            print(f"---------------> image_url para twilio: {image_url}")
                             
                             message = twilio_client.messages.create(
                                 body=f"Image: {alt_text}",
@@ -9448,7 +9875,7 @@ async def whatsapp_webhook(request: Request):
                         elif json_content[0].get('type') == 'audio_url':
                             print("enters audio_url from whatsapp / enters audio_url in whatsapp")
                             audio_url = json_content[0]['audio_url']['url']
-                            # [GITHUB_RELEASE] print(f"---------------> audio_url para twilio: {audio_url}")
+                            print(f"---------------> audio_url para twilio: {audio_url}")
                             
                             message = twilio_client.messages.create(
                                 media_url=[audio_url],
@@ -9794,6 +10221,130 @@ def _landing_404_response() -> HTMLResponse:
     return HTMLResponse(content=html, status_code=404)
 
 
+# =============================================================================
+# Landing Page LRU Cache Functions
+# =============================================================================
+
+async def warmup_landing_cache():
+    """
+    Pre-load the most visited prompts into cache on startup.
+    Uses analytics data to prioritize popular landings.
+    """
+    if LANDING_CACHE_WARMUP <= 0:
+        logger.info("Landing cache warmup disabled (LANDING_CACHE_WARMUP=0)")
+        return
+
+    try:
+        async with get_db_connection(readonly=True) as conn:
+            cursor = await conn.execute("""
+                SELECT p.public_id, p.id, p.name, p.is_unlisted, u.username,
+                       COALESCE(COUNT(a.id), 0) as visit_count
+                FROM PROMPTS p
+                JOIN USERS u ON p.created_by_user_id = u.id
+                LEFT JOIN LANDING_PAGE_ANALYTICS a ON a.prompt_id = p.id
+                WHERE p.public_id IS NOT NULL
+                GROUP BY p.id, p.public_id, p.name, p.is_unlisted, u.username
+                ORDER BY visit_count DESC
+                LIMIT ?
+            """, (LANDING_CACHE_WARMUP,))
+
+            count = 0
+            async for row in cursor:
+                public_id, prompt_id, name, is_unlisted, username, _ = row
+                path = _build_prompt_filesystem_path(username, prompt_id, name)
+                _landing_path_cache[public_id] = {
+                    "prompt_id": prompt_id,
+                    "prompt_name": name,
+                    "is_unlisted": is_unlisted or 0,
+                    "username": username,
+                    "path": path
+                }
+                count += 1
+
+        logger.info(f"Landing cache warmed: {count} entries (top by visits)")
+
+    except Exception as e:
+        logger.error(f"Failed to warm landing cache: {e}")
+
+
+async def get_landing_path_cached(public_id: str) -> dict:
+    """
+    Get landing path with smart LRU caching.
+
+    - Cache HIT: O(1), zero DB queries
+    - Cache MISS: 1 query, result cached for future requests
+    - LRU eviction: Least recently used entries removed when cache is full
+    - Singleflight: Concurrent requests for same public_id share one DB query
+
+    Returns:
+        dict with keys: prompt_id, prompt_name, is_unlisted, username, path
+
+    Raises:
+        HTTPException 404 if public_id not found
+    """
+    global _landing_cache_stats
+
+    # Fast path: cache hit
+    cached = _landing_path_cache.get(public_id)
+    if cached is not None:
+        _landing_cache_stats["hits"] += 1
+        return cached
+
+    # Singleflight: get or create lock for this public_id
+    if public_id not in _landing_cache_locks:
+        _landing_cache_locks[public_id] = asyncio.Lock()
+
+    lock = _landing_cache_locks[public_id]
+
+    async with lock:
+        # Double-check after acquiring lock (another request may have populated cache)
+        cached = _landing_path_cache.get(public_id)
+        if cached is not None:
+            _landing_cache_stats["hits"] += 1
+            return cached
+
+        # Query DB
+        async with get_db_connection(readonly=True) as conn:
+            cursor = await conn.execute("""
+                SELECT p.id, p.name, p.is_unlisted, u.username
+                FROM PROMPTS p
+                JOIN USERS u ON p.created_by_user_id = u.id
+                WHERE p.public_id = ?
+            """, (public_id,))
+            row = await cursor.fetchone()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Prompt not found")
+
+        prompt_id, name, is_unlisted, username = row
+        path = _build_prompt_filesystem_path(username, prompt_id, name)
+
+        result = {
+            "prompt_id": prompt_id,
+            "prompt_name": name,
+            "is_unlisted": is_unlisted or 0,
+            "username": username,
+            "path": path
+        }
+
+        _landing_path_cache[public_id] = result
+        _landing_cache_stats["misses"] += 1
+
+        # Cleanup locks if dict grows too large (prevent memory leak)
+        if len(_landing_cache_locks) > LANDING_CACHE_SIZE * 2:
+            _landing_cache_locks.clear()
+
+        return result
+
+
+def invalidate_landing_cache(public_id: str):
+    """
+    Remove a public_id from the landing cache.
+    Call this when a prompt is updated or deleted.
+    """
+    _landing_path_cache.pop(public_id, None)
+
+
 async def _resolve_prompt_by_public_id(public_id: str):
     """
     Helper to fetch prompt data by public_id.
@@ -9868,24 +10419,19 @@ async def public_landing_static(
         if not re.match(r'^[a-zA-Z0-9]{8}$', public_id):
             raise HTTPException(status_code=400, detail="Invalid public_id format")
 
-        # Get prompt info by public_id
-        prompt_data = await _resolve_prompt_by_public_id(public_id)
+        # Get prompt info by public_id (cached)
+        landing_data = await get_landing_path_cached(public_id)
 
         # Check for active custom domain - 301 redirect for SEO
-        custom_domain = await _get_active_custom_domain(prompt_data["prompt_id"])
+        custom_domain = await _get_active_custom_domain(landing_data["prompt_id"])
         if custom_domain:
             return RedirectResponse(
                 url=f"https://{custom_domain}/static/{resource_path}",
                 status_code=301
             )
 
-        # Build path to static resource
-        prompt_dir = _build_prompt_filesystem_path(
-            prompt_data["username"],
-            prompt_data["prompt_id"],
-            prompt_data["prompt_name"]
-        )
-        static_path = prompt_dir / "static" / resource_path
+        # Build path to static resource (path is pre-computed in cache)
+        static_path = landing_data["path"] / "static" / resource_path
 
         if not static_path.is_file():
             raise HTTPException(status_code=404, detail="Resource not found")
@@ -9905,6 +10451,10 @@ async def public_landing_static(
             '.woff2': 'font/woff2',
             '.ttf': 'font/ttf',
             '.ico': 'image/x-icon',
+            '.mp3': 'audio/mpeg',
+            '.mp4': 'video/mp4',
+            '.webm': 'video/webm',
+            '.pdf': 'application/pdf',
         }
         media_type = media_types.get(suffix, 'application/octet-stream')
 
@@ -10044,11 +10594,11 @@ async def public_landing_page(
         if not re.match(r'^[a-zA-Z0-9_-]+$', page):
             raise HTTPException(status_code=400, detail="Invalid page name")
 
-        # Get prompt info by public_id
-        prompt_data = await _resolve_prompt_by_public_id(public_id)
+        # Get prompt info by public_id (cached)
+        landing_data = await get_landing_path_cached(public_id)
 
         # Generate the canonical slug from prompt name
-        canonical_slug = slugify(prompt_data["prompt_name"])
+        canonical_slug = slugify(landing_data["prompt_name"])
 
         # If slug doesn't match, return 404 (don't reveal that public_id exists)
         # This prevents bots from discovering valid public_ids by trying random slugs
@@ -10056,7 +10606,7 @@ async def public_landing_page(
             raise HTTPException(status_code=404, detail="Page not found")
 
         # Check for active custom domain - 301 redirect for SEO
-        custom_domain = await _get_active_custom_domain(prompt_data["prompt_id"])
+        custom_domain = await _get_active_custom_domain(landing_data["prompt_id"])
         if custom_domain:
             # Build redirect URL with same page
             redirect_path = "/" if page == "home" else f"/{page}"
@@ -10065,13 +10615,8 @@ async def public_landing_page(
                 status_code=301
             )
 
-        # Build path to HTML file
-        prompt_dir = _build_prompt_filesystem_path(
-            prompt_data["username"],
-            prompt_data["prompt_id"],
-            prompt_data["prompt_name"]
-        )
-        html_path = prompt_dir / f"{page}.html"
+        # Build path to HTML file (path is pre-computed in cache)
+        html_path = landing_data["path"] / f"{page}.html"
 
         if not html_path.is_file():
             raise HTTPException(status_code=404, detail="Page not found")
@@ -10092,7 +10637,7 @@ async def public_landing_page(
         method: 'POST',
         headers: {{'Content-Type': 'application/json'}},
         body: JSON.stringify({{
-            prompt_id: {prompt_data["prompt_id"]},
+            prompt_id: {landing_data["prompt_id"]},
             page_path: window.location.pathname,
             referrer: document.referrer || ''
         }}),
@@ -10112,7 +10657,7 @@ async def public_landing_page(
         headers = {}
 
         # If unlisted, add noindex headers to prevent search engine indexing
-        if prompt_data["is_unlisted"]:
+        if landing_data["is_unlisted"]:
             headers["X-Robots-Tag"] = "noindex, nofollow"
 
         return HTMLResponse(content=html_content, headers=headers)
@@ -10751,24 +11296,19 @@ async def internal_resolve_landing(
         if not re.match(r'^[a-zA-Z0-9_-]+$', page):
             raise HTTPException(status_code=400, detail="Invalid page name")
 
-        # Get prompt info by public_id
-        prompt_data = await _resolve_prompt_by_public_id(public_id)
+        # Get prompt info by public_id (cached)
+        landing_data = await get_landing_path_cached(public_id)
 
         # Generate canonical slug
-        canonical_slug = slugify(prompt_data["prompt_name"])
+        canonical_slug = slugify(landing_data["prompt_name"])
 
         # If slug doesn't match, return 404 (don't reveal that public_id exists)
         # This prevents bots from discovering valid public_ids by trying random slugs
         if slug != canonical_slug:
             raise HTTPException(status_code=404, detail="Page not found")
 
-        # Build path to HTML file
-        prompt_dir = _build_prompt_filesystem_path(
-            prompt_data["username"],
-            prompt_data["prompt_id"],
-            prompt_data["prompt_name"]
-        )
-        html_path = prompt_dir / f"{page}.html"
+        # Build path to HTML file (path is pre-computed in cache)
+        html_path = landing_data["path"] / f"{page}.html"
 
         if not html_path.is_file():
             raise HTTPException(status_code=404, detail="Page not found")
@@ -10779,7 +11319,7 @@ async def internal_resolve_landing(
         }
 
         # Add noindex header for unlisted prompts
-        if prompt_data["is_unlisted"]:
+        if landing_data["is_unlisted"]:
             headers["X-Robots-Tag"] = "noindex, nofollow"
 
         return Response(status_code=200, headers=headers)

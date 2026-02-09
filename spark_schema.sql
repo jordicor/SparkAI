@@ -56,6 +56,9 @@ CREATE TABLE PROMPTS (
     forced_llm_id INTEGER DEFAULT NULL,
     hide_llm_name BOOLEAN DEFAULT 0,
     landing_registration_config TEXT DEFAULT NULL,
+    disable_web_search BOOLEAN DEFAULT 0,
+    enable_moderation BOOLEAN DEFAULT 0,
+    watchdog_config TEXT DEFAULT NULL,
     FOREIGN KEY (voice_id) REFERENCES VOICES (id),
     FOREIGN KEY (created_by_user_id) REFERENCES USERS (id)
 );
@@ -510,3 +513,45 @@ CREATE INDEX idx_admin_audit_admin_id ON ADMIN_AUDIT_LOG(admin_id);
 CREATE INDEX idx_admin_audit_target_user ON ADMIN_AUDIT_LOG(target_user_id);
 CREATE INDEX idx_admin_audit_created_at ON ADMIN_AUDIT_LOG(created_at);
 CREATE INDEX idx_admin_audit_action_type ON ADMIN_AUDIT_LOG(action_type);
+
+-- =============================================================================
+-- WATCHDOG_EVENTS (audit log of watchdog evaluations)
+-- =============================================================================
+CREATE TABLE WATCHDOG_EVENTS (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER NOT NULL,
+    prompt_id INTEGER,
+    user_message_id INTEGER,
+    bot_message_id INTEGER,
+    event_type TEXT NOT NULL CHECK(event_type IN ('drift','rabbit_hole','stuck','inconsistency','saturation','none','error','security','role_breach')),
+    severity TEXT NOT NULL CHECK(severity IN ('info','nudge','redirect','alert')),
+    analysis TEXT,
+    hint TEXT,
+    action_taken TEXT DEFAULT 'none' CHECK(action_taken IN ('hint_generated','none','error','blocked','force_locked','takeover')),
+    source TEXT DEFAULT 'post' CHECK(source IN ('pre','post')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (conversation_id) REFERENCES CONVERSATIONS(id),
+    FOREIGN KEY (prompt_id) REFERENCES PROMPTS(id)
+);
+
+CREATE INDEX idx_watchdog_events_conv_date ON WATCHDOG_EVENTS(conversation_id, created_at);
+CREATE INDEX idx_watchdog_events_type_severity ON WATCHDOG_EVENTS(event_type, severity);
+CREATE INDEX idx_watchdog_events_prompt ON WATCHDOG_EVENTS(prompt_id);
+
+-- =============================================================================
+-- WATCHDOG_STATE (pending hints per conversation for steering injection)
+-- =============================================================================
+CREATE TABLE WATCHDOG_STATE (
+    conversation_id INTEGER PRIMARY KEY,
+    prompt_id INTEGER,
+    pending_hint TEXT,
+    hint_severity TEXT,
+    last_evaluated_message_id INTEGER NOT NULL DEFAULT 0,
+    consecutive_hint_count INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (conversation_id) REFERENCES CONVERSATIONS(id),
+    FOREIGN KEY (prompt_id) REFERENCES PROMPTS(id)
+);
+
+-- Composite index for cadence calculation (used by watchdog actor)
+CREATE INDEX idx_messages_conv_type_id ON MESSAGES(conversation_id, type, id);

@@ -16,7 +16,23 @@ from models import User
 from auth import get_current_user
 from database import get_db_connection
 from save_images import generate_img_token, resize_image, get_or_generate_img_token
-from common import CLOUDFLARE_BASE_URL, users_directory, generate_user_hash, sanitize_name, templates, MAX_IMAGE_UPLOAD_SIZE, MAX_IMAGE_PIXELS, get_template_context, slugify, AVATAR_TOKEN_EXPIRE_HOURS
+from common import (
+    AVATAR_TOKEN_EXPIRE_HOURS,
+    CLOUDFLARE_BASE_URL,
+    MAX_IMAGE_PIXELS,
+    MAX_IMAGE_UPLOAD_SIZE,
+    consume_token,
+    decrypt_api_key,
+    generate_user_hash,
+    get_llm_token_costs,
+    get_template_context,
+    get_user_api_key_mode,
+    resolve_api_key_for_provider,
+    sanitize_name,
+    slugify,
+    templates,
+    users_directory,
+)
 from security_config import is_forbidden_prompt_name
 
 router = APIRouter()
@@ -240,7 +256,10 @@ async def create_prompt_post(
     markup_per_mtokens: float = Form(0.0),
     llm_mode: str = Form("any"),
     forced_llm_id: Optional[int] = Form(None),
-    hide_llm_name: bool = Form(False)
+    hide_llm_name: bool = Form(False),
+    disable_web_search: bool = Form(False),
+    enable_moderation: bool = Form(False),
+    watchdog_config: Optional[str] = Form(None)
 ):
     if current_user is None:
         return templates.TemplateResponse("login.html", {"request": request})
@@ -251,6 +270,26 @@ async def create_prompt_post(
     # Validate prompt name is not forbidden (security)
     if is_forbidden_prompt_name(name) or is_forbidden_prompt_name(slugify(name)):
         raise HTTPException(status_code=400, detail="This name is not available. Please choose a different name.")
+
+    # Parse and validate watchdog_config
+    watchdog_config_json = None
+    if watchdog_config and watchdog_config.strip():
+        try:
+            parsed_wd = orjson.loads(watchdog_config)
+            sanitized_wd = validate_watchdog_config(parsed_wd)
+            # Async FK check for llm_id on both sub-configs
+            for sub_key in ("pre_watchdog", "post_watchdog"):
+                sub_cfg = sanitized_wd.get(sub_key, {})
+                if sub_cfg.get("enabled") and sub_cfg.get("llm_id") is not None:
+                    async with get_db_connection(readonly=True) as conn_check:
+                        cursor_check = await conn_check.execute("SELECT id FROM LLM WHERE id = ?", (sub_cfg["llm_id"],))
+                        if not await cursor_check.fetchone():
+                            raise ValueError(f"LLM with id {sub_cfg['llm_id']} does not exist ({sub_key})")
+            watchdog_config_json = orjson.dumps(sanitized_wd).decode("utf-8")
+        except orjson.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Invalid JSON in watchdog configuration")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"Watchdog config error: {e}")
 
     # Parse category_ids
     parsed_category_ids = []
@@ -290,10 +329,12 @@ async def create_prompt_post(
             # Insert the new prompt with the found voice_id and pricing fields
             cursor = await conn.execute(
                 """INSERT INTO Prompts (name, prompt, description, voice_id, created_by_user_id, created_at, public,
-                   is_paid, markup_per_mtokens, forced_llm_id, hide_llm_name)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   is_paid, markup_per_mtokens, forced_llm_id, hide_llm_name, disable_web_search, enable_moderation,
+                   watchdog_config)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (name, prompt, description, voice_id, current_user.id, datetime.utcnow(), public,
-                 is_paid_bool, actual_markup, actual_forced_llm_id, actual_hide_llm_name)
+                 is_paid_bool, actual_markup, actual_forced_llm_id, actual_hide_llm_name, disable_web_search, enable_moderation,
+                 watchdog_config_json)
             )
             prompt_id = cursor.lastrowid
 
@@ -323,57 +364,6 @@ async def create_prompt_post(
 
     return RedirectResponse(url="/prompts", status_code=303)
 
-@router.post("/prompts/create")
-async def create_prompt_post(
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    name: str = Form(...),
-    prompt: str = Form(...),
-    description: str = Form(...),
-    sample_voice_id: str = Form(...),
-    public: bool = Form(False),
-    image: Optional[UploadFile] = File(None)
-):
-    if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request})
-
-    # Validate prompt name is not forbidden (security)
-    if is_forbidden_prompt_name(name) or is_forbidden_prompt_name(slugify(name)):
-        raise HTTPException(status_code=400, detail="This name is not available. Please choose a different name.")
-
-    async with get_db_connection() as conn:
-        async with conn.cursor() as cursor:
-            # Find the voice_id from the sample_voice_id
-            await cursor.execute(
-                "SELECT id FROM Voices WHERE voice_code = ?",
-                (sample_voice_id,)
-            )
-            row = await cursor.fetchone()
-            if not row:
-                raise HTTPException(status_code=404, detail="Voice not found")
-            voice_id = row['id']
-
-            # Insert the new prompt
-            await cursor.execute(
-                "INSERT INTO Prompts (name, prompt, description, voice_id, created_by_user_id, created_at, public) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (name, prompt, description, voice_id, current_user.id, datetime.utcnow(), public)
-            )
-            prompt_id = cursor.lastrowid
-
-            # Assign owner permissions to the current user
-            await cursor.execute(
-                "INSERT INTO PROMPT_PERMISSIONS (prompt_id, user_id, permission_level) VALUES (?, ?, 'owner')",
-                (prompt_id, current_user.id)
-            )
-
-        await conn.commit()
-
-    # Process the image if one was provided
-    if image and image.filename:
-        await process_prompt_image_upload(prompt_id, image, None, current_user)
-
-    return RedirectResponse(url="/prompts", status_code=303)
-
 
 @router.get("/prompts/edit/{prompt_id}", response_class=HTMLResponse)
 async def edit_prompt(request: Request, prompt_id: int, current_user: User = Depends(get_current_user)):
@@ -383,7 +373,8 @@ async def edit_prompt(request: Request, prompt_id: int, current_user: User = Dep
     async with get_db_connection(readonly=True) as conn:
         # Get prompt information including pricing fields
         async with conn.execute("""SELECT name, prompt, description, voice_id, image, created_by_user_id, public,
-                                          is_paid, markup_per_mtokens, forced_llm_id, hide_llm_name
+                                          is_paid, markup_per_mtokens, forced_llm_id, hide_llm_name, disable_web_search,
+                                          enable_moderation, watchdog_config
                                    FROM Prompts WHERE id = ?""", (prompt_id,)) as cursor:
             prompt = await cursor.fetchone()
         
@@ -475,6 +466,12 @@ async def edit_prompt(request: Request, prompt_id: int, current_user: User = Dep
         "markup_per_mtokens": prompt[8] if prompt[8] else 0.0,
         "forced_llm_id": prompt[9],
         "hide_llm_name": prompt[10] if prompt[10] else False,
+        # Web search control
+        "disable_web_search": prompt[11] if prompt[11] else False,
+        # Content moderation
+        "enable_moderation": prompt[12] if prompt[12] else False,
+        # Watchdog config
+        "watchdog_config": _parse_watchdog_config_for_template(prompt[13]),
     })
     return templates.TemplateResponse("prompts/edit_prompt.html", context)
 
@@ -498,7 +495,10 @@ async def update_prompt(
     markup_per_mtokens: float = Form(0.0),
     llm_mode: str = Form("any"),
     forced_llm_id: Optional[int] = Form(None),
-    hide_llm_name: bool = Form(False)
+    hide_llm_name: bool = Form(False),
+    disable_web_search: bool = Form(False),
+    enable_moderation: bool = Form(False),
+    watchdog_config: Optional[str] = Form(None)
 ):
     if current_user is None:
         return templates.TemplateResponse("login.html", {"request": request})
@@ -510,6 +510,26 @@ async def update_prompt(
     if prompt_info and name != prompt_info.get('name', ''):
         if is_forbidden_prompt_name(name) or is_forbidden_prompt_name(slugify(name)):
             raise HTTPException(status_code=400, detail="This name is not available. Please choose a different name.")
+
+    # Parse and validate watchdog_config
+    watchdog_config_json = None
+    if watchdog_config and watchdog_config.strip():
+        try:
+            parsed_wd = orjson.loads(watchdog_config)
+            sanitized_wd = validate_watchdog_config(parsed_wd)
+            # Async FK check for llm_id on both sub-configs
+            for sub_key in ("pre_watchdog", "post_watchdog"):
+                sub_cfg = sanitized_wd.get(sub_key, {})
+                if sub_cfg.get("enabled") and sub_cfg.get("llm_id") is not None:
+                    async with get_db_connection(readonly=True) as conn_check:
+                        cursor_check = await conn_check.execute("SELECT id FROM LLM WHERE id = ?", (sub_cfg["llm_id"],))
+                        if not await cursor_check.fetchone():
+                            raise ValueError(f"LLM with id {sub_cfg['llm_id']} does not exist ({sub_key})")
+            watchdog_config_json = orjson.dumps(sanitized_wd).decode("utf-8")
+        except orjson.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Invalid JSON in watchdog configuration")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"Watchdog config error: {e}")
 
     # Parse category_ids
     parsed_category_ids = []
@@ -539,6 +559,11 @@ async def update_prompt(
 
         if not (is_admin or is_owner):
             raise HTTPException(status_code=403, detail="Access denied")
+
+        # Get public_id for cache invalidation
+        async with conn.execute("SELECT public_id FROM PROMPTS WHERE id = ?", (prompt_id,)) as cursor:
+            public_id_result = await cursor.fetchone()
+            prompt_public_id = public_id_result[0] if public_id_result else None
 
         editor_ids_list = []
         if editor_ids:
@@ -574,10 +599,12 @@ async def update_prompt(
             # Update the prompt information including pricing fields
             await cursor.execute(
                 """UPDATE Prompts SET name = ?, prompt = ?, description = ?, voice_id = ?, public = ?,
-                   is_paid = ?, markup_per_mtokens = ?, forced_llm_id = ?, hide_llm_name = ?
+                   is_paid = ?, markup_per_mtokens = ?, forced_llm_id = ?, hide_llm_name = ?, disable_web_search = ?,
+                   enable_moderation = ?, watchdog_config = ?
                    WHERE id = ?""",
                 (name, prompt, description, voice_id, public,
-                 is_paid_bool, actual_markup, actual_forced_llm_id, actual_hide_llm_name, prompt_id)
+                 is_paid_bool, actual_markup, actual_forced_llm_id, actual_hide_llm_name, disable_web_search,
+                 enable_moderation, watchdog_config_json, prompt_id)
             )
 
             # Update or create the owner
@@ -617,6 +644,11 @@ async def update_prompt(
 
         await conn.commit()
 
+    # Invalidate landing cache if prompt has a public_id
+    if prompt_public_id:
+        from app import invalidate_landing_cache
+        invalidate_landing_cache(prompt_public_id)
+
     return RedirectResponse(url=f"/prompts/edit/{prompt_id}", status_code=303)
 
 
@@ -648,6 +680,9 @@ async def delete_prompt(prompt_id: int, current_user: User = Depends(get_current
 
         if not (is_admin or is_owner):
             raise HTTPException(status_code=403, detail="Access denied")
+
+        # Save public_id for cache invalidation (before deleting)
+        prompt_public_id = prompt_info['public_id'] if 'public_id' in prompt_info.keys() else None
 
         try:
             # Delete the prompt from the database
@@ -681,8 +716,14 @@ async def delete_prompt(prompt_id: int, current_user: User = Depends(get_current
                     logger.error(f"Error deleting prompt directory {prompt_dir}: {e}")
             
             await conn.commit()
+
+            # Invalidate landing cache
+            if prompt_public_id:
+                from app import invalidate_landing_cache
+                invalidate_landing_cache(prompt_public_id)
+
             return JSONResponse(content={"success": True}, status_code=200)
-        
+
         except Exception as e:
             await conn.rollback()
             raise HTTPException(status_code=500, detail=str(e))
@@ -746,6 +787,9 @@ async def delete_prompts_batch(request: Request, current_user: User = Depends(ge
                     errors.append(f"No permission to delete prompt {prompt_id}")
                     continue
 
+                # Save public_id for cache invalidation (before deleting)
+                prompt_public_id = prompt_info['public_id'] if 'public_id' in prompt_info.keys() else None
+
                 # Delete prompt
                 await conn.execute('DELETE FROM Prompts WHERE id = ?', (prompt_id,))
                 await conn.execute('DELETE FROM PROMPT_PERMISSIONS WHERE prompt_id = ?', (prompt_id,))
@@ -771,6 +815,12 @@ async def delete_prompts_batch(request: Request, current_user: User = Depends(ge
                         logger.error(f"Error deleting prompt directory {prompt_dir}: {e}")
 
                 await conn.commit()
+
+                # Invalidate landing cache
+                if prompt_public_id:
+                    from app import invalidate_landing_cache
+                    invalidate_landing_cache(prompt_public_id)
+
                 deleted_count += 1
 
         except ValueError:
@@ -1206,6 +1256,608 @@ async def set_landing_registration_config(prompt_id: int, config: dict) -> bool:
     except Exception as e:
         logger.error(f"Error setting landing_registration_config for prompt {prompt_id}: {e}")
         return False
+
+
+# =============================================================================
+# Watchdog Configuration
+# =============================================================================
+
+VALID_WATCHDOG_MODES = ("interview", "coaching", "education", "custom")
+VALID_THRESHOLD_KEYS = {
+    "max_turns_off_topic", "max_turns_same_subtopic",
+    "max_warnings_before_action", "max_unanswered_questions",
+}
+# Keys that always get a default value (original thresholds)
+_REQUIRED_THRESHOLD_KEYS = {"max_turns_off_topic", "max_turns_same_subtopic"}
+
+# --- Watchdog range constants (single source of truth) ---
+# Used by validate_watchdog_config(), _sanitize_suggestion(), and _build_suggest_system_prompt()
+WATCHDOG_FREQ_MIN, WATCHDOG_FREQ_MAX = 1, 20
+WATCHDOG_HINT_MIN, WATCHDOG_HINT_MAX = 100, 2000
+WATCHDOG_THRESHOLD_MIN, WATCHDOG_THRESHOLD_MAX = 0, 50
+WATCHDOG_TAKEOVER_THRESHOLD_MIN, WATCHDOG_TAKEOVER_THRESHOLD_MAX = 1, 50
+WATCHDOG_OBJ_MAX_CHARS = 500
+WATCHDOG_OBJ_MAX_COUNT = 20
+WATCHDOG_STEERING_MAX_CHARS = 5000
+
+
+def _parse_watchdog_config_for_template(raw_json: Optional[str]) -> dict:
+    """Parse watchdog_config from DB for template rendering.
+    Returns nested defaults if NULL/invalid. Deep-merges per sub-config."""
+    config = get_default_watchdog_config()
+    if raw_json:
+        try:
+            stored = orjson.loads(raw_json)
+            if isinstance(stored, dict):
+                # Deep-merge: merge each sub-config independently
+                if "pre_watchdog" in stored and isinstance(stored["pre_watchdog"], dict):
+                    config["pre_watchdog"].update(stored["pre_watchdog"])
+                if "post_watchdog" in stored and isinstance(stored["post_watchdog"], dict):
+                    # Merge thresholds separately to avoid losing defaults
+                    stored_post = stored["post_watchdog"]
+                    if "thresholds" in stored_post and isinstance(stored_post["thresholds"], dict):
+                        config["post_watchdog"]["thresholds"].update(stored_post["thresholds"])
+                        stored_post_copy = {k: v for k, v in stored_post.items() if k != "thresholds"}
+                        config["post_watchdog"].update(stored_post_copy)
+                    else:
+                        config["post_watchdog"].update(stored_post)
+        except orjson.JSONDecodeError:
+            pass
+    return config
+
+
+def get_default_watchdog_config() -> dict:
+    """Factory function returning the nested pre/post watchdog defaults."""
+    return {
+        "pre_watchdog": {
+            "enabled": False,
+            "llm_id": None,
+            "objectives": [],
+            "steering_prompt": "",
+            "frequency": 1,
+            "can_takeover": True,
+            "can_lock": False,
+        },
+        "post_watchdog": {
+            "enabled": False,
+            "llm_id": None,
+            "mode": "custom",
+            "objectives": [],
+            "steering_prompt": "",
+            "frequency": 3,
+            "max_hint_chars": 500,
+            "thresholds": {"max_turns_off_topic": 3, "max_turns_same_subtopic": 5},
+            "can_takeover": False,
+            "takeover_threshold": 5,
+            "can_lock": False,
+        },
+    }
+
+
+def _validate_pre_watchdog_config(config: dict) -> dict:
+    """Validate the pre_watchdog sub-config. Returns sanitized dict or raises ValueError."""
+    defaults = get_default_watchdog_config()["pre_watchdog"]
+    sanitized = defaults.copy()
+
+    enabled = config.get("enabled", False)
+    if not isinstance(enabled, bool):
+        enabled = bool(enabled)
+    sanitized["enabled"] = enabled
+
+    if not enabled:
+        return sanitized
+
+    # llm_id (required when enabled)
+    llm_id = config.get("llm_id")
+    if llm_id is None:
+        raise ValueError("pre_watchdog.llm_id is required when enabled")
+    try:
+        sanitized["llm_id"] = int(llm_id)
+    except (TypeError, ValueError):
+        raise ValueError("pre_watchdog.llm_id must be an integer")
+
+    # objectives (required when enabled)
+    objectives = config.get("objectives", [])
+    if not isinstance(objectives, list) or not objectives:
+        raise ValueError("pre_watchdog requires at least one objective when enabled")
+    if len(objectives) > WATCHDOG_OBJ_MAX_COUNT:
+        raise ValueError(f"pre_watchdog: maximum {WATCHDOG_OBJ_MAX_COUNT} objectives allowed")
+    sanitized_objectives = []
+    for obj in objectives:
+        if not isinstance(obj, str):
+            continue
+        obj = obj.strip()[:WATCHDOG_OBJ_MAX_CHARS]
+        if obj:
+            sanitized_objectives.append(obj)
+    if not sanitized_objectives:
+        raise ValueError("pre_watchdog requires at least one non-empty objective")
+    sanitized["objectives"] = sanitized_objectives
+
+    # steering_prompt (optional)
+    steering_prompt = config.get("steering_prompt", "")
+    if isinstance(steering_prompt, str):
+        sanitized["steering_prompt"] = steering_prompt.strip()[:WATCHDOG_STEERING_MAX_CHARS]
+
+    # frequency (1-20, default 1)
+    frequency = config.get("frequency", 1)
+    try:
+        frequency = int(frequency)
+    except (TypeError, ValueError):
+        frequency = 1
+    if frequency < WATCHDOG_FREQ_MIN or frequency > WATCHDOG_FREQ_MAX:
+        raise ValueError(f"pre_watchdog.frequency must be between {WATCHDOG_FREQ_MIN} and {WATCHDOG_FREQ_MAX}")
+    sanitized["frequency"] = frequency
+
+    # can_takeover (bool, default True)
+    can_takeover = config.get("can_takeover", True)
+    if not isinstance(can_takeover, bool):
+        raise ValueError("pre_watchdog.can_takeover must be a boolean")
+    sanitized["can_takeover"] = can_takeover
+
+    # can_lock (bool, default False)
+    can_lock = config.get("can_lock", False)
+    if not isinstance(can_lock, bool):
+        raise ValueError("pre_watchdog.can_lock must be a boolean")
+    sanitized["can_lock"] = can_lock
+
+    return sanitized
+
+
+def _validate_post_watchdog_config(config: dict) -> dict:
+    """Validate the post_watchdog sub-config. Returns sanitized dict or raises ValueError."""
+    defaults = get_default_watchdog_config()["post_watchdog"]
+    sanitized = defaults.copy()
+    sanitized["thresholds"] = defaults["thresholds"].copy()
+
+    enabled = config.get("enabled", False)
+    if not isinstance(enabled, bool):
+        enabled = bool(enabled)
+    sanitized["enabled"] = enabled
+
+    if not enabled:
+        return sanitized
+
+    # llm_id (required when enabled)
+    llm_id = config.get("llm_id")
+    if llm_id is None:
+        raise ValueError("post_watchdog.llm_id is required when enabled")
+    try:
+        sanitized["llm_id"] = int(llm_id)
+    except (TypeError, ValueError):
+        raise ValueError("post_watchdog.llm_id must be an integer")
+
+    # mode
+    mode = config.get("mode", "custom")
+    if mode not in VALID_WATCHDOG_MODES:
+        raise ValueError(f"post_watchdog.mode must be one of: {', '.join(VALID_WATCHDOG_MODES)}")
+    sanitized["mode"] = mode
+
+    # objectives (required when enabled)
+    objectives = config.get("objectives", [])
+    if not isinstance(objectives, list) or not objectives:
+        raise ValueError("post_watchdog requires at least one objective when enabled")
+    if len(objectives) > WATCHDOG_OBJ_MAX_COUNT:
+        raise ValueError(f"post_watchdog: maximum {WATCHDOG_OBJ_MAX_COUNT} objectives allowed")
+    sanitized_objectives = []
+    for obj in objectives:
+        if not isinstance(obj, str):
+            continue
+        obj = obj.strip()[:WATCHDOG_OBJ_MAX_CHARS]
+        if obj:
+            sanitized_objectives.append(obj)
+    if not sanitized_objectives:
+        raise ValueError("post_watchdog requires at least one non-empty objective")
+    sanitized["objectives"] = sanitized_objectives
+
+    # steering_prompt (optional)
+    steering_prompt = config.get("steering_prompt", "")
+    if isinstance(steering_prompt, str):
+        sanitized["steering_prompt"] = steering_prompt.strip()[:WATCHDOG_STEERING_MAX_CHARS]
+
+    # frequency
+    frequency = config.get("frequency", 3)
+    try:
+        frequency = int(frequency)
+    except (TypeError, ValueError):
+        frequency = 3
+    if frequency < WATCHDOG_FREQ_MIN or frequency > WATCHDOG_FREQ_MAX:
+        raise ValueError(f"post_watchdog.frequency must be between {WATCHDOG_FREQ_MIN} and {WATCHDOG_FREQ_MAX}")
+    sanitized["frequency"] = frequency
+
+    # max_hint_chars
+    max_hint_chars = config.get("max_hint_chars", 500)
+    try:
+        max_hint_chars = int(max_hint_chars)
+    except (TypeError, ValueError):
+        max_hint_chars = 500
+    if max_hint_chars < WATCHDOG_HINT_MIN or max_hint_chars > WATCHDOG_HINT_MAX:
+        raise ValueError(f"post_watchdog.max_hint_chars must be between {WATCHDOG_HINT_MIN} and {WATCHDOG_HINT_MAX}")
+    sanitized["max_hint_chars"] = max_hint_chars
+
+    # thresholds
+    thresholds_raw = config.get("thresholds", {})
+    if not isinstance(thresholds_raw, dict):
+        thresholds_raw = {}
+    sanitized_thresholds = {}
+    for key in VALID_THRESHOLD_KEYS:
+        val = thresholds_raw.get(key)
+        if val is not None:
+            try:
+                val = int(val)
+            except (TypeError, ValueError):
+                default = sanitized["thresholds"].get(key)
+                if default is not None:
+                    val = default
+                else:
+                    continue
+            if val < WATCHDOG_THRESHOLD_MIN or val > WATCHDOG_THRESHOLD_MAX:
+                raise ValueError(f"post_watchdog threshold '{key}' must be between {WATCHDOG_THRESHOLD_MIN} and {WATCHDOG_THRESHOLD_MAX}")
+            sanitized_thresholds[key] = val
+        elif key in _REQUIRED_THRESHOLD_KEYS:
+            sanitized_thresholds[key] = sanitized["thresholds"][key]
+    sanitized["thresholds"] = sanitized_thresholds
+
+    # can_takeover (bool, default False)
+    can_takeover = config.get("can_takeover", False)
+    if not isinstance(can_takeover, bool):
+        raise ValueError("post_watchdog.can_takeover must be a boolean")
+    sanitized["can_takeover"] = can_takeover
+
+    # takeover_threshold (1-50, default 5)
+    takeover_threshold = config.get("takeover_threshold", 5)
+    try:
+        takeover_threshold = int(takeover_threshold)
+    except (TypeError, ValueError):
+        takeover_threshold = 5
+    if takeover_threshold < WATCHDOG_TAKEOVER_THRESHOLD_MIN or takeover_threshold > WATCHDOG_TAKEOVER_THRESHOLD_MAX:
+        raise ValueError(f"post_watchdog.takeover_threshold must be between {WATCHDOG_TAKEOVER_THRESHOLD_MIN} and {WATCHDOG_TAKEOVER_THRESHOLD_MAX}")
+    sanitized["takeover_threshold"] = takeover_threshold
+
+    # can_lock (bool, default False)
+    can_lock = config.get("can_lock", False)
+    if not isinstance(can_lock, bool):
+        raise ValueError("post_watchdog.can_lock must be a boolean")
+    sanitized["can_lock"] = can_lock
+
+    return sanitized
+
+
+def validate_watchdog_config(config: dict) -> dict:
+    """Validate and sanitize nested watchdog config. Sync, structural only (no DB checks).
+    Accepts nested {pre_watchdog: {}, post_watchdog: {}} format.
+    Returns sanitized nested dict or raises ValueError."""
+    if not isinstance(config, dict):
+        raise ValueError("watchdog_config must be a JSON object")
+
+    pre_raw = config.get("pre_watchdog", {})
+    post_raw = config.get("post_watchdog", {})
+
+    if not isinstance(pre_raw, dict):
+        pre_raw = {}
+    if not isinstance(post_raw, dict):
+        post_raw = {}
+
+    return {
+        "pre_watchdog": _validate_pre_watchdog_config(pre_raw),
+        "post_watchdog": _validate_post_watchdog_config(post_raw),
+    }
+
+
+async def get_watchdog_config(prompt_id: int) -> dict:
+    """Read nested watchdog config from DB, deep-merged with defaults."""
+    async with get_db_connection(readonly=True) as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute(
+                "SELECT watchdog_config FROM PROMPTS WHERE id = ?",
+                (prompt_id,)
+            )
+            result = await cursor.fetchone()
+
+            if not result:
+                raise HTTPException(status_code=404, detail="Prompt not found")
+
+            config = get_default_watchdog_config()
+            config_json = result[0]
+            if config_json:
+                try:
+                    stored = orjson.loads(config_json)
+                    if isinstance(stored, dict):
+                        if "pre_watchdog" in stored and isinstance(stored["pre_watchdog"], dict):
+                            config["pre_watchdog"].update(stored["pre_watchdog"])
+                        if "post_watchdog" in stored and isinstance(stored["post_watchdog"], dict):
+                            stored_post = stored["post_watchdog"]
+                            if "thresholds" in stored_post and isinstance(stored_post["thresholds"], dict):
+                                config["post_watchdog"]["thresholds"].update(stored_post["thresholds"])
+                                rest = {k: v for k, v in stored_post.items() if k != "thresholds"}
+                                config["post_watchdog"].update(rest)
+                            else:
+                                config["post_watchdog"].update(stored_post)
+                except orjson.JSONDecodeError:
+                    logger.warning("Invalid JSON in watchdog_config for prompt %d", prompt_id)
+
+            return config
+
+
+async def set_watchdog_config(prompt_id: int, config: dict) -> bool:
+    """Validate, check FK llm_ids, serialize and store nested watchdog config.
+    Returns True on success. Raises ValueError on validation error."""
+    sanitized = validate_watchdog_config(config)
+
+    # Async FK validation: check llm_id exists in LLM table for both sub-configs
+    for sub_key in ("pre_watchdog", "post_watchdog"):
+        sub_cfg = sanitized.get(sub_key, {})
+        if sub_cfg.get("enabled") and sub_cfg.get("llm_id") is not None:
+            async with get_db_connection(readonly=True) as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute("SELECT id FROM LLM WHERE id = ?", (sub_cfg["llm_id"],))
+                    if not await cursor.fetchone():
+                        raise ValueError(f"LLM with id {sub_cfg['llm_id']} does not exist ({sub_key})")
+
+    config_json = orjson.dumps(sanitized).decode("utf-8")
+
+    async with get_db_connection() as conn:
+        await conn.execute(
+            "UPDATE PROMPTS SET watchdog_config = ? WHERE id = ?",
+            (config_json, prompt_id)
+        )
+        await conn.commit()
+
+    return True
+
+
+# =============================================================================
+# Watchdog AI Auto-fill (suggest config via LLM)
+# =============================================================================
+
+def _build_suggest_system_prompt() -> str:
+    """Build the system prompt for watchdog config suggestion.
+    Ranges shown to the LLM are derived from the real constants."""
+    modes_str = ", ".join(f'"{m}"' for m in VALID_WATCHDOG_MODES)
+    return f"""You are an expert AI configuration assistant. Your task is to analyze an AI prompt/personality and suggest optimal Watchdog configuration values.
+
+The Watchdog is a silent conversation supervisor that runs in the background. It never speaks to the user. It evaluates the conversation against objectives and provides internal steering hints to the main AI.
+
+Based on the prompt provided, return a JSON object with these fields:
+
+1. "mode": One of {modes_str}.
+   - "interview": The prompt conducts interviews, collects information, follows a structured plan.
+   - "coaching": The prompt guides personal/professional development, tracks goals.
+   - "education": The prompt teaches, tutors, tracks learning objectives.
+   - "custom": General purpose or doesn't fit other categories.
+
+2. "objectives": Array of 3-7 specific monitoring objectives (strings, each max {WATCHDOG_OBJ_MAX_CHARS} chars).
+   Write them as clear instructions for a supervisor. Examples:
+   - "Track which topics from the interview plan have been covered"
+   - "Detect when the user changes subject away from the learning goal"
+   - "Flag if the AI gives contradictory advice across turns"
+
+3. "steering_prompt": Custom instructions for the watchdog evaluator (max {WATCHDOG_STEERING_MAX_CHARS} chars).
+   Write as if instructing a silent supervisor who analyzes conversation transcripts.
+   Be specific to the prompt's domain and purpose.
+
+4. "frequency": Integer {WATCHDOG_FREQ_MIN}-{WATCHDOG_FREQ_MAX}. How often to evaluate (every N user turns).
+   - 1-2: High-stakes conversations needing constant monitoring.
+   - 3-4: Standard conversations with moderate oversight.
+   - 5+: Relaxed conversations where occasional checks suffice.
+
+5. "thresholds": Object with (include only keys relevant to the prompt):
+   - "max_turns_off_topic": Integer {WATCHDOG_THRESHOLD_MIN}-{WATCHDOG_THRESHOLD_MAX}. Turns before flagging drift. Typical: 2-5. ALWAYS include.
+   - "max_turns_same_subtopic": Integer {WATCHDOG_THRESHOLD_MIN}-{WATCHDOG_THRESHOLD_MAX}. Turns before flagging repetition. Typical: 3-8. ALWAYS include.
+   - "max_warnings_before_action": Integer {WATCHDOG_THRESHOLD_MIN}-{WATCHDOG_THRESHOLD_MAX}. How many warnings/ultimatums before the AI must act decisively. Typical: 1-2 for strict/authority roles, 3-5 for lenient. Include for roles that issue warnings.
+   - "max_unanswered_questions": Integer {WATCHDOG_THRESHOLD_MIN}-{WATCHDOG_THRESHOLD_MAX}. Consecutive essential questions the user can dodge before flagging. Typical: 1-3. Include for interview/structured roles.
+
+6. "max_hint_chars": Integer {WATCHDOG_HINT_MIN}-{WATCHDOG_HINT_MAX}. Hint length based on complexity.
+   - Simple prompts: 200-300
+   - Complex multi-phase prompts: 500-1000
+
+IMPORTANT: The watchdog system includes a built-in Role Coherence module that automatically monitors: commitment follow-through (verbal conclusions without blocking, unfulfilled ultimatums), strictness calibration (too lenient/harsh for the role), tool usage logic, and user good-faith assessment. Your objectives and steering_prompt should focus on DOMAIN-SPECIFIC monitoring for this particular prompt. Do NOT include generic objectives about "maintaining role" or "using tools correctly" - those are covered automatically.
+
+Respond ONLY with a valid JSON object. No markdown fences, no extra text."""
+
+
+def _sanitize_suggestion(suggestion: dict) -> dict:
+    """Sanitize AI suggestion to ensure safe ranges. Best-effort clamp, not strict validation.
+    Uses the same range constants as validate_watchdog_config() to avoid divergence."""
+    defaults = get_default_watchdog_config()
+
+    mode = suggestion.get("mode", defaults["mode"])
+    if mode not in VALID_WATCHDOG_MODES:
+        mode = defaults["mode"]
+
+    objectives = suggestion.get("objectives", [])
+    if not isinstance(objectives, list):
+        objectives = []
+    objectives = [
+        str(o).strip()[:WATCHDOG_OBJ_MAX_CHARS]
+        for o in objectives if o and str(o).strip()
+    ][:WATCHDOG_OBJ_MAX_COUNT]
+
+    steering_prompt = str(suggestion.get("steering_prompt", "")).strip()[:WATCHDOG_STEERING_MAX_CHARS]
+
+    frequency = suggestion.get("frequency", defaults["frequency"])
+    try:
+        frequency = max(WATCHDOG_FREQ_MIN, min(WATCHDOG_FREQ_MAX, int(frequency)))
+    except (TypeError, ValueError):
+        frequency = defaults["frequency"]
+
+    max_hint_chars = suggestion.get("max_hint_chars", defaults["max_hint_chars"])
+    try:
+        max_hint_chars = max(WATCHDOG_HINT_MIN, min(WATCHDOG_HINT_MAX, int(max_hint_chars)))
+    except (TypeError, ValueError):
+        max_hint_chars = defaults["max_hint_chars"]
+
+    thresholds = suggestion.get("thresholds", {})
+    if not isinstance(thresholds, dict):
+        thresholds = {}
+
+    def _clamp_threshold(key: str):
+        val = thresholds.get(key)
+        if val is None:
+            default = defaults["thresholds"].get(key)
+            return default  # None for optional keys not provided
+        try:
+            return max(WATCHDOG_THRESHOLD_MIN, min(WATCHDOG_THRESHOLD_MAX, int(val)))
+        except (TypeError, ValueError):
+            return defaults["thresholds"].get(key)
+
+    clamped_thresholds = {}
+    for key in VALID_THRESHOLD_KEYS:
+        val = _clamp_threshold(key)
+        if val is not None:
+            clamped_thresholds[key] = val
+
+    return {
+        "mode": mode,
+        "objectives": objectives,
+        "steering_prompt": steering_prompt,
+        "frequency": frequency,
+        "max_hint_chars": max_hint_chars,
+        "thresholds": clamped_thresholds,
+    }
+
+
+@router.post("/api/watchdog/suggest-config")
+async def watchdog_suggest_config(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    if not await current_user.is_admin and not await current_user.is_manager:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    body = await request.json()
+    llm_id = body.get("llm_id")
+    prompt_text = body.get("prompt_text", "").strip()
+
+    # Validations
+    if not llm_id:
+        raise HTTPException(status_code=400, detail="llm_id is required")
+    if not prompt_text or len(prompt_text) < 10:
+        raise HTTPException(status_code=400, detail="prompt_text is required (min 10 chars)")
+
+    prompt_text = prompt_text[:10000]  # Truncate to limit cost
+
+    # Lookup LLM
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.execute(
+            "SELECT machine, model FROM LLM WHERE id = ?", (llm_id,)
+        )
+        llm_row = await cursor.fetchone()
+        if not llm_row:
+            raise HTTPException(status_code=404, detail="LLM not found")
+
+    machine, model = llm_row[0], llm_row[1]
+
+    # Resolve BYOK/system key for this provider
+    user_api_keys = {}
+    try:
+        async with get_db_connection(readonly=True) as conn:
+            cursor = await conn.execute(
+                "SELECT user_api_keys FROM USER_DETAILS WHERE user_id = ?",
+                (current_user.id,),
+            )
+            row = await cursor.fetchone()
+            if row and row[0]:
+                decrypted = decrypt_api_key(row[0])
+                if decrypted:
+                    parsed = orjson.loads(decrypted)
+                    if isinstance(parsed, dict):
+                        user_api_keys = parsed
+    except Exception:
+        logger.warning(
+            "Watchdog suggest-config: failed reading user API keys for user=%d",
+            current_user.id,
+            exc_info=True,
+        )
+
+    api_key_mode = await get_user_api_key_mode(current_user.id)
+    resolved_key, use_system = resolve_api_key_for_provider(
+        user_api_keys,
+        api_key_mode,
+        machine,
+    )
+    if not resolved_key and not use_system:
+        raise HTTPException(
+            status_code=400,
+            detail=f"API key required for provider {machine} in own-only mode.",
+        )
+
+    # Call LLM
+    from tools.llm_caller import (
+        call_llm_non_streaming_with_usage,
+        extract_json_from_llm_response,
+    )
+
+    system_prompt = _build_suggest_system_prompt()
+    user_message = f"Analyze this AI prompt and suggest watchdog configuration:\n\n{prompt_text}"
+
+    try:
+        result = await call_llm_non_streaming_with_usage(
+            machine=machine,
+            model=model,
+            system_prompt=system_prompt,
+            user_message=user_message,
+            timeout=45,
+            max_tokens=1500,
+            api_key_override=resolved_key,
+        )
+        raw_response = result.text
+    except Exception:
+        logger.exception("Watchdog suggest-config: LLM call failed (llm_id=%s)", llm_id)
+        raise HTTPException(status_code=502, detail="AI analysis failed. Please try again or configure manually.")
+
+    # Bill this non-streaming LLM call with returned usage
+    try:
+        async with get_db_connection() as bill_conn:
+            await bill_conn.execute("BEGIN IMMEDIATE")
+            bill_cursor = await bill_conn.cursor()
+            input_cost, output_cost = await get_llm_token_costs(model, bill_conn)
+            billed = await consume_token(
+                user_id=current_user.id,
+                input_tokens=result.input_tokens,
+                output_tokens=result.output_tokens,
+                input_token_cost_per_million=input_cost,
+                output_token_cost_per_million=output_cost,
+                conn=bill_conn,
+                cursor=bill_cursor,
+                prompt_id=None,
+            )
+            if not billed:
+                logger.warning(
+                    "Watchdog suggest-config: consume_token returned False (user=%d, model=%s, in=%d, out=%d)",
+                    current_user.id,
+                    model,
+                    result.input_tokens,
+                    result.output_tokens,
+                )
+            await bill_conn.commit()
+    except Exception:
+        logger.exception(
+            "Watchdog suggest-config: billing failed (user=%d, llm_id=%s)",
+            current_user.id,
+            llm_id,
+        )
+
+    # Parse JSON from response
+    suggestion = extract_json_from_llm_response(raw_response)
+    if not suggestion:
+        raise HTTPException(
+            status_code=502,
+            detail="The AI returned an invalid response. Try again or configure manually."
+        )
+
+    # Sanitize and validate ranges
+    sanitized = _sanitize_suggestion(suggestion)
+
+    if not sanitized["objectives"]:
+        raise HTTPException(
+            status_code=502,
+            detail="The AI could not generate valid objectives. Please configure manually."
+        )
+
+    return sanitized
 
 
 async def get_prompt_owner_id(prompt_id: int) -> Optional[int]:

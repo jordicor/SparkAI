@@ -120,8 +120,6 @@ MAX_IMAGE_PIXELS = int(os.getenv('MAX_IMAGE_PIXELS', 50_000_000))  # 50 megapixe
 AVATAR_TOKEN_EXPIRE_HOURS = int(os.getenv('AVATAR_TOKEN_EXPIRE_HOURS', 8))
 MEDIA_TOKEN_EXPIRE_HOURS = int(os.getenv('MEDIA_TOKEN_EXPIRE_HOURS', 1))
 
-USE_MODERATION_API = os.getenv('USE_MODERATION_API', 'False').lower() == 'true'
-
 PERPLEXITY_API_KEY = os.getenv('PERPLEXITY_API_KEY')
 
 CLOUDFLARE_API_KEY = os.getenv('CLOUDFLARE_API_KEY')
@@ -144,7 +142,7 @@ AUTH_IMAGE_ALLOWED_PREFIXES = [p.strip() for p in os.getenv("AUTH_IMAGE_ALLOWED_
 
 # CDN Configuration
 CDN_BASE_URL = os.getenv("CDN_BASE_URL", "")  # For static files (/static/)
-CDN_FILES_URL = os.getenv("CDN_FILES_URL", "")  # For user files (/users/)
+CDN_FILES_URL = os.getenv("CDN_FILES_URL", "https://cdn.yourdomain.com")  # For user files (/users/)
 ENABLE_CDN = os.getenv("ENABLE_CDN", "false").lower() == "true"
 
 def get_static_url(path: str) -> str:
@@ -1427,6 +1425,313 @@ async def reset_monthly_billing_if_needed(user_id: int, conn, cursor) -> bool:
         return True
 
     return False
+
+
+async def get_llm_info(llm_id: int) -> dict | None:
+    """Lookup machine/model from LLM table by ID. Returns dict or None."""
+    if llm_id is None:
+        return None
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.execute(
+            "SELECT id, machine, model FROM LLM WHERE id = ?", (llm_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return None
+        return {"id": row[0], "machine": row[1], "model": row[2]}
+
+
+def extract_post_watchdog_config(config: dict | None) -> dict | None:
+    """Normalize flat/nested watchdog config and return the post-watchdog block.
+    Canonical version - import from here instead of duplicating."""
+    if not isinstance(config, dict):
+        return None
+    post_watchdog = config.get("post_watchdog")
+    if isinstance(post_watchdog, dict):
+        return post_watchdog
+    return config
+
+
+def extract_pre_watchdog_config(config: dict | None) -> dict | None:
+    """Extract the pre-watchdog sub-config from nested watchdog config."""
+    if not isinstance(config, dict):
+        return None
+    pre_watchdog = config.get("pre_watchdog")
+    if isinstance(pre_watchdog, dict):
+        return pre_watchdog
+    return None
+
+
+async def get_llm_token_costs(model: str, conn=None) -> tuple[float, float]:
+    """Return (input_token_cost, output_token_cost) per million tokens for a model."""
+    query = "SELECT input_token_cost, output_token_cost FROM LLM WHERE model = ?"
+    if conn:
+        cursor = await conn.execute(query, (model,))
+        row = await cursor.fetchone()
+    else:
+        async with get_db_connection(readonly=True) as new_conn:
+            cursor = await new_conn.execute(query, (model,))
+            row = await cursor.fetchone()
+
+    if not row:
+        return 0.0, 0.0
+    return float(row[0] or 0.0), float(row[1] or 0.0)
+
+
+async def consume_token(
+    user_id,
+    input_tokens,
+    output_tokens,
+    input_token_cost_per_million,
+    output_token_cost_per_million,
+    conn,
+    cursor,
+    reasoning_tokens=0,
+    prompt_id=None,
+):
+    """
+    Consume tokens and apply pricing logic based on prompt configuration.
+
+    Pricing Scenarios:
+    A) FREE Prompt: API cost * (1 + margin_free)
+    B) PAID Prompt (external user): API cost * (1 + margin_paid) + creator_markup + reseller_markup
+    C) Creator uses OWN prompt: API cost * (1 + margin_personal)
+    D) Same as B but with reseller markup added
+    """
+    try:
+        # Convert to float and calculate API cost
+        input_token_cost_per_million = float(input_token_cost_per_million)
+        output_token_cost_per_million = float(output_token_cost_per_million)
+
+        input_token_cost = input_token_cost_per_million / 1_000_000
+        output_token_cost = output_token_cost_per_million / 1_000_000
+
+        # Calculate base API cost
+        input_cost_total = input_tokens * input_token_cost
+        output_cost_total = (output_tokens + reasoning_tokens) * output_token_cost
+        api_cost = input_cost_total + output_cost_total
+        total_tokens = input_tokens + output_tokens + reasoning_tokens
+
+        # Get pricing configuration
+        pricing_config = await get_pricing_config()
+        margin_free = pricing_config['margin_free']
+        margin_paid = pricing_config['margin_paid']
+        margin_personal = pricing_config['margin_personal']
+        commission_rate = pricing_config['commission']
+
+        # Initialize earnings tracking
+        creator_earnings = 0.0
+        reseller_earnings = 0.0
+        creator_id = None
+        reseller_id = None
+
+        # Determine pricing scenario
+        if prompt_id:
+            # Get prompt pricing info
+            prompt_info = await get_prompt_pricing_info(prompt_id, conn)
+            is_paid = prompt_info['is_paid']
+            creator_markup_per_mtokens = prompt_info['markup_per_mtokens']
+            creator_id = prompt_info['created_by_user_id']
+
+            is_creator = (creator_id == user_id)
+
+            if not is_paid:
+                # SCENARIO A: Free prompt - apply free margin
+                total_cost = api_cost * (1 + margin_free)
+                logger.debug(f"[consume_token] Scenario A (FREE): API={api_cost:.6f}, margin={margin_free}, total={total_cost:.6f}")
+
+            elif is_creator:
+                # SCENARIO C: Creator using own prompt - apply personal margin, no markup
+                total_cost = api_cost * (1 + margin_personal)
+                logger.debug(f"[consume_token] Scenario C (PERSONAL): API={api_cost:.6f}, margin={margin_personal}, total={total_cost:.6f}")
+
+            else:
+                # SCENARIO B/D: Paid prompt by external user
+                base_cost = api_cost * (1 + margin_paid)
+
+                # Calculate creator markup
+                creator_markup = creator_markup_per_mtokens * total_tokens / 1_000_000
+
+                # Check for reseller markup
+                user_reseller_info = await get_user_reseller_info(user_id, conn)
+                reseller_markup_per_mtokens = user_reseller_info['reseller_markup_per_mtokens']
+                potential_reseller_id = user_reseller_info['created_by']
+
+                reseller_markup = 0.0
+                if reseller_markup_per_mtokens > 0 and potential_reseller_id:
+                    reseller_id = potential_reseller_id
+                    reseller_markup = reseller_markup_per_mtokens * total_tokens / 1_000_000
+
+                total_cost = base_cost + creator_markup + reseller_markup
+
+                # Calculate earnings (70% of markup goes to creator/reseller)
+                if creator_markup > 0 and creator_id:
+                    platform_commission = creator_markup * commission_rate
+                    creator_earnings = creator_markup - platform_commission
+
+                    # Record creator earnings
+                    await record_creator_earnings(
+                        creator_id=creator_id,
+                        prompt_id=prompt_id,
+                        consumer_id=user_id,
+                        tokens_consumed=total_tokens,
+                        gross_amount=creator_markup,
+                        platform_commission=platform_commission,
+                        net_earnings=creator_earnings,
+                        reseller_id=reseller_id,
+                        conn=conn,
+                        cursor=cursor
+                    )
+
+                    # Add to creator's pending earnings
+                    await add_pending_earnings(creator_id, creator_earnings, conn, cursor)
+
+                if reseller_markup > 0 and reseller_id:
+                    reseller_platform_commission = reseller_markup * commission_rate
+                    reseller_earnings = reseller_markup - reseller_platform_commission
+
+                    # Add to reseller's pending earnings
+                    await add_pending_earnings(reseller_id, reseller_earnings, conn, cursor)
+
+                logger.debug(
+                    f"[consume_token] Scenario B/D (PAID): API={api_cost:.6f}, base={base_cost:.6f}, "
+                    f"creator_markup={creator_markup:.6f}, reseller_markup={reseller_markup:.6f}, "
+                    f"total={total_cost:.6f}, creator_earnings={creator_earnings:.6f}, reseller_earnings={reseller_earnings:.6f}"
+                )
+        else:
+            # No prompt_id - fallback to free pricing (shouldn't happen normally)
+            total_cost = api_cost * (1 + margin_free)
+            logger.debug(f"[consume_token] No prompt_id - using free margin: API={api_cost:.6f}, total={total_cost:.6f}")
+
+        # Check for enterprise billing mode
+        billing_info = await get_user_billing_info(user_id, conn)
+        billing_account_id = billing_info['billing_account_id']
+
+        if billing_account_id:
+            # ENTERPRISE MODE: charge manager's account instead of user's
+            manager_id = billing_account_id
+
+            # Reset monthly billing counter if new month
+            await reset_monthly_billing_if_needed(user_id, conn, cursor)
+
+            # Get fresh billing info after potential reset
+            await cursor.execute('''
+                SELECT billing_limit, billing_limit_action, billing_current_month_spent,
+                       billing_auto_refill_amount, billing_max_limit
+                FROM USER_DETAILS WHERE user_id = ?
+            ''', (user_id,))
+            user_billing = await cursor.fetchone()
+            billing_limit = float(user_billing[0]) if user_billing[0] is not None else None
+            billing_limit_action = user_billing[1] or 'block'
+            current_month_spent = float(user_billing[2] or 0)
+            auto_refill_amount = float(user_billing[3]) if user_billing[3] is not None else 10.0
+            max_limit = float(user_billing[4]) if user_billing[4] is not None else None
+
+            # Check monthly spending limit
+            if billing_limit is not None:
+                if current_month_spent + total_cost > billing_limit:
+                    if billing_limit_action == 'block':
+                        logger.info(f"[consume_token] Enterprise user {user_id} blocked - monthly limit reached. Limit: {billing_limit}, Spent: {current_month_spent}, Requested: {total_cost}")
+                        return False
+                    elif billing_limit_action == 'auto_refill':
+                        # Auto-refill: increase the limit automatically
+                        new_limit = billing_limit + auto_refill_amount
+
+                        # Check if we would exceed the maximum limit cap
+                        if max_limit is not None and new_limit > max_limit:
+                            logger.info(f"[consume_token] Enterprise user {user_id} blocked - auto_refill would exceed max limit. Current: {billing_limit}, Max: {max_limit}")
+                            return False
+
+                        # Update the billing limit and increment auto_refill_count
+                        await cursor.execute('''
+                            UPDATE USER_DETAILS
+                            SET billing_limit = ?,
+                                billing_auto_refill_count = billing_auto_refill_count + 1
+                            WHERE user_id = ?
+                        ''', (new_limit, user_id))
+
+                        logger.info(f"[consume_token] Enterprise user {user_id} auto-refill triggered. Limit: {billing_limit} -> {new_limit}")
+                        billing_limit = new_limit  # Update local variable for subsequent checks
+                    else:
+                        # 'notify' - log warning but continue
+                        logger.warning(f"[consume_token] Enterprise user {user_id} over monthly limit (action=notify). Limit: {billing_limit}, Spent: {current_month_spent + total_cost}")
+
+            # Check manager's balance
+            await cursor.execute('SELECT balance FROM USER_DETAILS WHERE user_id = ?', (manager_id,))
+            manager_result = await cursor.fetchone()
+            if not manager_result:
+                logger.info(f"Manager with ID {manager_id} not found in USER_DETAILS")
+                return False
+
+            manager_balance = manager_result[0]
+            if total_cost > manager_balance:
+                logger.info(f"Insufficient manager balance. Required: {total_cost:.6f}, Available: {manager_balance:.6f}")
+                return False
+
+            # Deduct from manager's balance
+            await cursor.execute('''
+                UPDATE USER_DETAILS
+                SET balance = balance - ?
+                WHERE user_id = ?
+            ''', (total_cost, manager_id))
+
+            # Update user's billing spent (for limit tracking) and token stats (no balance deduction)
+            await cursor.execute('''
+                UPDATE USER_DETAILS
+                SET billing_current_month_spent = billing_current_month_spent + ?,
+                    input_tokens = input_tokens + ?,
+                    output_tokens = output_tokens + ?,
+                    input_token_cost = input_token_cost + ?,
+                    output_token_cost = output_token_cost + ?,
+                    total_cost = total_cost + ?,
+                    tokens_spent = tokens_spent + ?
+                WHERE user_id = ?
+            ''', (total_cost, input_tokens, output_tokens + reasoning_tokens, input_cost_total, output_cost_total, total_cost, total_tokens, user_id))
+
+            logger.debug(f"[consume_token] Enterprise mode: charged manager {manager_id} ${total_cost:.6f} for user {user_id}")
+
+        else:
+            # STANDARD MODE: charge user's own balance
+            await cursor.execute('SELECT balance FROM USER_DETAILS WHERE user_id = ?', (user_id,))
+            result = await cursor.fetchone()
+            if not result:
+                logger.info(f"User with ID {user_id} not found in USER_DETAILS")
+                return False
+
+            current_balance = result[0]
+            if total_cost > current_balance:
+                logger.info(f"Insufficient balance to consume tokens. Required: {total_cost:.6f}, Available: {current_balance:.6f}")
+                return False
+
+            # Update USER_DETAILS with tokens spent and total cost
+            await cursor.execute('''
+                UPDATE USER_DETAILS
+                SET balance = balance - ?,
+                    input_tokens = input_tokens + ?,
+                    output_tokens = output_tokens + ?,
+                    input_token_cost = input_token_cost + ?,
+                    output_token_cost = output_token_cost + ?,
+                    total_cost = total_cost + ?,
+                    tokens_spent = tokens_spent + ?
+                WHERE user_id = ?
+            ''', (total_cost, input_tokens, output_tokens + reasoning_tokens, input_cost_total, output_cost_total, total_cost, total_tokens, user_id))
+
+            # Record daily usage summary
+            await record_daily_usage(
+                user_id=user_id,
+                usage_type='ai_tokens',
+                cost=total_cost,
+                tokens_in=input_tokens,
+                tokens_out=output_tokens + reasoning_tokens,
+                conn=conn,
+                cursor=cursor
+            )
+
+        # Don't commit here since transaction is managed by caller's transaction
+        return True
+    except Exception as e:
+        logger.error(f"[consume_token] - Error executing balance update query: {e}")
+        return False
 
 
 # ============================================================================

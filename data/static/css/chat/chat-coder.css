@@ -43,9 +43,9 @@ body {
     color: #cccccc;
 }
 
-/* CHANGE #1: force width: 240px instead of min-width and max-width */
+/* CHANGE #1: force width: 260px instead of min-width and max-width */
 #sidebar {
-    width: 240px;
+    width: 260px;
     background-color: var(--sidebar-bg-color);
     display: flex;
     flex-direction: column;
@@ -78,15 +78,15 @@ body {
     color: #ffffff;
 }
 
-.list-group-item-action[href="/"] {
-    background-color: transparent; 
-    color: var(--sidebar-text-color);
-    pointer-events: auto; 
+.btn-home-sidebar,
+.btn-collapse-sidebar,
+.btn-expand-sidebar {
+    --sidebar-btn-color: var(--sidebar-text-color);
 }
-
-.list-group-item-action[href="/"]:hover {
-    background-color: transparent; 
-    color: #ffffff;
+.btn-home-sidebar:hover,
+.btn-collapse-sidebar:hover,
+.btn-expand-sidebar:hover {
+    --sidebar-btn-hover-color: #ffffff;
 }
 
 .btn-toggle-sidebar {
@@ -529,6 +529,12 @@ textarea {
     font-size: 14px;
 }
 
+#dynamic-chats-container .list-group-item .chat-name {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
 #dynamic-chats-container .list-group-item:hover {
     background-color: #2d2d30;
 }
@@ -882,6 +888,12 @@ textarea {
     z-index: 1000;
 }
 
+.chat-menu .chat-menu-content.menu-above {
+    top: auto;
+    bottom: 100%;
+    margin-bottom: 5px;
+}
+
 .chat-menu .chat-menu-content a {
     display: block;
     color: #cccccc;
@@ -1069,26 +1081,6 @@ textarea {
 .spinner-border {
     width: 3rem;
     height: 3rem;
-}
-
-.list-group-item-action[href="/"] {
-    background-color: transparent;
-    color: var(--sidebar-text-color);
-    pointer-events: auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 10px 15px;
-}
-
-.list-group-item-action[href="/"] i {
-    margin-right: 10px;
-}
-
-.list-group-item-action[href="/"] span {
-    flex-grow: 1;
-    text-align: center;
 }
 
 .fullsize-container {
@@ -1586,6 +1578,37 @@ body {
 
 /* ===== FOLDER SYSTEM STYLES - CODER THEME ===== */
 
+/* New Folder button */
+.new-folder-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    margin-bottom: 15px;
+    border: 1px dashed var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.3s ease;
+    background-color: transparent;
+    font-family: 'Courier New', monospace;
+}
+
+.new-folder-item:hover {
+    border-color: var(--accent);
+    background-color: rgba(0, 120, 212, 0.1);
+    color: var(--text-primary);
+}
+
+.new-folder-item i {
+    margin-right: 10px;
+    font-size: 16px;
+}
+
+.new-folder-item span {
+    font-size: 14px;
+    font-weight: 500;
+}
+
 /* Folder container */
 .folder-container {
     margin-bottom: 8px;
@@ -1730,6 +1753,43 @@ body {
     content: '> ';
     color: #0078d4;
     font-weight: bold;
+}
+
+/* Folder chats container - for JS compatibility */
+.folder-chats-container {
+    margin-left: 15px;
+    padding-left: 10px;
+    border-left: 2px solid #0078d4;
+    margin-top: 5px;
+    background: #1e1e1e;
+}
+
+.folder-chats-container .list-group-item {
+    background-color: transparent;
+    margin-bottom: 3px;
+    padding: 6px 12px 6px 20px;
+    border-radius: 0;
+    font-size: 13px;
+    font-family: 'Courier New', monospace;
+    border-left: 2px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.folder-chats-container .list-group-item:hover {
+    background-color: #252526;
+    border-left-color: #0078d4;
+    color: #0078d4;
+}
+
+.folder-chats-container .list-group-item.active-chat {
+    background: linear-gradient(90deg, #001830 0%, #002040 100%);
+    border-left-color: #0078d4;
+    color: #0078d4;
+    font-weight: bold;
+}
+
+.folder-collapsed .folder-chats-container {
+    display: none;
 }
 
 /* Drag and drop states */
@@ -2635,4 +2695,35 @@ input[type="range"] {
     border-color: #5a5a5a;
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(74, 79, 101, 0.3);
+}
+
+
+
+/* =============================================
+   Web Search Toggle
+   ============================================= */
+
+#web-search-control {
+    display: none;
+}
+
+#web-search-control.visible {
+    position: relative;
+    display: flex;
+    align-items: center;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+#web-search-control i {
+    font-size: 14px;
+    line-height: 1;
+}
+
+#web-search-control:hover {
+    color: var(--text-primary);
+}
+
+#web-search-control i.active {
+    color: var(--accent);
 }

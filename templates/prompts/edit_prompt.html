@@ -154,8 +154,236 @@
                     </label>
                     <small class="form-text text-muted d-block">Share with the community and earn money when others use it</small>
                 </div>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="disableWebSearch" name="disable_web_search" {% if disable_web_search %}checked{% endif %}>
+                    <label class="form-check-label" for="disableWebSearch">
+                        <i class="fas fa-globe-americas me-1 text-muted"></i>Disable Web Search
+                    </label>
+                    <small class="form-text text-muted d-block">Prevent AI from searching the internet when using this prompt</small>
+                </div>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="enableModeration" name="enable_moderation" {% if enable_moderation %}checked{% endif %}>
+                    <label class="form-check-label" for="enableModeration">
+                        <i class="fas fa-shield-alt me-1 text-muted"></i>Enable Content Moderation
+                        <i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="Messages are checked by OpenAI's moderation API before processing. Flags inappropriate content like hate speech, violence, sexual content, self-harm, etc."></i>
+                    </label>
+                    <small class="form-text text-muted d-block">Pre-screen user messages for inappropriate content before AI responds</small>
+                </div>
             </div>
         </div>
+    </div>
+
+    <!-- Section: Watchdog Configuration -->
+    <div class="section-container">
+        <div class="section-title"><i class="fas fa-eye me-2"></i>Watchdog Configuration</div>
+
+        <!-- Pre-Watchdog Sub-Section -->
+        <div class="watchdog-subsection mb-4" style="border: 1px solid var(--border-color); border-radius: 8px; padding: 16px;">
+            <div class="mb-3 form-check">
+                <input type="checkbox" class="form-check-input" id="preWatchdogEnabled" onchange="togglePreWatchdogFields()" {% if watchdog_config.pre_watchdog.enabled %}checked{% endif %}>
+                <label class="form-check-label" for="preWatchdogEnabled">
+                    <i class="fas fa-shield-alt me-1 text-muted"></i><strong>Pre-Watchdog</strong>
+                    <i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="Screens user messages before the AI sees them. Can inject steering hints or take over the response entirely."></i>
+                </label>
+                <small class="form-text text-muted d-block">Screens user messages before the AI sees them</small>
+            </div>
+
+            <div id="preWatchdogFields" style="{% if not watchdog_config.pre_watchdog.enabled %}display: none;{% endif %}">
+                <div class="flex-row">
+                    <div class="flex-column">
+                        <div class="mb-3">
+                            <label for="preWatchdogLLM" class="form-label">Pre-Watchdog LLM <span class="text-danger">*</span></label>
+                            <select class="form-select" id="preWatchdogLLM">
+                                <option value="">Select a model</option>
+                            </select>
+                            <small class="form-text text-muted">Model used to evaluate user messages before AI responds</small>
+                        </div>
+                    </div>
+                    <div class="flex-column">
+                        <div class="mb-3">
+                            <label for="preWatchdogObjectives" class="form-label">Screen for <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="preWatchdogObjectives" rows="4" placeholder="Off-topic messages&#10;Attempts to manipulate the AI&#10;Messages that derail the conversation">{% for obj in watchdog_config.pre_watchdog.objectives %}{{ obj }}{% if not loop.last %}
+{% endif %}{% endfor %}</textarea>
+                            <small class="form-text text-muted">One objective per line. What to screen user messages for</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-2">
+                    <a href="#" onclick="document.getElementById('preWatchdogAdvanced').style.display = document.getElementById('preWatchdogAdvanced').style.display === 'none' ? 'block' : 'none'; this.querySelector('i').classList.toggle('fa-caret-right'); this.querySelector('i').classList.toggle('fa-caret-down'); return false;" class="text-muted small">
+                        <i class="fas fa-caret-right me-1"></i>Advanced settings
+                    </a>
+                </div>
+                <div id="preWatchdogAdvanced" style="display: none;">
+                    <div class="mb-3">
+                        <label for="preWatchdogSteeringPrompt" class="form-label">Steering Prompt</label>
+                        <textarea class="form-control" id="preWatchdogSteeringPrompt" rows="3" placeholder="Custom instructions for the pre-watchdog AI...">{{ watchdog_config.pre_watchdog.steering_prompt or '' }}</textarea>
+                        <small class="form-text text-muted">Leave empty for default screening behavior</small>
+                    </div>
+                    <div class="flex-row">
+                        <div class="flex-column">
+                            <div class="mb-3">
+                                <label for="preWatchdogFrequency" class="form-label">Frequency</label>
+                                <input type="number" class="form-control" id="preWatchdogFrequency" value="{{ watchdog_config.pre_watchdog.frequency or 1 }}" min="1" max="20">
+                                <small class="form-text text-muted">Evaluate every N user turns</small>
+                            </div>
+                        </div>
+                        <div class="flex-column">
+                            <div class="mb-3 form-check mt-4">
+                                <input type="checkbox" class="form-check-input" id="preWatchdogCanTakeover" {% if watchdog_config.pre_watchdog.can_takeover %}checked{% endif %}>
+                                <label class="form-check-label" for="preWatchdogCanTakeover">
+                                    Can take over response
+                                    <i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="When enabled, the pre-watchdog can completely replace the AI response when it detects a serious issue."></i>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="flex-column">
+                            <div class="mb-3 form-check mt-4">
+                                <input type="checkbox" class="form-check-input" id="preWatchdogCanLock" {% if watchdog_config.pre_watchdog.can_lock %}checked{% endif %}>
+                                <label class="form-check-label" for="preWatchdogCanLock">
+                                    Can lock conversation
+                                    <i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="When enabled, the pre-watchdog can permanently lock the conversation on critical alerts."></i>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Post-Watchdog Sub-Section -->
+        <div class="watchdog-subsection" style="border: 1px solid var(--border-color); border-radius: 8px; padding: 16px;">
+            <div class="mb-3 form-check">
+                <input type="checkbox" class="form-check-input" id="postWatchdogEnabled" onchange="togglePostWatchdogFields()" {% if watchdog_config.post_watchdog.enabled %}checked{% endif %}>
+                <label class="form-check-label" for="postWatchdogEnabled">
+                    <i class="fas fa-eye me-1 text-muted"></i><strong>Post-Watchdog</strong>
+                    <i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="Monitors the conversation after each AI response and steers it toward objectives. Runs in background."></i>
+                </label>
+                <small class="form-text text-muted d-block">Monitors the conversation and steers the AI</small>
+            </div>
+
+            <div id="postWatchdogFields" style="{% if not watchdog_config.post_watchdog.enabled %}display: none;{% endif %}">
+                <div class="mb-3 d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="watchdogAutoFillBtn"
+                            onclick="requestWatchdogAutoFill()">
+                        <i class="fas fa-wand-magic-sparkles me-1"></i>AI Auto-fill
+                    </button>
+                    <i class="fas fa-info-circle text-muted"
+                       data-bs-toggle="tooltip" data-bs-placement="right"
+                       title="Uses the selected Post-Watchdog LLM to analyze your prompt and suggest optimal settings (mode, objectives, steering prompt, frequency, thresholds)."></i>
+                </div>
+                <div class="flex-row">
+                    <div class="flex-column">
+                        <div class="mb-3">
+                            <label for="postWatchdogLLM" class="form-label">Post-Watchdog LLM <span class="text-danger">*</span></label>
+                            <select class="form-select" id="postWatchdogLLM">
+                                <option value="">Select a model</option>
+                            </select>
+                            <small class="form-text text-muted">Model used to evaluate conversations after AI responds</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="postWatchdogMode" class="form-label">Mode</label>
+                            <select class="form-select" id="postWatchdogMode">
+                                <option value="interview" {% if watchdog_config.post_watchdog.mode == 'interview' %}selected{% endif %}>Interview</option>
+                                <option value="coaching" {% if watchdog_config.post_watchdog.mode == 'coaching' %}selected{% endif %}>Coaching</option>
+                                <option value="education" {% if watchdog_config.post_watchdog.mode == 'education' %}selected{% endif %}>Education</option>
+                                <option value="custom" {% if watchdog_config.post_watchdog.mode == 'custom' %}selected{% endif %}>Custom</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex-column">
+                        <div class="mb-3">
+                            <label for="postWatchdogObjectives" class="form-label">Objectives <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="postWatchdogObjectives" rows="4" placeholder="Track topic coverage&#10;Detect drift from objectives&#10;Flag factual inconsistencies">{% for obj in watchdog_config.post_watchdog.objectives %}{{ obj }}{% if not loop.last %}
+{% endif %}{% endfor %}</textarea>
+                            <small class="form-text text-muted">One objective per line. These tell the watchdog what to evaluate</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="postWatchdogSteeringPrompt" class="form-label">Steering Prompt</label>
+                    <textarea class="form-control" id="postWatchdogSteeringPrompt" rows="3" placeholder="Custom instructions for the watchdog AI...">{{ watchdog_config.post_watchdog.steering_prompt or '' }}</textarea>
+                    <small class="form-text text-muted">Leave empty for a default prompt based on the selected mode</small>
+                </div>
+                <div class="flex-row">
+                    <div class="flex-column">
+                        <div class="mb-3">
+                            <label for="postWatchdogFrequency" class="form-label">Frequency</label>
+                            <input type="number" class="form-control" id="postWatchdogFrequency" value="{{ watchdog_config.post_watchdog.frequency or 3 }}" min="1" max="20">
+                            <small class="form-text text-muted">Evaluate every N user turns (not every message)</small>
+                        </div>
+                    </div>
+                    <div class="flex-column"></div>
+                </div>
+
+                <!-- Post-Watchdog Takeover Settings -->
+                <div class="mb-2">
+                    <a href="#" onclick="document.getElementById('postWatchdogTakeover').style.display = document.getElementById('postWatchdogTakeover').style.display === 'none' ? 'block' : 'none'; this.querySelector('i').classList.toggle('fa-caret-right'); this.querySelector('i').classList.toggle('fa-caret-down'); return false;" class="text-muted small">
+                        <i class="fas fa-caret-right me-1"></i>Takeover settings
+                    </a>
+                </div>
+                <div id="postWatchdogTakeover" style="display: none;">
+                    <div class="flex-row">
+                        <div class="flex-column">
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="postWatchdogCanTakeover" {% if watchdog_config.post_watchdog.can_takeover %}checked{% endif %}>
+                                <label class="form-check-label" for="postWatchdogCanTakeover">
+                                    Can take over response
+                                    <i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="After N consecutive hints are ignored, the watchdog takes over the AI response."></i>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="flex-column">
+                            <div class="mb-3">
+                                <label for="postWatchdogTakeoverThreshold" class="form-label">Takeover threshold</label>
+                                <input type="number" class="form-control" id="postWatchdogTakeoverThreshold" value="{{ watchdog_config.post_watchdog.takeover_threshold or 5 }}" min="1" max="50">
+                                <small class="form-text text-muted">Consecutive ignored hints before takeover</small>
+                            </div>
+                        </div>
+                        <div class="flex-column">
+                            <div class="mb-3 form-check mt-4">
+                                <input type="checkbox" class="form-check-input" id="postWatchdogCanLock" {% if watchdog_config.post_watchdog.can_lock %}checked{% endif %}>
+                                <label class="form-check-label" for="postWatchdogCanLock">
+                                    Can lock conversation
+                                    <i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="When enabled, the post-watchdog can permanently lock the conversation on takeover."></i>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Post-Watchdog Advanced Settings -->
+                <div class="mb-2">
+                    <a href="#" onclick="document.getElementById('postWatchdogAdvanced').style.display = document.getElementById('postWatchdogAdvanced').style.display === 'none' ? 'block' : 'none'; this.querySelector('i').classList.toggle('fa-caret-right'); this.querySelector('i').classList.toggle('fa-caret-down'); return false;" class="text-muted small">
+                        <i class="fas fa-caret-right me-1"></i>Advanced settings
+                    </a>
+                </div>
+                <div id="postWatchdogAdvanced" style="display: none;">
+                    <div class="flex-row">
+                        <div class="flex-column">
+                            <div class="mb-3">
+                                <label for="postWatchdogMaxHintChars" class="form-label">Max hint chars</label>
+                                <input type="number" class="form-control" id="postWatchdogMaxHintChars" value="{{ watchdog_config.post_watchdog.max_hint_chars or 500 }}" min="100" max="2000">
+                            </div>
+                        </div>
+                        <div class="flex-column">
+                            <div class="mb-3">
+                                <label for="postWatchdogMaxOffTopic" class="form-label">Max turns off-topic</label>
+                                <input type="number" class="form-control" id="postWatchdogMaxOffTopic" value="{{ watchdog_config.post_watchdog.thresholds.max_turns_off_topic or 3 }}" min="1" max="50">
+                            </div>
+                        </div>
+                        <div class="flex-column">
+                            <div class="mb-3">
+                                <label for="postWatchdogMaxSameSubtopic" class="form-label">Max turns same subtopic</label>
+                                <input type="number" class="form-control" id="postWatchdogMaxSameSubtopic" value="{{ watchdog_config.post_watchdog.thresholds.max_turns_same_subtopic or 5 }}" min="1" max="50">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <input type="hidden" id="watchdogConfigInput" name="watchdog_config" value="">
     </div>
 
     <!-- Section 5: Categories (shown for public prompts) -->
@@ -265,6 +493,92 @@
         </button>
     </div>
 </form>
+
+<!-- Watchdog AI Suggestion Modal -->
+<div class="modal fade" id="watchdogSuggestionModal" tabindex="-1"
+     aria-labelledby="wdSuggestionLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-wand-magic-sparkles me-2" style="color: var(--accent);"></i>
+                    <h5 class="modal-title mb-0" id="wdSuggestionLabel">AI Suggested Configuration</h5>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="wdSuggestionBody">
+                <!-- Populated dynamically by JS -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="wdSuggestionApplyBtn"
+                        onclick="applyWatchdogSuggestions()">
+                    Apply Selected (7)
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+#watchdogSuggestionModal .modal-content {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+#watchdogSuggestionModal .modal-header {
+    background-color: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-color);
+}
+#watchdogSuggestionModal .modal-footer {
+    background-color: var(--bg-tertiary);
+    border-top: 1px solid var(--border-color);
+}
+#watchdogSuggestionModal .suggestion-item {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+#watchdogSuggestionModal .suggestion-item:last-child {
+    border-bottom: none;
+}
+#watchdogSuggestionModal .suggestion-label {
+    font-weight: 600;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+#watchdogSuggestionModal .suggestion-value {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+    white-space: pre-wrap;
+    max-height: 150px;
+    overflow-y: auto;
+}
+#watchdogSuggestionModal .bulk-actions {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 8px;
+}
+#watchdogSuggestionModal .bulk-actions a {
+    font-size: 0.85rem;
+    cursor: pointer;
+    color: var(--accent);
+    text-decoration: none;
+}
+#watchdogSuggestionModal .bulk-actions a:hover {
+    text-decoration: underline;
+}
+#watchdogSuggestionModal .suggestion-list {
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    padding: 4px 16px;
+    border: 1px solid var(--border-color);
+}
+</style>
 {% endblock %}
 
 {% block scripts_inline %}
@@ -275,6 +589,8 @@
     let selectedCategories = [];
     const PROMPT_ID_FOR_CATEGORIES = {{ prompt_id }};
     const currentForcedLLMId = {{ forced_llm_id or 'null' }};
+    const currentPreWatchdogLLMId = {{ watchdog_config.pre_watchdog.llm_id or 'null' }};
+    const currentPostWatchdogLLMId = {{ watchdog_config.post_watchdog.llm_id or 'null' }};
 
     // Pricing functions
     function togglePricingSection() {
@@ -318,7 +634,11 @@
             .then(response => response.json())
             .then(llms => {
                 const select = document.getElementById('forcedLLM');
+                const preWdSelect = document.getElementById('preWatchdogLLM');
+                const postWdSelect = document.getElementById('postWatchdogLLM');
                 select.innerHTML = '<option value="">Select a model</option>';
+                preWdSelect.innerHTML = '<option value="">Select a model</option>';
+                postWdSelect.innerHTML = '<option value="">Select a model</option>';
                 llms.forEach(llm => {
                     const option = document.createElement('option');
                     option.value = llm.id;
@@ -327,9 +647,278 @@
                         option.selected = true;
                     }
                     select.appendChild(option);
+
+                    const preOpt = option.cloneNode(true);
+                    preOpt.selected = (currentPreWatchdogLLMId && llm.id === currentPreWatchdogLLMId);
+                    preWdSelect.appendChild(preOpt);
+
+                    const postOpt = option.cloneNode(true);
+                    postOpt.selected = (currentPostWatchdogLLMId && llm.id === currentPostWatchdogLLMId);
+                    postWdSelect.appendChild(postOpt);
                 });
             })
             .catch(error => console.error('Error loading LLMs:', error));
+    }
+
+    // --- Watchdog functions ---
+    function togglePreWatchdogFields() {
+        const enabled = document.getElementById('preWatchdogEnabled').checked;
+        document.getElementById('preWatchdogFields').style.display = enabled ? 'block' : 'none';
+    }
+
+    function togglePostWatchdogFields() {
+        const enabled = document.getElementById('postWatchdogEnabled').checked;
+        document.getElementById('postWatchdogFields').style.display = enabled ? 'block' : 'none';
+    }
+
+    function serializeWatchdogConfig() {
+        const preEnabled = document.getElementById('preWatchdogEnabled').checked;
+        const postEnabled = document.getElementById('postWatchdogEnabled').checked;
+
+        const preConfig = { enabled: preEnabled };
+        if (preEnabled) {
+            const llmId = document.getElementById('preWatchdogLLM').value;
+            preConfig.llm_id = llmId ? parseInt(llmId) : null;
+            preConfig.objectives = document.getElementById('preWatchdogObjectives').value
+                .split('\n').map(s => s.trim()).filter(s => s.length > 0);
+            preConfig.steering_prompt = document.getElementById('preWatchdogSteeringPrompt').value.trim();
+            preConfig.frequency = parseInt(document.getElementById('preWatchdogFrequency').value) || 1;
+            preConfig.can_takeover = document.getElementById('preWatchdogCanTakeover').checked;
+            preConfig.can_lock = document.getElementById('preWatchdogCanLock').checked;
+        }
+
+        const postConfig = { enabled: postEnabled };
+        if (postEnabled) {
+            const llmId = document.getElementById('postWatchdogLLM').value;
+            postConfig.llm_id = llmId ? parseInt(llmId) : null;
+            postConfig.mode = document.getElementById('postWatchdogMode').value;
+            postConfig.objectives = document.getElementById('postWatchdogObjectives').value
+                .split('\n').map(s => s.trim()).filter(s => s.length > 0);
+            postConfig.steering_prompt = document.getElementById('postWatchdogSteeringPrompt').value.trim();
+            postConfig.frequency = parseInt(document.getElementById('postWatchdogFrequency').value) || 3;
+            postConfig.max_hint_chars = parseInt(document.getElementById('postWatchdogMaxHintChars').value) || 500;
+            postConfig.thresholds = {
+                max_turns_off_topic: parseInt(document.getElementById('postWatchdogMaxOffTopic').value) || 3,
+                max_turns_same_subtopic: parseInt(document.getElementById('postWatchdogMaxSameSubtopic').value) || 5
+            };
+            postConfig.can_takeover = document.getElementById('postWatchdogCanTakeover').checked;
+            postConfig.takeover_threshold = parseInt(document.getElementById('postWatchdogTakeoverThreshold').value) || 5;
+            postConfig.can_lock = document.getElementById('postWatchdogCanLock').checked;
+        }
+
+        const config = { pre_watchdog: preConfig, post_watchdog: postConfig };
+        document.getElementById('watchdogConfigInput').value = JSON.stringify(config);
+    }
+
+    // --- Watchdog AI Auto-fill functions ---
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    async function requestWatchdogAutoFill() {
+        const llmSelect = document.getElementById('postWatchdogLLM');
+        const promptTextarea = document.getElementById('promptText');
+
+        if (!llmSelect.value) {
+            NotificationModal.warning(
+                'Post-Watchdog LLM Required',
+                'Please select a <strong>Post-Watchdog LLM</strong> before using AI Auto-fill.'
+            );
+            return;
+        }
+
+        if (!promptTextarea.value.trim()) {
+            NotificationModal.warning(
+                'Prompt Text Required',
+                'Write the <strong>main prompt text</strong> first. The AI needs it to suggest appropriate watchdog settings.'
+            );
+            return;
+        }
+
+        const btn = document.getElementById('watchdogAutoFillBtn');
+        const originalHTML = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Analyzing...';
+
+        try {
+            const response = await fetch('/api/watchdog/suggest-config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    llm_id: parseInt(llmSelect.value),
+                    prompt_text: promptTextarea.value.trim()
+                })
+            });
+
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({ detail: 'Unknown error' }));
+                throw new Error(err.detail || `HTTP ${response.status}`);
+            }
+
+            const suggestion = await response.json();
+            showWatchdogSuggestionModal(suggestion);
+
+        } catch (error) {
+            console.error('Watchdog auto-fill error:', error);
+            NotificationModal.error(
+                'Auto-fill Error',
+                'Could not get AI suggestions. Please try again or configure manually.'
+            );
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHTML;
+        }
+    }
+
+    function showWatchdogSuggestionModal(suggestion) {
+        const fields = [
+            {
+                key: 'mode',
+                label: 'Mode',
+                value: suggestion.mode,
+                display: suggestion.mode.charAt(0).toUpperCase() + suggestion.mode.slice(1)
+            },
+            {
+                key: 'objectives',
+                label: 'Objectives',
+                value: suggestion.objectives,
+                display: suggestion.objectives.map(o => '- ' + o).join('\n')
+            },
+            {
+                key: 'steering_prompt',
+                label: 'Steering Prompt',
+                value: suggestion.steering_prompt,
+                display: suggestion.steering_prompt
+            },
+            {
+                key: 'frequency',
+                label: 'Frequency',
+                value: suggestion.frequency,
+                display: suggestion.frequency + ' (every ' + suggestion.frequency + ' user turns)'
+            },
+            {
+                key: 'max_hint_chars',
+                label: 'Max Hint Chars',
+                value: suggestion.max_hint_chars,
+                display: String(suggestion.max_hint_chars)
+            },
+            {
+                key: 'max_turns_off_topic',
+                label: 'Max Turns Off-Topic',
+                value: suggestion.thresholds.max_turns_off_topic,
+                display: String(suggestion.thresholds.max_turns_off_topic)
+            },
+            {
+                key: 'max_turns_same_subtopic',
+                label: 'Max Turns Same Subtopic',
+                value: suggestion.thresholds.max_turns_same_subtopic,
+                display: String(suggestion.thresholds.max_turns_same_subtopic)
+            }
+        ];
+
+        let itemsHTML = fields.map(f => `
+            <div class="suggestion-item">
+                <input type="checkbox" class="form-check-input suggestion-checkbox"
+                       id="suggest_${f.key}" data-key="${f.key}" checked>
+                <div>
+                    <label class="suggestion-label" for="suggest_${f.key}">${f.label}</label>
+                    <div class="suggestion-value">${escapeHtml(f.display)}</div>
+                </div>
+            </div>
+        `).join('');
+
+        const modalBody = document.getElementById('wdSuggestionBody');
+        modalBody.innerHTML = `
+            <p class="text-muted mb-3" style="font-size: 0.9rem;">
+                The AI analyzed your prompt and suggests these settings:
+            </p>
+            <div class="bulk-actions">
+                <a href="#" onclick="toggleAllSuggestions(true); return false;">Select All</a>
+                <a href="#" onclick="toggleAllSuggestions(false); return false;">Deselect All</a>
+            </div>
+            <div class="suggestion-list">${itemsHTML}</div>
+        `;
+
+        window._watchdogSuggestion = suggestion;
+
+        updateSuggestionApplyBtn();
+        modalBody.querySelectorAll('.suggestion-checkbox').forEach(cb => {
+            cb.addEventListener('change', updateSuggestionApplyBtn);
+        });
+
+        const modalEl = document.getElementById('watchdogSuggestionModal');
+        modalEl.addEventListener('hidden.bs.modal', () => {
+            window._watchdogSuggestion = null;
+        }, { once: true });
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+    }
+
+    function toggleAllSuggestions(checked) {
+        document.querySelectorAll('#wdSuggestionBody .suggestion-checkbox')
+            .forEach(cb => { cb.checked = checked; });
+        updateSuggestionApplyBtn();
+    }
+
+    function updateSuggestionApplyBtn() {
+        const checkboxes = document.querySelectorAll('#wdSuggestionBody .suggestion-checkbox');
+        const checkedCount = [...checkboxes].filter(cb => cb.checked).length;
+        const applyBtn = document.getElementById('wdSuggestionApplyBtn');
+        applyBtn.disabled = checkedCount === 0;
+        applyBtn.textContent = 'Apply Selected (' + checkedCount + ')';
+    }
+
+    function applyWatchdogSuggestions() {
+        const suggestion = window._watchdogSuggestion;
+        if (!suggestion) return;
+
+        const isChecked = (key) => {
+            const cb = document.getElementById('suggest_' + key);
+            return cb && cb.checked;
+        };
+
+        if (isChecked('mode')) {
+            document.getElementById('postWatchdogMode').value = suggestion.mode;
+        }
+        if (isChecked('objectives')) {
+            document.getElementById('postWatchdogObjectives').value =
+                suggestion.objectives.join('\n');
+        }
+        if (isChecked('steering_prompt')) {
+            document.getElementById('postWatchdogSteeringPrompt').value =
+                suggestion.steering_prompt;
+        }
+        if (isChecked('frequency')) {
+            document.getElementById('postWatchdogFrequency').value = suggestion.frequency;
+        }
+        if (isChecked('max_hint_chars')) {
+            document.getElementById('postWatchdogMaxHintChars').value = suggestion.max_hint_chars;
+        }
+        if (isChecked('max_turns_off_topic')) {
+            document.getElementById('postWatchdogMaxOffTopic').value =
+                suggestion.thresholds.max_turns_off_topic;
+        }
+        if (isChecked('max_turns_same_subtopic')) {
+            document.getElementById('postWatchdogMaxSameSubtopic').value =
+                suggestion.thresholds.max_turns_same_subtopic;
+        }
+
+        // Expand advanced settings if any advanced field was applied
+        if (isChecked('max_hint_chars') || isChecked('max_turns_off_topic') || isChecked('max_turns_same_subtopic')) {
+            const advancedSection = document.getElementById('postWatchdogAdvanced');
+            if (advancedSection.style.display !== 'block') {
+                advancedSection.style.display = 'block';
+                const toggleIcon = advancedSection.previousElementSibling?.querySelector('i.fas');
+                if (toggleIcon) {
+                    toggleIcon.classList.replace('fa-caret-right', 'fa-caret-down');
+                }
+            }
+        }
+
+        const modalEl = document.getElementById('watchdogSuggestionModal');
+        bootstrap.Modal.getInstance(modalEl)?.hide();
     }
 
     function updateEditorIds() {
@@ -551,6 +1140,7 @@
 
         // Form validation on submit
         document.getElementById('editPromptForm').addEventListener('submit', function(e) {
+            serializeWatchdogConfig();
             if (!validateCategories()) {
                 e.preventDefault();
                 document.getElementById('categoriesSection').scrollIntoView({ behavior: 'smooth' });

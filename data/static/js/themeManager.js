@@ -426,6 +426,67 @@ const ThemeManager = {
 
         // Setup sidebar submenu for chat page
         this.setupSidebarSubmenu();
+
+        // Setup mobile submenu toggle for navbar
+        this.setupMobileSubmenuToggle();
+    },
+
+    /**
+     * Sets up click toggle for theme submenu on mobile devices
+     * Bootstrap doesn't automatically handle nested dropstart submenus
+     */
+    setupMobileSubmenuToggle() {
+        const themeToggle = document.querySelector('.dropstart > .dropdown-toggle');
+        if (!themeToggle) return;
+
+        const dropstart = themeToggle.closest('.dropstart');
+        const parentDropdown = dropstart.closest('.dropdown');
+
+        themeToggle.addEventListener('click', (e) => {
+            // Only on mobile (matches CSS media query breakpoint)
+            if (window.innerWidth <= 991.98) {
+                e.preventDefault();
+                e.stopImmediatePropagation(); // Stop Bootstrap from closing parent
+                dropstart.classList.toggle('show');
+
+                // Ensure parent dropdown stays open
+                if (parentDropdown) {
+                    parentDropdown.classList.add('show');
+                    const parentMenu = parentDropdown.querySelector('.dropdown-menu');
+                    if (parentMenu) parentMenu.classList.add('show');
+                }
+            }
+        });
+
+        // Prevent clicks inside theme submenu from closing parent dropdown
+        const themeSubmenu = dropstart.querySelector('.theme-submenu');
+        if (themeSubmenu) {
+            themeSubmenu.addEventListener('click', (e) => {
+                if (window.innerWidth <= 991.98) {
+                    // Allow the theme click to work but stop propagation
+                    e.stopPropagation();
+                }
+            });
+        }
+
+        // Close submenu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (window.innerWidth <= 991.98 && dropstart.classList.contains('show')) {
+                if (!dropstart.contains(e.target)) {
+                    dropstart.classList.remove('show');
+                }
+            }
+        });
+
+        // Close submenu when parent dropdown closes
+        if (parentDropdown) {
+            const observer = new MutationObserver(() => {
+                if (!parentDropdown.classList.contains('show')) {
+                    dropstart.classList.remove('show');
+                }
+            });
+            observer.observe(parentDropdown, { attributes: true, attributeFilter: ['class'] });
+        }
     },
 
     /**

@@ -185,14 +185,18 @@ function createFolderElement(folder) {
     
     // Get folder icon based on state
     const iconClass = folderDiv.dataset.folderExpanded === 'true' ? 'fa-folder-open' : 'fa-folder';
-    
+
+    // Chat count for tooltip
+    const chatCount = folder.conversation_count || 0;
+    const chatCountText = chatCount === 1 ? '1 chat' : `${chatCount} chats`;
+
     folderContent.innerHTML = `
         <i class="fas ${iconClass} folder-icon me-2" style="color: ${folder.color}; font-size: 16px;"></i>
-        <div class="folder-info flex-grow-1">
-            <div class="folder-name">${escapeHTML(folder.name)}</div>
-            <small class="text-muted">${folder.conversation_count} chats</small>
-        </div>
+        <span class="folder-name">${escapeHTML(folder.name)}</span>
     `;
+
+    // Set tooltip with chat count
+    folderDiv.title = chatCountText;
     
     // Actions dropdown (right side) - now hidden by default, shown on hover
     const actionsDiv = document.createElement('div');
@@ -986,24 +990,7 @@ function setupNewChatIntegration() {
     if (typeof window.startNewConversation === 'function') {
         window.originalStartNewConversation = window.startNewConversation;
     }
-    
-    // Store the original button handler and remove it
-    const newChatBtn = document.getElementById('new-chat-main-btn');
-    if (newChatBtn) {
-        // Remove existing event listeners by cloning
-        const newBtn = newChatBtn.cloneNode(true);
-        newChatBtn.parentNode.replaceChild(newBtn, newChatBtn);
-        
-        // Add our own unified handler
-        newBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            // Use our override function which handles both cases
-            window.startNewConversation();
-        });
-    }
-    
+
     // Store reference to original updateActiveChatName function
     if (typeof window.updateActiveChatName === 'function') {
         window.originalUpdateActiveChatName = window.updateActiveChatName;

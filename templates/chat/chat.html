@@ -15,6 +15,11 @@
         document.documentElement.setAttribute('data-theme', savedTheme);
     </script>
 
+    <!-- Sidebar collapse state restore (prevents flash) -->
+    <script>
+        try { if (localStorage.getItem('sidebarCollapsed') === '1') document.documentElement.classList.add('sidebar-collapsed'); } catch(e) {}
+    </script>
+
     <!-- Skeleton CSS - loads immediately for skeleton display -->
     <link rel="stylesheet" href="{{ get_static_url('/static/css/skeleton.css') }}">
 
@@ -45,6 +50,7 @@
     </style>
     <link rel="stylesheet" href="{{ get_static_url('/static/css/style.css') }}">
     <!-- Theme CSS is now loaded dynamically by theme-loader.js -->
+    <link rel="stylesheet" href="{{ get_static_url('/static/css/chat/chat-common.css') }}">
     <link rel="stylesheet" href="{{ get_static_url('/static/css/chat/voice-call.css') }}">
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/atom-one-dark.min.css">
@@ -150,6 +156,17 @@
     <div id="page-content" style="display: none;">
     <div class="overlay" id="drop-zone-overlay"></div>
     <div id="sidebar">
+        <div class="sidebar-collapse-row">
+            <a href="/" class="btn-home-sidebar" title="Home">
+                <i class="fas fa-home"></i>
+            </a>
+            <button class="btn-collapse-sidebar" id="collapse-sidebar-btn" title="Collapse sidebar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <path d="M9 3v18"/>
+                </svg>
+            </button>
+        </div>
         <div class="list-group">
             <!-- User menu for mobile version -->
             <div class="user-menu-mobile">
@@ -171,9 +188,9 @@
                         <li><a class="dropdown-item" href="/my-earnings"><i class="fas fa-chart-line"></i> My Earnings</a></li>
                         {% endif %}
                         <li><hr class="dropdown-divider"></li>
-                        <!-- Theme submenu -->
+                        <!-- Theme submenu (hover only, no data-bs-toggle to avoid Bootstrap error) -->
                         <li class="dropend">
-                          <a class="dropdown-item dropdown-toggle" href="#" data-bs-toggle="dropdown" aria-expanded="false">
+                          <a class="dropdown-item dropdown-toggle" href="#">
                             <i class="fas fa-palette"></i> Theme
                           </a>
                           <ul class="dropdown-menu theme-submenu">
@@ -197,7 +214,7 @@
                 <a href="/logout" class="btn btn-sm btn-danger w-100 mt-2">Log Out</a>
             </div>
 
-            <a href="/" class="list-group-item list-group-item-action home-link"><i class="fas fa-home"></i> Home</a>
+            <!-- Home link moved to sidebar-collapse-row -->
             <div class="modal fade" id="insufficientBalancePopup" tabindex="-1" role="dialog"
                 aria-labelledby="modalLabel" aria-hidden="true">
                 <div class="modal-dialog" role="document">
@@ -311,9 +328,9 @@
                     <li><a class="dropdown-item" href="/my-earnings"><i class="fas fa-chart-line"></i> My Earnings</a></li>
                     {% endif %}
                     <li><hr class="dropdown-divider"></li>
-                    <!-- Theme submenu -->
+                    <!-- Theme submenu (hover only, no data-bs-toggle to avoid Bootstrap error) -->
                     <li class="dropend">
-                      <a class="dropdown-item dropdown-toggle" href="#" data-bs-toggle="dropdown" aria-expanded="false">
+                      <a class="dropdown-item dropdown-toggle" href="#">
                         <i class="fas fa-palette"></i> Theme
                       </a>
                       <ul class="dropdown-menu theme-submenu">
@@ -342,6 +359,12 @@
         <div class="chatbot-info">
             <button class="btn btn-toggle-sidebar d-md-none">
                 <i class="fas fa-bars"></i>
+            </button>
+            <button class="btn-expand-sidebar" id="expand-sidebar-btn" title="Expand sidebar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <path d="M9 3v18"/>
+                </svg>
             </button>
             <div class="chat-title-container">
                 <div id="chat-title-avatar" class="chat-title-avatar"></div>
@@ -476,6 +499,11 @@
                                 </div>
                                 <button id="thinking-tokens-apply" class="btn btn-sm btn-primary">Apply</button>
                             </div>
+                        </div>
+
+                        <!-- Web Search Toggle -->
+                        <div id="web-search-control">
+                            <i class="fas fa-globe web-search-icon" id="web-search-button" title="Web Search"></i>
                         </div>
                     </div>
                     <textarea id="message-text" class="form-control" placeholder="Write a message" rows="1" disabled></textarea>
@@ -662,6 +690,7 @@
         // Embedded data to reduce HTTP requests on page load
         var embeddedChatFolders = {{ chat_folders|tojson|safe }};
         var embeddedInitialConversations = {{ initial_conversations|tojson|safe }};
+        var webSearchUserEnabled = {{ web_search_enabled|tojson }};
         var messageInputContainer = document.getElementById('message-input-container');
         var messageText = document.getElementById('message-text');
         var formMessage = document.getElementById('form-message');

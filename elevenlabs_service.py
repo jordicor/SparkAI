@@ -68,6 +68,23 @@ class ElevenLabsService:
             signed_url = await self._fetch_signed_url(agent_info["agent_id"]) if USE_SIGNED_URL else None
             recent_messages = await self._fetch_recent_messages(conn, conversation_id)
 
+            # Watchdog: read pending hint (readonly, do NOT consume)
+            watchdog_steering_hint = None
+            watchdog_hint_eval_id = None
+            prompt_id = conversation.get("role_id")
+            if prompt_id is not None:
+                cursor = await conn.execute(
+                    """SELECT pending_hint, last_evaluated_message_id
+                       FROM WATCHDOG_STATE
+                       WHERE conversation_id = ? AND prompt_id = ?
+                       AND pending_hint IS NOT NULL""",
+                    (conversation_id, prompt_id),
+                )
+                ws_row = await cursor.fetchone()
+                if ws_row and ws_row["pending_hint"]:
+                    watchdog_steering_hint = ws_row["pending_hint"]
+                    watchdog_hint_eval_id = ws_row["last_evaluated_message_id"]
+
         context_text = self._build_context_string(recent_messages)
         # The prompt from database will be sent as a dynamic variable
         # ElevenLabs agent template should have {{personality_template}} placeholder
@@ -94,7 +111,7 @@ class ElevenLabsService:
             voice_id or "NONE",
         )
 
-        return {
+        result = {
             "conversation_id": conversation_id,
             "conversation_name": conversation.get("chat_name"),
             "prompt_id": conversation.get("role_id"),
@@ -110,6 +127,13 @@ class ElevenLabsService:
             "session_id": conversation.get("elevenlabs_session_id"),
             "user_id": current_user_id,
         }
+
+        # Watchdog: include steering hint and CAS token if available
+        if watchdog_steering_hint:
+            result["watchdog_steering_hint"] = watchdog_steering_hint
+            result["watchdog_hint_eval_id"] = watchdog_hint_eval_id
+
+        return result
 
     async def validate_conversation_access(
         self,
@@ -242,10 +266,11 @@ class ElevenLabsService:
         session_id: str,
         user_id: int,
         transcript: List[Dict[str, Any]],
-    ) -> int:
+    ) -> tuple:
+        """Save transcript to DB. Returns (saved_count, last_user_message_id, last_bot_message_id)."""
         if not transcript:
             await self.mark_session_status(conversation_id, session_id, "completed")
-            return 0
+            return (0, None, None)
 
         base_time = datetime.now(timezone.utc)
         last_lock_error: Optional[Exception] = None
@@ -254,6 +279,8 @@ class ElevenLabsService:
             retry_needed = False
             wait_time = 0.0
             saved_messages = 0
+            last_user_message_id = None
+            last_bot_message_id = None
 
             async with get_db_connection() as conn:
                 transaction_started = False
@@ -272,13 +299,18 @@ class ElevenLabsService:
                         message_role = self._map_transcript_role(turn.get("role"))
                         timestamp = (base_time + timedelta(seconds=index)).strftime("%Y-%m-%d %H:%M:%S.%f")
 
-                        await conn.execute(
+                        cursor = await conn.execute(
                             """
                             INSERT INTO MESSAGES (conversation_id, user_id, message, type, date)
                             VALUES (?, ?, ?, ?, ?)
                             """,
                             (conversation_id, user_id, message_text, message_role, timestamp),
                         )
+                        inserted_id = cursor.lastrowid
+                        if message_role == "user":
+                            last_user_message_id = inserted_id
+                        else:
+                            last_bot_message_id = inserted_id
                         saved_messages += 1
 
                     await conn.execute(
@@ -296,7 +328,7 @@ class ElevenLabsService:
                         saved_messages,
                         conversation_id,
                     )
-                    return saved_messages
+                    return (saved_messages, last_user_message_id, last_bot_message_id)
 
                 except sqlite3.OperationalError as exc:
                     if transaction_started:

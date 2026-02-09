@@ -1,0 +1,562 @@
+{% extends 'base_admin.html' %}
+
+{% block title %}Security Operations - Admin - SPARK{% endblock %}
+
+{% block styles %}
+<style>
+    .security-stat-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1rem;
+        height: 100%;
+        border-left: 3px solid var(--accent);
+    }
+    .security-stat-card .label {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.25rem;
+    }
+    .security-stat-card .value {
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        line-height: 1.2;
+    }
+    .security-stat-card .subtext {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin-top: 0.2rem;
+    }
+    .health-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.2rem 0.65rem;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .health-pill.ok {
+        background: rgba(25, 135, 84, 0.15);
+        color: #198754;
+    }
+    .health-pill.warn {
+        background: rgba(255, 193, 7, 0.2);
+        color: #a47600;
+    }
+    .health-pill.danger {
+        background: rgba(220, 53, 69, 0.18);
+        color: #b02a37;
+    }
+    .security-monospace {
+        font-family: 'SF Mono', 'Consolas', monospace;
+        font-size: 0.86rem;
+    }
+    .table td {
+        vertical-align: middle;
+    }
+    .table .cell-reason {
+        max-width: 340px;
+        white-space: normal;
+        font-size: 0.86rem;
+    }
+    .sync-meta {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+    }
+</style>
+{% endblock %}
+
+{% block page_title %}Security Operations{% endblock %}
+
+{% block page_subtitle %}
+<p class="page-subtitle">Operate IP blocks and Cloudflare synchronization from a single admin panel</p>
+{% endblock %}
+
+{% block page_actions %}
+<button id="refreshButton" class="btn btn-outline-secondary btn-sm" onclick="refreshSecurityPanel()">
+    <i class="fas fa-sync-alt me-1"></i> Refresh
+</button>
+{% endblock %}
+
+{% block alerts %}
+<div id="alertContainer"></div>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-3 col-6 mb-3">
+        <div class="security-stat-card">
+            <div class="label"><i class="fas fa-ban me-1"></i>Blocked IPs</div>
+            <div id="statBlockedIps" class="value">-</div>
+            <div id="statBlockedIpsSub" class="subtext">Current active blocks</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <div class="security-stat-card">
+            <div class="label"><i class="fas fa-shield-alt me-1"></i>Total Block Events</div>
+            <div id="statBlockEvents" class="value">-</div>
+            <div class="subtext">All time counter</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <div class="security-stat-card">
+            <div class="label"><i class="fas fa-cloud me-1"></i>Cloudflare Escalations</div>
+            <div id="statCloudflareEscalations" class="value">-</div>
+            <div class="subtext">Tracked in security backend</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <div class="security-stat-card">
+            <div class="label"><i class="fas fa-database me-1"></i>Active Backend</div>
+            <div id="statBackend" class="value security-monospace">-</div>
+            <div id="statBackendSub" class="subtext">Security tracker storage</div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-lg-6 mb-3">
+        <div class="section-container h-100">
+            <div class="section-title"><i class="fas fa-user-shield me-2"></i>Manual Operations</div>
+
+            <form id="blockIpForm" class="row g-2 mb-3">
+                <div class="col-md-4">
+                    <label class="form-label mb-1" for="blockIp">IP</label>
+                    <input id="blockIp" class="form-control" type="text" placeholder="203.0.113.10" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label mb-1" for="blockHours">Hours</label>
+                    <input id="blockHours" class="form-control" type="number" min="1" max="720" value="24" required>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label mb-1" for="blockReason">Reason</label>
+                    <input id="blockReason" class="form-control" type="text" value="Manual block from admin panel" maxlength="200">
+                </div>
+                <div class="col-12">
+                    <button class="btn btn-danger btn-sm" type="submit">
+                        <i class="fas fa-ban me-1"></i> Block IP
+                    </button>
+                </div>
+            </form>
+
+            <form id="checkIpForm" class="row g-2">
+                <div class="col-md-8">
+                    <label class="form-label mb-1" for="statusIp">Check IP status</label>
+                    <input id="statusIp" class="form-control" type="text" placeholder="198.51.100.20" required>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button class="btn btn-outline-primary btn-sm w-100" type="submit">
+                        <i class="fas fa-search me-1"></i> Check
+                    </button>
+                </div>
+                <div class="col-12">
+                    <small id="checkIpResult" class="text-muted"></small>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="col-lg-6 mb-3">
+        <div class="section-container h-100">
+            <div class="section-title"><i class="fas fa-sliders-h me-2"></i>Backend Status</div>
+            <div class="mb-2">
+                <span id="backendModePill" class="health-pill warn">Loading...</span>
+            </div>
+            <div class="small text-muted mb-2">
+                Mode: <code id="statusMode">-</code>
+            </div>
+            <div class="small text-muted mb-2">
+                Redis available: <code id="statusRedisAvailable">-</code>
+            </div>
+            <div class="small text-muted mb-2">
+                Cloudflare escalation: <code id="statusCloudflareEnabled">-</code>
+            </div>
+            <div class="small text-muted mb-0">
+                Last backend error: <code id="statusBackendError">None</code>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="section-container mb-4">
+    <div class="section-title"><i class="fas fa-list me-2"></i>Blocked IPs</div>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>IP</th>
+                    <th>Origin</th>
+                    <th>Reason</th>
+                    <th>Blocked At</th>
+                    <th>Expires</th>
+                    <th>Sync Status</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="blockedIpsTableBody">
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">
+                        <i class="fas fa-spinner fa-spin me-2"></i>Loading blocked IPs...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="section-container">
+    <div class="section-title"><i class="fas fa-history me-2"></i>Recent Block Events</div>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>IP</th>
+                    <th>Origin</th>
+                    <th>Category</th>
+                    <th>Reason</th>
+                    <th>Expiration</th>
+                    <th>Cloudflare</th>
+                </tr>
+            </thead>
+            <tbody id="eventsTableBody">
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">
+                        <i class="fas fa-spinner fa-spin me-2"></i>Loading events...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    const EVENTS_LIMIT = {{ events_default_limit or 100 }};
+    const BLOCKED_IPS_LIMIT = {{ blocked_ips_default_limit or 200 }};
+
+    const securityState = {
+        stats: null,
+        blockedIps: [],
+        events: []
+    };
+
+    function escapeHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function formatDateTime(value) {
+        if (!value) return '-';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return escapeHtml(value);
+        return date.toLocaleString();
+    }
+
+    function formatOrigin(source) {
+        if (!source) return 'unknown';
+        if (source === 'manual') return 'FastAPI (manual)';
+        if (source === '404_threshold') return 'FastAPI (404 threshold)';
+        if (source === 'instant_pattern') return 'FastAPI (instant pattern)';
+        if (source === 'cloudflare') return 'Cloudflare';
+        if (source === 'nginx') return 'Nginx';
+        return source;
+    }
+
+    function formatSyncStatus(item) {
+        const cloudflare = item.cloudflare || null;
+        if (item.cloudflare_synced && cloudflare) {
+            const source = cloudflare.source ? ` (${escapeHtml(cloudflare.source)})` : '';
+            const rule = cloudflare.rule_id ? `<div class="sync-meta">rule: <code>${escapeHtml(cloudflare.rule_id)}</code></div>` : '';
+            const timestamp = cloudflare.timestamp ? `<div class="sync-meta">at: ${formatDateTime(cloudflare.timestamp)}</div>` : '';
+            return `<span class="badge bg-success">Synced${source}</span>${rule}${timestamp}`;
+        }
+
+        if (securityState.stats && securityState.stats.cloudflare_escalation && !securityState.stats.cloudflare_escalation.enabled) {
+            return '<span class="badge bg-secondary">Disabled</span>';
+        }
+
+        return '<span class="badge bg-warning text-dark">Pending</span>';
+    }
+
+    function showAlert(type, message) {
+        const container = document.getElementById('alertContainer');
+        if (!container) return;
+
+        container.innerHTML = `
+            <div class="alert alert-${escapeHtml(type)} alert-dismissible fade show" role="alert">
+                ${escapeHtml(message)}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        `;
+    }
+
+    async function fetchJson(url, options = {}) {
+        const response = await fetch(url, {
+            headers: {
+                'Content-Type': 'application/json',
+                ...(options.headers || {})
+            },
+            ...options
+        });
+
+        let payload = null;
+        try {
+            payload = await response.json();
+        } catch (err) {
+            payload = null;
+        }
+
+        if (!response.ok) {
+            const errorText = (payload && payload.detail) ? payload.detail : `Request failed: ${response.status}`;
+            throw new Error(errorText);
+        }
+
+        return payload;
+    }
+
+    function renderStats() {
+        const stats = securityState.stats || {};
+        document.getElementById('statBlockedIps').textContent = stats.blocked_ips_count ?? '-';
+        document.getElementById('statBlockEvents').textContent = stats.block_events_total ?? '-';
+        document.getElementById('statCloudflareEscalations').textContent = stats.cloudflare_escalations_total ?? '-';
+        document.getElementById('statBackend').textContent = stats.active_backend || '-';
+
+        const mode = stats.mode || '-';
+        const redisAvailable = stats.redis_available ? 'yes' : 'no';
+        const cfEnabled = (stats.cloudflare_escalation && stats.cloudflare_escalation.enabled) ? 'enabled' : 'disabled';
+        const backendError = stats.last_backend_error || 'None';
+
+        document.getElementById('statusMode').textContent = mode;
+        document.getElementById('statusRedisAvailable').textContent = redisAvailable;
+        document.getElementById('statusCloudflareEnabled').textContent = cfEnabled;
+        document.getElementById('statusBackendError').textContent = backendError;
+
+        const pill = document.getElementById('backendModePill');
+        const backend = stats.active_backend || 'unknown';
+        if (backend === 'redis') {
+            pill.className = 'health-pill ok';
+            pill.textContent = 'Redis backend active';
+        } else if (backend === 'memory') {
+            pill.className = 'health-pill warn';
+            pill.textContent = 'Memory backend active';
+        } else {
+            pill.className = 'health-pill danger';
+            pill.textContent = 'Backend unknown';
+        }
+
+        document.getElementById('statBackendSub').textContent = `mode: ${mode} | redis: ${redisAvailable}`;
+    }
+
+    function renderBlockedIps() {
+        const tbody = document.getElementById('blockedIpsTableBody');
+        const blocked = securityState.blockedIps || [];
+
+        if (!blocked.length) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">
+                        <i class="fas fa-check-circle me-2"></i>No blocked IPs.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        const rows = blocked.map((item) => {
+            const ip = escapeHtml(item.ip || '-');
+            const source = escapeHtml(formatOrigin(item.source));
+            const reason = escapeHtml(item.reason || '-');
+            const blockedAt = formatDateTime(item.timestamp);
+            const blockedUntil = formatDateTime(item.blocked_until);
+            const syncStatus = formatSyncStatus(item);
+
+            return `
+                <tr>
+                    <td><code>${ip}</code></td>
+                    <td>${source}</td>
+                    <td class="cell-reason">${reason}</td>
+                    <td>${blockedAt}</td>
+                    <td>${blockedUntil}</td>
+                    <td>${syncStatus}</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-warning me-1" data-action="retry-sync" data-ip="${ip}">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" data-action="unblock" data-ip="${ip}">
+                            <i class="fas fa-unlock"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = rows.join('');
+    }
+
+    function renderEvents() {
+        const tbody = document.getElementById('eventsTableBody');
+        const events = securityState.events || [];
+
+        if (!events.length) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">
+                        <i class="fas fa-info-circle me-2"></i>No events.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        const rows = events.map((event) => {
+            const cloudflare = event.cloudflare || null;
+            const cfStatus = cloudflare
+                ? `<span class="badge bg-success">${escapeHtml(cloudflare.status || cloudflare.source || 'synced')}</span>`
+                : '<span class="badge bg-secondary">none</span>';
+
+            return `
+                <tr>
+                    <td>${formatDateTime(event.timestamp)}</td>
+                    <td><code>${escapeHtml(event.ip || '-')}</code></td>
+                    <td>${escapeHtml(formatOrigin(event.source))}</td>
+                    <td>${escapeHtml(event.reason_category || '-')}</td>
+                    <td class="cell-reason">${escapeHtml(event.reason || '-')}</td>
+                    <td>${formatDateTime(event.blocked_until)}</td>
+                    <td>${cfStatus}</td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = rows.join('');
+    }
+
+    async function loadStats() {
+        securityState.stats = await fetchJson('/admin/security/stats');
+        renderStats();
+        renderBlockedIps();
+    }
+
+    async function loadBlockedIps() {
+        const payload = await fetchJson(`/admin/security/blocked-ips?limit=${BLOCKED_IPS_LIMIT}`);
+        securityState.blockedIps = payload.blocked_ips || [];
+        renderBlockedIps();
+    }
+
+    async function loadEvents() {
+        const payload = await fetchJson(`/admin/security/events?limit=${EVENTS_LIMIT}`);
+        securityState.events = payload.events || [];
+        renderEvents();
+    }
+
+    async function unblockIp(ip) {
+        const payload = await fetchJson('/admin/security/unblock-ip', {
+            method: 'POST',
+            body: JSON.stringify({ ip })
+        });
+        let msg = `IP ${ip} unblocked.`;
+        if (payload && payload.cloudflare_deleted) {
+            msg += ` Cloudflare rule ${payload.cloudflare_rule_id || ''} also deleted.`;
+        }
+        showAlert('success', msg);
+        await refreshSecurityPanel();
+    }
+
+    async function retryCloudflareSync(ip) {
+        const payload = await fetchJson('/admin/security/retry-sync', {
+            method: 'POST',
+            body: JSON.stringify({ ip, reason: 'Manual sync retry from admin panel' })
+        });
+        const status = payload && payload.result ? payload.result.status : 'unknown';
+        showAlert('info', `Sync retry for ${ip} executed. Status: ${status}`);
+        await refreshSecurityPanel();
+    }
+
+    async function refreshSecurityPanel() {
+        const refreshButton = document.getElementById('refreshButton');
+        if (refreshButton) refreshButton.disabled = true;
+
+        try {
+            await Promise.all([
+                loadStats(),
+                loadBlockedIps(),
+                loadEvents()
+            ]);
+        } catch (error) {
+            showAlert('danger', error.message || 'Failed to load security panel data.');
+        } finally {
+            if (refreshButton) refreshButton.disabled = false;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const blockIpForm = document.getElementById('blockIpForm');
+        blockIpForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const ip = document.getElementById('blockIp').value.trim();
+            const hours = Number(document.getElementById('blockHours').value || '24');
+            const reason = document.getElementById('blockReason').value.trim() || 'Manual block from admin panel';
+
+            try {
+                await fetchJson('/admin/security/block-ip', {
+                    method: 'POST',
+                    body: JSON.stringify({ ip, hours, reason })
+                });
+                showAlert('success', `IP ${ip} blocked for ${hours}h.`);
+                blockIpForm.reset();
+                document.getElementById('blockHours').value = '24';
+                document.getElementById('blockReason').value = 'Manual block from admin panel';
+                await refreshSecurityPanel();
+            } catch (error) {
+                showAlert('danger', error.message || 'Failed to block IP.');
+            }
+        });
+
+        const checkIpForm = document.getElementById('checkIpForm');
+        checkIpForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const ip = document.getElementById('statusIp').value.trim();
+            const target = document.getElementById('checkIpResult');
+            try {
+                const payload = await fetchJson(`/admin/security/ip-status?ip=${encodeURIComponent(ip)}`);
+                target.textContent = payload.blocked
+                    ? `IP ${ip} is currently blocked.`
+                    : `IP ${ip} is not blocked.`;
+                target.className = payload.blocked ? 'text-danger' : 'text-success';
+            } catch (error) {
+                target.textContent = error.message || 'Failed to check status.';
+                target.className = 'text-danger';
+            }
+        });
+
+        const blockedIpsTableBody = document.getElementById('blockedIpsTableBody');
+        blockedIpsTableBody.addEventListener('click', async (event) => {
+            const actionButton = event.target.closest('button[data-action]');
+            if (!actionButton) return;
+
+            const action = actionButton.getAttribute('data-action');
+            const ip = actionButton.getAttribute('data-ip');
+            if (!ip) return;
+
+            try {
+                if (action === 'unblock') {
+                    await unblockIp(ip);
+                } else if (action === 'retry-sync') {
+                    await retryCloudflareSync(ip);
+                }
+            } catch (error) {
+                showAlert('danger', error.message || 'Security action failed.');
+            }
+        });
+
+        refreshSecurityPanel();
+    });
+</script>
+{% endblock %}

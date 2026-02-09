@@ -168,6 +168,7 @@
                             <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/admin/task-manager';">Task Manager</button>
                             <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/admin/chat';">Admin Chat</button>
                             <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/admin/usage';">Platform Usage</button>
+                            <button type="button" class="btn btn-outline-danger btn-block mb-3" onclick="window.location.href='/admin/security';">Security Operations</button>
                             <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/admin/categories';">Manage Categories</button>
                             <button type="button" class="btn btn-outline-danger btn-block" onclick="toggleCacheOptions()">Clean Audio Cache</button>
                             <div id="cacheOptions" class="cache-options">
@@ -203,6 +204,9 @@
                         <div class="d-flex flex-column">
                             <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/admin/discount-list';">Manage Discounts</button>
                             <button type="button" class="btn btn-outline-warning btn-block mb-3" onclick="disableCloudflareCache()">Disable Cloudflare Cache</button>
+                            <button type="button" class="btn btn-outline-info btn-block mb-3" id="devModeBtn" onclick="toggleDevMode()">
+                                <i class="fas fa-code"></i> <span id="devModeStatus">Enable</span> Dev Mode (No Cache)
+                            </button>
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <span>CAPTCHA (Login/Register)</span>
                                 <div class="form-check form-switch mb-0">
@@ -283,6 +287,38 @@
             NotificationModal.error('Error', 'Error disabling Cloudflare cache');
         });
     }
+
+    function toggleDevMode() {
+        const current = document.cookie.includes('devMode=true');
+        if (current) {
+            // Disable dev mode
+            document.cookie = 'devMode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+            updateDevModeButton(false);
+            NotificationModal.info('Dev Mode', 'Dev mode disabled. Browser will use cached files.');
+        } else {
+            // Enable dev mode (expires in 24h)
+            document.cookie = 'devMode=true; path=/; max-age=86400';
+            updateDevModeButton(true);
+            NotificationModal.info('Dev Mode', 'Dev mode enabled. Reload the page to get fresh files from nginx.');
+        }
+    }
+
+    function updateDevModeButton(enabled) {
+        const statusSpan = document.getElementById('devModeStatus');
+        const btn = document.getElementById('devModeBtn');
+        if (statusSpan) {
+            statusSpan.textContent = enabled ? 'Disable' : 'Enable';
+        }
+        if (btn) {
+            btn.classList.toggle('btn-outline-info', !enabled);
+            btn.classList.toggle('btn-info', enabled);
+        }
+    }
+
+    // Update dev mode button state on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        updateDevModeButton(document.cookie.includes('devMode=true'));
+    });
 
     function toggleCaptcha(enabled) {
         secureFetch('/admin/toggle-captcha', {

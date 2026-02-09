@@ -293,7 +293,8 @@ def _parse_security_response(response_text: str) -> dict:
     """
     Parse the LLM's JSON response into a structured result.
 
-    Handles cases where the LLM might include extra text around the JSON.
+    Uses the shared extract_json_from_llm_response utility for JSON extraction,
+    then applies security-specific field validation and defaults.
     """
     default_result = {
         "decision": "ALLOW",
@@ -305,40 +306,28 @@ def _parse_security_response(response_text: str) -> dict:
     if not response_text:
         return default_result
 
-    # Try to extract JSON from the response
-    text = response_text.strip()
+    from tools.llm_caller import extract_json_from_llm_response
 
-    # Find JSON object in the response
-    start_idx = text.find('{')
-    end_idx = text.rfind('}')
-
-    if start_idx == -1 or end_idx == -1:
-        logger.warning(f"No JSON found in security response: {text[:200]}")
+    result = extract_json_from_llm_response(response_text)
+    if result is None:
+        logger.warning(f"No valid JSON found in security response: {response_text[:200]}")
         return default_result
 
-    json_str = text[start_idx:end_idx + 1]
+    # Validate required fields
+    decision = result.get("decision", "ALLOW").upper()
+    if decision not in ["ALLOW", "BLOCK"]:
+        decision = "ALLOW"
 
-    try:
-        result = orjson.loads(json_str)
+    threat_level = result.get("threat_level", "none").lower()
+    if threat_level not in ["none", "low", "medium", "high"]:
+        threat_level = "unknown"
 
-        # Validate required fields
-        decision = result.get("decision", "ALLOW").upper()
-        if decision not in ["ALLOW", "BLOCK"]:
-            decision = "ALLOW"
-
-        threat_level = result.get("threat_level", "none").lower()
-        if threat_level not in ["none", "low", "medium", "high"]:
-            threat_level = "unknown"
-
-        return {
-            "decision": decision,
-            "threat_level": threat_level,
-            "threats_detected": result.get("threats_detected", []),
-            "reason": result.get("reason", "")
-        }
-    except orjson.JSONDecodeError as e:
-        logger.warning(f"Failed to parse security JSON: {e}, text: {json_str[:200]}")
-        return default_result
+    return {
+        "decision": decision,
+        "threat_level": threat_level,
+        "threats_detected": result.get("threats_detected", []),
+        "reason": result.get("reason", "")
+    }
 
 
 async def check_security(user_input: str) -> dict:

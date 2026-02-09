@@ -27,9 +27,9 @@ body {
 }
 
 #sidebar {
-    width: 240px;
-    min-width: 240px;
-    max-width: 240px;
+    width: 260px;
+    min-width: 260px;
+    max-width: 260px;
     height: 100vh;
     overflow-y: auto;
     background-color: var(--main-bg-color);
@@ -70,15 +70,15 @@ body {
     color: var(--accent-color);
 }
 
-.list-group-item-action[href="/"] {
-    background-color: transparent;
-    color: var(--text-color);
-    pointer-events: auto;
+.btn-home-sidebar,
+.btn-collapse-sidebar,
+.btn-expand-sidebar {
+    --sidebar-btn-color: var(--text-color);
 }
-
-.list-group-item-action[href="/"]:hover {
-    background-color: transparent;
-    color: var(--text-color);
+.btn-home-sidebar:hover,
+.btn-collapse-sidebar:hover,
+.btn-expand-sidebar:hover {
+    --sidebar-btn-hover-color: var(--text-color);
 }
 
 .btn-toggle-sidebar {
@@ -577,6 +577,12 @@ textarea {
         -3px -3px 6px var(--shadow-light);
 }
 
+#dynamic-chats-container .list-group-item .chat-name {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
 #dynamic-chats-container .list-group-item:hover {
     box-shadow: 
         inset 2px 2px 4px var(--shadow-dark),
@@ -914,10 +920,16 @@ textarea {
     background-color: var(--main-bg-color);
     border-radius: 10px;
     padding: 10px;
-    box-shadow: 
+    box-shadow:
         3px 3px 6px var(--shadow-dark),
         -3px -3px 6px var(--shadow-light);
     z-index: 1001;
+}
+
+.chat-menu .chat-menu-content.menu-above {
+    top: auto;
+    bottom: 100%;
+    margin-bottom: 5px;
 }
 
 .chat-menu .chat-menu-content a {
@@ -953,7 +965,7 @@ textarea {
 
     #sidebar {
         position: fixed;
-        left: -240px;
+        left: -260px;
         top: 0;
         bottom: 0;
         transition: left 0.3s ease;
@@ -1122,25 +1134,6 @@ textarea {
     height: 3rem;
 }
 
-.list-group-item-action[href="/"] {
-    background-color: transparent;
-    color: var(--text-color);
-    pointer-events: auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 10px 15px;
-}
-
-.list-group-item-action[href="/"] i {
-    margin-right: 10px;
-}
-
-.list-group-item-action[href="/"] span {
-    flex-grow: 1;
-    text-align: center;
-}
 
 .message img {
     max-width: 256px;
@@ -1584,6 +1577,40 @@ textarea {
    FOLDER SYSTEM STYLES
    ============================================ */
 
+/* New Folder button */
+.new-folder-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    margin-bottom: 15px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    color: var(--text-color-light);
+    transition: all 0.3s ease;
+    background-color: var(--main-bg-color);
+    box-shadow:
+        3px 3px 6px var(--shadow-dark),
+        -3px -3px 6px var(--shadow-light);
+}
+
+.new-folder-item:hover {
+    color: var(--accent-color);
+    box-shadow:
+        inset 2px 2px 4px var(--shadow-dark),
+        inset -2px -2px 4px var(--shadow-light);
+}
+
+.new-folder-item i {
+    margin-right: 10px;
+    font-size: 16px;
+}
+
+.new-folder-item span {
+    font-size: 14px;
+    font-weight: 500;
+}
+
 /* Folder Container */
 .folder-container {
     margin-bottom: 8px;
@@ -1749,9 +1776,48 @@ textarea {
     opacity: 1;
 }
 
+/* Folder chats container - for JS compatibility */
+.folder-chats-container {
+    margin-left: 15px;
+    padding-left: 10px;
+    border-left: 2px solid var(--accent-color);
+    margin-top: 5px;
+    background: var(--main-bg-color);
+}
+
+.folder-chats-container .list-group-item {
+    padding: 10px 15px;
+    margin-bottom: 5px;
+    background-color: var(--main-bg-color);
+    border-radius: 8px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    box-shadow:
+        2px 2px 4px var(--shadow-dark),
+        -2px -2px 4px var(--shadow-light);
+}
+
+.folder-chats-container .list-group-item:hover {
+    box-shadow:
+        inset 1px 1px 2px var(--shadow-dark),
+        inset -1px -1px 2px var(--shadow-light);
+}
+
+.folder-chats-container .list-group-item.active-chat {
+    background: linear-gradient(135deg, var(--accent-color), #357abd);
+    color: var(--main-bg-color);
+    box-shadow:
+        inset 2px 2px 4px rgba(0, 0, 0, 0.3),
+        inset -1px -1px 2px rgba(255, 255, 255, 0.2);
+}
+
+.folder-collapsed .folder-chats-container {
+    display: none;
+}
+
 /* Drag and Drop States */
 .folder-container.drag-over {
-    box-shadow: 
+    box-shadow:
         inset 3px 3px 6px var(--accent-color),
         inset -3px -3px 6px rgba(255, 255, 255, 0.5),
         0 0 0 2px var(--accent-color);
@@ -2624,4 +2690,35 @@ input[type="range"]::-webkit-slider-thumb {
     box-shadow: 
         inset -2px -2px 5px var(--shadow-light),
         inset 2px 2px 5px var(--shadow-dark);
+}
+
+
+
+/* =============================================
+   Web Search Toggle
+   ============================================= */
+
+#web-search-control {
+    display: none;
+}
+
+#web-search-control.visible {
+    position: relative;
+    display: flex;
+    align-items: center;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+#web-search-control i {
+    font-size: 14px;
+    line-height: 1;
+}
+
+#web-search-control:hover {
+    color: var(--text-primary);
+}
+
+#web-search-control i.active {
+    color: var(--accent);
 }

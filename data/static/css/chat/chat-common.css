@@ -1,0 +1,104 @@
+/* chat-common.css
+ * Shared structural styles for all chat themes.
+ * Loaded after theme CSS so structural rules take priority over themes.
+ * Theme-specific colors still work via CSS variables.
+ */
+
+/* =============================================
+   Chatbot Info Header - Flex Layout
+   ============================================= */
+.chatbot-info {
+    display: flex;
+    align-items: center;
+}
+
+.chatbot-info .chat-title-container {
+    flex: 1;
+    min-width: 0;
+}
+
+/* =============================================
+   Sidebar Collapse/Expand (Desktop only)
+   ============================================= */
+
+/* Home + Collapse buttons row - top of sidebar */
+.sidebar-collapse-row {
+    display: none;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px 0;
+    flex-shrink: 0;
+}
+
+@media (min-width: 769px) {
+    .sidebar-collapse-row {
+        display: flex;
+    }
+}
+
+/* Shared button base for home, collapse & expand */
+.btn-home-sidebar,
+.btn-collapse-sidebar,
+.btn-expand-sidebar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid var(--sidebar-border-color, #40444b);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--sidebar-btn-color, var(--text-secondary, #b9bbbe));
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    flex-shrink: 0;
+    text-decoration: none;
+}
+
+.btn-home-sidebar:hover,
+.btn-collapse-sidebar:hover,
+.btn-expand-sidebar:hover {
+    background-color: var(--sidebar-btn-hover-bg, rgba(128, 128, 128, 0.25));
+    color: var(--sidebar-btn-hover-color, var(--text-primary, #ffffff));
+    text-decoration: none;
+}
+
+.btn-home-sidebar i {
+    font-size: 14px;
+    line-height: 1;
+}
+
+.btn-collapse-sidebar svg,
+.btn-expand-sidebar svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Expand button in chatbot-info - hidden by default */
+.btn-expand-sidebar {
+    display: none;
+    margin-right: 10px;
+}
+
+/* =============================================
+   Desktop Collapsed State
+   ============================================= */
+@media (min-width: 769px) {
+    html.sidebar-collapsed #sidebar {
+        min-width: 0;
+        max-width: 0;
+        width: 0;
+        overflow: hidden;
+        padding: 0;
+        border-right: none;
+    }
+
+    html.sidebar-collapsed #window-chat {
+        width: 100%;
+    }
+
+    html.sidebar-collapsed .btn-expand-sidebar {
+        display: flex;
+    }
+}

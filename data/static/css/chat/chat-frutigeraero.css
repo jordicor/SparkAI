@@ -61,7 +61,7 @@ body {
    Sidebar (#sidebar)
    ========================================================== */
 #sidebar {
-    width: 240px;
+    width: 260px;
     background: var(--fa-sidebar-bg);
     display: flex;
     flex-direction: column;
@@ -105,26 +105,18 @@ body {
     box-shadow: 0 0 8px var(--fa-glow-color), inset 0 1px 1px rgba(255, 255, 255, 0.8);
 }
 
-/* Home Link Button */
-.list-group-item-action.home-link {
-    background-color: transparent;
-    border: none;
-    box-shadow: none;
-    backdrop-filter: none;
-    color: var(--fa-text-secondary);
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 12px 15px;
+/* Sidebar Action Buttons (Home, Collapse, Expand) */
+.btn-home-sidebar,
+.btn-collapse-sidebar,
+.btn-expand-sidebar {
+    --sidebar-btn-color: var(--fa-text-secondary);
+    --sidebar-border-color: rgba(255, 255, 255, 0.3);
 }
-.list-group-item-action.home-link i {
-    margin-right: 8px;
-}
-.list-group-item-action.home-link:hover {
-    background-color: rgba(255, 255, 255, 0.2);
-    color: var(--fa-accent-blue);
-    transform: none;
+.btn-home-sidebar:hover,
+.btn-collapse-sidebar:hover,
+.btn-expand-sidebar:hover {
+    --sidebar-btn-hover-bg: rgba(255, 255, 255, 0.2);
+    --sidebar-btn-hover-color: var(--fa-accent-blue);
 }
 
 /* Hamburger button (mobile) and Overlay */
@@ -175,6 +167,13 @@ body {
     display: flex;
     flex-direction: column;
     gap: 4px;
+}
+
+#dynamic-chats-container .list-group-item .chat-name {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    font-size: 13px;
 }
 
 /* User Info Area */
@@ -260,6 +259,7 @@ body {
     height: 100svh;
     overflow: hidden; /* Contiene el scroll */
     background-color: var(--fa-bg-secondary); /* Pale green background */
+    z-index: 1; /* Lower than sidebar (1001) so dropdowns appear above */
 }
 
 /* Header Info Bar */
@@ -397,6 +397,7 @@ body {
     align-items: center;
     justify-content: center;
     box-shadow: var(--fa-box-shadow-light);
+    color: var(--fa-text-primary);
 }
 .message.user .avatar {
     margin-right: 0;
@@ -904,6 +905,29 @@ body.dragover #drop-zone-overlay { /* Assuming you add class to body */
     padding: 15px;
     /* Inherits styles from .dropdown-menu */
 }
+
+/* Fix dropdown menu being cut off by chat window */
+.dropdown-menu.new-chat-settings.show {
+    position: fixed !important;
+    z-index: 1060 !important;
+    width: 300px;
+    left: 15px !important;
+    top: 115px !important;
+    transform: none !important;
+}
+
+/* Mobile adjustment for dropdown */
+@media (max-width: 768px) {
+    .dropdown-menu.new-chat-settings.show {
+        top: auto !important;
+        bottom: 60px;
+        left: 10px !important;
+        right: 10px;
+        width: auto;
+        max-width: none;
+        transform: none !important;
+    }
+}
 .new-chat-settings .form-select {
     margin-top: 5px;
     background-color: #ffffff;
@@ -1369,6 +1393,12 @@ body.dragover #drop-zone-overlay { /* Assuming you add class to body */
     padding: 8px;
     z-index: 1051; /* Above other list elements */
 }
+
+.chat-menu-content.menu-above {
+    top: auto;
+    bottom: calc(100% + 5px);
+}
+
 .chat-menu .chat-menu-content a {
     display: block;
     color: var(--fa-text-primary);
@@ -1605,6 +1635,37 @@ body.dragover #drop-zone-overlay { /* Assuming you add class to body */
    Folder System Styles - Frutiger Aero Theme
    ========================================================== */
 
+/* New Folder button */
+.new-folder-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    margin-bottom: 15px;
+    border: 1px dashed var(--fa-border-color);
+    border-radius: var(--fa-border-radius-small);
+    cursor: pointer;
+    color: var(--fa-text-secondary);
+    transition: all 0.3s ease;
+    background-color: transparent;
+}
+
+.new-folder-item:hover {
+    border-color: var(--fa-accent-blue);
+    background-color: rgba(0, 191, 255, 0.1);
+    color: var(--fa-text-primary);
+    box-shadow: var(--fa-box-shadow-light);
+}
+
+.new-folder-item i {
+    margin-right: 10px;
+    font-size: 16px;
+}
+
+.new-folder-item span {
+    font-size: 14px;
+    font-weight: 500;
+}
+
 /* Main folder container */
 .folder-item {
     background: linear-gradient(135deg, #e0f7ff, #f0fff0);
@@ -1739,6 +1800,42 @@ body.dragover #drop-zone-overlay { /* Assuming you add class to body */
     border-color: var(--fa-accent-blue);
     color: var(--fa-accent-blue);
     box-shadow: 0 0 6px var(--fa-glow-color), inset 0 1px 1px rgba(255, 255, 255, 0.9);
+}
+
+/* Folder chats container - for JS compatibility */
+.folder-chats-container {
+    margin-left: 12px;
+    padding-left: 12px;
+    border-left: 2px solid var(--fa-border-color-light);
+    margin-top: 5px;
+    background: linear-gradient(to right, rgba(224, 247, 255, 0.3), transparent 30%);
+}
+
+.folder-chats-container .list-group-item {
+    background-color: rgba(255, 255, 255, 0.6);
+    border: 1px solid var(--fa-border-color-light);
+    margin-bottom: 3px;
+    padding: 8px 35px 8px 12px;
+    font-size: 13px;
+    border-radius: 6px;
+    box-shadow: var(--fa-box-shadow-light);
+    transition: all 0.3s ease;
+}
+
+.folder-chats-container .list-group-item:hover {
+    background-color: rgba(255, 255, 255, 0.8);
+    box-shadow: 0 2px 5px rgba(0, 100, 150, 0.1), inset 0 1px 1px rgba(255, 255, 255, 0.9);
+}
+
+.folder-chats-container .list-group-item.active-chat {
+    background-color: rgba(255, 255, 255, 0.95);
+    border-color: var(--fa-accent-blue);
+    color: var(--fa-accent-blue);
+    box-shadow: 0 0 6px var(--fa-glow-color), inset 0 1px 1px rgba(255, 255, 255, 0.9);
+}
+
+.folder-collapsed .folder-chats-container {
+    display: none;
 }
 
 /* Drag and drop states */
@@ -2246,7 +2343,7 @@ body.dragover #drop-zone-overlay { /* Assuming you add class to body */
     display: flex;
     align-items: center;
     cursor: pointer;
-    margin-right: 12px;
+    margin-right: 0;
     overflow: visible;
 }
 
@@ -2415,4 +2512,21 @@ input[type="range"] {
 #my-bookmarks-btn {
     background: var(--fa-sidebar-bg);
     color: var(--fa-text-primary);
+}
+
+
+/* =============================================
+   Web Search Toggle
+   ============================================= */
+
+#web-search-control {
+    display: none;
+}
+
+#web-search-control.visible {
+    display: contents;
+}
+
+#web-search-control i.active {
+    color: var(--fa-accent-blue);
 }

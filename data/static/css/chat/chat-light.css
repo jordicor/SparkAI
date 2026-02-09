@@ -34,7 +34,7 @@ body {
 }
 
 #sidebar {
-    min-width: 240px;
+    min-width: 260px;
     max-width: 10vw;
     background-color: var(--sidebar-bg-color);
     display: flex;
@@ -150,7 +150,7 @@ body {
     position: relative;
     display: flex;
     flex-direction: column;
-    width: calc(100% - min(240px, 10vw));
+    width: calc(100% - min(260px, 10vw));
     box-sizing: border-box;
     background-color: var(--chat-window-bg-color);
     color: #333333;
@@ -236,7 +236,7 @@ body {
     width: 100%;
     max-width: 48em;
     margin: 0 auto;
-    border: 1px solid #d0d0d0;
+    border: none;
     padding: 8px;
 }
 .attach-icon,
@@ -484,6 +484,12 @@ textarea {
     cursor: pointer;
     transition: background-color 0.3s ease;
     font-size: 14px;
+}
+
+#dynamic-chats-container .list-group-item .chat-name {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
 }
 
 #dynamic-chats-container .list-group-item:hover {
@@ -780,6 +786,8 @@ textarea {
     background-color: transparent;
     border-radius: 8px;
     overflow: hidden;
+    border: 1px solid #d0d0d0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .input-group {
@@ -835,6 +843,12 @@ textarea {
     padding: 10px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
     z-index: 1001;
+}
+
+.chat-menu .chat-menu-content.menu-above {
+    top: auto;
+    bottom: 100%;
+    margin-bottom: 5px;
 }
 
 .chat-menu .chat-menu-content a {
@@ -1041,24 +1055,10 @@ textarea {
     height: 3rem;
 }
 
-.list-group-item-action[href="/"] {
-    background-color: transparent;
-    color: var(--sidebar-text-color);
-    pointer-events: auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 10px 15px;
-}
-
-.list-group-item-action[href="/"] i {
-    margin-right: 10px;
-}
-
-.list-group-item-action[href="/"] span {
-    flex-grow: 1;
-    text-align: center;
+.btn-home-sidebar,
+.btn-collapse-sidebar,
+.btn-expand-sidebar {
+    --sidebar-btn-color: var(--sidebar-text-color);
 }
 
 .fullsize-container {
@@ -1584,6 +1584,37 @@ body {
 }
 
 /* FOLDER SYSTEM STYLES */
+
+/* New Folder button */
+.new-folder-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    margin-bottom: 15px;
+    border: 1px dashed var(--sidebar-border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    color: #6c757d;
+    transition: all 0.3s ease;
+    background-color: transparent;
+}
+
+.new-folder-item:hover {
+    border-color: #007bff;
+    background-color: rgba(0, 123, 255, 0.1);
+    color: #333333;
+}
+
+.new-folder-item i {
+    margin-right: 10px;
+    font-size: 16px;
+}
+
+.new-folder-item span {
+    font-size: 14px;
+    font-weight: 500;
+}
+
 .folder-container {
     margin-bottom: 8px;
     padding: 0;
@@ -2414,4 +2445,35 @@ input[type="range"] {
 
 #thinking-tokens-apply:hover {
     background: #45a049;
+}
+
+
+
+/* =============================================
+   Web Search Toggle
+   ============================================= */
+
+#web-search-control {
+    display: none;
+}
+
+#web-search-control.visible {
+    position: relative;
+    display: flex;
+    align-items: center;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+#web-search-control i {
+    font-size: 14px;
+    line-height: 1;
+}
+
+#web-search-control:hover {
+    color: var(--text-primary);
+}
+
+#web-search-control i.active {
+    color: var(--accent);
 }

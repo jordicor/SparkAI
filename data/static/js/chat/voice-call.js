@@ -289,6 +289,13 @@
                 dynamicVariables.user_id = String(configData.user_id);
             }
 
+            // Watchdog: inject steering hint as dynamic variable if available
+            if (configData.watchdog_steering_hint) {
+                dynamicVariables.watchdog_steering_hint = configData.watchdog_steering_hint;
+            } else {
+                dynamicVariables.watchdog_steering_hint = "";
+            }
+
             const options = {
                 agentId: configData.agent_id,
                 dynamicVariables,
@@ -408,12 +415,17 @@
 
         async function markSessionStarted(sessionId) {
             try {
+                const sessionBody = { session_id: sessionId };
+                // Watchdog: send CAS token so backend can consume the hint
+                if (configData && configData.watchdog_hint_eval_id != null) {
+                    sessionBody.watchdog_hint_eval_id = configData.watchdog_hint_eval_id;
+                }
                 const response = await secureFetch(`/api/conversations/${currentConversationId}/elevenlabs/session`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ session_id: sessionId })
+                    body: JSON.stringify(sessionBody)
                 });
                 if (response && !response.ok) {
                     console.warn('Failed to mark ElevenLabs session as active');
@@ -455,7 +467,8 @@
                 return;
             }
 
-            const config = await fetchConfig();
+            // Force refresh to get fresh watchdog hint from backend
+            const config = await fetchConfig(true);
             if (!config) {
                 return;
             }
@@ -629,6 +642,8 @@
                 muteState = false;
                 updateMuteUI();
                 activeSessionId = null;
+                // Reset config to avoid reusing stale watchdog hints on consecutive calls
+                configData = null;
                 closeButton.disabled = false;
             }
         }

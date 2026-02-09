@@ -108,8 +108,25 @@ async def handle_perplexity_query(function_arguments, messages, model, temperatu
             await pubsub.unsubscribe(channel_name)
             await pubsub.close()
 
-    # Yield the final content and save_to_db flag
-    yield f"data: {orjson.dumps({'content': content.strip(), 'save_to_db': True}).decode()}\n\n"
+    # Estimate tokens (rough: 4 chars = 1 token)
+    input_tokens_estimate = len(query) // 4
+    output_tokens_estimate = len(content) // 4
+
+    # Perplexity sonar-pro pricing (per 1M tokens)
+    PERPLEXITY_INPUT_COST = 3.0 / 1_000_000   # $3 per 1M
+    PERPLEXITY_OUTPUT_COST = 15.0 / 1_000_000  # $15 per 1M
+
+    perplexity_cost = (input_tokens_estimate * PERPLEXITY_INPUT_COST) + (output_tokens_estimate * PERPLEXITY_OUTPUT_COST)
+
+    # Yield the final content with save_to_db flag and cost tracking
+    final_data = {
+        'content': content.strip(),
+        'save_to_db': True,
+        'perplexity_cost': perplexity_cost,
+        'perplexity_input_tokens': input_tokens_estimate,
+        'perplexity_output_tokens': output_tokens_estimate
+    }
+    yield f"data: {orjson.dumps(final_data).decode()}\n\n"
 
 # Register the tool for the semantic router
 register_tool({

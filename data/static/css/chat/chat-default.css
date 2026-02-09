@@ -7,6 +7,7 @@ body, h5 {
 }
 
 :root {
+    /* Base backgrounds (WCAG AA compliant) */
     --sidebar-bg-color: #202225;
     --sidebar-border-color: #40444b;
     --sidebar-text-color: #CCCCCC;
@@ -14,8 +15,24 @@ body, h5 {
     --chatbot-info-bg-color: #36393f;
     --user-info-bg-color: #202225;
     --message-input-bg-color: #36393f;
-    --message-user-bg-color: #7289da;
-    --message-bot-bg-color: #4CAF50;
+
+    /* WCAG AA compliant colors - synced with themes/default.css */
+    --message-user-bg-color: #8ea1e1;  /* WCAG: brightened from #7289da for 5.5:1 ratio */
+    --message-bot-bg-color: #3a9d6e;   /* WCAG: darkened from #4CAF50 for white text 4.5:1 */
+
+    /* Text colors */
+    --text-primary: #ffffff;
+    --text-secondary: #b9bbbe;
+    --text-muted: rgba(255, 255, 255, 0.55);  /* WCAG: increased from 0.45 */
+
+    /* Accent colors */
+    --accent: #8ea1e1;         /* WCAG compliant */
+    --accent-hover: #7289da;
+    --accent-rgb: 142, 161, 225;
+
+    /* Status colors */
+    --success: #3a9d6e;        /* WCAG compliant */
+    --danger: #dc3545;
 }
 
 body {
@@ -28,7 +45,7 @@ body {
 }
 
 #sidebar {
-    min-width: 240px;
+    min-width: 260px;
     max-width: 10vw;
     background-color: var(--sidebar-bg-color);
     display: flex;
@@ -51,9 +68,11 @@ body {
     border-radius: 4px;
     margin-bottom: 2px;
     transition: background-color 0.3s ease;
-    padding: 10px 40px 10px 15px;
+    padding: 10px 65px 10px 15px;
     border: none;
     position: relative;
+    white-space: nowrap;
+    overflow: hidden;
 }
 
 .list-group-item.active-chat,
@@ -62,15 +81,15 @@ body {
     color: white;
 }
 
-.list-group-item-action[href="/"] {
-    background-color: transparent; 
-    color: var(--sidebar-text-color);
-    pointer-events: auto; 
+.btn-home-sidebar,
+.btn-collapse-sidebar,
+.btn-expand-sidebar {
+    --sidebar-btn-color: var(--sidebar-text-color);
 }
-
-.list-group-item-action[href="/"]:hover {
-    background-color: transparent; 
-    color: var(--sidebar-text-color);
+.btn-home-sidebar:hover,
+.btn-collapse-sidebar:hover,
+.btn-expand-sidebar:hover {
+    --sidebar-btn-hover-color: var(--sidebar-text-color);
 }
 
 .btn-toggle-sidebar {
@@ -157,7 +176,7 @@ body {
     position: relative;
     display: flex;
     flex-direction: column;
-    width: calc(100% - min(240px, 10vw));
+    width: calc(100% - min(260px, 10vw));
     box-sizing: border-box;
 }
 
@@ -388,6 +407,36 @@ textarea {
     padding: 10px 15px;
 }
 
+/* New Folder button */
+.new-folder-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    margin-bottom: 15px;
+    border: 1px dashed var(--sidebar-border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.3s ease;
+    background-color: transparent;
+}
+
+.new-folder-item:hover {
+    border-color: #5865F2;
+    background-color: rgba(88, 101, 242, 0.1);
+    color: var(--sidebar-text-color);
+}
+
+.new-folder-item i {
+    margin-right: 10px;
+    font-size: 16px;
+}
+
+.new-folder-item span {
+    font-size: 14px;
+    font-weight: 500;
+}
+
 .folder-item {
     background-color: #2f3136;
     color: #CCCCCC;
@@ -415,7 +464,7 @@ textarea {
 }
 
 .folder-item.drag-over {
-    background-color: #7289da;
+    background-color: var(--accent);
     border-color: #5865F2;
     color: white;
     transform: scale(1.02);
@@ -501,14 +550,14 @@ textarea {
 .create-folder-btn {
     background-color: transparent;
     border: 1px dashed #40444b;
-    color: #8e9297;
+    color: var(--text-secondary);
     border-radius: 4px;
     padding: 8px 12px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 10px;
+    margin-bottom: 18px;
     transition: all 0.3s ease;
     font-size: 14px;
 }
@@ -553,7 +602,7 @@ textarea {
 }
 
 .drag-over {
-    background-color: #7289da !important;
+    background-color: var(--accent) !important;
     border-color: #5865F2 !important;
     color: white !important;
 }
@@ -586,7 +635,7 @@ textarea {
 /* Empty folder state */
 .folder-empty-state {
     text-align: center;
-    color: #8e9297;
+    color: var(--text-muted);
     font-style: italic;
     padding: 15px;
     font-size: 14px;
@@ -594,7 +643,7 @@ textarea {
 
 /* Loose chats section */
 .loose-chats-section h3 {
-    color: #8e9297;
+    color: var(--text-muted);
     font-size: 12px;
     text-transform: uppercase;
     margin: 15px 0 10px 0;
@@ -751,7 +800,7 @@ textarea {
 
 .sidebar-section h3 {
     font-size: 12px;
-    color: #8e9297;
+    color: var(--text-muted);
     margin: 10px 0 10px 0;
     text-transform: uppercase;
 }
@@ -764,6 +813,12 @@ textarea {
     cursor: pointer;
     transition: background-color 0.3s ease;
     font-size: 14px;
+}
+
+#dynamic-chats-container .list-group-item .chat-name {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
 }
 
 #dynamic-chats-container .list-group-item:hover {
@@ -971,7 +1026,7 @@ textarea {
 }
 
 .bookmark-icon.check {
-    color: #4CAF50;
+    color: var(--success);
     font-family: 'FontAwesome';
     content: "\f00c";
     transform: scale(1.2);
@@ -1001,7 +1056,7 @@ textarea {
 }
 
 .code-language {
-    color: #8e9297;
+    color: var(--text-muted);
     text-transform: uppercase;
 }
 
@@ -1018,7 +1073,7 @@ textarea {
 .copy-button {
     background: none;
     border: none;
-    color: #8e9297;
+    color: var(--text-muted);
     cursor: pointer;
     font-size: 14px;
     padding: 0;
@@ -1053,11 +1108,11 @@ textarea {
 }
 
 .copy-button i.fa-check {
-    color: #4CAF50;
+    color: var(--success);
 }
 
 .copy-button i.fa-copy {
-    color: #8e9297;
+    color: var(--text-muted);
 }
 
 .list-group-item-action.active-bookmarks,
@@ -1154,6 +1209,12 @@ textarea {
     z-index: 1000;
 }
 
+.chat-menu .chat-menu-content.menu-above {
+    top: auto;
+    bottom: 100%;
+    margin-bottom: 5px;
+}
+
 .chat-menu .chat-menu-content a {
     display: block;
     color: #ffffff;
@@ -1192,7 +1253,7 @@ textarea {
     right: 8px;
     top: 50%;
     transform: translateY(-50%);
-    color: #4CAF50;
+    color: var(--success);
     font-weight: bold;
 }
 
@@ -1358,26 +1419,6 @@ textarea {
     height: 3rem;
 }
 
-.list-group-item-action[href="/"] {
-    background-color: transparent;
-    color: var(--sidebar-text-color);
-    pointer-events: auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 10px 15px;
-}
-
-.list-group-item-action[href="/"] i {
-    margin-right: 10px;
-}
-
-.list-group-item-action[href="/"] span {
-    flex-grow: 1;
-    text-align: center;
-}
-
 .message img {
     max-width: 256px;
     max-height: 256px;
@@ -1515,21 +1556,21 @@ textarea {
 }
 
 #cancel-audio {
-    background-color: #dc3545;
+    background-color: var(--danger);
     color: white;
 }
 
 #cancel-audio:hover {
-    background-color: #c82333;
+    background-color: #c42f31;
 }
 
 #send-audio {
-    background-color: #28a745;
+    background-color: var(--success);
     color: white;
 }
 
 #send-audio:hover {
-    background-color: #218838;
+    background-color: #2d8a5a;
 }
 
 .chat-title-container {
@@ -1732,7 +1773,7 @@ textarea {
 }
 
 .fullsize-controls button {
-    background-color: #7289da !important;
+    background-color: var(--accent) !important;
     color: #ffffff !important;
     border: none !important;
     padding: 8px 15px !important;
@@ -1748,35 +1789,35 @@ textarea {
 }
 
 .fullsize-controls button:hover {
-    background-color: #5865f2 !important;
+    background-color: var(--accent-hover) !important;
 }
 
 .fullsize-controls .btn-primary {
-    background-color: #7289da !important;
+    background-color: var(--accent) !important;
     color: #ffffff !important;
 }
 
 .fullsize-controls .btn-primary:hover {
-    background-color: #5865f2 !important;
+    background-color: var(--accent-hover) !important;
 }
 
 .fullsize-controls .btn-primary:active {
     transform: translateY(1px);
-    background-color: #5865f2 !important;
+    background-color: var(--accent-hover) !important;
 }
 
 .fullsize-controls .btn-primary:focus {
-    box-shadow: 0 0 0 0.2rem rgba(114, 137, 218, 0.25) !important;
+    box-shadow: 0 0 0 0.2rem rgba(var(--accent-rgb), 0.25) !important;
     outline: none !important;
 }
 
 .fullsize-controls .btn-danger {
-    background-color: #ed4245 !important;
+    background-color: var(--danger) !important;
     color: #ffffff !important;
 }
 
 .fullsize-controls .btn-danger:hover {
-    background-color: #c93134 !important;
+    background-color: #c42f31 !important;
 }
 
 .fullsize-controls .btn-secondary {
@@ -1819,7 +1860,7 @@ textarea {
 }
 
 .nav-arrow:hover {
-    background-color: rgba(114, 137, 218, 0.95) !important;
+    background-color: rgba(var(--accent-rgb), 0.95) !important;
     transform: translateY(-50%) scale(1.05);
 }
 
@@ -1941,7 +1982,7 @@ body {
 
 .chat-model-info {
     font-size: 0.75rem;
-    color: #8b949e;
+    color: var(--text-secondary);
     font-style: italic;
     pointer-events: none;
 }
@@ -1949,7 +1990,7 @@ body {
 /* Model Dropdown Icon */
 .model-dropdown-icon {
     font-size: 0.65rem;
-    color: #8b949e;
+    color: var(--text-secondary);
     transition: all 0.2s ease;
     opacity: 0.7;
 }
@@ -2001,7 +2042,7 @@ body {
 }
 
 .model-dropdown-header i {
-    color: #8b949e;
+    color: var(--text-secondary);
 }
 
 /* Model Dropdown Content */
@@ -2020,7 +2061,7 @@ body {
     padding: 8px 16px 4px;
     font-size: 0.7rem;
     font-weight: 600;
-    color: #8b949e;
+    color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     background: rgba(47, 49, 54, 0.5);
@@ -2050,7 +2091,7 @@ body {
 }
 
 .model-item.current {
-    background: linear-gradient(135deg, #7289da, #5b6eae);
+    background: linear-gradient(135deg, var(--accent), var(--accent-hover));
     color: #ffffff;
     font-weight: 500;
 }
@@ -2069,8 +2110,8 @@ body {
 
 /* Vision Badge */
 .vision-badge {
-    background: rgba(114, 137, 218, 0.2);
-    color: #7289da;
+    background: rgba(var(--accent-rgb), 0.2);
+    color: var(--accent);
     font-size: 0.6rem;
     padding: 1px 4px;
     border-radius: 3px;
@@ -2106,7 +2147,7 @@ body {
 }
 
 .model-dropdown-content::-webkit-scrollbar-thumb:hover {
-    background: #7289da;
+    background: var(--accent);
 }
 
 /* Responsive adjustments */
@@ -2253,4 +2294,33 @@ input[type="range"] {
 
 #thinking-tokens-apply:hover {
     background: #7c3aed;
+}
+
+/* =============================================
+   Web Search Toggle
+   ============================================= */
+
+#web-search-control {
+    display: none;
+}
+
+#web-search-control.visible {
+    position: relative;
+    display: flex;
+    align-items: center;
+    color: #72767d;
+    cursor: pointer;
+}
+
+#web-search-control i {
+    font-size: 14px;
+    line-height: 1;
+}
+
+#web-search-control:hover {
+    color: #dcddde;
+}
+
+#web-search-control i.active {
+    color: #5865f2;
 }
