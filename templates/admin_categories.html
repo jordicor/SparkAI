@@ -426,26 +426,30 @@
     }
 
     async function deleteCategory(id, name) {
-        if (!confirm(`Are you sure you want to delete the category "${name}"?\n\nThis will remove the category from all associated prompts.`)) {
-            return;
-        }
+        NotificationModal.confirm(
+            'Delete Category',
+            `Are you sure you want to delete the category "${name}"? This will remove the category from all associated prompts.`,
+            async () => {
+                try {
+                    const response = await fetch(`/api/categories/${id}`, {
+                        method: 'DELETE'
+                    });
 
-        try {
-            const response = await fetch(`/api/categories/${id}`, {
-                method: 'DELETE'
-            });
+                    const result = await response.json();
 
-            const result = await response.json();
-
-            if (response.ok) {
-                showAlert('Category deleted successfully', 'success');
-                setTimeout(() => location.reload(), 1000);
-            } else {
-                showAlert(result.detail || 'Failed to delete category', 'danger');
-            }
-        } catch (error) {
-            showAlert('Error: ' + error.message, 'danger');
-        }
+                    if (response.ok) {
+                        showAlert('Category deleted successfully', 'success');
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        showAlert(result.detail || 'Failed to delete category', 'danger');
+                    }
+                } catch (error) {
+                    showAlert('Error: ' + error.message, 'danger');
+                }
+            },
+            null,
+            { type: 'error', confirmText: 'Delete' }
+        );
     }
 </script>
 {% endblock %}

@@ -63,7 +63,7 @@ const saveFolderHandler = withSession(async function() {
     const color = document.getElementById('folderColor').value;
     
     if (!name) {
-        showNotification('Folder name is required', 'error');
+        NotificationModal.toast('Folder name is required', 'error');
         return;
     }
     
@@ -92,7 +92,7 @@ const saveFolderHandler = withSession(async function() {
         const result = await response.json();
         
         if (response.ok) {
-            showNotification(result.message || 'Folder saved successfully', 'success');
+            NotificationModal.toast(result.message || 'Folder saved successfully', 'success');
             await loadChatFolders();
             
             // Update existing chat menus
@@ -102,11 +102,11 @@ const saveFolderHandler = withSession(async function() {
             const modal = bootstrap.Modal.getInstance(document.getElementById('folderModal'));
             modal.hide();
         } else {
-            showNotification(result.error || 'Failed to save folder', 'error');
+            NotificationModal.toast(result.error || 'Failed to save folder', 'error');
         }
     } catch (error) {
         console.error('Error saving folder:', error);
-        showNotification('Failed to save folder', 'error');
+        NotificationModal.toast('Failed to save folder', 'error');
     }
 });
 
@@ -459,33 +459,32 @@ function createChatMenuForFolder(conversation) {
 }
 
 // Delete folder handler
-const deleteFolderHandler = withSession(async function(folderId) {
+const deleteFolderHandler = withSession(function(folderId) {
     const folder = chatFolders.find(f => f.id === folderId);
     if (!folder) return;
-    
+
     const confirmMessage = `Are you sure you want to delete the folder "${folder.name}"? All chats in this folder will be moved to the main chat list.`;
-    
-    if (!confirm(confirmMessage)) return;
-    
-    try {
-        const response = await secureFetch(`/api/chat-folders/${folderId}`, {
-            method: 'DELETE'
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok) {
-            showNotification(result.message || 'Folder deleted successfully', 'success');
-            loadChatFolders();
-            // Reload conversations to show moved chats
-            loadConversations(false, false);
-        } else {
-            showNotification(result.error || 'Failed to delete folder', 'error');
+
+    NotificationModal.confirm('Delete Folder', confirmMessage, async () => {
+        try {
+            const response = await secureFetch(`/api/chat-folders/${folderId}`, {
+                method: 'DELETE'
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                NotificationModal.toast(result.message || 'Folder deleted successfully', 'success');
+                loadChatFolders();
+                loadConversations(false, false);
+            } else {
+                NotificationModal.toast(result.error || 'Failed to delete folder', 'error');
+            }
+        } catch (error) {
+            console.error('Error deleting folder:', error);
+            NotificationModal.toast('Failed to delete folder', 'error');
         }
-    } catch (error) {
-        console.error('Error deleting folder:', error);
-        showNotification('Failed to delete folder', 'error');
-    }
+    }, null, { type: 'error', confirmText: 'Delete' });
 });
 
 // Show move chat modal
@@ -528,7 +527,7 @@ const moveChatToFolder = withSession(async function(conversationId, folderId) {
         const result = await response.json();
         
         if (response.ok) {
-            showNotification(result.message || 'Chat moved successfully', 'success');
+            NotificationModal.toast(result.message || 'Chat moved successfully', 'success');
             
             // Close modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('moveChatModal'));
@@ -538,11 +537,11 @@ const moveChatToFolder = withSession(async function(conversationId, folderId) {
             loadChatFolders();
             loadConversations(false, false);
         } else {
-            showNotification(result.error || 'Failed to move chat', 'error');
+            NotificationModal.toast(result.error || 'Failed to move chat', 'error');
         }
     } catch (error) {
         console.error('Error moving chat:', error);
-        showNotification('Failed to move chat', 'error');
+        NotificationModal.toast('Failed to move chat', 'error');
     }
 });
 
@@ -550,27 +549,6 @@ const moveChatToFolder = withSession(async function(conversationId, folderId) {
 function removeFromFolderHandler() {
     if (!currentMovingConversationId) return;
     moveChatToFolder(currentMovingConversationId, null);
-}
-
-// Show notification (you may want to integrate with existing notification system)
-function showNotification(message, type = 'info') {
-    // Create a simple notification
-    const notification = document.createElement('div');
-    notification.className = `alert alert-${type === 'error' ? 'danger' : type === 'success' ? 'success' : 'info'} alert-dismissible fade show position-fixed`;
-    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-    notification.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    `;
-    
-    document.body.appendChild(notification);
-    
-    // Auto-dismiss after 5 seconds
-    setTimeout(() => {
-        if (notification.parentNode) {
-            notification.remove();
-        }
-    }, 5000);
 }
 
 // Setup drag and drop functionality
@@ -778,7 +756,7 @@ const moveChatToFolderDragDrop = withSession(async function(conversationId, fold
         const result = await response.json();
         
         if (response.ok) {
-            showNotification(
+            NotificationModal.toast(
                 folderId ? 'Chat moved to folder successfully' : 'Chat removed from folder successfully', 
                 'success'
             );
@@ -787,11 +765,11 @@ const moveChatToFolderDragDrop = withSession(async function(conversationId, fold
             loadChatFolders();
             loadConversations(false, false);
         } else {
-            showNotification(result.error || 'Failed to move chat', 'error');
+            NotificationModal.toast(result.error || 'Failed to move chat', 'error');
         }
     } catch (error) {
         console.error('Error moving chat:', error);
-        showNotification('Failed to move chat', 'error');
+        NotificationModal.toast('Failed to move chat', 'error');
     }
 });
 

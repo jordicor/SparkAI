@@ -52,18 +52,24 @@
 {% block scripts_inline %}
 <script>
     function deleteService(serviceId) {
-        if (confirm('Are you sure you want to delete this service?')) {
-            fetch(`/admin/services/delete/${serviceId}`, {
-                method: 'DELETE'
-            }).then(response => {
-                if (response.ok) {
-                    NotificationModal.success('Service Deleted', 'The service has been deleted successfully.');
-                    window.location.reload();
-                } else {
-                    NotificationModal.error('Delete Failed', 'Failed to delete service. Please try again.');
-                }
-            }).catch(error => console.error('Error:', error));
-        }
+        NotificationModal.confirm(
+            'Delete Service',
+            'Are you sure you want to delete this service?',
+            () => {
+                fetch(`/admin/services/delete/${serviceId}`, {
+                    method: 'DELETE'
+                }).then(response => {
+                    if (response.ok) {
+                        NotificationModal.success('Service Deleted', 'The service has been deleted successfully.');
+                        window.location.reload();
+                    } else {
+                        NotificationModal.error('Delete Failed', 'Failed to delete service. Please try again.');
+                    }
+                }).catch(error => console.error('Error:', error));
+            },
+            null,
+            { type: 'error', confirmText: 'Delete' }
+        );
     }
 
     // Theme management is handled by themeManager.js via navbar.html

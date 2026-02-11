@@ -52,7 +52,7 @@
                                 {% for component in components %}
                                 <li class="list-group-item d-flex justify-content-between align-items-center">
                                     <span><i class="fas fa-code me-2"></i>{{ component }}</span>
-                                    <a href="/landing/{{ prompt_id }}/components/{{ component_type }}/{{ component }}/edit" class="btn btn-outline-primary btn-sm">
+                                    <a href="{% if is_pack %}/landing/pack/{{ prompt_id }}/components/{{ component_type }}/{{ component }}/edit{% else %}/landing/{{ prompt_id }}/components/{{ component_type }}/{{ component }}/edit{% endif %}" class="btn btn-outline-primary btn-sm">
                                         <i class="fas fa-edit me-1"></i>Edit
                                     </a>
                                 </li>
@@ -144,6 +144,8 @@
 
 {% block scripts_inline %}
 <script>
+    const apiBase = {% if is_pack %}'/api/landing/pack/{{ prompt_id }}'{% else %}'/api/landing/{{ prompt_id }}'{% endif %};
+
     document.getElementById('showComponentTypeOptions').addEventListener('click', function() {
         document.getElementById('componentTypeOptions').style.display = 'block';
         this.style.display = 'none';
@@ -160,7 +162,7 @@
             return;
         }
 
-        fetch('/api/landing/{{ prompt_id }}/components', {
+        fetch(`${apiBase}/components`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ component_name: componentName, component_type: componentType })
@@ -210,7 +212,7 @@
 
         var formData = new FormData(this);
 
-        fetch('/api/landing/{{ prompt_id }}/images', {
+        fetch(`${apiBase}/images`, {
             method: 'POST',
             body: formData
         })
@@ -240,27 +242,43 @@
     }
 
     function updateImageList() {
-        fetch('/api/landing/{{ prompt_id }}/images')
+        fetch(`${apiBase}/images`)
         .then(response => response.json())
         .then(data => {
             const imageContainer = document.getElementById('uploadedImagesContainer');
             imageContainer.innerHTML = '';
 
             data.images.forEach(image => {
-                const imageElement = `
-                    <div class="col-md-4 mb-3">
-                        <div class="card">
-                            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" data-src="${image.url}" class="card-img-top lazy" alt="${image.name}">
-                            <div class="card-body">
-                                <h6 class="card-title">${image.name}</h6>
-                                <button onclick="deleteImage('${image.id}')" class="btn btn-danger btn-sm">
-                                    <i class="fas fa-trash me-1"></i>Delete
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                imageContainer.innerHTML += imageElement;
+                const col = document.createElement('div');
+                col.className = 'col-md-4 mb-3';
+
+                const card = document.createElement('div');
+                card.className = 'card';
+
+                const img = document.createElement('img');
+                img.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+                img.dataset.src = image.url;
+                img.className = 'card-img-top lazy';
+                img.alt = image.name;
+                card.appendChild(img);
+
+                const body = document.createElement('div');
+                body.className = 'card-body';
+
+                const title = document.createElement('h6');
+                title.className = 'card-title';
+                title.textContent = image.name;
+                body.appendChild(title);
+
+                const btn = document.createElement('button');
+                btn.className = 'btn btn-danger btn-sm';
+                btn.innerHTML = '<i class="fas fa-trash me-1"></i>Delete';
+                btn.addEventListener('click', () => deleteImage(image.id));
+                body.appendChild(btn);
+
+                card.appendChild(body);
+                col.appendChild(card);
+                imageContainer.appendChild(col);
             });
 
             lazyLoadImages();
@@ -271,7 +289,7 @@
     }
 
     function deleteImage(imageId) {
-        fetch(`/api/landing/{{ prompt_id }}/images/${imageId}`, {
+        fetch(`${apiBase}/images/${imageId}`, {
             method: 'DELETE'
         })
         .then(response => response.json())

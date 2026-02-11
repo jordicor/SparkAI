@@ -98,14 +98,15 @@ const ApiKeyManager = {
      */
     handleApiKeyError(errorData) {
         if (errorData.error === 'api_keys_required' || errorData.action === 'configure_api_keys') {
-            // Show a notification to the user
-            const shouldRedirect = confirm(
-                'You need to configure your API keys to use AI services. ' +
-                'Would you like to go to the API credentials page?'
+            NotificationModal.confirm(
+                'API Keys Required',
+                'You need to configure your API keys to use AI services. Would you like to go to the API credentials page?',
+                () => {
+                    window.location.href = '/api-credentials';
+                },
+                null,
+                { confirmText: 'Configure', type: 'warning' }
             );
-            if (shouldRedirect) {
-                window.location.href = '/api-credentials';
-            }
         }
     }
 };
@@ -391,53 +392,53 @@ function rollbackConversation(messageId, conversationId) {
         console.error('No messageId provided for rollback');
         return;
     }
-    if (confirm('Are you sure you want to roll back the conversation to this point? All messages after this will be deleted.')) {
-        fetch(`/api/conversations/${conversationId}/rollback`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ message_id: messageId })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Remove messages from the interface
-                const chatMessagesContainer = document.getElementById('chat-messages-container');
-                const messages = Array.from(chatMessagesContainer.querySelectorAll('.message'));
-                let foundIndex = -1;
-                
-                if (messageId) {
-                    // Search for the message both by data-message-id and by a child element with data-message-id
-                    foundIndex = messages.findIndex(msg => 
-                        msg.dataset.messageId === messageId || 
-                        msg.querySelector(`[data-message-id="${messageId}"]`)
-                    );
-                }
-                
-                if (foundIndex !== -1) {
-                    // Delete messages after found index
-                    for (let i = messages.length - 1; i > foundIndex; i--) {
-                        messages[i].remove();
+    NotificationModal.confirm(
+        'Rollback Conversation',
+        'Are you sure you want to roll back the conversation to this point? All messages after this will be deleted.',
+        () => {
+            fetch(`/api/conversations/${conversationId}/rollback`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ message_id: messageId })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const chatMessagesContainer = document.getElementById('chat-messages-container');
+                    const messages = Array.from(chatMessagesContainer.querySelectorAll('.message'));
+                    let foundIndex = -1;
+
+                    if (messageId) {
+                        foundIndex = messages.findIndex(msg =>
+                            msg.dataset.messageId === messageId ||
+                            msg.querySelector(`[data-message-id="${messageId}"]`)
+                        );
                     }
-                    
-                    // Restart variables
-                    offset = foundIndex + 1;
-                    allMessagesLoaded = false;
-                    isCurrentConversationEmpty = false;
-                    
+
+                    if (foundIndex !== -1) {
+                        for (let i = messages.length - 1; i > foundIndex; i--) {
+                            messages[i].remove();
+                        }
+                        offset = foundIndex + 1;
+                        allMessagesLoaded = false;
+                        isCurrentConversationEmpty = false;
+                    } else {
+                        console.error('Message not found for rollback');
+                    }
                 } else {
-                    console.error('Message not found for rollback');
+                    NotificationModal.error('Rollback Failed', data.error || 'Could not roll back the conversation.');
                 }
-                
-            } else {
-                console.error('Error rolling back conversation:', data.error);
-            }
-        })
-        .catch(error => {
-            console.error('Error rolling back conversation:', error);
-        });
-    }
+            })
+            .catch(error => {
+                console.error('Error rolling back conversation:', error);
+                NotificationModal.error('Rollback Failed', 'An unexpected error occurred. Please try again.');
+            });
+        },
+        null,
+        { confirmText: 'Roll Back', cancelText: 'Cancel' }
+    );
 }
 
 
@@ -1020,6 +1021,15 @@ function addConversationElement(conversation, chatName, currentConversationId, i
     conversationElement.dataset.llmModel = conversation.llm_model || '';
     conversationElement.dataset.locked = conversation.locked ? 'true' : 'false';
     conversationElement.dataset.webSearchAllowed = conversation.web_search_allowed !== false ? 'true' : 'false';
+    if (conversation.forced_llm_id) {
+        conversationElement.dataset.forcedLlmId = conversation.forced_llm_id;
+    }
+    if (conversation.hide_llm_name) {
+        conversationElement.dataset.hideLlmName = 'true';
+    }
+    if (conversation.allowed_llms) {
+        conversationElement.dataset.allowedLlms = JSON.stringify(conversation.allowed_llms);
+    }
     if (conversation.locked) {
         conversationElement.classList.add('conversation-locked');
     }
@@ -1688,6 +1698,23 @@ function continueConversation(conversationId, chatName, machine, isInit = false,
             const llmModel = selectedChat?.dataset?.llmModel || conversationData?.llm_model || null;
             updateChatHeader(conversationId, chatTitleText, llmModel);
 
+            // Apply model restrictions from conversation data
+            const forcedLlmId = selectedChat?.dataset?.forcedLlmId || conversationData?.forced_llm_id || null;
+            const hideLlmName = selectedChat?.dataset?.hideLlmName === 'true' || conversationData?.hide_llm_name === true;
+            let allowedLlms = null;
+            if (selectedChat?.dataset?.allowedLlms) {
+                try { allowedLlms = JSON.parse(selectedChat.dataset.allowedLlms); } catch(e) {}
+            } else if (conversationData?.allowed_llms) {
+                allowedLlms = conversationData.allowed_llms;
+            }
+            if (window.modelSelector) {
+                window.modelSelector.applyRestrictions(
+                    forcedLlmId ? parseInt(forcedLlmId) : null,
+                    hideLlmName,
+                    allowedLlms
+                );
+            }
+
             // Check if conversation is locked (from DOM element or passed data)
             isCurrentConversationLocked = selectedChat?.dataset?.locked === 'true' || conversationData?.locked === true;
             const lockedBanner = document.getElementById('locked-conversation-banner');
@@ -1754,7 +1781,7 @@ function updateChatHeader(conversationId, chatName, llmModel = null) {
 
         // Use provided model or fetch from API as fallback
         if (llmModel) {
-            chatModel.textContent = llmModel;
+            chatModel.textContent = (window.modelSelector && window.modelSelector.hideLlmName) ? 'AI' : llmModel;
             if (window.modelSelector) {
                 window.modelSelector.updateCurrentModel(llmModel);
             }
@@ -1769,6 +1796,18 @@ function updateChatHeader(conversationId, chatName, llmModel = null) {
                     // Update model selector state if it exists
                     if (window.modelSelector) {
                         window.modelSelector.updateCurrentModel(modelInfo);
+                    }
+
+                    // Apply restrictions from conversation details
+                    if (window.modelSelector) {
+                        window.modelSelector.applyRestrictions(
+                            data.forced_llm_id || null,
+                            data.hide_llm_name || false,
+                            data.allowed_llms || null
+                        );
+                        if (window.modelSelector.hideLlmName) {
+                            chatModel.textContent = 'AI';
+                        }
                     }
                 })
                 .catch(error => {
@@ -2122,7 +2161,7 @@ function startNewConversation(promptId = null) {
     .then(data => {
         startDate = new Date(); 
         addConversationElement(data, data.name, null, true);
-        return continueConversation(data.id, data.name, data.machine);
+        return continueConversation(data.id, data.name, data.machine, false, null, data);
     })
     .then(() => {
         isCurrentConversationEmpty = true; 
@@ -2583,8 +2622,11 @@ class ModelSelector {
         this.chatModel = document.getElementById('chat-model');
         this.currentModel = null;
         this.currentLlmId = null;
-        
-        
+        this.forcedLlmId = null;
+        this.hideLlmName = false;
+        this.allowedLlms = null;
+
+
         if (this.dropdownMenu) {
             // Initialize dropdown menu
         }
@@ -2612,15 +2654,19 @@ class ModelSelector {
         this.populateModels();
     }
     
-    populateModels() {
-        
+    populateModels(filterIds = null) {
+
         if (!window.availableModels || !this.dropdownContent) {
             return;
         }
-        
+
+        const models = filterIds
+            ? window.availableModels.filter(m => filterIds.includes(m.id))
+            : window.availableModels;
+
         // Group models by machine
         const groupedModels = {};
-        window.availableModels.forEach(model => {
+        models.forEach(model => {
             if (!groupedModels[model.machine]) {
                 groupedModels[model.machine] = [];
             }
@@ -2728,7 +2774,8 @@ class ModelSelector {
             });
             
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                const errBody = await response.json().catch(() => ({}));
+                throw new Error(errBody.detail || `Failed to update model`);
             }
             
             const result = await response.json();
@@ -2756,12 +2803,12 @@ class ModelSelector {
             
         } catch (error) {
             console.error('Error updating model:', error);
-            
+
             // Restore original model name
             this.chatModel.textContent = this.currentModel || 'Unknown Model';
-            
-            // Show error feedback
-            this.showError();
+
+            // Show error feedback with message
+            this.showError(error.message);
         }
         
         this.closeDropdown();
@@ -2775,11 +2822,22 @@ class ModelSelector {
         }, 600);
     }
     
-    showError() {
+    showError(message = null) {
         // Briefly show error state
         this.modelSelectorContainer.style.backgroundColor = 'rgba(244, 67, 54, 0.1)';
         this.chatModel.style.color = '#f44336';
-        
+
+        // Show error tooltip if message provided
+        if (message) {
+            const tooltip = document.createElement('div');
+            tooltip.className = 'model-error-tooltip';
+            tooltip.textContent = message;
+            tooltip.style.cssText = 'position:absolute;top:100%;left:50%;transform:translateX(-50%);background:#f44336;color:#fff;padding:4px 10px;border-radius:4px;font-size:0.8rem;white-space:nowrap;z-index:1000;margin-top:4px;';
+            this.modelSelectorContainer.style.position = 'relative';
+            this.modelSelectorContainer.appendChild(tooltip);
+            setTimeout(() => tooltip.remove(), 3000);
+        }
+
         setTimeout(() => {
             this.modelSelectorContainer.style.backgroundColor = '';
             this.chatModel.style.color = '';
@@ -2795,7 +2853,11 @@ class ModelSelector {
     }
     
     openDropdown() {
-        
+        // Don't open if model is forced
+        if (this.forcedLlmId) {
+            return;
+        }
+
         // Don't open if no conversation is active
         if (!currentConversationId) {
             return;
@@ -2812,6 +2874,52 @@ class ModelSelector {
     closeDropdown() {
         this.dropdownMenu.classList.remove('show');
         this.dropdownIcon.classList.remove('expanded');
+    }
+
+    applyRestrictions(forcedLlmId, hideLlmName, allowedLlms) {
+        this.forcedLlmId = forcedLlmId || null;
+        this.hideLlmName = hideLlmName || false;
+        this.allowedLlms = (allowedLlms && Array.isArray(allowedLlms) && allowedLlms.length > 0) ? allowedLlms : null;
+
+        if (this.forcedLlmId) {
+            // Forced mode: disable selector entirely
+            if (this.modelSelectorContainer) {
+                this.modelSelectorContainer.style.pointerEvents = 'none';
+                this.modelSelectorContainer.style.opacity = '0.6';
+            }
+            if (this.dropdownIcon) {
+                this.dropdownIcon.style.display = 'none';
+            }
+            // If hide_llm_name, show "AI" instead of model name
+            if (this.hideLlmName && this.chatModel) {
+                this.chatModel.textContent = 'AI';
+            }
+        } else if (this.allowedLlms) {
+            // Restricted mode: re-populate dropdown with only allowed models
+            this.clearRestrictionStyles();
+            this.populateModels(this.allowedLlms);
+        } else {
+            // Any mode: full access
+            this.clearRestrictions();
+        }
+    }
+
+    clearRestrictions() {
+        this.forcedLlmId = null;
+        this.hideLlmName = false;
+        this.allowedLlms = null;
+        this.clearRestrictionStyles();
+        this.populateModels();
+    }
+
+    clearRestrictionStyles() {
+        if (this.modelSelectorContainer) {
+            this.modelSelectorContainer.style.pointerEvents = '';
+            this.modelSelectorContainer.style.opacity = '';
+        }
+        if (this.dropdownIcon) {
+            this.dropdownIcon.style.display = '';
+        }
     }
 }
 
@@ -2860,14 +2968,10 @@ function updateModeCheckmarks(voiceModeLink, textModeLink, currentMode) {
 
 const changeWhatsAppMode = withSession(async function(conversationId, newMode) {
     const modeText = newMode === 'voice' ? 'Voice Mode' : 'Text Mode';
-    
-    // Show confirmation modal
-    showGenericModal(
+
+    NotificationModal.confirm(
         'Confirm Mode Change',
         `Are you sure you want to switch to ${modeText}?`,
-        'Confirm',
-        'Cancel',
-        'btn-primary',
         async function() {
             try {
                 const response = await secureFetch(`/api/whatsapp-mode/${conversationId}`, {
@@ -2877,19 +2981,12 @@ const changeWhatsAppMode = withSession(async function(conversationId, newMode) {
                     },
                     body: JSON.stringify({ mode: newMode })
                 });
-                
+
                 if (response && response.ok) {
                     const data = await response.json();
-                    
-                    // Show success message
-                    showGenericModal(
-                        'Mode Changed',
-                        `The mode has been changed to ${modeText} successfully.`,
-                        'OK',
-                        '',
-                        'btn-success'
-                    );
-                    
+
+                    NotificationModal.success('Mode Changed', `The mode has been changed to ${modeText} successfully.`);
+
                     // Update all WhatsApp menus for this conversation
                     updateWhatsAppModeInAllMenus(conversationId, newMode);
                 } else {
@@ -2898,13 +2995,7 @@ const changeWhatsAppMode = withSession(async function(conversationId, newMode) {
                 }
             } catch (error) {
                 console.error('Error changing WhatsApp mode:', error);
-                showGenericModal(
-                    'Error',
-                    `Could not change mode: ${error.message}`,
-                    'OK',
-                    '',
-                    'btn-danger'
-                );
+                NotificationModal.error('Error', `Could not change mode: ${error.message}`);
             }
         }
     );

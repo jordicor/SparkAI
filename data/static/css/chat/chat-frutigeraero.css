@@ -34,6 +34,38 @@
     --fa-box-shadow-light: 0 2px 5px rgba(0, 100, 150, 0.1);
     --fa-box-shadow-glass: inset 0 1px 1px rgba(255, 255, 255, 0.6), 0 2px 3px rgba(0, 100, 150, 0.15);
     --fa-font-family: 'Segoe UI', 'Frutiger', 'Helvetica Neue', Arial, sans-serif;
+
+    /* Unified theme variables (for modals, toasts, shared components) */
+    --bg-primary: #e0f7ff;
+    --bg-secondary: rgba(255, 255, 255, 0.9);
+    --bg-tertiary: #cceeff;
+    --text-primary: #33475b;
+    --text-secondary: #3d5a73;
+    --text-muted: rgba(0, 0, 0, 0.62);
+    --accent: #0077a3;
+    --accent-hover: #005f82;
+    --accent-light: #0099cc;
+    --accent-rgb: 0, 119, 163;
+    --border-color: #b0d8ff;
+    --shadow-soft: 0 2px 8px rgba(0, 100, 150, 0.15);
+    --shadow-hover: 0 6px 20px rgba(135, 206, 250, 0.4);
+    --success: #2e7d32;
+    --success-rgb: 46, 125, 50;
+    --danger: #c23b3b;
+    --danger-rgb: 194, 59, 59;
+    --warning: #c27607;
+    --warning-rgb: 194, 118, 7;
+    --info: #0077a3;
+    --info-rgb: 0, 119, 163;
+    --font-primary: 'Segoe UI', 'Frutiger', 'Helvetica Neue', Arial, sans-serif;
+    --font-secondary: 'Segoe UI', 'Frutiger', 'Helvetica Neue', Arial, sans-serif;
+    --glow-color: rgba(135, 206, 250, 0.5);
+    --box-shadow-glass: inset 0 1px 1px rgba(255, 255, 255, 0.6), 0 2px 3px rgba(0, 100, 150, 0.15);
+    --bs-body-color: #33475b;
+    --bs-body-bg: #e0f7ff;
+    --bs-secondary-color: rgba(0, 0, 0, 0.62);
+    --bs-tertiary-color: #3d5a73;
+    --bs-border-color: #b0d8ff;
 }
 
 /* ==========================================================

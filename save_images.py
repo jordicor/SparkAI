@@ -198,8 +198,35 @@ def resize_image(image: PilImage.Image, size: int) -> PilImage.Image:
         right = (image.width + min_dimension) / 2
         bottom = (image.height + min_dimension) / 2
         image = image.crop((left, top, right, bottom))
-    
+
     return image.resize((size, size), PilImage.LANCZOS)
+
+
+def resize_image_cover(image: PilImage.Image, width: int) -> PilImage.Image:
+    """Resize an image to 16:9 aspect ratio with the given width."""
+    target_height = int(width * 9 / 16)
+    current_ratio = image.width / image.height
+    target_ratio = 16 / 9
+
+    if current_ratio != target_ratio:
+        # Crop to 16:9 ratio (center crop)
+        if current_ratio > target_ratio:
+            # Image is wider than 16:9, crop width
+            crop_width = int(image.height * target_ratio)
+            left = (image.width - crop_width) / 2
+            top = 0
+            right = (image.width + crop_width) / 2
+            bottom = image.height
+        else:
+            # Image is taller than 16:9, crop height
+            crop_height = int(image.width / target_ratio)
+            left = 0
+            top = (image.height - crop_height) / 2
+            right = image.width
+            bottom = (image.height + crop_height) / 2
+        image = image.crop((left, top, right, bottom))
+
+    return image.resize((width, target_height), PilImage.LANCZOS)
 
 
 async def initialize_memory_db():

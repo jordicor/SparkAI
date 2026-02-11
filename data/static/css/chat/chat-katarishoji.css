@@ -61,6 +61,62 @@
     /* Typography */
     --font-primary: 'Playfair Display', Georgia, serif;
     --font-secondary: 'Lato', 'Montserrat', sans-serif;
+
+    /* Unified theme variables (for modals, toasts, shared components) */
+    --bg-primary: #F8F5F0;
+    --bg-secondary: #FFFFFF;
+    --bg-tertiary: #F5F1EA;
+    --bg-gradient: linear-gradient(135deg, var(--ks-cream) 0%, var(--ks-cream-light) 50%, var(--ks-gold-accent) 100%);
+    --bg-professional: linear-gradient(135deg, var(--ks-cream-light) 0%, var(--ks-gold-accent) 30%, var(--ks-cream) 100%);
+    --text-primary: #333333;
+    --text-secondary: #555555;
+    --text-muted: #756C5B;
+    --text-light: #8B9AAB;
+    --text-elegant: var(--ks-navy-mid);
+    --accent: var(--ks-navy-deep);
+    --accent-hover: var(--ks-navy-mid);
+    --accent-light: rgba(10, 25, 47, 0.1);
+    --accent-rgb: 10, 25, 47;
+    --gold: var(--ks-gold-muted);
+    --gold-hover: var(--ks-gold-highlight);
+    --gold-light: var(--ks-gold-accent);
+    --gold-rgb: 191, 161, 106;
+    --border-color: #E8DDD0;
+    --border-light: #F0E8DC;
+    --border-gold: var(--ks-gold-highlight);
+    --border-navy: var(--ks-navy-light);
+    --border-professional: rgba(191, 161, 106, 0.3);
+    --border-elegant: rgba(10, 25, 47, 0.1);
+    --shadow-soft: 0 2px 4px rgba(10, 25, 47, 0.06);
+    --shadow-md: 0 4px 12px -1px rgba(10, 25, 47, 0.08),
+                 0 2px 4px -2px rgba(10, 25, 47, 0.06);
+    --shadow-lg: 0 10px 25px -3px rgba(10, 25, 47, 0.1),
+                 0 4px 8px -4px rgba(10, 25, 47, 0.08);
+    --shadow-xl: 0 20px 35px -5px rgba(10, 25, 47, 0.12),
+                 0 8px 15px -6px rgba(10, 25, 47, 0.1);
+    --shadow-gold: 0 4px 15px -2px rgba(191, 161, 106, 0.25);
+    --shadow-professional: 0 15px 30px -5px rgba(63, 58, 49, 0.15),
+                          0 8px 10px -6px rgba(63, 58, 49, 0.15);
+    --shadow-elegant: 0 8px 25px rgba(10, 25, 47, 0.08);
+    --shadow-hover: 0 15px 35px -5px rgba(10, 25, 47, 0.15),
+                    0 5px 15px rgba(191, 161, 106, 0.1);
+    --success: #16A085;
+    --success-rgb: 22, 160, 133;
+    --danger: #C0392B;
+    --danger-rgb: 192, 57, 43;
+    --warning: #E67E22;
+    --warning-rgb: 230, 126, 34;
+    --info: #2980B9;
+    --info-rgb: 41, 128, 185;
+    --font-elegant: 'Playfair Display', serif;
+    --transition-smooth: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+    --transition-quick: all 0.2s ease-out;
+    --transition-bounce: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    --bs-body-color: #333333;
+    --bs-body-bg: #F8F5F0;
+    --bs-secondary-color: #756C5B;
+    --bs-tertiary-color: #555555;
+    --bs-border-color: #E8DDD0;
 }
 
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Lato:wght@300;400;700&display=swap');

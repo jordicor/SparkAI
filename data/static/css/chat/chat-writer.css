@@ -11,6 +11,7 @@ body {
 }
 
 :root {
+    --modal-close-filter: none;
     --sidebar-bg-color: #f0ebe3;
     --sidebar-border-color: #d4c9b8;
     --sidebar-text-color: #4a4a4a;
@@ -20,6 +21,42 @@ body {
     --message-input-bg-color: #e6dfd3;
     --message-user-bg-color: #e0d6c7;
     --message-bot-bg-color: #f0ebe3;
+
+    /* Unified theme variables (for modals, toasts, shared components) */
+    --bg-primary: #f9f5ed;
+    --bg-secondary: #f0ebe3;
+    --bg-tertiary: #e6dfd3;
+
+    --text-primary: #3a3a3a;
+    --text-secondary: #5a5a5a;
+    --text-muted: rgba(0, 0, 0, 0.62);
+
+    --accent: #6d5840;
+    --accent-hover: #5a4835;
+    --accent-light: #8b7355;
+    --accent-rgb: 109, 88, 64;
+
+    --border-color: #d4c9b8;
+    --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.05);
+    --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.1);
+
+    --success: #3d6e3d;
+    --success-rgb: 61, 110, 61;
+    --danger: #8b3535;
+    --danger-rgb: 139, 53, 53;
+    --warning: #8a7030;
+    --warning-rgb: 138, 112, 48;
+    --info: #3a6a8a;
+    --info-rgb: 58, 106, 138;
+
+    --font-primary: 'Georgia', 'Times New Roman', serif;
+    --font-secondary: 'Georgia', 'Times New Roman', serif;
+
+    --bs-body-color: #3a3a3a;
+    --bs-body-bg: #f9f5ed;
+    --bs-secondary-color: rgba(0, 0, 0, 0.62);
+    --bs-tertiary-color: #5a5a5a;
+    --bs-border-color: #d4c9b8;
 }
 
 

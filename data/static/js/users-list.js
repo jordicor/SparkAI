@@ -117,15 +117,23 @@ function setupEventListeners() {
     // Delete form confirmation
     const usersForm = document.getElementById('usersForm');
     if (usersForm) {
+        let confirmedSubmit = false;
         usersForm.addEventListener('submit', function(e) {
             const count = document.querySelectorAll('.user-checkbox:checked').length;
             if (count === 0) {
                 e.preventDefault();
                 return;
             }
-            if (!confirm(`Are you sure you want to delete ${count} user(s)? This action cannot be undone.`)) {
-                e.preventDefault();
+            if (confirmedSubmit) {
+                confirmedSubmit = false;
+                return;
             }
+            e.preventDefault();
+            const form = this;
+            NotificationModal.confirm('Delete Users', `Are you sure you want to delete ${count} user(s)? This action cannot be undone.`, () => {
+                confirmedSubmit = true;
+                form.requestSubmit();
+            }, null, { type: 'error', confirmText: 'Delete' });
         });
     }
 }

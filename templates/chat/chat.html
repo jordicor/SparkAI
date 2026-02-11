@@ -215,28 +215,6 @@
             </div>
 
             <!-- Home link moved to sidebar-collapse-row -->
-            <div class="modal fade" id="insufficientBalancePopup" tabindex="-1" role="dialog"
-                aria-labelledby="modalLabel" aria-hidden="true">
-                <div class="modal-dialog" role="document">
-                    <div class="modal-content bg-dark text-white">
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="modalLabel">Insufficient Balance!</h5>
-                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                <span aria-hidden="true" class="text-white">×</span>
-                            </button>
-                        </div>
-                        <div class="modal-body">
-                            <p>Unable to perform <span id="failedAction">the action</span> due to insufficient
-                                balance.</p>
-                            <p>Reload your balance here: <span id="reloadLink"><a href="/" class="text-warning">here</a></span>
-                            </p>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
 			<div class="sidebar-section">
 			  <div class="btn-group w-100" role="group" aria-label="New Chat Button">
@@ -546,23 +524,6 @@
         {% endif %}
     </div>
 
-    <div class="modal fade" id="genericModal" tabindex="-1" aria-labelledby="genericModalLabel" aria-hidden="true">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="genericModalLabel"></h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body" id="genericModalBody">
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="genericModalCancelBtn">Cancel</button>
-            <button type="button" class="btn" id="genericModalConfirmBtn">Confirm</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <div id="fullsizeContainer" class="fullsize-container">
         <img id="fullsizeImage" class="fullsize-image" src="" alt="Fullsize Image">
         <div class="fullsize-controls">
@@ -575,10 +536,10 @@
     <!-- Add/Edit Folder Modal -->
     <div class="modal fade" id="folderModal" tabindex="-1" aria-labelledby="folderModalLabel" aria-hidden="true">
         <div class="modal-dialog">
-            <div class="modal-content bg-dark text-white">
+            <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="folderModalLabel">Add Folder</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
@@ -612,10 +573,10 @@
     <!-- Move Chat to Folder Modal -->
     <div class="modal fade" id="moveChatModal" tabindex="-1" aria-labelledby="moveChatModalLabel" aria-hidden="true">
         <div class="modal-dialog">
-            <div class="modal-content bg-dark text-white">
+            <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="moveChatModalLabel">Move Chat to Folder</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <p>Select a folder to move this chat to:</p>

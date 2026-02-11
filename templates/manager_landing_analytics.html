@@ -122,63 +122,112 @@
     </div>
 </div>
 
-<div class="row">
-    <!-- Visits Chart -->
-    <div class="col-lg-8">
-        <div class="section-container">
-            <div class="section-title"><i class="fas fa-chart-bar me-2"></i>Daily Visits (Last 14 Days)</div>
-            <div class="chart-container" id="visitsChart">
-                <div class="text-center text-muted py-5">
-                    <i class="fas fa-spinner fa-spin me-1"></i> Loading chart...
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Top Referrers -->
-    <div class="col-lg-4">
-        <div class="section-container">
-            <div class="section-title"><i class="fas fa-link me-2"></i>Top Referrers</div>
-            <div id="referrersList">
-                <div class="text-center text-muted py-3">
-                    <i class="fas fa-spinner fa-spin me-1"></i> Loading...
-                </div>
-            </div>
-        </div>
-    </div>
+<!-- Analytics Tabs -->
+<div class="analytics-tabs" style="display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid var(--border-color);">
+    <button class="analytics-tab active" onclick="switchAnalyticsTab('prompts')" id="tabPrompts"
+            style="padding: 10px 24px; background: none; border: none; border-bottom: 3px solid var(--accent); color: var(--text-primary); font-weight: 600; cursor: pointer; margin-bottom: -2px;">
+        Prompts
+    </button>
+    <button class="analytics-tab" onclick="switchAnalyticsTab('packs')" id="tabPacks"
+            style="padding: 10px 24px; background: none; border: none; border-bottom: 3px solid transparent; color: var(--text-muted); font-weight: 400; cursor: pointer; margin-bottom: -2px;">
+        Packs
+    </button>
 </div>
 
-<!-- Prompts Table -->
-<div class="section-container">
-    <div class="section-title"><i class="fas fa-file-alt me-2"></i>Analytics by Landing Page</div>
-    <div class="table-responsive">
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Landing Page</th>
-                    <th class="text-center">Today</th>
-                    <th class="text-center">Week</th>
-                    <th class="text-center">Month</th>
-                    <th class="text-center">Conversions</th>
-                    <th class="text-center">Rate</th>
-                </tr>
-            </thead>
-            <tbody id="promptsTableBody">
-                <tr>
-                    <td colspan="6" class="text-center text-muted">
+<!-- Prompts Analytics Section -->
+<div id="promptsAnalytics">
+    <div class="row">
+        <!-- Visits Chart -->
+        <div class="col-lg-8">
+            <div class="section-container">
+                <div class="section-title"><i class="fas fa-chart-bar me-2"></i>Daily Visits (Last 14 Days)</div>
+                <div class="chart-container" id="visitsChart">
+                    <div class="text-center text-muted py-5">
+                        <i class="fas fa-spinner fa-spin me-1"></i> Loading chart...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Referrers -->
+        <div class="col-lg-4">
+            <div class="section-container">
+                <div class="section-title"><i class="fas fa-link me-2"></i>Top Referrers</div>
+                <div id="referrersList">
+                    <div class="text-center text-muted py-3">
                         <i class="fas fa-spinner fa-spin me-1"></i> Loading...
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-    <div id="noPromptsMessage" style="display: none;" class="text-center text-muted py-4">
-        <i class="fas fa-info-circle me-1"></i>
-        No landing pages found. <a href="/prompts/new">Create your first prompt</a> to start tracking.
+
+    <!-- Prompts Table -->
+    <div class="section-container">
+        <div class="section-title"><i class="fas fa-file-alt me-2"></i>Analytics by Landing Page</div>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Landing Page</th>
+                        <th class="text-center">Today</th>
+                        <th class="text-center">Week</th>
+                        <th class="text-center">Month</th>
+                        <th class="text-center">Conversions</th>
+                        <th class="text-center">Rate</th>
+                    </tr>
+                </thead>
+                <tbody id="promptsTableBody">
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">
+                            <i class="fas fa-spinner fa-spin me-1"></i> Loading...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div id="noPromptsMessage" style="display: none;" class="text-center text-muted py-4">
+            <i class="fas fa-info-circle me-1"></i>
+            No landing pages found. <a href="/prompts/new">Create your first prompt</a> to start tracking.
+        </div>
     </div>
 </div>
 
-<!-- Detail Modal -->
+<!-- Packs Analytics Section -->
+<div id="packsAnalytics" style="display: none;">
+    <div id="packsAnalyticsContent">
+        <div class="section-container">
+            <div class="section-title"><i class="fas fa-box-open me-2"></i>Analytics by Pack Landing Page</div>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Pack</th>
+                            <th class="text-center">Today</th>
+                            <th class="text-center">Week</th>
+                            <th class="text-center">Month</th>
+                            <th class="text-center">Conversions</th>
+                            <th class="text-center">Conv. Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody id="packsTableBody">
+                        <tr>
+                            <td colspan="6" class="text-center text-muted">
+                                <i class="fas fa-spinner fa-spin me-1"></i> Loading...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="noPacksMessage" style="display: none;" class="text-center text-muted py-4">
+                <i class="fas fa-info-circle me-1"></i>
+                No pack landing page visits recorded yet.
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Prompt Detail Modal -->
 <div class="modal fade" id="detailModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -187,6 +236,23 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body" id="modalContent">
+                <div class="text-center py-4">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pack Detail Modal -->
+<div class="modal fade" id="packDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-box-open me-2"></i><span id="modalPackName">Loading...</span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="packModalContent">
                 <div class="text-center py-4">
                     <i class="fas fa-spinner fa-spin fa-2x"></i>
                 </div>
@@ -255,7 +321,7 @@
             return `
                 <tr class="prompt-row">
                     <td>
-                        <a href="#" class="prompt-link" onclick="showPromptDetail(${p.id}, '${escapeHtml(p.name)}'); return false;">
+                        <a href="#" class="prompt-link" onclick="showPromptDetail(${p.id}, ${JSON.stringify(p.name)}); return false;">
                             <i class="fas fa-file-alt me-1"></i>${escapeHtml(p.name)}
                         </a>
                     </td>
@@ -404,6 +470,173 @@
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    // --- Pack Analytics Tab ---
+
+    function switchAnalyticsTab(tab) {
+        const promptsSection = document.getElementById('promptsAnalytics');
+        const packsSection = document.getElementById('packsAnalytics');
+        const tabPrompts = document.getElementById('tabPrompts');
+        const tabPacks = document.getElementById('tabPacks');
+
+        if (tab === 'prompts') {
+            promptsSection.style.display = '';
+            packsSection.style.display = 'none';
+            tabPrompts.style.borderBottomColor = 'var(--accent)';
+            tabPrompts.style.color = 'var(--text-primary)';
+            tabPrompts.style.fontWeight = '600';
+            tabPacks.style.borderBottomColor = 'transparent';
+            tabPacks.style.color = 'var(--text-muted)';
+            tabPacks.style.fontWeight = '400';
+        } else {
+            promptsSection.style.display = 'none';
+            packsSection.style.display = '';
+            tabPacks.style.borderBottomColor = 'var(--accent)';
+            tabPacks.style.color = 'var(--text-primary)';
+            tabPacks.style.fontWeight = '600';
+            tabPrompts.style.borderBottomColor = 'transparent';
+            tabPrompts.style.color = 'var(--text-muted)';
+            tabPrompts.style.fontWeight = '400';
+
+            // Load pack analytics on first switch
+            if (!window._packAnalyticsLoaded) {
+                loadPackAnalytics();
+                window._packAnalyticsLoaded = true;
+            }
+        }
+    }
+
+    async function loadPackAnalytics() {
+        try {
+            const response = await fetch('/api/manager/pack-landing-analytics');
+            if (!response.ok) {
+                document.getElementById('packsTableBody').innerHTML = '';
+                document.getElementById('noPacksMessage').style.display = 'block';
+                return;
+            }
+            const data = await response.json();
+            renderPackAnalytics(data);
+        } catch (error) {
+            console.error('Error loading pack analytics:', error);
+            document.getElementById('packsTableBody').innerHTML = `
+                <tr><td colspan="6" class="text-center text-danger">
+                    <i class="fas fa-exclamation-triangle me-1"></i>Failed to load pack analytics.
+                </td></tr>`;
+        }
+    }
+
+    function renderPackAnalytics(data) {
+        const tbody = document.getElementById('packsTableBody');
+        const noPacksMsg = document.getElementById('noPacksMessage');
+
+        if (!data.packs || data.packs.length === 0) {
+            tbody.innerHTML = '';
+            noPacksMsg.style.display = 'block';
+            return;
+        }
+
+        noPacksMsg.style.display = 'none';
+
+        tbody.innerHTML = data.packs.map(pack => {
+            const rateClass = pack.conversion_rate >= 5 ? 'conversion-high' :
+                              pack.conversion_rate >= 2 ? 'conversion-medium' : 'conversion-low';
+            return `
+                <tr class="prompt-row">
+                    <td>
+                        <a href="#" class="prompt-link" onclick="showPackDetail(${pack.id}, ${JSON.stringify(pack.name)}); return false;">
+                            <i class="fas fa-box-open me-1"></i>${escapeHtml(pack.name)}
+                        </a>
+                    </td>
+                    <td class="text-center">${pack.today_visitors || 0}</td>
+                    <td class="text-center">${pack.week_visitors || 0}</td>
+                    <td class="text-center">${pack.month_visitors || 0}</td>
+                    <td class="text-center">${pack.conversions || 0}</td>
+                    <td class="text-center">
+                        <span class="conversion-badge ${rateClass}">${(pack.conversion_rate || 0).toFixed(1)}%</span>
+                    </td>
+                </tr>`;
+        }).join('');
+    }
+
+    async function showPackDetail(packId, packName) {
+        document.getElementById('modalPackName').textContent = packName;
+        document.getElementById('packModalContent').innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+        const modal = new bootstrap.Modal(document.getElementById('packDetailModal'));
+        modal.show();
+
+        try {
+            const response = await fetch(`/api/manager/pack-landing-analytics/${packId}`);
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to load pack details');
+            }
+
+            const rateClass = data.stats.conversion_rate >= 5 ? 'conversion-high' :
+                              data.stats.conversion_rate >= 2 ? 'conversion-medium' : 'conversion-low';
+
+            let html = `
+                <div class="row mb-4">
+                    <div class="col-md-3 text-center">
+                        <h3 class="mb-0">${data.stats.total_visits}</h3>
+                        <small class="text-muted">Total Visits</small>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <h3 class="mb-0">${data.stats.unique_visitors}</h3>
+                        <small class="text-muted">Unique Visitors</small>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <h3 class="mb-0">${data.stats.conversions}</h3>
+                        <small class="text-muted">Conversions</small>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <h3 class="mb-0"><span class="conversion-badge ${rateClass}">${data.stats.conversion_rate}%</span></h3>
+                        <small class="text-muted">Conversion Rate</small>
+                    </div>
+                </div>
+
+                <h6><i class="fas fa-calendar me-1"></i>Daily Breakdown</h6>
+                <div class="table-responsive mb-4">
+                    <table class="table table-sm">
+                        <thead><tr><th>Date</th><th class="text-center">Visits</th><th class="text-center">Visitors</th><th class="text-center">Conversions</th></tr></thead>
+                        <tbody>
+                            ${data.daily.slice(0, 7).map(d => `
+                                <tr>
+                                    <td>${d.date}</td>
+                                    <td class="text-center">${d.visits}</td>
+                                    <td class="text-center">${d.visitors}</td>
+                                    <td class="text-center">${d.conversions}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+
+                <h6><i class="fas fa-link me-1"></i>Top Referrers</h6>
+                <ul class="list-group">
+                    ${data.referrers.length > 0 ?
+                        data.referrers.slice(0, 5).map(r => `
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span class="text-truncate" style="max-width: 80%;">${escapeHtml(r.referrer)}</span>
+                                <span class="badge bg-primary">${r.count}</span>
+                            </li>
+                        `).join('') :
+                        '<li class="list-group-item text-muted">No referrer data</li>'
+                    }
+                </ul>
+            `;
+
+            document.getElementById('packModalContent').innerHTML = html;
+
+        } catch (error) {
+            document.getElementById('packModalContent').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    Failed to load pack details: ${error.message}
+                </div>`;
+        }
     }
 </script>
 {% endblock %}

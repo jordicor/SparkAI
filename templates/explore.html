@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+
+{% block title %}Explore AI - SPARK{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ get_static_url('/static/css/explore.css') }}">
+{% endblock %}
+
+{% block header %}{% endblock %}
+{% block toolbar %}{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="explore-hero">
+    <h1>SPARK <span class="accent">SELECTOR</span></h1>
+    <p class="subtitle">Discover unique AI personalities. Choose your companion.</p>
+    <div class="explore-search">
+        <i class="fas fa-search"></i>
+        <input type="text" id="exploreSearch" placeholder="Search prompts..." autocomplete="off">
+    </div>
+</div>
+
+<!-- Tab Toggle -->
+<div class="explore-tabs">
+    <button class="explore-tab active" data-tab="prompts" onclick="switchTab('prompts', this)">
+        <i class="fas fa-robot"></i> Prompts
+    </button>
+    <button class="explore-tab" data-tab="packs" onclick="switchTab('packs', this)">
+        <i class="fas fa-box"></i> Packs
+    </button>
+</div>
+
+<!-- Category Chips (hidden when Packs tab active) -->
+<div id="categoryChips" class="explore-categories">
+    <!-- Rendered by JS -->
+</div>
+
+<!-- Results Info -->
+<div class="explore-results-bar">
+    <span id="resultsInfo"></span>
+</div>
+
+<!-- Loading Spinner -->
+<div id="exploreLoader" class="explore-loading" style="display: none;">
+    <div class="spinner"></div>
+</div>
+
+<!-- Prompt Cards Grid -->
+<div id="exploreGrid" class="explore-grid">
+    <!-- Rendered by JS -->
+</div>
+
+<!-- Pagination -->
+<div id="explorePagination" class="explore-pagination">
+    <!-- Rendered by JS -->
+</div>
+
+<!-- Detail Modal -->
+<div id="exploreModalBackdrop" class="explore-modal-backdrop">
+    <div id="modalContent" class="explore-modal">
+        <!-- Rendered by JS on card click -->
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ get_static_url('/static/js/explore.js') }}"></script>
+{% endblock %}

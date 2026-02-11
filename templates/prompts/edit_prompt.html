@@ -154,6 +154,29 @@
                     </label>
                     <small class="form-text text-muted d-block">Share with the community and earn money when others use it</small>
                 </div>
+                <!-- Pack inclusion settings (nested under Share My Prompt) -->
+                <div id="packSettings" style="padding-left: 24px; display: {% if is_public %}block{% else %}none{% endif %};">
+                    <div class="mb-2 form-check">
+                        <input type="checkbox" class="form-check-input" id="allowInPacks" name="allow_in_packs" {% if allow_in_packs %}checked{% endif %} onchange="togglePackOptions()">
+                        <label class="form-check-label" for="allowInPacks">
+                            <i class="fas fa-box me-1 text-muted"></i>Allow others to include this prompt in packs
+                        </label>
+                        <small class="form-text text-muted d-block">You'll earn your markup on every use, even inside packs.</small>
+                    </div>
+                    <div id="noticePeriodOptions" style="padding-left: 24px; display: {% if allow_in_packs %}block{% else %}none{% endif %};">
+                        <label for="noticePeriod" class="form-label mb-1"><small>Removal notice period:</small></label>
+                        <select class="form-select form-select-sm" id="noticePeriod" name="pack_notice_period_days" style="max-width: 200px;">
+                            <option value="0" {% if pack_notice_period_days == 0 %}selected{% endif %} {% if pack_notice_period_days > 0 %}disabled{% endif %}>None{% if pack_notice_period_days == 0 %} (current){% endif %}</option>
+                            <option value="90" {% if pack_notice_period_days == 90 %}selected{% endif %} {% if pack_notice_period_days > 90 %}disabled{% endif %}>90 days{% if pack_notice_period_days == 90 %} (current){% endif %}</option>
+                            <option value="180" {% if pack_notice_period_days == 180 %}selected{% endif %} {% if pack_notice_period_days > 180 %}disabled{% endif %}>180 days{% if pack_notice_period_days == 180 %} (current){% endif %}</option>
+                            <option value="365" {% if pack_notice_period_days == 365 %}selected{% endif %} {% if pack_notice_period_days > 365 %}disabled{% endif %}>1 year{% if pack_notice_period_days == 365 %} (current){% endif %}</option>
+                            <option value="730" {% if pack_notice_period_days == 730 %}selected{% endif %}>2 years{% if pack_notice_period_days == 730 %} (current){% endif %}</option>
+                        </select>
+                        <small class="form-text text-muted d-block mt-1">
+                            <i class="fas fa-info-circle me-1"></i>Once set, you can only increase this period. A longer period signals reliability to pack creators.
+                        </small>
+                    </div>
+                </div>
                 <div class="mb-3 form-check">
                     <input type="checkbox" class="form-check-input" id="disableWebSearch" name="disable_web_search" {% if disable_web_search %}checked{% endif %}>
                     <label class="form-check-label" for="disableWebSearch">
@@ -168,6 +191,54 @@
                         <i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="Messages are checked by OpenAI's moderation API before processing. Flags inappropriate content like hate speech, violence, sexual content, self-harm, etc."></i>
                     </label>
                     <small class="form-text text-muted d-block">Pre-screen user messages for inappropriate content before AI responds</small>
+                </div>
+
+                <!-- AI Model Restrictions -->
+                <div class="mt-4 pt-3" style="border-top: 1px solid var(--border-color);">
+                    <label class="form-label"><i class="fas fa-robot me-1 text-muted"></i>AI Model Restrictions</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="llm_mode" id="llmModeAny" value="any" {% if not forced_llm_id and allowed_llms_json == '[]' %}checked{% endif %} onchange="toggleLLMOptions()">
+                        <label class="form-check-label" for="llmModeAny">
+                            Any model (user chooses)
+                        </label>
+                    </div>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="radio" name="llm_mode" id="llmModeRestricted" value="restricted" {% if allowed_llms_json != '[]' and not forced_llm_id %}checked{% endif %} onchange="toggleLLMOptions()">
+                        <label class="form-check-label" for="llmModeRestricted">
+                            Restrict to specific models
+                            <i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="Users can only choose from the selected models when using this prompt."></i>
+                        </label>
+                    </div>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="radio" name="llm_mode" id="llmModeForced" value="forced" {% if forced_llm_id %}checked{% endif %} onchange="toggleLLMOptions()">
+                        <label class="form-check-label" for="llmModeForced">
+                            Force specific model
+                            <i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="When enabled, users cannot choose a different AI model. The selected model will always be used for this prompt."></i>
+                        </label>
+                    </div>
+
+                    <!-- Restricted options: checkbox list of models -->
+                    <div id="restrictedLLMOptions" class="mt-2" style="display: {% if allowed_llms_json != '[]' and not forced_llm_id %}block{% else %}none{% endif %};">
+                        <div id="llmCheckboxList" class="ms-3" style="max-height: 220px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 6px; padding: 8px;"></div>
+                        <input type="hidden" id="allowedLLMsInput" name="allowed_llms">
+                    </div>
+
+                    <!-- Forced options: single select + hide name -->
+                    <div id="forcedLLMOptions" style="{% if not forced_llm_id %}display: none;{% endif %}">
+                        <div class="mb-3 mt-2">
+                            <label for="forcedLLM" class="form-label">Select Model</label>
+                            <select class="form-select" id="forcedLLM" name="forced_llm_id">
+                                <!-- LLMs loaded dynamically -->
+                            </select>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" id="hideLLMName" name="hide_llm_name" {% if hide_llm_name %}checked{% endif %}>
+                            <label class="form-check-label" for="hideLLMName">
+                                Hide model name in chat UI
+                                <small class="text-muted d-block">Show "AI" instead of model name</small>
+                            </label>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -408,77 +479,39 @@
         <div class="section-title"><i class="fas fa-dollar-sign me-2"></i>Monetization</div>
         <p class="text-muted small mb-3">Configure pricing for your public prompt. You earn 70% of your markup when others use it.</p>
 
-        <div class="flex-row">
-            <div class="flex-column">
-                <div class="mb-3">
-                    <label class="form-label">Pricing Model</label>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="is_paid" id="pricingFree" value="0" {% if not is_paid %}checked{% endif %} onchange="togglePricingOptions()">
-                        <label class="form-check-label" for="pricingFree">
-                            <i class="fas fa-gift me-1 text-success"></i>Free
-                            <small class="text-muted d-block">Anyone can use without paying markup</small>
-                        </label>
-                    </div>
-                    <div class="form-check mt-2">
-                        <input class="form-check-input" type="radio" name="is_paid" id="pricingPaid" value="1" {% if is_paid %}checked{% endif %} onchange="togglePricingOptions()">
-                        <label class="form-check-label" for="pricingPaid">
-                            <i class="fas fa-coins me-1 text-warning"></i>Paid
-                            <small class="text-muted d-block">Earn money when others use this prompt</small>
-                        </label>
-                    </div>
-                </div>
+        <div class="mb-3">
+            <label class="form-label">Pricing Model</label>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="is_paid" id="pricingFree" value="0" {% if not is_paid %}checked{% endif %} onchange="togglePricingOptions()">
+                <label class="form-check-label" for="pricingFree">
+                    <i class="fas fa-gift me-1 text-success"></i>Free
+                    <small class="text-muted d-block">Anyone can use without paying markup</small>
+                </label>
+            </div>
+            <div class="form-check mt-2">
+                <input class="form-check-input" type="radio" name="is_paid" id="pricingPaid" value="1" {% if is_paid %}checked{% endif %} onchange="togglePricingOptions()">
+                <label class="form-check-label" for="pricingPaid">
+                    <i class="fas fa-coins me-1 text-warning"></i>Paid
+                    <small class="text-muted d-block">Earn money when others use this prompt</small>
+                </label>
+            </div>
+        </div>
 
-                <div id="markupOptions" style="{% if not is_paid %}display: none;{% endif %}">
-                    <div class="mb-3">
-                        <label for="markupInput" class="form-label">Your Markup ($ per million tokens)</label>
-                        <div class="input-group">
-                            <span class="input-group-text">$</span>
-                            <input type="text" class="form-control" id="markupInput" name="markup_per_mtokens"
-                                   value="{{ markup_per_mtokens or 0 }}" inputmode="decimal" pattern="[0-9]*\.?[0-9]*"
-                                   oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1'); updateEarningsPreview()">
-                            <span class="input-group-text">/ Mtokens</span>
-                        </div>
-                    </div>
-
-                    <div class="alert alert-success" id="earningsPreview">
-                        <i class="fas fa-calculator me-2"></i>
-                        <strong>You will earn:</strong> <span id="previewEarnings">$0.00</span> per million tokens (70% of markup)
-                    </div>
+        <div id="markupOptions" style="{% if not is_paid %}display: none;{% endif %}">
+            <div class="mb-3">
+                <label for="markupInput" class="form-label">Your Markup ($ per million tokens)</label>
+                <div class="input-group">
+                    <span class="input-group-text">$</span>
+                    <input type="text" class="form-control" id="markupInput" name="markup_per_mtokens"
+                           value="{{ markup_per_mtokens or 0 }}" inputmode="decimal" pattern="[0-9]*\.?[0-9]*"
+                           oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1'); updateEarningsPreview()">
+                    <span class="input-group-text">/ Mtokens</span>
                 </div>
             </div>
 
-            <div class="flex-column">
-                <div class="mb-3">
-                    <label class="form-label">AI Model Restrictions</label>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="llm_mode" id="llmModeAny" value="any" {% if not forced_llm_id %}checked{% endif %} onchange="toggleLLMOptions()">
-                        <label class="form-check-label" for="llmModeAny">
-                            Any model (user chooses)
-                        </label>
-                    </div>
-                    <div class="form-check mt-2">
-                        <input class="form-check-input" type="radio" name="llm_mode" id="llmModeForced" value="forced" {% if forced_llm_id %}checked{% endif %} onchange="toggleLLMOptions()">
-                        <label class="form-check-label" for="llmModeForced">
-                            Force specific model
-                        </label>
-                    </div>
-                </div>
-
-                <div id="forcedLLMOptions" style="{% if not forced_llm_id %}display: none;{% endif %}">
-                    <div class="mb-3">
-                        <label for="forcedLLM" class="form-label">Select Model</label>
-                        <select class="form-select" id="forcedLLM" name="forced_llm_id">
-                            <!-- LLMs loaded dynamically -->
-                        </select>
-                    </div>
-                    <div class="form-check mb-3">
-                        <input type="checkbox" class="form-check-input" id="hideLLMName" name="hide_llm_name" {% if hide_llm_name %}checked{% endif %}>
-                        <label class="form-check-label" for="hideLLMName">
-                            Hide model name in chat UI
-                            <small class="text-muted d-block">Show "AI" instead of model name</small>
-                        </label>
-                    </div>
-                </div>
+            <div class="alert alert-success" id="earningsPreview">
+                <i class="fas fa-calculator me-2"></i>
+                <strong>You will earn:</strong> <span id="previewEarnings">$0.00</span> per million tokens (70% of markup)
             </div>
         </div>
     </div>
@@ -589,6 +622,7 @@
     let selectedCategories = [];
     const PROMPT_ID_FOR_CATEGORIES = {{ prompt_id }};
     const currentForcedLLMId = {{ forced_llm_id or 'null' }};
+    const currentAllowedLLMs = {{ allowed_llms_json }};
     const currentPreWatchdogLLMId = {{ watchdog_config.pre_watchdog.llm_id or 'null' }};
     const currentPostWatchdogLLMId = {{ watchdog_config.post_watchdog.llm_id or 'null' }};
 
@@ -597,14 +631,30 @@
         const isPublic = document.getElementById('isPublic').checked;
         const pricingSection = document.getElementById('pricingSection');
         const categoriesSection = document.getElementById('categoriesSection');
+        const packSettings = document.getElementById('packSettings');
 
         pricingSection.style.display = isPublic ? 'block' : 'none';
         categoriesSection.style.display = isPublic ? 'block' : 'none';
+        packSettings.style.display = isPublic ? 'block' : 'none';
 
         // Reset to free if hiding
         if (!isPublic) {
             document.getElementById('pricingFree').checked = true;
             togglePricingOptions();
+            document.getElementById('allowInPacks').checked = false;
+            togglePackOptions();
+        }
+    }
+
+    function togglePackOptions() {
+        const allowInPacks = document.getElementById('allowInPacks').checked;
+        document.getElementById('noticePeriodOptions').style.display = allowInPacks ? 'block' : 'none';
+        if (!allowInPacks) {
+            // Reset notice period to the lowest allowed value (keep current if > 0 due to never-decrease rule)
+            const select = document.getElementById('noticePeriod');
+            for (const opt of select.options) {
+                if (!opt.disabled) { select.value = opt.value; break; }
+            }
         }
     }
 
@@ -624,9 +674,10 @@
     }
 
     function toggleLLMOptions() {
-        const isForced = document.getElementById('llmModeForced').checked;
-        document.getElementById('forcedLLMOptions').style.display = isForced ? 'block' : 'none';
-        document.getElementById('forcedLLM').disabled = !isForced;
+        const mode = document.querySelector('input[name="llm_mode"]:checked')?.value || 'any';
+        document.getElementById('restrictedLLMOptions').style.display = mode === 'restricted' ? 'block' : 'none';
+        document.getElementById('forcedLLMOptions').style.display = mode === 'forced' ? 'block' : 'none';
+        document.getElementById('forcedLLM').disabled = mode !== 'forced';
     }
 
     function loadLLMs() {
@@ -636,9 +687,11 @@
                 const select = document.getElementById('forcedLLM');
                 const preWdSelect = document.getElementById('preWatchdogLLM');
                 const postWdSelect = document.getElementById('postWatchdogLLM');
+                const checkboxList = document.getElementById('llmCheckboxList');
                 select.innerHTML = '<option value="">Select a model</option>';
                 preWdSelect.innerHTML = '<option value="">Select a model</option>';
                 postWdSelect.innerHTML = '<option value="">Select a model</option>';
+                checkboxList.innerHTML = '';
                 llms.forEach(llm => {
                     const option = document.createElement('option');
                     option.value = llm.id;
@@ -655,6 +708,16 @@
                     const postOpt = option.cloneNode(true);
                     postOpt.selected = (currentPostWatchdogLLMId && llm.id === currentPostWatchdogLLMId);
                     postWdSelect.appendChild(postOpt);
+
+                    // Add checkbox for restricted mode
+                    const isChecked = currentAllowedLLMs.includes(llm.id);
+                    const div = document.createElement('div');
+                    div.className = 'form-check';
+                    div.innerHTML = `
+                        <input class="form-check-input llm-restrict-checkbox" type="checkbox" id="llmRestrict_${llm.id}" value="${llm.id}" ${isChecked ? 'checked' : ''}>
+                        <label class="form-check-label" for="llmRestrict_${llm.id}">${llm.machine} - ${llm.model}</label>
+                    `;
+                    checkboxList.appendChild(div);
                 });
             })
             .catch(error => console.error('Error loading LLMs:', error));
@@ -1141,6 +1204,14 @@
         // Form validation on submit
         document.getElementById('editPromptForm').addEventListener('submit', function(e) {
             serializeWatchdogConfig();
+            // Serialize allowed LLMs for restricted mode
+            const llmMode = document.querySelector('input[name="llm_mode"]:checked')?.value;
+            if (llmMode === 'restricted') {
+                const selectedIds = Array.from(document.querySelectorAll('.llm-restrict-checkbox:checked')).map(cb => parseInt(cb.value));
+                document.getElementById('allowedLLMsInput').value = JSON.stringify(selectedIds);
+            } else {
+                document.getElementById('allowedLLMsInput').value = '';
+            }
             if (!validateCategories()) {
                 e.preventDefault();
                 document.getElementById('categoriesSection').scrollIntoView({ behavior: 'smooth' });
@@ -1193,29 +1264,35 @@
         }
 
         function deletePromptImage() {
-            if (confirm('Are you sure you want to delete this prompt image?')) {
-                fetch(`/api/delete-prompt-image/{{ prompt_id }}`, {
-                    method: 'POST',
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const initial = document.getElementById('promptName').value.charAt(0).toUpperCase();
-                        promptImageContainer.innerHTML = `
-                            <span class="avatar-initial" id="defaultPromptInitial">${initial}</span>
-                            <div class="avatar-icons">
-                                <span class="avatar-icon edit"><i class="fas fa-pencil-alt"></i></span>
-                            </div>
-                        `;
-                    } else {
-                        NotificationModal.error('Delete Error', 'Error deleting prompt image: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    NotificationModal.error('Delete Error', 'An error occurred while deleting the prompt image');
-                });
-            }
+            NotificationModal.confirm(
+                'Delete Prompt Image',
+                'Are you sure you want to delete this prompt image?',
+                () => {
+                    fetch(`/api/delete-prompt-image/{{ prompt_id }}`, {
+                        method: 'POST',
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            const initial = document.getElementById('promptName').value.charAt(0).toUpperCase();
+                            promptImageContainer.innerHTML = `
+                                <span class="avatar-initial" id="defaultPromptInitial">${initial}</span>
+                                <div class="avatar-icons">
+                                    <span class="avatar-icon edit"><i class="fas fa-pencil-alt"></i></span>
+                                </div>
+                            `;
+                        } else {
+                            NotificationModal.error('Delete Error', 'Error deleting prompt image: ' + data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        NotificationModal.error('Delete Error', 'An error occurred while deleting the prompt image');
+                    });
+                },
+                null,
+                { type: 'error', confirmText: 'Delete' }
+            );
         }
 
     });

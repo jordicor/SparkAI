@@ -4,26 +4,16 @@ data/users/
 __pycache__/
 tst/
 
-# Internal documentation (kept in dev repo for versioning, excluded from public release)
-docs/
-
-# Runtime job data
-data/jobs/
-
-# Backup files
-data/index.html-old
-
-# Internal-only tools
-tools/wcag_*
-tools/wcag_by_theme/
-tools/create_test_user.py
-
-# Internal checklists
-GITHUB_RELEASE_CHECKLIST.md
+# Documentation - include docs/ folder and its .md files
+!docs/
+!docs/*.md
 
 # Security config - include forbidden names list
 !data/config/
 !data/config/*.json
+
+# Virtual environments
+.venv/
 
 # Environment and secrets
 .env

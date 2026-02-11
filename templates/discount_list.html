@@ -136,17 +136,23 @@
     }
 
     function deleteDiscount(code) {
-        if (confirm('Are you sure you want to delete this discount?')) {
-            fetch(`/admin/delete-discount/${code}`, {
-                method: 'DELETE'
-            })
-            .then(response => response.json())
-            .then(data => {
-                NotificationModal.info('Discount Deleted', data.message);
-                location.reload();
-            })
-            .catch(error => console.error('Error:', error));
-        }
+        NotificationModal.confirm(
+            'Delete Discount',
+            'Are you sure you want to delete this discount?',
+            () => {
+                fetch(`/admin/delete-discount/${code}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    NotificationModal.info('Discount Deleted', data.message);
+                    location.reload();
+                })
+                .catch(error => console.error('Error:', error));
+            },
+            null,
+            { type: 'error', confirmText: 'Delete' }
+        );
     }
 
     // Handle unlimited validity and usage checkboxes

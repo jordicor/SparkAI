@@ -97,7 +97,7 @@ const NotificationModal = {
                 }
 
                 #notificationModal .btn-close {
-                    filter: invert(1) grayscale(100%) brightness(200%);
+                    filter: var(--modal-close-filter, invert(1) grayscale(100%) brightness(200%));
                 }
 
                 #notificationModal .btn-secondary {
@@ -204,6 +204,87 @@ const NotificationModal = {
                 }
                 #notificationModal.modal-confirm #notificationModalConfirmBtn:hover {
                     filter: brightness(0.9);
+                }
+
+                /* Toast container */
+                #notificationToastContainer {
+                    position: fixed;
+                    top: 1rem;
+                    right: 1rem;
+                    z-index: 9999;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.5rem;
+                    pointer-events: none;
+                    max-width: 380px;
+                }
+
+                .notification-toast {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.65rem;
+                    padding: 0.75rem 1rem;
+                    border-radius: 6px;
+                    background-color: var(--bg-secondary);
+                    color: var(--text-primary);
+                    border: 1px solid var(--border-color);
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                    pointer-events: auto;
+                    opacity: 1;
+                    transition: opacity 0.3s ease, transform 0.3s ease;
+                    font-size: 0.9rem;
+                    line-height: 1.4;
+                }
+
+                .notification-toast.toast-fade-out {
+                    opacity: 0;
+                    transform: translateX(20px);
+                }
+
+                .notification-toast-icon {
+                    flex-shrink: 0;
+                    width: 22px;
+                    height: 22px;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                .notification-toast-icon svg {
+                    width: 12px;
+                    height: 12px;
+                }
+
+                .notification-toast.toast-success { border-left: 4px solid var(--success); }
+                .notification-toast.toast-success .notification-toast-icon { background-color: var(--success); color: white; }
+
+                .notification-toast.toast-error { border-left: 4px solid var(--danger); }
+                .notification-toast.toast-error .notification-toast-icon { background-color: var(--danger); color: white; }
+
+                .notification-toast.toast-warning { border-left: 4px solid var(--warning); }
+                .notification-toast.toast-warning .notification-toast-icon { background-color: var(--warning); color: #000; }
+
+                .notification-toast.toast-info { border-left: 4px solid var(--info); }
+                .notification-toast.toast-info .notification-toast-icon { background-color: var(--info); color: white; }
+
+                .notification-toast-message {
+                    flex: 1;
+                    word-break: break-word;
+                }
+
+                .notification-toast-close {
+                    flex-shrink: 0;
+                    background: none;
+                    border: none;
+                    color: var(--text-muted);
+                    cursor: pointer;
+                    font-size: 1.1rem;
+                    padding: 0 0.15rem;
+                    line-height: 1;
+                    opacity: 0.7;
+                }
+                .notification-toast-close:hover {
+                    opacity: 1;
                 }
             </style>
         `;
@@ -313,7 +394,7 @@ const NotificationModal = {
      * Update modal content (useful for async operations)
      */
     update(options = {}) {
-        const { title, message, confirmText, showConfirm, showCancel } = options;
+        const { title, message, confirmText, cancelText, showConfirm, showCancel } = options;
 
         if (title !== undefined) {
             document.getElementById('notificationModalLabel').textContent = title;
@@ -323,6 +404,9 @@ const NotificationModal = {
         }
         if (confirmText !== undefined) {
             document.getElementById('notificationModalConfirmBtn').textContent = confirmText;
+        }
+        if (cancelText !== undefined) {
+            document.getElementById('notificationModalCancelBtn').textContent = cancelText;
         }
         if (showConfirm !== undefined) {
             document.getElementById('notificationModalConfirmBtn').style.display = showConfirm ? '' : 'none';
@@ -363,10 +447,61 @@ const NotificationModal = {
     },
 
     /**
+     * Show a toast notification (non-blocking, auto-dismissing)
+     * @param {string} message - Toast message
+     * @param {string} type - 'success', 'error', 'warning', 'info' (maps 'danger' to 'error')
+     * @param {number} duration - Auto-dismiss after ms (default 5000)
+     */
+    toast(message, type = 'info', duration = 5000) {
+        if (type === 'danger') type = 'error';
+
+        // Ensure container exists
+        let container = document.getElementById('notificationToastContainer');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'notificationToastContainer';
+            document.body.appendChild(container);
+            // Ensure styles are loaded
+            this.init();
+        }
+
+        const iconMap = {
+            success: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>',
+            error: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16"><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/></svg>',
+            warning: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16"><path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg>',
+            info: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16"><path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>'
+        };
+
+        const toast = document.createElement('div');
+        toast.className = `notification-toast toast-${type}`;
+        toast.innerHTML = `
+            <span class="notification-toast-icon">${iconMap[type] || iconMap.info}</span>
+            <span class="notification-toast-message">${message}</span>
+            <button class="notification-toast-close" aria-label="Close">&times;</button>
+        `;
+
+        container.appendChild(toast);
+
+        const removeToast = () => {
+            toast.classList.add('toast-fade-out');
+            setTimeout(() => toast.remove(), 300);
+        };
+
+        toast.querySelector('.notification-toast-close').addEventListener('click', removeToast);
+
+        if (duration > 0) {
+            setTimeout(removeToast, duration);
+        }
+
+        return toast;
+    },
+
+    /**
      * Show confirmation modal with two buttons
      */
     confirm(title, message, onConfirm, onCancel = null, options = {}) {
-        return this.show('confirm', title, message, {
+        const type = options.type || 'confirm';
+        return this.show(type, title, message, {
             showCancel: true,
             confirmText: options.confirmText || 'Confirm',
             cancelText: options.cancelText || 'Cancel',

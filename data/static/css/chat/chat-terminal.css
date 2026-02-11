@@ -20,7 +20,37 @@
     --terminal-btn-danger: #ff3333;     /* Danger button color */
     --terminal-btn-danger-hover: #ff4d4d;  /* Danger hover color */
     --terminal-glow: rgba(0, 255, 255, 0.3);  /* Glow effect color */
-    --terminal-glow-danger: rgba(255, 51, 51, 0.3);  /* Danger glow color */	
+    --terminal-glow-danger: rgba(255, 51, 51, 0.3);  /* Danger glow color */
+
+    /* Unified theme variables (for modals, toasts, shared components) */
+    --bg-primary: #000000;
+    --bg-secondary: #0a0a0a;
+    --bg-tertiary: #1a1a1a;
+    --text-primary: #00ff00;
+    --text-secondary: #00cc00;
+    --text-muted: rgba(0, 255, 0, 0.52);
+    --accent: #00ffff;
+    --accent-hover: #00cccc;
+    --accent-light: #33ffff;
+    --accent-rgb: 0, 255, 255;
+    --border-color: rgba(0, 255, 0, 0.3);
+    --shadow-soft: 0 0 10px rgba(0, 255, 0, 0.3);
+    --shadow-hover: 0 0 20px rgba(0, 255, 0, 0.5);
+    --success: #00ff00;
+    --success-rgb: 0, 255, 0;
+    --danger: #ff0000;
+    --danger-rgb: 255, 0, 0;
+    --warning: #ffff00;
+    --warning-rgb: 255, 255, 0;
+    --info: #00ffff;
+    --info-rgb: 0, 255, 255;
+    --font-primary: 'Courier New', monospace;
+    --font-secondary: 'Courier New', monospace;
+    --bs-body-color: #00ff00;
+    --bs-body-bg: #000000;
+    --bs-secondary-color: rgba(0, 255, 0, 0.52);
+    --bs-tertiary-color: #00cc00;
+    --bs-border-color: rgba(0, 255, 0, 0.3);
 }
 
 body, h5 {

@@ -442,7 +442,12 @@
 }
 
 .modal-header .btn-close {
-    filter: invert(1) grayscale(100%) brightness(200%);
+    filter: var(--modal-close-filter, invert(1) grayscale(100%) brightness(200%));
+}
+
+#folderModal .btn-close,
+#moveChatModal .btn-close {
+    filter: var(--modal-close-filter, invert(1) grayscale(100%) brightness(200%));
 }
 
 /* ==========================================================

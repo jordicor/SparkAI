@@ -459,7 +459,7 @@ document.addEventListener('DOMContentLoaded', () => {
         radio.addEventListener('change', async (e) => {
             await manager.setStorageMode(e.target.value);
             manager.updateStorageInfo();
-            showToast('Storage mode changed', 'info');
+            NotificationModal.toast('Storage mode changed', 'info');
         });
     });
 
@@ -490,7 +490,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const key = input.value.trim();
 
             if (!key) {
-                showToast(`Please enter a ${provider} API key first`, 'warning');
+                NotificationModal.toast(`Please enter a ${provider} API key first`, 'warning');
                 return;
             }
 
@@ -503,10 +503,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (result.success) {
                 manager.updateStatus(provider, 'success', 'API key is valid');
-                showToast(`${provider} API key is valid!`, 'success');
+                NotificationModal.toast(`${provider} API key is valid!`, 'success');
             } else {
                 manager.updateStatus(provider, 'error', result.message);
-                showToast(`${provider} key invalid: ${result.message}`, 'error');
+                NotificationModal.toast(`${provider} key invalid: ${result.message}`, 'error');
             }
         });
     });
@@ -520,7 +520,7 @@ document.addEventListener('DOMContentLoaded', () => {
             input.value = '';
             await manager.deleteKey(provider);
             manager.updateStatus(provider, '');
-            showToast(`${provider} key cleared`, 'info');
+            NotificationModal.toast(`${provider} key cleared`, 'info');
         });
     });
 
@@ -547,9 +547,9 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.innerHTML = '<i class="fas fa-save"></i> Save All';
 
         if (savedCount > 0) {
-            showToast(`Saved ${savedCount} API key(s)`, 'success');
+            NotificationModal.toast(`Saved ${savedCount} API key(s)`, 'success');
         } else {
-            showToast('No new keys to save', 'info');
+            NotificationModal.toast('No new keys to save', 'info');
         }
     });
 
@@ -585,31 +585,29 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.innerHTML = '<i class="fas fa-vial"></i> Test All';
 
         if (testedCount === 0) {
-            showToast('No API keys to test', 'info');
+            NotificationModal.toast('No API keys to test', 'info');
         } else {
-            showToast(`${validCount}/${testedCount} keys are valid`, validCount === testedCount ? 'success' : 'warning');
+            NotificationModal.toast(`${validCount}/${testedCount} keys are valid`, validCount === testedCount ? 'success' : 'warning');
         }
     });
 
     // Clear all credentials
-    document.getElementById('clearAllCredentials')?.addEventListener('click', async () => {
-        if (!confirm('Are you sure you want to clear all API keys? This cannot be undone.')) {
-            return;
-        }
+    document.getElementById('clearAllCredentials')?.addEventListener('click', () => {
+        NotificationModal.confirm('Clear All Keys', 'Are you sure you want to clear all API keys? This cannot be undone.', async () => {
+            await manager.clearAll();
 
-        await manager.clearAll();
-
-        // Clear form inputs
-        for (const provider of manager.providers) {
-            const input = document.getElementById(`key-${provider}`);
-            if (input) {
-                input.value = '';
-                delete input.dataset.hasServerKey;
+            // Clear form inputs
+            for (const provider of manager.providers) {
+                const input = document.getElementById(`key-${provider}`);
+                if (input) {
+                    input.value = '';
+                    delete input.dataset.hasServerKey;
+                }
+                manager.updateStatus(provider, '');
             }
-            manager.updateStatus(provider, '');
-        }
 
-        showToast('All API keys cleared', 'info');
+            NotificationModal.toast('All API keys cleared', 'info');
+        }, null, { type: 'error', confirmText: 'Clear All' });
     });
 
     // Initialize tooltips
@@ -619,35 +617,3 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-/**
- * Show a toast notification
- * @param {string} message - Message to display
- * @param {string} type - 'success' | 'error' | 'warning' | 'info'
- */
-function showToast(message, type = 'info') {
-    // Create toast container if not exists
-    let container = document.getElementById('toast-container');
-    if (!container) {
-        container = document.createElement('div');
-        container.id = 'toast-container';
-        container.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999;';
-        document.body.appendChild(container);
-    }
-
-    const toast = document.createElement('div');
-    toast.className = `toast show align-items-center text-white bg-${type === 'error' ? 'danger' : type === 'warning' ? 'warning' : type === 'success' ? 'success' : 'info'}`;
-    toast.setAttribute('role', 'alert');
-    toast.innerHTML = `
-        <div class="d-flex">
-            <div class="toast-body">${message}</div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" onclick="this.parentElement.parentElement.remove()"></button>
-        </div>
-    `;
-
-    container.appendChild(toast);
-
-    // Auto remove after 5 seconds
-    setTimeout(() => {
-        toast.remove();
-    }, 5000);
-}

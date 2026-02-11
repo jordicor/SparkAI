@@ -32,6 +32,23 @@ body, h5 {
     --success: #4ec9b0;
     --danger: #f14c4c;
     --warning: #dcdcaa;
+
+    /* Unified theme variables (for modals, toasts, shared components) */
+    --accent-rgb: 0, 120, 212;
+    --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.4);
+    --shadow-hover: 0 4px 12px rgba(0, 120, 212, 0.2);
+    --success-rgb: 78, 201, 176;
+    --danger-rgb: 241, 76, 76;
+    --warning-rgb: 220, 220, 170;
+    --info: #9cdcfe;
+    --info-rgb: 156, 220, 254;
+    --font-primary: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-secondary: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    --bs-body-color: #cccccc;
+    --bs-body-bg: #1e1e1e;
+    --bs-secondary-color: rgba(255, 255, 255, 0.45);
+    --bs-tertiary-color: #9d9d9d;
+    --bs-border-color: #3c3c3c;
 }
 
 body {

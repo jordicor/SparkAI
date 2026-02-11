@@ -19,6 +19,9 @@
    1. CSS VARIABLES
    ========================================================== */
 :root {
+    /* ----- Modal close button (light theme: no filter needed) ----- */
+    --modal-close-filter: none;
+
     /* ----- Backgrounds ----- */
     --bg-primary: #ffffff;
     --bg-secondary: #f8f9fa;

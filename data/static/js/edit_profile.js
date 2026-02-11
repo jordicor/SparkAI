@@ -237,17 +237,17 @@ function setupEventListeners() {
             if (!response) return; // Session expired
             const result = await response.json();
             if (result.status === 'approved') {
-                showGenericModal('Success', 'Phone number verified successfully!', { cancelText: 'Close' });
+                NotificationModal.success('Success', 'Phone number verified successfully!');
                 verifyCodeButton.style.display = 'none';
                 verificationCodeInput.disabled = true;
                 phoneInput.dataset.verified = 'true';
             } else {
-                showGenericModal('Error', 'Verification failed. Please check the code and try again.', { cancelText: 'Close' });
+                NotificationModal.error('Error', 'Verification failed. Please check the code and try again.');
                 verificationCodeInput.value = '';
             }
         } catch (error) {
             console.error('Error:', error);
-            showGenericModal('Error', 'An error occurred while verifying the code. Please try again.', { cancelText: 'Close' });
+            NotificationModal.error('Error', 'An error occurred while verifying the code. Please try again.');
         }
     });
 
@@ -275,7 +275,7 @@ function setupEventListeners() {
             const checkResult = await checkResponse.json();
 
             if (checkResult.exists) {
-                showGenericModal('Error', 'This phone number is already in use. Please use a different number.', { cancelText: 'Close' });
+                NotificationModal.error('Error', 'This phone number is already in use. Please use a different number.');
                 return;
             }
 
@@ -291,16 +291,16 @@ function setupEventListeners() {
             if (response.ok) {
                 if (result.status === 'pending') {
                     verificationCodeContainer.style.display = 'block';
-                    showGenericModal('Success', 'Verification code sent successfully!', { cancelText: 'Close' });
+                    NotificationModal.success('Success', 'Verification code sent successfully!');
                 } else {
-                    showGenericModal('Error', `Unexpected status: ${result.status}`, { cancelText: 'Close' });
+                    NotificationModal.error('Error', `Unexpected status: ${result.status}`);
                 }
             } else {
-                showGenericModal('Error', `Error sending verification code: ${result.detail}`, { cancelText: 'Close' });
+                NotificationModal.error('Error', `Error sending verification code: ${result.detail}`);
             }
         } catch (error) {
             console.error('Error:', error);
-            showGenericModal('Error', 'An unexpected error occurred. Please try again.', { cancelText: 'Close' });
+            NotificationModal.error('Error', 'An unexpected error occurred. Please try again.');
         }
     });
 
@@ -327,24 +327,18 @@ async function handleFormSubmit(event) {
             const checkResult = await checkResponse.json();
 
             if (checkResult.exists) {
-                showGenericModal('Error', 'This phone number is already in use. Please use a different number.', {
-                    cancelText: 'Close'
-                });
+                NotificationModal.error('Error', 'This phone number is already in use. Please use a different number.');
                 return;
             }
 
             const phoneInput = document.getElementById('phone');
             if (phoneInput.dataset.verified !== 'true') {
-                showGenericModal('Error', 'Please verify your new phone number before submitting.', {
-                    cancelText: 'Close'
-                });
+                NotificationModal.error('Error', 'Please verify your new phone number before submitting.');
                 return;
             }
         } catch (error) {
             console.error('Error:', error);
-            showGenericModal('Error', 'An error occurred while checking the phone number.', {
-                cancelText: 'Close'
-            });
+            NotificationModal.error('Error', 'An error occurred while checking the phone number.');
             return;
         }
     }
@@ -371,92 +365,22 @@ async function handleFormSubmit(event) {
     .then(data => {
         if (!data) return;
         if (data.success) {
-            showGenericModal('Success', 'Profile updated successfully', {
-                cancelText: 'Close'
-            });
+            NotificationModal.success('Success', 'Profile updated successfully');
             currentUserVoiceId = formData.get('sample_voice_id');
             originalPhoneNumber = fullPhoneNumber;
             currentAlterEgoId = formData.get('alter_ego_id');
         } else {
-            showGenericModal('Error', 'Error updating profile: ' + data.message, {
-                cancelText: 'Close'
-            });
+            NotificationModal.error('Error', 'Error updating profile: ' + data.message);
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        showGenericModal('Error', 'An error occurred while updating the profile.', {
-            cancelText: 'Close'
-        });
+        NotificationModal.error('Error', 'An error occurred while updating the profile.');
     });
 }
 
 function getFullPhoneNumber() {
     return phoneInputJS.getNumber(intlTelInputUtils.numberFormat.E164);
-}
-
-function showGenericModal(title, message, options = {}) {
-    const modalElement = document.getElementById('genericModal');
-    const modal = new bootstrap.Modal(modalElement);
-    const confirmBtn = document.getElementById('genericModalConfirmBtn');
-    const cancelBtn = document.getElementById('genericModalCancelBtn');
-    const modalLabel = document.getElementById('genericModalLabel');
-    const modalBody = document.getElementById('genericModalBody');
-
-    modalLabel.textContent = title;
-    modalBody.textContent = message;
-
-    if (options.confirmText) {
-        confirmBtn.textContent = options.confirmText;
-        confirmBtn.className = `btn ${options.confirmClass || 'btn-primary'}`;
-        confirmBtn.style.display = '';
-        confirmBtn.onclick = () => {
-            if (options.onConfirm) {
-                options.onConfirm(modal);
-            }
-            if (options.hideOnConfirm !== false) {
-                modal.hide();
-            }
-        };
-    } else {
-        confirmBtn.style.display = 'none';
-    }
-
-    if (options.cancelText) {
-        cancelBtn.textContent = options.cancelText;
-        cancelBtn.style.display = '';
-        cancelBtn.onclick = () => {
-            if (options.onCancel) {
-                options.onCancel();
-            }
-            modal.hide();
-        };
-    } else {
-        cancelBtn.textContent = 'Close';
-        cancelBtn.onclick = () => modal.hide();
-    }
-
-    modalElement.addEventListener('keydown', function(event) {
-        if (event.key === 'Enter' && options.confirmText) {
-            event.preventDefault();
-            confirmBtn.click();
-        } else if (event.key === 'Escape') {
-            event.preventDefault();
-            cancelBtn.click();
-        }
-    }, { once: true });
-
-    modal.show();
-
-    modalElement.addEventListener('hidden.bs.modal', function () {
-        const backdrop = document.querySelector('.modal-backdrop');
-        if (backdrop) {
-            backdrop.remove();
-        }
-        document.body.classList.remove('modal-open');
-        document.body.style.removeProperty('padding-right');
-        document.body.style.removeProperty('overflow');
-    }, { once: true });
 }
 
 // Functions related to alter-ego management
@@ -596,25 +520,20 @@ function editAlterEgo(alterEgoId) {
             alterEgoModal.show();
         } else {
             console.error('Error loading alter-ego details:', data);
-            showGenericModal('Error', 'Error loading alter-ego details for editing', {
-                cancelText: 'Close'
-            });
+            NotificationModal.error('Error', 'Error loading alter-ego details for editing');
         }
     })
     .catch(error => {
         console.error('Error fetching alter-ego details:', error);
-        showGenericModal('Error', 'An error occurred while loading alter-ego details', {
-            cancelText: 'Close'
-        });
+        NotificationModal.error('Error', 'An error occurred while loading alter-ego details');
     });
 }
 
 function deleteAlterEgo(alterEgoId) {
-    showGenericModal('Confirm Deletion', 'Are you sure you want to delete this alter-ego?', {
-        confirmText: 'Delete',
-        cancelText: 'Cancel',
-        confirmClass: 'btn-danger',
-        onConfirm: () => {
+    NotificationModal.confirm(
+        'Delete Alter Ego',
+        'Are you sure you want to delete this alter-ego?',
+        () => {
             secureFetch(`/api/delete-alter-ego/${alterEgoId}`, {
                 method: 'DELETE',
                 headers: {
@@ -627,9 +546,7 @@ function deleteAlterEgo(alterEgoId) {
             .then(data => {
                 if (!data) return;
                 if (data.success) {
-                    showGenericModal('Success', 'Alter-ego deleted successfully', {
-                        cancelText: 'Close'
-                    });
+                    NotificationModal.success('Success', 'Alter-ego deleted successfully');
                     loadAlterEgos();
                     const alterEgoDetails = document.getElementById('alterEgoDetails');
                     if (alterEgoDetails) {
@@ -645,56 +562,47 @@ function deleteAlterEgo(alterEgoId) {
             })
             .catch(error => {
                 console.error('Error:', error);
-                showGenericModal('Error', 'An error occurred while deleting the alter-ego', {
-                    cancelText: 'Close'
-                });
+                NotificationModal.error('Error', 'An error occurred while deleting the alter-ego');
             });
-        }
-    });
+        },
+        null,
+        { type: 'error', confirmText: 'Delete' }
+    );
 }
 
 function deleteAlterEgoPicture() {
-    showGenericModal(
-        'Confirm Deletion',
+    NotificationModal.confirm(
+        'Delete Alter Ego Picture',
         'Are you sure you want to delete this alter-ego picture?',
-        {
-            confirmText: 'Delete',
-            cancelText: 'Cancel',
-            confirmClass: 'btn-danger',
-            onConfirm: () => {
-                const alterEgoId = document.getElementById('alterEgoId').value;
-                if (alterEgoId) {
-                    secureFetch(`/api/delete-alter-ego-picture/${alterEgoId}`, {
-                        method: 'DELETE'
-                    })
-                    .then(response => {
-                        if (!response) return null;
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (!data) return;
-                        if (data.success) {
-                            updateAlterEgoPictureUI(alterEgoId);
-                            showGenericModal('Success', 'Alter-ego picture deleted successfully', {
-                                cancelText: 'Close'
-                            });
-                        } else {
-                            showGenericModal('Error', 'Error deleting alter-ego picture', {
-                                cancelText: 'Close'
-                            });
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error deleting alter-ego picture:', error);
-                        showGenericModal('Error', 'An error occurred while deleting the alter-ego picture', {
-                            cancelText: 'Close'
-                        });
-                    });
-                } else {
-                    updateAlterEgoPictureUI();
-                }
+        () => {
+            const alterEgoId = document.getElementById('alterEgoId').value;
+            if (alterEgoId) {
+                secureFetch(`/api/delete-alter-ego-picture/${alterEgoId}`, {
+                    method: 'DELETE'
+                })
+                .then(response => {
+                    if (!response) return null;
+                    return response.json();
+                })
+                .then(data => {
+                    if (!data) return;
+                    if (data.success) {
+                        updateAlterEgoPictureUI(alterEgoId);
+                        NotificationModal.success('Success', 'Alter-ego picture deleted successfully');
+                    } else {
+                        NotificationModal.error('Error', 'Error deleting alter-ego picture');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error deleting alter-ego picture:', error);
+                    NotificationModal.error('Error', 'An error occurred while deleting the alter-ego picture');
+                });
+            } else {
+                updateAlterEgoPictureUI();
             }
-        }
+        },
+        null,
+        { type: 'error', confirmText: 'Delete' }
     );
 }
 
@@ -766,9 +674,7 @@ function sendSaveRequest(url, method, formData) {
     .then(data => {
         if (!data) return;
         if (data.success) {
-            showGenericModal('Success', 'Alter-ego saved successfully', {
-                cancelText: 'Close'
-            });
+            NotificationModal.success('Success', 'Alter-ego saved successfully');
             alterEgoModal.hide();
             loadAlterEgos();
         } else {
@@ -777,52 +683,43 @@ function sendSaveRequest(url, method, formData) {
     })
     .catch(error => {
         console.error('Error:', error);
-        showGenericModal('Error', error.message || 'An error occurred while saving the alter-ego', {
-            cancelText: 'Close'
-        });
+        NotificationModal.error('Error', error.message || 'An error occurred while saving the alter-ego');
     });
 }
 
 function deleteProfilePicture() {
-    showGenericModal(
-        'Confirm Deletion',
+    NotificationModal.confirm(
+        'Delete Profile Picture',
         'Are you sure you want to delete your profile picture?',
-        {
-            confirmText: 'Delete',
-            cancelText: 'Cancel',
-            confirmClass: 'btn-danger',
-            onConfirm: () => {
-                secureFetch('/api/delete-profile-picture', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ user_id: currentUserId })
-                }).then(response => {
-                    if (!response) return null;
-                    return response.json();
-                })
-                .then(data => {
-                    if (!data) return;
-                    if (data.success) {
-                        const profilePictureContainer = document.getElementById('profilePictureContainer');
-                        profilePictureContainer.innerHTML = `
-                            <span class="avatar-initial" id="defaultProfileInitial">${document.getElementById('username').value.charAt(0).toUpperCase()}</span>
-                            <div class="avatar-icons">
-                                <span class="avatar-icon edit"><i class="fas fa-pencil-alt"></i></span>
-                            </div>
-                        `;
-                        showGenericModal('Success', 'Profile picture deleted successfully', {
-                            cancelText: 'Close'
-                        });
-                    } else {
-                        showGenericModal('Error', 'Error deleting profile picture', {
-                            cancelText: 'Close'
-                        });
-                    }
-                });
-            }
-        }
+        () => {
+            secureFetch('/api/delete-profile-picture', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ user_id: currentUserId })
+            }).then(response => {
+                if (!response) return null;
+                return response.json();
+            })
+            .then(data => {
+                if (!data) return;
+                if (data.success) {
+                    const profilePictureContainer = document.getElementById('profilePictureContainer');
+                    profilePictureContainer.innerHTML = `
+                        <span class="avatar-initial" id="defaultProfileInitial">${document.getElementById('username').value.charAt(0).toUpperCase()}</span>
+                        <div class="avatar-icons">
+                            <span class="avatar-icon edit"><i class="fas fa-pencil-alt"></i></span>
+                        </div>
+                    `;
+                    NotificationModal.success('Success', 'Profile picture deleted successfully');
+                } else {
+                    NotificationModal.error('Error', 'Error deleting profile picture');
+                }
+            });
+        },
+        null,
+        { type: 'error', confirmText: 'Delete' }
     );
 }
 
@@ -983,18 +880,11 @@ document.getElementById('alterEgo').addEventListener('change', function() {
     }
 });
 
-document.getElementById('deleteAccountBtn').addEventListener('click', async (e) => {
+document.getElementById('deleteAccountBtn').addEventListener('click', (e) => {
     e.preventDefault();
-    
-    // First warning
-    const genericModal = new bootstrap.Modal(document.getElementById('genericModal'));
-    const modalTitle = document.getElementById('genericModalLabel');
-    const modalBody = document.getElementById('genericModalBody');
-    const confirmBtn = document.getElementById('genericModalConfirmBtn');
-    const cancelBtn = document.getElementById('genericModalCancelBtn');
+    let step = 1;
 
-    modalTitle.textContent = 'Warning';
-    modalBody.innerHTML = `
+    NotificationModal.show('warning', 'Warning', `
         <p class="text-danger"><strong>You are about to delete your account.</strong></p>
         <p>This action will:</p>
         <ul>
@@ -1004,54 +894,59 @@ document.getElementById('deleteAccountBtn').addEventListener('click', async (e) 
             <li>This action cannot be undone</li>
         </ul>
         <p>Are you sure you want to continue?</p>
-    `;
-
-    confirmBtn.textContent = 'Continue';
-    confirmBtn.className = 'btn btn-danger';
-
-    const handleFirstConfirmation = () => {
-        // Second confirmation
-        modalBody.innerHTML = `
-            <p class="text-danger"><strong>Final confirmation required</strong></p>
-            <p>Please type "DELETE" below to confirm you want to permanently delete your account:</p>
-            <input type="text" class="form-control" id="deleteConfirmInput" placeholder="Type DELETE">
-        `;
-        
-        confirmBtn.textContent = 'Delete Account';
-        
-        const handleFinalConfirmation = async () => {
-            const confirmInput = document.getElementById('deleteConfirmInput');
-            if (confirmInput.value === 'DELETE') {
-                try {
-                    const response = await secureFetch('/api/delete-account', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    });
-
-                    if (!response) return; // Session expired
-                    if (response.ok) {
-                        window.location.href = '/logout';
-                    } else {
-                        const data = await response.json();
-                        throw new Error(data.detail || 'Error deleting account');
-                    }
-                } catch (error) {
-                    modalBody.innerHTML = `<p class="text-danger">Error: ${error.message}</p>`;
-                    confirmBtn.style.display = 'none';
-                }
+    `, {
+        confirmText: 'Continue',
+        cancelText: 'Cancel',
+        showCancel: true,
+        hideOnConfirm: false,
+        onConfirm: async (modal) => {
+            if (step === 1) {
+                step = 2;
+                modal.update({
+                    message: `
+                        <p class="text-danger"><strong>Final confirmation required</strong></p>
+                        <p>Please type "DELETE" below to confirm you want to permanently delete your account:</p>
+                        <input type="text" class="form-control" id="deleteConfirmInput" placeholder="Type DELETE">
+                    `,
+                    confirmText: 'Delete Account'
+                });
             } else {
-                modalBody.innerHTML += `<p class="text-danger mt-2">Please type "DELETE" correctly to confirm.</p>`;
+                const confirmInput = document.getElementById('deleteConfirmInput');
+                if (confirmInput && confirmInput.value === 'DELETE') {
+                    try {
+                        const response = await secureFetch('/api/delete-account', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        });
+
+                        if (!response) return; // Session expired
+                        if (response.ok) {
+                            window.location.href = '/logout';
+                        } else {
+                            const data = await response.json();
+                            throw new Error(data.detail || 'Error deleting account');
+                        }
+                    } catch (error) {
+                        modal.update({
+                            message: `<p class="text-danger">Error: ${error.message}</p>`,
+                            showConfirm: false
+                        });
+                    }
+                } else {
+                    modal.update({
+                        message: `
+                            <p class="text-danger"><strong>Final confirmation required</strong></p>
+                            <p>Please type "DELETE" below to confirm you want to permanently delete your account:</p>
+                            <input type="text" class="form-control" id="deleteConfirmInput" placeholder="Type DELETE">
+                            <p class="text-danger mt-2">Please type "DELETE" correctly to confirm.</p>
+                        `
+                    });
+                }
             }
-        };
-        
-        confirmBtn.removeEventListener('click', handleFirstConfirmation);
-        confirmBtn.addEventListener('click', handleFinalConfirmation);
-    };
-    
-    confirmBtn.addEventListener('click', handleFirstConfirmation);
-    genericModal.show();
+        }
+    });
 });
 
 function setupUsernameValidation() {

@@ -183,6 +183,13 @@ document.addEventListener('DOMContentLoaded', function() {
         // Enable controls and hide loading indicator when all initial loads are complete
         enableInputControls();
         document.getElementById('loading-indicator').style.display = 'none';
+
+        // Auto-start new conversation if redirected from explore page
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('autostart') === '1') {
+            window.history.replaceState({}, '', window.location.pathname);
+            startNewConversation();
+        }
     }).catch(error => {
         console.error('Error during initial load:', error);
         // Make sure to enable controls even if there's an error

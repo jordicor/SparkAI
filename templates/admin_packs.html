@@ -1,0 +1,120 @@
+{% extends 'base_admin.html' %}
+
+{% block title %}Manage Packs - SPARK{% endblock %}
+
+{% block page_title %}Packs{% endblock %}
+{% block page_subtitle %}<p class="page-subtitle">Manage your AI prompt packs</p>{% endblock %}
+
+{% block page_actions %}
+<a href="/admin/packs/new" class="btn btn-primary">
+    <i class="fas fa-plus me-1"></i> Create New Pack
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="section-container">
+    <div class="section-title">
+        <i class="fas fa-box"></i> Your Packs
+    </div>
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th>Items</th>
+                    <th>Price</th>
+                    <th>Created</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="packsTableBody">
+                {% for pack in packs %}
+                <tr data-id="{{ pack.id }}">
+                    <td>
+                        <strong>{{ pack.name }}</strong>
+                        {% if pack.created_by_username and is_admin %}
+                        <br><small class="text-muted">by @{{ pack.created_by_username }}</small>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if pack.status == 'published' %}
+                        <span class="badge bg-success">Published</span>
+                        {% elif pack.status == 'draft' %}
+                        <span class="badge bg-secondary">Draft</span>
+                        {% elif pack.status == 'rejected' %}
+                        <span class="badge bg-danger">Rejected</span>
+                        {% elif pack.status == 'suspended' %}
+                        <span class="badge bg-warning text-dark">Suspended</span>
+                        {% elif pack.status == 'pending_review' %}
+                        <span class="badge bg-info">Pending Review</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ pack.item_count }} / {{ pack.max_items }}</td>
+                    <td>
+                        {% if pack.is_paid %}
+                        ${{ "%.2f"|format(pack.price) }}
+                        {% else %}
+                        <span class="text-muted">FREE</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ pack.created_at[:10] if pack.created_at else '--' }}</td>
+                    <td class="text-end table-actions">
+                        <a href="/admin/packs/edit/{{ pack.id }}" class="btn btn-sm btn-outline-primary" title="Edit" data-bs-toggle="tooltip">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                        <button class="btn btn-sm btn-outline-danger" title="Delete" data-bs-toggle="tooltip"
+                                onclick="deletePack({{ pack.id }}, '{{ pack.name|e }}', '{{ pack.status }}')">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr id="emptyRow">
+                    <td colspan="6" class="text-center text-muted py-4">
+                        <i class="fas fa-box-open fa-2x mb-2 d-block"></i>
+                        No packs yet. Create your first pack!
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+function showAlert(message, type) {
+    const container = document.getElementById('alertContainer');
+    const alert = document.createElement('div');
+    alert.className = 'alert alert-' + type + ' alert-dismissible fade show';
+    alert.innerHTML = message + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+    container.appendChild(alert);
+    setTimeout(function() { alert.remove(); }, 5000);
+}
+
+async function deletePack(id, name, status) {
+    NotificationModal.confirm(
+        'Delete Pack',
+        'Are you sure you want to delete "' + name + '"? This cannot be undone.',
+        async () => {
+            try {
+                const response = await fetch('/api/packs/' + id, { method: 'DELETE' });
+                const result = await response.json();
+                if (response.ok) {
+                    showAlert('Pack deleted successfully', 'success');
+                    setTimeout(function() { location.reload(); }, 1000);
+                } else {
+                    showAlert(result.detail || 'Failed to delete pack', 'danger');
+                }
+            } catch (error) {
+                showAlert('Error: ' + error.message, 'danger');
+            }
+        },
+        null,
+        { type: 'error', confirmText: 'Delete' }
+    );
+}
+</script>
+{% endblock %}

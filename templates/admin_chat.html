@@ -290,45 +290,57 @@
             return;
         }
 
-        if (confirm(`Are you sure you want to delete ${idsToDelete.length} selected conversation(s)?`)) {
-            fetch('/admin/api/conversations/bulk_delete', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ conversation_ids: idsToDelete }),
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.message) {
-                    NotificationModal.success('Deleted', data.message);
-                    fetchConversations();
-                    toggleSelection();
-                } else {
-                    NotificationModal.error('Delete Error', 'Error deleting conversations');
-                }
-            })
-            .catch(error => console.error('Error deleting conversations:', error));
-        }
+        NotificationModal.confirm(
+            'Delete Conversations',
+            `Are you sure you want to delete ${idsToDelete.length} selected conversation(s)?`,
+            () => {
+                fetch('/admin/api/conversations/bulk_delete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ conversation_ids: idsToDelete }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        NotificationModal.success('Deleted', data.message);
+                        fetchConversations();
+                        toggleSelection();
+                    } else {
+                        NotificationModal.error('Delete Error', 'Error deleting conversations');
+                    }
+                })
+                .catch(error => console.error('Error deleting conversations:', error));
+            },
+            null,
+            { type: 'error', confirmText: 'Delete' }
+        );
     }
 
     function deleteConversation(conversationId, event) {
         if (event) event.stopPropagation();
-        if (confirm("Are you sure you want to delete this conversation?")) {
-            fetch(`/admin/api/conversations/${conversationId}`, {
-                method: 'DELETE'
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.message) {
-                    NotificationModal.success('Deleted', data.message);
-                    fetchConversations();
-                } else {
-                    NotificationModal.error('Delete Error', 'Error deleting the conversation');
-                }
-            })
-            .catch(error => console.error('Error deleting the conversation:', error));
-        }
+        NotificationModal.confirm(
+            'Delete Conversation',
+            'Are you sure you want to delete this conversation?',
+            () => {
+                fetch(`/admin/api/conversations/${conversationId}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        NotificationModal.success('Deleted', data.message);
+                        fetchConversations();
+                    } else {
+                        NotificationModal.error('Delete Error', 'Error deleting the conversation');
+                    }
+                })
+                .catch(error => console.error('Error deleting the conversation:', error));
+            },
+            null,
+            { type: 'error', confirmText: 'Delete' }
+        );
     }
 
     function deleteSelected() {

@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ pack.name }} - SPARK</title>
+    <meta name="description" content="{{ pack.description[:160] if pack.description else 'AI Pack on SPARK' }}">
+    <meta property="og:title" content="{{ pack.name }}">
+    <meta property="og:description" content="{{ pack.description[:160] if pack.description else 'AI Pack on SPARK' }}">
+    <meta property="og:type" content="product">
+    {% if pack.cover_image %}
+    <meta property="og:image" content="/api/packs/{{ pack.id }}/cover/fullsize">
+    {% endif %}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f1117;
+            color: #e4e6eb;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .landing-wrap {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 1.25rem 3rem;
+        }
+
+        /* Cover */
+        .cover-section {
+            width: 100%;
+            max-height: 400px;
+            overflow: hidden;
+            border-radius: 0 0 16px 16px;
+            margin-bottom: 2rem;
+            background: linear-gradient(135deg, #1a1d2e 0%, #2a1a3e 50%, #1a2a3e 100%);
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .cover-section img {
+            width: 100%;
+            height: auto;
+            display: block;
+            object-fit: cover;
+        }
+
+        .cover-placeholder {
+            font-size: 4rem;
+            font-weight: 800;
+            color: rgba(255,255,255,0.15);
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            user-select: none;
+        }
+
+        /* Header */
+        .pack-header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .pack-header h1 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: #fff;
+            margin-bottom: 0.5rem;
+            line-height: 1.2;
+        }
+
+        .pack-header .tagline {
+            font-size: 1.1rem;
+            color: #a0a3b1;
+            margin-bottom: 0.75rem;
+        }
+
+        .pack-header .creator {
+            font-size: 0.9rem;
+            color: #6b7280;
+        }
+
+        .pack-header .creator span {
+            color: #818cf8;
+            font-weight: 600;
+        }
+
+        /* Tags */
+        .tags-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            margin-bottom: 2rem;
+        }
+
+        .tag-pill {
+            font-size: 0.78rem;
+            padding: 4px 14px;
+            border-radius: 20px;
+            background: rgba(129, 140, 248, 0.12);
+            color: #818cf8;
+            border: 1px solid rgba(129, 140, 248, 0.25);
+            font-weight: 500;
+        }
+
+        /* Items section */
+        .items-section {
+            background: #181b2a;
+            border: 1px solid #2a2d3e;
+            border-radius: 16px;
+            padding: 1.75rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .items-section h2 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #e4e6eb;
+            margin-bottom: 1.25rem;
+        }
+
+        .item-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.85rem 0;
+            border-bottom: 1px solid #2a2d3e;
+        }
+
+        .item-row:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .item-row:first-of-type {
+            padding-top: 0;
+        }
+
+        .item-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: #2a2d3e;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #818cf8;
+            flex-shrink: 0;
+            border: 2px solid #363952;
+        }
+
+        .item-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .item-name {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #e4e6eb;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .item-desc {
+            font-size: 0.82rem;
+            color: #6b7280;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* CTA section */
+        .cta-section {
+            background: #181b2a;
+            border: 1px solid #2a2d3e;
+            border-radius: 16px;
+            padding: 2rem;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .cta-section h2 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 0.25rem;
+        }
+
+        .price-badge {
+            display: inline-block;
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #818cf8;
+            margin-bottom: 1.5rem;
+        }
+
+        .cta-form {
+            max-width: 360px;
+            margin: 0 auto;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: #a0a3b1;
+            margin-bottom: 4px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1.5px solid #2a2d3e;
+            border-radius: 8px;
+            background: #0f1117;
+            color: #e4e6eb;
+            font-size: 0.95rem;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #818cf8;
+        }
+
+        .form-group input::placeholder {
+            color: #4b5563;
+        }
+
+        .btn-primary {
+            display: block;
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            background: #818cf8;
+            color: #fff;
+            font-size: 1.05rem;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.15s;
+            letter-spacing: 0.3px;
+            margin-top: 0.5rem;
+        }
+
+        .btn-primary:hover {
+            background: #6366f1;
+            transform: translateY(-1px);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .cta-login {
+            margin-top: 1rem;
+            font-size: 0.85rem;
+            color: #6b7280;
+        }
+
+        .cta-login a {
+            color: #818cf8;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .cta-login a:hover {
+            text-decoration: underline;
+        }
+
+        .form-error {
+            display: none;
+            color: #f87171;
+            font-size: 0.82rem;
+            margin-top: 0.5rem;
+            text-align: center;
+        }
+
+        .form-success {
+            display: none;
+            color: #34d399;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+            text-align: center;
+        }
+
+        /* Footer */
+        .landing-footer {
+            text-align: center;
+            padding: 2rem 0;
+            color: #4b5563;
+            font-size: 0.82rem;
+        }
+
+        .landing-footer a {
+            color: #6b7280;
+            text-decoration: none;
+        }
+
+        .landing-footer a:hover {
+            color: #818cf8;
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .landing-wrap { padding: 0 1rem 2rem; }
+            .pack-header h1 { font-size: 1.6rem; }
+            .pack-header .tagline { font-size: 1rem; }
+            .items-section, .cta-section { padding: 1.25rem; }
+            .item-avatar { width: 40px; height: 40px; font-size: 1rem; }
+            .cover-section { min-height: 140px; }
+            .cover-placeholder { font-size: 2.5rem; }
+        }
+    </style>
+</head>
+<body>
+    {% if pack.cover_image %}
+    <div class="cover-section">
+        <img src="/api/packs/{{ pack.id }}/cover/fullsize" alt="{{ pack.name }} cover">
+    </div>
+    {% else %}
+    <div class="cover-section">
+        <div class="cover-placeholder">{{ pack.name[:12] }}</div>
+    </div>
+    {% endif %}
+
+    <div class="landing-wrap">
+        <header class="pack-header">
+            <h1>{{ pack.name }}</h1>
+            {% if pack.description %}
+            <p class="tagline">{{ pack.description }}</p>
+            {% endif %}
+            <p class="creator">by <span>@{{ pack.created_by_username }}</span></p>
+        </header>
+
+        {% if tags %}
+        <div class="tags-row">
+            {% for tag in tags %}
+            <span class="tag-pill">#{{ tag }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if items %}
+        <section class="items-section">
+            <h2>What's inside ({{ items|length }} prompts)</h2>
+            {% for item in items %}
+            <article class="item-row">
+                <div class="item-avatar">{{ item.prompt_name[0]|upper if item.prompt_name else '?' }}</div>
+                <div class="item-info">
+                    <div class="item-name">{{ item.prompt_name }}</div>
+                    {% if item.prompt_description %}
+                    <div class="item-desc">{{ item.prompt_description[:80] }}</div>
+                    {% endif %}
+                </div>
+            </article>
+            {% endfor %}
+        </section>
+        {% endif %}
+
+        <section class="cta-section" id="getStarted">
+            <h2>Get Started</h2>
+            <div class="price-badge">{{ price_display }}</div>
+
+            {% if is_paid %}
+            {# Paid pack: registration form (creates account) + purchase button (for logged-in users) #}
+            <div id="paidPackNotLoggedIn" style="display:none;">
+                <p style="color: #a0a3b1; margin-bottom: 0.5rem;">Create an account first, then purchase this pack.</p>
+                <form class="cta-form" id="packRegForm" novalidate>
+                    <input type="hidden" name="pack_id" value="{{ pack.id }}">
+                    <input type="hidden" name="public_id" value="{{ pack.public_id }}">
+                    <div class="form-group">
+                        <label for="regEmail">Email</label>
+                        <input type="email" id="regEmail" name="email" placeholder="you@example.com" required autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="regPassword">Password</label>
+                        <input type="password" id="regPassword" name="password" placeholder="Min. 8 characters" required autocomplete="new-password" minlength="8">
+                    </div>
+                    <div class="form-group">
+                        <label for="regPasswordConfirm">Confirm Password</label>
+                        <input type="password" id="regPasswordConfirm" name="password_confirm" placeholder="Repeat password" required autocomplete="new-password">
+                    </div>
+                    <button type="submit" class="btn-primary" id="regSubmitBtn">Sign Up</button>
+                    <div class="form-error" id="regError"></div>
+                    <div class="form-success" id="regSuccess"></div>
+                </form>
+                {% if google_oauth_available %}
+                <div style="display: flex; align-items: center; gap: 12px; margin: 1rem 0;">
+                    <hr style="flex: 1; border-color: rgba(255,255,255,0.15);">
+                    <span style="color: #a0a3b1; font-size: 0.85rem;">or</span>
+                    <hr style="flex: 1; border-color: rgba(255,255,255,0.15);">
+                </div>
+                <a href="/auth/google?pack_id={{ pack.id }}" class="btn-primary" style="display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; padding: 0.75rem; background: transparent; border: 1px solid rgba(255,255,255,0.2); color: #fff;">
+                    <img src="/static/img/providers/google.svg" width="18" height="18" alt="">
+                    Sign in with Google
+                </a>
+                {% endif %}
+                <p class="cta-login">
+                    Already have an account? <a href="/login?next=/pack/{{ pack.public_id }}/{{ pack.slug }}/">Login &amp; Purchase</a>
+                </p>
+            </div>
+
+            <div id="paidPackLoggedIn" style="display:none;">
+                <div id="paidPackNeedsAccess">
+                    <button class="btn-primary" id="purchaseBtn" onclick="purchasePack()" style="width:100%;padding:0.9rem;font-size:1.1rem;cursor:pointer;">
+                        <i class="fas fa-shopping-cart"></i> Purchase - {{ price_display }}
+                    </button>
+                    <div class="form-error" id="purchaseError" style="display:none;"></div>
+                </div>
+                <div id="paidPackHasAccess" style="display:none;">
+                    <p style="color: #43b581; font-weight: 600; margin-bottom: 1rem;"><i class="fas fa-check-circle"></i> You already own this pack!</p>
+                    <a href="/chat" class="btn-primary" style="display:block;text-align:center;text-decoration:none;padding:0.9rem;">Start Chatting</a>
+                </div>
+            </div>
+            {% else %}
+            {# Free pack: registration form (for new users) + claim button (for logged-in users) #}
+            <div id="freePackNotLoggedIn" style="display:none;">
+                <form class="cta-form" id="packRegForm" novalidate>
+                    <input type="hidden" name="pack_id" value="{{ pack.id }}">
+                    <input type="hidden" name="public_id" value="{{ pack.public_id }}">
+                    <div class="form-group">
+                        <label for="regEmail">Email</label>
+                        <input type="email" id="regEmail" name="email" placeholder="you@example.com" required autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="regPassword">Password</label>
+                        <input type="password" id="regPassword" name="password" placeholder="Min. 8 characters" required autocomplete="new-password" minlength="8">
+                    </div>
+                    <div class="form-group">
+                        <label for="regPasswordConfirm">Confirm Password</label>
+                        <input type="password" id="regPasswordConfirm" name="password_confirm" placeholder="Repeat password" required autocomplete="new-password">
+                    </div>
+                    <button type="submit" class="btn-primary" id="regSubmitBtn">Sign Up &amp; Get Access</button>
+                    <div class="form-error" id="regError"></div>
+                    <div class="form-success" id="regSuccess"></div>
+                </form>
+                {% if google_oauth_available %}
+                <div style="display: flex; align-items: center; gap: 12px; margin: 1rem 0;">
+                    <hr style="flex: 1; border-color: rgba(255,255,255,0.15);">
+                    <span style="color: #a0a3b1; font-size: 0.85rem;">or</span>
+                    <hr style="flex: 1; border-color: rgba(255,255,255,0.15);">
+                </div>
+                <a href="/auth/google?pack_id={{ pack.id }}" class="btn-primary" style="display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; padding: 0.75rem; background: transparent; border: 1px solid rgba(255,255,255,0.2); color: #fff;">
+                    <img src="/static/img/providers/google.svg" width="18" height="18" alt="">
+                    Sign in with Google
+                </a>
+                {% endif %}
+                <p class="cta-login">
+                    Already have an account? <a href="/login?next=/pack/{{ pack.public_id }}/{{ pack.slug }}/">Login &amp; Add Pack</a>
+                </p>
+            </div>
+
+            <div id="freePackLoggedIn" style="display:none;">
+                <div id="freePackNeedsAccess">
+                    <button class="btn-primary" id="claimFreeBtn" onclick="claimFreePack()" style="width:100%;padding:0.9rem;font-size:1.1rem;cursor:pointer;">
+                        <i class="fas fa-gift"></i> Get This Pack - Free
+                    </button>
+                    <div class="form-error" id="claimError" style="display:none;"></div>
+                </div>
+                <div id="freePackHasAccess" style="display:none;">
+                    <p style="color: #43b581; font-weight: 600; margin-bottom: 1rem;"><i class="fas fa-check-circle"></i> You already have this pack!</p>
+                    <a href="/chat" class="btn-primary" style="display:block;text-align:center;text-decoration:none;padding:0.9rem;">Start Chatting</a>
+                </div>
+            </div>
+            {% endif %}
+        </section>
+
+        <footer class="landing-footer">
+            Powered by <a href="/">SPARK</a>
+        </footer>
+    </div>
+
+    <script>
+    (function() {
+        const PACK_ID = {{ pack.id }};
+        const IS_PAID = {{ 'true' if is_paid else 'false' }};
+
+        // Registration form handler (works for both free and paid packs)
+        const form = document.getElementById('packRegForm');
+        if (form) {
+            const errorEl = document.getElementById('regError');
+            const successEl = document.getElementById('regSuccess');
+            const submitBtn = document.getElementById('regSubmitBtn');
+
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                errorEl.style.display = 'none';
+                successEl.style.display = 'none';
+
+                const email = form.email.value.trim();
+                const password = form.password.value;
+                const passwordConfirm = form.password_confirm.value;
+
+                if (!email || !password || !passwordConfirm) {
+                    showError('Please fill in all fields.');
+                    return;
+                }
+                if (password.length < 8) {
+                    showError('Password must be at least 8 characters.');
+                    return;
+                }
+                if (password !== passwordConfirm) {
+                    showError('Passwords do not match.');
+                    return;
+                }
+
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Creating account...';
+
+                try {
+                    const res = await fetch('/api/register-pack', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            email: email,
+                            password: password,
+                            password_confirm: passwordConfirm,
+                            pack_id: parseInt(form.pack_id.value),
+                            public_id: form.public_id.value
+                        })
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        const msg = IS_PAID
+                            ? 'Account created! Check your email to verify, then come back to purchase.'
+                            : (data.message || 'Account created! Check your email to verify.');
+                        showSuccess(msg);
+                        form.reset();
+                    } else {
+                        showError(data.detail || data.message || 'Registration failed. Please try again.');
+                    }
+                } catch (err) {
+                    showError('Connection error. Please try again.');
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = IS_PAID ? 'Sign Up' : 'Sign Up & Get Access';
+                }
+            });
+
+            function showError(msg) {
+                errorEl.textContent = msg;
+                errorEl.style.display = 'block';
+            }
+            function showSuccess(msg) {
+                successEl.textContent = msg;
+                successEl.style.display = 'block';
+            }
+        }
+
+        // Detect login state and toggle UI (both free and paid packs)
+        checkLoginState();
+
+        async function checkLoginState() {
+            try {
+                const res = await fetch('/api/check-session', { credentials: 'include' });
+                if (res.ok) {
+                    const sessionData = await res.json();
+                    if (sessionData.expired) {
+                        // Not logged in - show registration form
+                        if (IS_PAID) {
+                            const notLoggedIn = document.getElementById('paidPackNotLoggedIn');
+                            if (notLoggedIn) notLoggedIn.style.display = '';
+                        } else {
+                            const notLoggedIn = document.getElementById('freePackNotLoggedIn');
+                            if (notLoggedIn) notLoggedIn.style.display = '';
+                        }
+                        return;
+                    }
+                    // User is logged in
+                    if (IS_PAID) {
+                        document.getElementById('paidPackNotLoggedIn').style.display = 'none';
+                        document.getElementById('paidPackLoggedIn').style.display = 'block';
+                    } else {
+                        document.getElementById('freePackNotLoggedIn').style.display = 'none';
+                        document.getElementById('freePackLoggedIn').style.display = 'block';
+                    }
+
+                    // Check pack access
+                    const accessRes = await fetch(`/api/packs/${PACK_ID}/check-access`);
+                    if (accessRes.ok) {
+                        const accessData = await accessRes.json();
+                        if (accessData.has_access) {
+                            if (IS_PAID) {
+                                document.getElementById('paidPackNeedsAccess').style.display = 'none';
+                                document.getElementById('paidPackHasAccess').style.display = 'block';
+                            } else {
+                                document.getElementById('freePackNeedsAccess').style.display = 'none';
+                                document.getElementById('freePackHasAccess').style.display = 'block';
+                            }
+                        }
+                    }
+                } else {
+                    // Session check returned non-ok - show registration form
+                    if (IS_PAID) {
+                        const notLoggedIn = document.getElementById('paidPackNotLoggedIn');
+                        if (notLoggedIn) notLoggedIn.style.display = '';
+                    } else {
+                        const notLoggedIn = document.getElementById('freePackNotLoggedIn');
+                        if (notLoggedIn) notLoggedIn.style.display = '';
+                    }
+                }
+            } catch (e) {
+                console.warn('Session check failed:', e);
+                if (IS_PAID) {
+                    const notLoggedIn = document.getElementById('paidPackNotLoggedIn');
+                    if (notLoggedIn) notLoggedIn.style.display = '';
+                } else {
+                    const notLoggedIn = document.getElementById('freePackNotLoggedIn');
+                    if (notLoggedIn) notLoggedIn.style.display = '';
+                }
+            }
+        }
+    })();
+
+    async function purchasePack() {
+        const btn = document.getElementById('purchaseBtn');
+        const errEl = document.getElementById('purchaseError');
+        errEl.style.display = 'none';
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+
+        try {
+            const res = await fetch('/api/packs/{{ pack.id }}/purchase', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+            const data = await res.json();
+
+            if (res.ok && data.checkout_url) {
+                window.location.href = data.checkout_url;
+                return;
+            }
+            if (res.ok && data.free_purchase) {
+                window.location.href = data.redirect || '/chat';
+                return;
+            }
+            if (res.ok && data.redirect) {
+                window.location.href = data.redirect;
+                return;
+            }
+            errEl.textContent = data.detail || data.message || 'Purchase failed.';
+            errEl.style.display = 'block';
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-shopping-cart"></i> Purchase - {{ price_display }}';
+        } catch (err) {
+            errEl.textContent = 'Connection error. Please try again.';
+            errEl.style.display = 'block';
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-shopping-cart"></i> Purchase - {{ price_display }}';
+        }
+    }
+
+    async function claimFreePack() {
+        const btn = document.getElementById('claimFreeBtn');
+        const errEl = document.getElementById('claimError');
+        errEl.style.display = 'none';
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Claiming...';
+
+        try {
+            const res = await fetch('/api/packs/{{ pack.id }}/claim-free', {
+                method: 'POST',
+                credentials: 'include'
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                window.location.href = data.redirect || '/chat';
+                return;
+            }
+            if (res.status === 401) {
+                window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname);
+                return;
+            }
+            errEl.textContent = data.detail || data.message || 'Failed to claim pack.';
+            errEl.style.display = 'block';
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-gift"></i> Get This Pack - Free';
+        } catch (err) {
+            errEl.textContent = 'Connection error. Please try again.';
+            errEl.style.display = 'block';
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-gift"></i> Get This Pack - Free';
+        }
+    }
+    </script>
+</body>
+</html>

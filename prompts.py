@@ -32,6 +32,8 @@ from common import (
     slugify,
     templates,
     users_directory,
+    VALID_NOTICE_PERIODS,
+    MAX_FREE_INITIAL_BALANCE,
 )
 from security_config import is_forbidden_prompt_name
 
@@ -257,6 +259,7 @@ async def create_prompt_post(
     llm_mode: str = Form("any"),
     forced_llm_id: Optional[int] = Form(None),
     hide_llm_name: bool = Form(False),
+    allowed_llms: Optional[str] = Form(None),
     disable_web_search: bool = Form(False),
     enable_moderation: bool = Form(False),
     watchdog_config: Optional[str] = Form(None)
@@ -322,19 +325,38 @@ async def create_prompt_post(
 
             # Process pricing fields
             is_paid_bool = bool(is_paid)
-            actual_forced_llm_id = forced_llm_id if llm_mode == "forced" and forced_llm_id else None
-            actual_hide_llm_name = hide_llm_name if llm_mode == "forced" else False
             actual_markup = markup_per_mtokens if is_paid_bool else 0.0
+
+            # Process LLM restriction mode
+            actual_allowed_llms = None
+            if llm_mode == "restricted" and allowed_llms:
+                parsed = orjson.loads(allowed_llms)
+                if not isinstance(parsed, list) or not all(isinstance(x, int) for x in parsed):
+                    raise HTTPException(status_code=400, detail="Invalid allowed_llms format")
+                if not parsed:
+                    raise HTTPException(status_code=400, detail="Restricted mode requires at least one model selected")
+                actual_allowed_llms = allowed_llms
+                actual_forced_llm_id = None
+                actual_hide_llm_name = False
+            elif llm_mode == "forced" and forced_llm_id:
+                actual_forced_llm_id = forced_llm_id
+                actual_hide_llm_name = hide_llm_name
+                actual_allowed_llms = None
+            else:
+                # "any" mode or no valid forced/restricted config
+                actual_forced_llm_id = None
+                actual_hide_llm_name = False
+                actual_allowed_llms = None
 
             # Insert the new prompt with the found voice_id and pricing fields
             cursor = await conn.execute(
                 """INSERT INTO Prompts (name, prompt, description, voice_id, created_by_user_id, created_at, public,
                    is_paid, markup_per_mtokens, forced_llm_id, hide_llm_name, disable_web_search, enable_moderation,
-                   watchdog_config)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   watchdog_config, allowed_llms)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (name, prompt, description, voice_id, current_user.id, datetime.utcnow(), public,
                  is_paid_bool, actual_markup, actual_forced_llm_id, actual_hide_llm_name, disable_web_search, enable_moderation,
-                 watchdog_config_json)
+                 watchdog_config_json, actual_allowed_llms)
             )
             prompt_id = cursor.lastrowid
 
@@ -374,7 +396,8 @@ async def edit_prompt(request: Request, prompt_id: int, current_user: User = Dep
         # Get prompt information including pricing fields
         async with conn.execute("""SELECT name, prompt, description, voice_id, image, created_by_user_id, public,
                                           is_paid, markup_per_mtokens, forced_llm_id, hide_llm_name, disable_web_search,
-                                          enable_moderation, watchdog_config
+                                          enable_moderation, watchdog_config, allow_in_packs, pack_notice_period_days,
+                                          allowed_llms
                                    FROM Prompts WHERE id = ?""", (prompt_id,)) as cursor:
             prompt = await cursor.fetchone()
         
@@ -472,6 +495,11 @@ async def edit_prompt(request: Request, prompt_id: int, current_user: User = Dep
         "enable_moderation": prompt[12] if prompt[12] else False,
         # Watchdog config
         "watchdog_config": _parse_watchdog_config_for_template(prompt[13]),
+        # Pack inclusion settings
+        "allow_in_packs": bool(prompt[14]) if prompt[14] else False,
+        "pack_notice_period_days": prompt[15] if prompt[15] else 0,
+        # Allowed LLMs (restricted mode)
+        "allowed_llms_json": prompt[16] or "[]",
     })
     return templates.TemplateResponse("prompts/edit_prompt.html", context)
 
@@ -496,9 +524,13 @@ async def update_prompt(
     llm_mode: str = Form("any"),
     forced_llm_id: Optional[int] = Form(None),
     hide_llm_name: bool = Form(False),
+    allowed_llms: Optional[str] = Form(None),
     disable_web_search: bool = Form(False),
     enable_moderation: bool = Form(False),
-    watchdog_config: Optional[str] = Form(None)
+    watchdog_config: Optional[str] = Form(None),
+    # Pack inclusion settings
+    allow_in_packs: bool = Form(False),
+    pack_notice_period_days: int = Form(0),
 ):
     if current_user is None:
         return templates.TemplateResponse("login.html", {"request": request})
@@ -592,20 +624,83 @@ async def update_prompt(
 
             # Process pricing fields
             is_paid_bool = bool(is_paid)
-            actual_forced_llm_id = forced_llm_id if llm_mode == "forced" and forced_llm_id else None
-            actual_hide_llm_name = hide_llm_name if llm_mode == "forced" else False
             actual_markup = markup_per_mtokens if is_paid_bool else 0.0
 
-            # Update the prompt information including pricing fields
+            # Process LLM restriction mode
+            actual_allowed_llms = None
+            if llm_mode == "restricted" and allowed_llms:
+                parsed = orjson.loads(allowed_llms)
+                if not isinstance(parsed, list) or not all(isinstance(x, int) for x in parsed):
+                    raise HTTPException(status_code=400, detail="Invalid allowed_llms format")
+                if not parsed:
+                    raise HTTPException(status_code=400, detail="Restricted mode requires at least one model selected")
+                actual_allowed_llms = allowed_llms
+                actual_forced_llm_id = None
+                actual_hide_llm_name = False
+            elif llm_mode == "forced" and forced_llm_id:
+                actual_forced_llm_id = forced_llm_id
+                actual_hide_llm_name = hide_llm_name
+                actual_allowed_llms = None
+            else:
+                # "any" mode or no valid forced/restricted config
+                actual_forced_llm_id = None
+                actual_hide_llm_name = False
+                actual_allowed_llms = None
+
+            # Process pack inclusion fields
+            # Fetch current values first (needed for withdrawal detection and never-decrease rule)
+            await cursor.execute(
+                "SELECT pack_notice_period_days, allow_in_packs FROM Prompts WHERE id = ?", (prompt_id,)
+            )
+            current_notice = await cursor.fetchone()
+            current_notice_days = current_notice[0] if current_notice and current_notice[0] else 0
+            prev_allow_in_packs = bool(current_notice[1]) if current_notice else False
+
+            if not public:
+                allow_in_packs = False
+                pack_notice_period_days = 0
+            if not allow_in_packs:
+                pack_notice_period_days = 0
+
+            # Determine if this is a withdrawal (allow_in_packs going true -> false)
+            is_withdrawal = prev_allow_in_packs and not allow_in_packs
+
+            if pack_notice_period_days not in VALID_NOTICE_PERIODS:
+                raise HTTPException(status_code=400, detail=f"Invalid notice period. Allowed: {VALID_NOTICE_PERIODS}")
+            # Enforce never-decrease rule only when NOT withdrawing
+            # Withdrawal resets to 0 legitimately; the snapshot on PACK_ITEMS preserves the contract
+            if not is_withdrawal and pack_notice_period_days < current_notice_days:
+                raise HTTPException(status_code=400, detail=f"Notice period can only be increased. Current: {current_notice_days} days")
+
+            # Update the prompt information including pricing and pack fields
             await cursor.execute(
                 """UPDATE Prompts SET name = ?, prompt = ?, description = ?, voice_id = ?, public = ?,
                    is_paid = ?, markup_per_mtokens = ?, forced_llm_id = ?, hide_llm_name = ?, disable_web_search = ?,
-                   enable_moderation = ?, watchdog_config = ?
+                   enable_moderation = ?, watchdog_config = ?, allow_in_packs = ?, pack_notice_period_days = ?,
+                   allowed_llms = ?
                    WHERE id = ?""",
                 (name, prompt, description, voice_id, public,
                  is_paid_bool, actual_markup, actual_forced_llm_id, actual_hide_llm_name, disable_web_search,
-                 enable_moderation, watchdog_config_json, prompt_id)
+                 enable_moderation, watchdog_config_json, allow_in_packs, pack_notice_period_days,
+                 actual_allowed_llms, prompt_id)
             )
+
+            # Handle pack withdrawal: when allow_in_packs goes from true to false,
+            # schedule or deactivate PACK_ITEMS based on notice_period_snapshot
+            if prev_allow_in_packs and not allow_in_packs:
+                # Immediate deactivation for items with no notice period
+                await cursor.execute(
+                    """UPDATE PACK_ITEMS SET is_active = 0
+                       WHERE prompt_id = ? AND is_active = 1 AND notice_period_snapshot = 0""",
+                    (prompt_id,)
+                )
+                # Schedule deactivation for items with notice period
+                await cursor.execute(
+                    """UPDATE PACK_ITEMS SET disable_at = datetime('now', '+' || notice_period_snapshot || ' days')
+                       WHERE prompt_id = ? AND is_active = 1 AND notice_period_snapshot > 0 AND disable_at IS NULL""",
+                    (prompt_id,)
+                )
+                logger.info(f"Prompt {prompt_id} withdrawn from packs by creator")
 
             # Update or create the owner
             if new_owner_id:
@@ -1056,34 +1151,58 @@ async def get_manageable_prompts(user_id: int, is_admin: bool = False) -> list:
             ]
 
 
-# Function to get the user directory path
+# =============================================================================
+# Filesystem Helpers (generic entity system: prompts & packs)
+# =============================================================================
+
 def get_user_directory(username: str) -> str:
+    """Get the base directory for a user based on their hashed username."""
     hash_prefix1, hash_prefix2, user_hash = generate_user_hash(username)
     return os.path.join(users_directory, hash_prefix1, hash_prefix2, user_hash)
+
 
 def get_user_prompts_directory(username: str) -> str:
     user_dir = get_user_directory(username)
     return os.path.join(user_dir, "prompts")
 
 
-# Function to create the prompt directory
-def create_prompt_directory(username: str, prompt_id: Union[int, str], prompt_name: str) -> str:
+def _create_entity_directory(
+    entity_type: str, username: str, entity_id: Union[int, str], entity_name: str
+) -> str:
+    """
+    Create a directory for a prompt or pack entity.
+    entity_type must be 'prompts' or 'packs'.
+    ID is 7-digit zero-padded, split into prefix (3) and suffix (4).
+    """
     user_dir = get_user_directory(username)
-    sanitized_name = sanitize_name(prompt_name)
-    padded_id = f"{int(prompt_id):07d}"
-    prompt_dir = os.path.join(user_dir, "prompts", padded_id[:3], f"{padded_id[3:]}_{sanitized_name}")
-    
-    if not os.path.exists(prompt_dir):
-        os.makedirs(prompt_dir)
-    
-    return prompt_dir
+    sanitized_name = sanitize_name(entity_name)
+    padded_id = f"{int(entity_id):07d}"
+    entity_dir = os.path.join(
+        user_dir, entity_type, padded_id[:3], f"{padded_id[3:]}_{sanitized_name}"
+    )
+
+    if not os.path.exists(entity_dir):
+        os.makedirs(entity_dir)
+
+    return entity_dir
+
+
+def create_prompt_directory(username: str, prompt_id: Union[int, str], prompt_name: str) -> str:
+    """Create and return the directory for a prompt."""
+    return _create_entity_directory("prompts", username, prompt_id, prompt_name)
+
+
+def create_pack_directory(username: str, pack_id: Union[int, str], pack_name: str) -> str:
+    """Create and return the directory for a pack."""
+    return _create_entity_directory("packs", username, pack_id, pack_name)
+
 
 # Function to get prompt information
 async def get_prompt_info(prompt_id: int) -> dict:
     async with get_db_connection(readonly=True) as conn:
         async with conn.cursor() as cursor:
             await cursor.execute("""
-                SELECT p.name, p.created_by_user_id, u.username 
+                SELECT p.name, p.created_by_user_id, u.username
                 FROM PROMPTS p
                 JOIN USERS u ON p.created_by_user_id = u.id
                 WHERE p.id = ?
@@ -1098,18 +1217,50 @@ async def get_prompt_info(prompt_id: int) -> dict:
             else:
                 raise HTTPException(status_code=404, detail="Prompt not found")
 
-# Function to get the prompt path
+
+def _get_entity_path(
+    entity_type: str, entity_id: int, entity_info: dict
+) -> str:
+    """Get (and create if needed) directory for a prompt or pack."""
+    return _create_entity_directory(
+        entity_type, entity_info['created_by_username'], entity_id, entity_info['name']
+    )
+
+
 def get_prompt_path(prompt_id: int, prompt_info: dict) -> str:
-    return create_prompt_directory(prompt_info['created_by_username'], prompt_id, prompt_info['name'])
+    """Get the filesystem path for a prompt."""
+    return _get_entity_path("prompts", prompt_id, prompt_info)
 
-# Function to get the prompt templates directory
+
+def get_pack_path(pack_id: int, pack_info: dict) -> str:
+    """Get the filesystem path for a pack."""
+    return _get_entity_path("packs", pack_id, pack_info)
+
+
+def _get_entity_templates_dir(entity_type: str, entity_id: int, entity_info: dict) -> str:
+    entity_dir = _get_entity_path(entity_type, entity_id, entity_info)
+    return os.path.join(entity_dir, "templates")
+
+
 def get_prompt_templates_dir(prompt_id: int, prompt_info: dict) -> str:
-    prompt_dir = get_prompt_path(prompt_id, prompt_info)
-    return os.path.join(prompt_dir, "templates")
+    """Get the templates directory for a prompt."""
+    return _get_entity_templates_dir("prompts", prompt_id, prompt_info)
 
-# Function to get the prompt components directory
+
+def get_pack_templates_dir(pack_id: int, pack_info: dict) -> str:
+    """Get the templates directory for a pack."""
+    return _get_entity_templates_dir("packs", pack_id, pack_info)
+
+
 def get_prompt_components_dir(prompt_id: int, prompt_info: dict) -> str:
+    """Get the components directory for a prompt."""
     templates_dir = get_prompt_templates_dir(prompt_id, prompt_info)
+    return os.path.join(templates_dir, "components")
+
+
+def get_pack_components_dir(pack_id: int, pack_info: dict) -> str:
+    """Get the components directory for a pack."""
+    templates_dir = get_pack_templates_dir(pack_id, pack_info)
     return os.path.join(templates_dir, "components")
 
 
@@ -1169,12 +1320,16 @@ async def get_landing_registration_config(prompt_id: int) -> dict:
             return config
 
 
-async def set_landing_registration_config(prompt_id: int, config: dict) -> bool:
+def sanitize_landing_reg_config(config: dict, max_initial_balance: float = MAX_FREE_INITIAL_BALANCE) -> dict:
     """
-    Set the landing registration configuration for a prompt.
-    Returns True on success, False on failure.
+    Sanitize and validate a landing_reg_config dict.
+    Whitelists known fields, validates types, and caps initial_balance.
+    Used by both prompts and packs.
+
+    Args:
+        config: raw config dict from user input
+        max_initial_balance: cap for initial_balance (varies by context)
     """
-    # Validate and sanitize config
     sanitized = {}
 
     # default_llm_id - must be integer or None
@@ -1187,10 +1342,13 @@ async def set_landing_registration_config(prompt_id: int, config: dict) -> bool:
         if field in config:
             sanitized[field] = bool(config[field])
 
-    # initial_balance - must be non-negative float
+    # initial_balance - must be non-negative float, capped at max_initial_balance
     if "initial_balance" in config:
-        val = float(config.get("initial_balance", 0))
-        sanitized["initial_balance"] = max(0.0, val)
+        try:
+            val = float(config.get("initial_balance", 0))
+        except (ValueError, TypeError):
+            val = 0.0
+        sanitized["initial_balance"] = round(min(max(0.0, val), max_initial_balance), 2)
 
     # billing_mode - must be one of the allowed values
     if "billing_mode" in config:
@@ -1232,7 +1390,6 @@ async def set_landing_registration_config(prompt_id: int, config: dict) -> bool:
         if val in (None, "", "null"):
             sanitized["category_access"] = None
         elif isinstance(val, list):
-            # Ensure all elements are integers
             sanitized["category_access"] = [int(x) for x in val]
         elif isinstance(val, str):
             try:
@@ -1241,6 +1398,16 @@ async def set_landing_registration_config(prompt_id: int, config: dict) -> bool:
                     sanitized["category_access"] = [int(x) for x in parsed]
             except (orjson.JSONDecodeError, ValueError):
                 pass
+
+    return sanitized
+
+
+async def set_landing_registration_config(prompt_id: int, config: dict) -> bool:
+    """
+    Set the landing registration configuration for a prompt.
+    Returns True on success, False on failure.
+    """
+    sanitized = sanitize_landing_reg_config(config, max_initial_balance=MAX_FREE_INITIAL_BALANCE)
 
     try:
         config_json = orjson.dumps(sanitized).decode('utf-8')

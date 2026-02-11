@@ -1,6 +1,7 @@
 # models.py
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from fastapi import WebSocket, WebSocketDisconnect
 import asyncio
 import logging
@@ -171,4 +172,83 @@ class User:
             "uses_magic_link": self.uses_magic_link,
             "authentication_mode": self.authentication_mode,
             "can_change_password": self.can_change_password
+        }
+
+
+@dataclass
+class Pack:
+    id: int
+    name: str
+    slug: str
+    created_by_user_id: int
+    description: Optional[str] = None
+    cover_image: Optional[str] = None
+    is_public: bool = False
+    is_paid: bool = False
+    price: float = 0.00
+    status: str = "draft"
+    public_id: Optional[str] = None
+    landing_reg_config: Optional[str] = None
+    tags: Optional[str] = None
+    max_items: int = 50
+    has_custom_landing: bool = False
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    # Joined fields (not stored in PACKS table)
+    created_by_username: Optional[str] = None
+    item_count: int = 0
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "slug": self.slug,
+            "description": self.description,
+            "cover_image": self.cover_image,
+            "created_by_user_id": self.created_by_user_id,
+            "created_by_username": self.created_by_username,
+            "is_public": self.is_public,
+            "is_paid": self.is_paid,
+            "price": self.price,
+            "status": self.status,
+            "public_id": self.public_id,
+            "tags": self.tags,
+            "max_items": self.max_items,
+            "has_custom_landing": self.has_custom_landing,
+            "item_count": self.item_count,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+
+
+@dataclass
+class PackItem:
+    id: int
+    pack_id: int
+    prompt_id: int
+    display_order: int = 0
+    notice_period_snapshot: int = 0
+    disable_at: Optional[str] = None
+    is_active: bool = True
+    added_at: Optional[str] = None
+    # Joined fields from PROMPTS table
+    prompt_name: Optional[str] = None
+    prompt_description: Optional[str] = None
+    prompt_image: Optional[str] = None
+    prompt_owner_username: Optional[str] = None
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "pack_id": self.pack_id,
+            "prompt_id": self.prompt_id,
+            "display_order": self.display_order,
+            "notice_period_snapshot": self.notice_period_snapshot,
+            "disable_at": self.disable_at,
+            "is_active": self.is_active,
+            "added_at": self.added_at,
+            "prompt_name": self.prompt_name,
+            "prompt_description": self.prompt_description,
+            "prompt_image": self.prompt_image,
+            "prompt_owner_username": self.prompt_owner_username,
         }

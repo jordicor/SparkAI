@@ -103,7 +103,7 @@
                         {% endif %}
                     </td>
                     <td class="text-end table-actions">
-                        <form method="post" action="/admin/elevenlabs-agents/{{ agent.agent_id }}/delete" class="d-inline" onsubmit="return confirm('Delete this agent?');">
+                        <form method="post" action="/admin/elevenlabs-agents/{{ agent.agent_id }}/delete" class="d-inline elevenlabs-delete-form">
                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete" data-bs-toggle="tooltip">
                                 <i class="fas fa-trash"></i>
                             </button>
@@ -204,4 +204,18 @@
         </table>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+document.querySelectorAll('.elevenlabs-delete-form').forEach(function(form) {
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const f = this;
+        NotificationModal.confirm('Delete Agent', 'Delete this agent?', function() {
+            f.submit();
+        }, null, { type: 'error', confirmText: 'Delete' });
+    });
+});
+</script>
 {% endblock %}

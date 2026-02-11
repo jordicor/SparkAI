@@ -170,27 +170,31 @@
     }
 
     function clearDramatiq() {
-        if (!confirm("Are you sure you want to delete all Dramatiq tasks? This action cannot be undone.")) {
-            return;
-        }
-
-        fetch('/admin/clear-dramatiq', {
-            method: 'POST',
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                NotificationModal.success('Tasks Cleared', 'All Dramatiq tasks have been deleted.');
-                location.reload();
-            } else {
-                console.error("Error clearing Dramatiq:", data.error);
-                NotificationModal.error('Clear Failed', 'Error clearing Dramatiq: ' + data.error);
-            }
-        })
-        .catch(error => {
-            console.error("Error in cleanup request:", error);
-            NotificationModal.error('Request Error', 'Error in cleanup request: ' + error);
-        });
+        NotificationModal.confirm(
+            'Clear All Tasks',
+            'Are you sure you want to delete all Dramatiq tasks? This action cannot be undone.',
+            () => {
+                fetch('/admin/clear-dramatiq', {
+                    method: 'POST',
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        NotificationModal.success('Tasks Cleared', 'All Dramatiq tasks have been deleted.');
+                        location.reload();
+                    } else {
+                        console.error("Error clearing Dramatiq:", data.error);
+                        NotificationModal.error('Clear Failed', 'Error clearing Dramatiq: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error("Error in cleanup request:", error);
+                    NotificationModal.error('Request Error', 'Error in cleanup request: ' + error);
+                });
+            },
+            null,
+            { type: 'error', confirmText: 'Delete All' }
+        );
     }
 </script>
 {% endblock %}

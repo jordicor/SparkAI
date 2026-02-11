@@ -43,17 +43,19 @@ def create_job(
     prompt_id: int,
     job_type: Literal["generate", "modify"],
     timeout_seconds: int = 300,
-    request_data: dict = None
+    request_data: dict = None,
+    pack_id: int = None
 ) -> dict:
     """
     Create a new job record.
 
     Args:
         task_id: Unique job identifier
-        prompt_id: The prompt being processed
+        prompt_id: The prompt being processed (0 when pack_id is set)
         job_type: "generate" or "modify"
         timeout_seconds: Max time before considering job timed out
         request_data: Original request parameters
+        pack_id: The pack being processed (None for prompt jobs)
 
     Returns:
         The job record dict
@@ -63,6 +65,7 @@ def create_job(
     job = {
         "task_id": task_id,
         "prompt_id": prompt_id,
+        "pack_id": pack_id,
         "type": job_type,
         "status": "pending",
         "pid": None,
@@ -273,6 +276,31 @@ def get_active_job_for_prompt(prompt_id: int) -> Optional[dict]:
     return None
 
 
+def get_active_job_for_pack(pack_id: int) -> Optional[dict]:
+    """
+    Check if there's already an active job for this pack.
+
+    Args:
+        pack_id: The pack ID
+
+    Returns:
+        Active job record or None
+    """
+    for job_file in JOBS_DIR.glob("*.json"):
+        try:
+            with open(job_file, 'r', encoding='utf-8') as f:
+                job = json.load(f)
+
+            if job.get("pack_id") == pack_id and job.get("status") in ("pending", "running"):
+                job = _check_job_timeout(job)
+                if job.get("status") in ("pending", "running"):
+                    return job
+        except Exception:
+            pass
+
+    return None
+
+
 # Worker script content - executed as subprocess
 WORKER_SCRIPT = '''
 import sys
@@ -354,27 +382,34 @@ def start_job(
     job_type: Literal["generate", "modify"],
     prompt_dir: str,
     params: dict,
-    timeout_seconds: int = 300
+    timeout_seconds: int = 300,
+    pack_id: int = None
 ) -> dict:
     """
     Start a background job for landing page generation/modification.
 
     Args:
-        prompt_id: The prompt being processed
+        prompt_id: The prompt being processed (0 when pack_id is set)
         job_type: "generate" or "modify"
-        prompt_dir: Absolute path to prompt directory
+        prompt_dir: Absolute path to prompt/pack directory
         params: Parameters for the wizard function
         timeout_seconds: Max execution time
+        pack_id: The pack being processed (None for prompt jobs)
 
     Returns:
         Job record with task_id
     """
     # Check for existing active job
-    existing = get_active_job_for_prompt(prompt_id)
+    if pack_id:
+        existing = get_active_job_for_pack(pack_id)
+        entity_label = "pack"
+    else:
+        existing = get_active_job_for_prompt(prompt_id)
+        entity_label = "prompt"
     if existing:
         return {
             "success": False,
-            "error": "A job is already running for this prompt",
+            "error": f"A job is already running for this {entity_label}",
             "existing_task_id": existing["task_id"]
         }
 
@@ -385,7 +420,8 @@ def start_job(
         prompt_id=prompt_id,
         job_type=job_type,
         timeout_seconds=timeout_seconds,
-        request_data=params
+        request_data=params,
+        pack_id=pack_id
     )
 
     # Write worker script to temp file
@@ -423,12 +459,15 @@ def start_job(
         # Update job with PID
         update_job(task_id, pid=process.pid)
 
-        return {
+        result = {
             "success": True,
             "task_id": task_id,
             "status": "pending",
             "prompt_id": prompt_id
         }
+        if pack_id:
+            result["pack_id"] = pack_id
+        return result
 
     except Exception as e:
         # Clean up on failure

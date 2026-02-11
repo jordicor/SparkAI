@@ -430,15 +430,6 @@
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-        // Restore saved prompt selection
-        const promptSelect = document.getElementById("prompt");
-        if (promptSelect) {
-            const savedPromptId = localStorage.getItem('selectedPromptId');
-            if (savedPromptId) {
-                promptSelect.value = savedPromptId;
-            }
-        }
-
         const cacheOptions = document.getElementById('cacheOptions');
         if (cacheOptions) {
             cacheOptions.style.display = 'none';

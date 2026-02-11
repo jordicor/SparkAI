@@ -89,21 +89,27 @@
 {% block scripts_inline %}
 <script>
     function deleteVoice(voiceId) {
-        if (confirm('Are you sure you want to delete this voice?')) {
-            fetch(`/admin/voices/delete/${voiceId}`, {
-                method: 'DELETE'
-            }).then(response => {
-                if (response.ok) {
-                    const row = document.querySelector(`tr[data-voice-id="${voiceId}"]`);
-                    if (row) {
-                        row.remove();
-                        updateStats();
+        NotificationModal.confirm(
+            'Delete Voice',
+            'Are you sure you want to delete this voice?',
+            () => {
+                fetch(`/admin/voices/delete/${voiceId}`, {
+                    method: 'DELETE'
+                }).then(response => {
+                    if (response.ok) {
+                        const row = document.querySelector(`tr[data-voice-id="${voiceId}"]`);
+                        if (row) {
+                            row.remove();
+                            updateStats();
+                        }
+                    } else {
+                        NotificationModal.error('Delete Failed', 'Failed to delete voice.');
                     }
-                } else {
-                    NotificationModal.error('Delete Failed', 'Failed to delete voice.');
-                }
-            }).catch(error => console.error('Error:', error));
-        }
+                }).catch(error => console.error('Error:', error));
+            },
+            null,
+            { type: 'error', confirmText: 'Delete' }
+        );
     }
 
     function updateStats() {

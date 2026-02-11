@@ -123,7 +123,7 @@ function downloadMp3(path) {
 }
 
 function deleteMp3(path) {
-    if (confirm('Are you sure you want to delete this MP3?')) {
+    NotificationModal.confirm('Delete MP3', 'Are you sure you want to delete this MP3?', () => {
         fetch('/delete-mp3', {
             method: 'POST',
             headers: {
@@ -145,7 +145,7 @@ function deleteMp3(path) {
             console.error('Error:', error);
             NotificationModal.error('Delete Error', 'An error occurred while deleting the MP3.');
         });
-    }
+    }, null, { type: 'error', confirmText: 'Delete' });
 }
 
 function deleteSelectedMp3s() {
@@ -155,9 +155,9 @@ function deleteSelectedMp3s() {
         return;
     }
 
-    if (confirm(`Are you sure you want to delete ${selectedMp3s.length} selected MP3s?`)) {
+    NotificationModal.confirm('Delete MP3s', `Are you sure you want to delete ${selectedMp3s.length} selected MP3s?`, () => {
         const mp3Paths = Array.from(selectedMp3s).map(checkbox => decodeURIComponent(checkbox.dataset.path));
-        
+
         fetch('/delete-mp3s', {
             method: 'POST',
             headers: {
@@ -174,7 +174,7 @@ function deleteSelectedMp3s() {
             console.error('Error:', error);
             NotificationModal.error('Delete Error', 'An error occurred while deleting the MP3s');
         });
-    }
+    }, null, { type: 'error', confirmText: 'Delete' });
 }
 
 // Event Listeners

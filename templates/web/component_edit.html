@@ -40,7 +40,7 @@
                 <textarea id="content" name="content" class="form-control" rows="20">{{ content }}</textarea>
             </div>
             <button type="submit" class="btn btn-primary">Save Changes</button>
-            <a href="/landing/{{ prompt_id }}/components" class="btn btn-secondary ms-2">Back to List</a>
+            <a href="{% if is_pack %}/landing/pack/{{ prompt_id }}/components{% else %}/landing/{{ prompt_id }}/components{% endif %}" class="btn btn-secondary ms-2">Back to List</a>
         </form>
     </div>
 </div>
@@ -79,7 +79,7 @@
             var encodedContent = btoa(unescape(encodeURIComponent(content)));
 
             $.ajax({
-                url: "/api/landing/{{ prompt_id }}/components/{{ component_type }}/{{ component_name }}",
+                url: "{% if is_pack %}/api/landing/pack/{{ prompt_id }}/components/{{ component_type }}/{{ component_name }}{% else %}/api/landing/{{ prompt_id }}/components/{{ component_type }}/{{ component_name }}{% endif %}",
                 type: "PUT",
                 data: {
                     encodedContent: encodedContent

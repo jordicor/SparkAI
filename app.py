@@ -2,6 +2,7 @@ import io
 import os
 import re
 import sys
+import math
 import uuid
 import html
 import pytz
@@ -93,7 +94,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Stre
 from tools import *
 from log_config import logger
 from tools import dramatiq_tasks
-from database import get_db_connection, DB_MAX_RETRIES, DB_RETRY_DELAY_BASE, is_lock_error
+from database import get_db_connection, DB_MAX_RETRIES, DB_RETRY_DELAY_BASE, is_lock_error, grant_pack_access, check_pack_access
 from models import User, ConnectionManager
 from whatsapp import is_whatsapp_conversation
 from tasks import generate_pdf_task, generate_mp3_task, download_elevenlabs_audio_task
@@ -121,6 +122,8 @@ from ai_calls import router as ai_router
 from ai_calls import save_message, process_save_message, get_ai_response, handle_function_call, call_o1_api, call_gpt_api, call_claude_api, call_gemini_api, stop_signals, get_last_message_id
 
 from prompts import router as prompts_router
+from packs_router import router as packs_router
+from packs_router import warmup_pack_landing_cache, _pack_landing_cache_stats, _pack_landing_cache, PACK_LANDING_CACHE_SIZE
 from prompts import get_manager_accessible_prompts, get_manager_owned_prompts, create_prompt_directory, get_prompt_info, get_prompt_path, get_prompt_templates_dir, get_prompt_components_dir, can_manage_prompt, get_manageable_prompts
 from prompts import get_user_directory, get_user_prompts_directory, list_prompts, process_prompt_image_upload, create_prompt, create_prompt_post, edit_prompt, update_prompt, delete_prompt, delete_prompt_image
 from prompts import get_landing_registration_config, set_landing_registration_config, get_prompt_owner_id, DEFAULT_LANDING_REGISTRATION_CONFIG
@@ -188,6 +191,9 @@ async def lifespan(app: FastAPI):
     # Warm up landing page cache with most visited prompts
     await warmup_landing_cache()
 
+    # Warm up pack landing page cache with most visited packs
+    await warmup_pack_landing_cache()
+
     yield
 
     # Cleanup on shutdown
@@ -203,6 +209,7 @@ app = FastAPI(lifespan=lifespan)
    
 app.include_router(ai_router)
 app.include_router(prompts_router)
+app.include_router(packs_router)
 app.include_router(custom_domains_router)
 app.include_router(custom_domains_admin_router)
 
@@ -284,7 +291,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 app.add_middleware(SessionMiddleware, secret_key=os.urandom(24))
 
 # Custom Domain Middleware - configure primary domains that skip DB lookup
-PRIMARY_APP_DOMAIN = os.getenv("PRIMARY_APP_DOMAIN", "yourdomain.com")
+PRIMARY_APP_DOMAIN = os.getenv("PRIMARY_APP_DOMAIN", "localhost")
 set_primary_domains([
     PRIMARY_APP_DOMAIN,
     CLOUDFLARE_DOMAIN,
@@ -595,8 +602,16 @@ async def get_user_accessible_prompts(user: User, cursor, all_prompts_access: bo
             LEFT JOIN PROMPT_CUSTOM_DOMAINS pcd ON p.id = pcd.prompt_id
             WHERE p.created_by_user_id = ?
                 OR (pp.user_id = ? AND pp.permission_level IN ('edit', 'owner'))
+                OR p.id IN (
+                    SELECT pi.prompt_id FROM PACK_ITEMS pi
+                    JOIN PACK_ACCESS pa ON pi.pack_id = pa.pack_id
+                    WHERE pa.user_id = ?
+                      AND pi.is_active = 1
+                      AND (pi.disable_at IS NULL OR pi.disable_at > datetime('now'))
+                      AND (pa.expires_at IS NULL OR pa.expires_at > datetime('now'))
+                )
         '''
-        params = [user.id, user.id]
+        params = [user.id, user.id, user.id]
 
         if public_prompts_access:
             if category_access is None:
@@ -624,8 +639,16 @@ async def get_user_accessible_prompts(user: User, cursor, all_prompts_access: bo
             LEFT JOIN PROMPT_CUSTOM_DOMAINS pcd ON p.id = pcd.prompt_id
             WHERE p.created_by_user_id = ?
                 OR (pp.user_id = ? AND pp.permission_level IN ('edit', 'owner'))
+                OR p.id IN (
+                    SELECT pi.prompt_id FROM PACK_ITEMS pi
+                    JOIN PACK_ACCESS pa ON pi.pack_id = pa.pack_id
+                    WHERE pa.user_id = ?
+                      AND pi.is_active = 1
+                      AND (pi.disable_at IS NULL OR pi.disable_at > datetime('now'))
+                      AND (pa.expires_at IS NULL OR pa.expires_at > datetime('now'))
+                )
         '''
-        params = [user.id, user.id]
+        params = [user.id, user.id, user.id]
 
         if public_prompts_access:
             if category_access is None:
@@ -648,6 +671,79 @@ async def get_user_accessible_prompts(user: User, cursor, all_prompts_access: bo
     return [{"id": p[0], "text": p[1], "created_by_username": p[2], "public_id": p[3], "name": p[1], "custom_domain": p[4]} for p in prompts]
 
 
+async def can_user_access_prompt(user: User, prompt_id: int, cursor) -> bool:
+    """
+    Single-prompt access check. Returns True if the user is allowed to use prompt_id.
+    Respects admin, owner/edit permissions, and public_prompts_access + category_access.
+    """
+    if await user.is_admin:
+        return True
+
+    # Check owner/edit permission
+    await cursor.execute(
+        "SELECT permission_level FROM PROMPT_PERMISSIONS WHERE prompt_id = ? AND user_id = ?",
+        (prompt_id, user.id)
+    )
+    perm = await cursor.fetchone()
+    if perm and perm[0] in ('owner', 'edit'):
+        return True
+
+    # Check pack-granted access (user has PACK_ACCESS to a pack containing this prompt)
+    await cursor.execute(
+        """SELECT 1 FROM PACK_ACCESS pa
+           JOIN PACK_ITEMS pi ON pa.pack_id = pi.pack_id
+           WHERE pa.user_id = ?
+             AND pi.prompt_id = ?
+             AND pi.is_active = 1
+             AND (pi.disable_at IS NULL OR pi.disable_at > datetime('now'))
+             AND (pa.expires_at IS NULL OR pa.expires_at > datetime('now'))""",
+        (user.id, prompt_id)
+    )
+    if await cursor.fetchone():
+        return True
+
+    # Check if prompt is public and user has public access with matching category
+    await cursor.execute("SELECT public FROM PROMPTS WHERE id = ?", (prompt_id,))
+    prompt_row = await cursor.fetchone()
+    if not prompt_row:
+        return False
+
+    is_public = prompt_row[0]
+    if not is_public:
+        return False
+
+    # Prompt is public - check user's public_prompts_access and category restrictions
+    await cursor.execute(
+        "SELECT all_prompts_access, public_prompts_access, category_access FROM USER_DETAILS WHERE user_id = ?",
+        (user.id,)
+    )
+    ud = await cursor.fetchone()
+    if not ud:
+        return False
+
+    all_prompts_access, public_prompts_access, category_access = ud
+
+    if all_prompts_access:
+        return True
+
+    if not public_prompts_access:
+        return False
+
+    # public_prompts_access is True - check category restrictions
+    if category_access is None:
+        # No category restriction: access to all public prompts
+        return True
+
+    # Filter by allowed categories
+    await cursor.execute(
+        """SELECT 1 FROM PROMPT_CATEGORIES pc
+           WHERE pc.prompt_id = ?
+           AND pc.category_id IN (SELECT value FROM json_each(?))""",
+        (prompt_id, category_access)
+    )
+    return await cursor.fetchone() is not None
+
+
 # Health check endpoint for monitoring (admin only)
 @app.get("/healthz")
 async def health_check(current_user: User = Depends(get_current_user)):
@@ -655,7 +751,7 @@ async def health_check(current_user: User = Depends(get_current_user)):
     Simple health check that verifies Redis and SQLite connectivity
     Returns JSON with status of each service
     """
-    if current_user is None or not current_user.is_admin:
+    if current_user is None or not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
     health_status = {
         "status": "healthy",
@@ -691,7 +787,7 @@ async def get_app_metrics(current_user: User = Depends(get_current_user)):
     Basic application metrics endpoint.
     Returns usage counters and active users.
     """
-    if current_user is None or not current_user.is_admin:
+    if current_user is None or not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
     try:
         # Get all metrics from Redis
@@ -1868,8 +1964,11 @@ async def track_landing_visit(request: Request):
         return JSONResponse(content={"error": "Invalid JSON"}, status_code=400)
 
     prompt_id = data.get('prompt_id')
-    if not prompt_id:
-        return JSONResponse(content={"error": "prompt_id required"}, status_code=400)
+    pack_id = data.get('pack_id')
+    if prompt_id and pack_id:
+        return JSONResponse(content={"error": "Cannot track both prompt_id and pack_id in a single visit"}, status_code=400)
+    if not prompt_id and not pack_id:
+        return JSONResponse(content={"error": "prompt_id or pack_id required"}, status_code=400)
 
     # Generate anonymous visitor ID from cookies or create new
     visitor_id = request.cookies.get('_spark_visitor')
@@ -1887,12 +1986,42 @@ async def track_landing_visit(request: Request):
     async with get_db_connection() as conn:
         cursor = await conn.cursor()
 
-        # Check if this visitor already visited this prompt recently (within 30 minutes)
-        await cursor.execute('''
-            SELECT id FROM LANDING_PAGE_ANALYTICS
-            WHERE prompt_id = ? AND visitor_id = ?
-            AND visit_timestamp > datetime('now', '-30 minutes')
-        ''', (prompt_id, visitor_id))
+        # Validate pack_id if provided
+        if pack_id:
+            await cursor.execute(
+                "SELECT 1 FROM PACKS WHERE id = ? AND status = 'published' AND is_public = 1",
+                (pack_id,),
+            )
+            if not await cursor.fetchone():
+                pack_id = None
+
+        # Validate prompt_id if provided
+        if prompt_id:
+            await cursor.execute(
+                "SELECT 1 FROM PROMPTS WHERE id = ? AND public = 1",
+                (prompt_id,),
+            )
+            if not await cursor.fetchone():
+                prompt_id = None
+
+        # At least one valid entity required
+        if not pack_id and not prompt_id:
+            return JSONResponse(content={"error": "Invalid or missing entity"}, status_code=400)
+
+        # Check if this visitor already visited recently (within 30 minutes)
+        # De-duplicate by pack_id or prompt_id depending on which is provided
+        if pack_id:
+            await cursor.execute('''
+                SELECT id FROM LANDING_PAGE_ANALYTICS
+                WHERE pack_id = ? AND visitor_id = ?
+                AND visit_timestamp > datetime('now', '-30 minutes')
+            ''', (pack_id, visitor_id))
+        else:
+            await cursor.execute('''
+                SELECT id FROM LANDING_PAGE_ANALYTICS
+                WHERE prompt_id = ? AND visitor_id = ?
+                AND visit_timestamp > datetime('now', '-30 minutes')
+            ''', (prompt_id, visitor_id))
 
         if await cursor.fetchone():
             # Already tracked recently, skip to avoid duplicate counts
@@ -1901,9 +2030,9 @@ async def track_landing_visit(request: Request):
             # Insert new visit record
             await cursor.execute('''
                 INSERT INTO LANDING_PAGE_ANALYTICS
-                (prompt_id, visitor_id, page_path, referrer, user_agent, ip_hash)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (prompt_id, visitor_id, page_path, referrer, user_agent, ip_hash))
+                (prompt_id, pack_id, visitor_id, page_path, referrer, user_agent, ip_hash)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (prompt_id, pack_id, visitor_id, page_path, referrer, user_agent, ip_hash))
             await conn.commit()
 
             response = JSONResponse(content={"status": "tracked"})
@@ -1932,24 +2061,35 @@ async def mark_analytics_conversion(request: Request):
         return JSONResponse(content={"error": "Invalid JSON"}, status_code=400)
 
     prompt_id = data.get('prompt_id')
+    pack_id = data.get('pack_id')
     user_id = data.get('user_id')
     visitor_id = request.cookies.get('_spark_visitor')
 
-    if not prompt_id or not visitor_id:
+    if (not prompt_id and not pack_id) or not visitor_id:
         return JSONResponse(content={"status": "skip", "reason": "missing_data"})
 
     async with get_db_connection() as conn:
         cursor = await conn.cursor()
 
         # Update the most recent visit from this visitor to mark as converted
-        await cursor.execute('''
-            UPDATE LANDING_PAGE_ANALYTICS
-            SET converted = 1, converted_user_id = ?
-            WHERE prompt_id = ? AND visitor_id = ?
-            AND converted = 0
-            ORDER BY visit_timestamp DESC
-            LIMIT 1
-        ''', (user_id, prompt_id, visitor_id))
+        if pack_id:
+            await cursor.execute('''
+                UPDATE LANDING_PAGE_ANALYTICS
+                SET converted = 1, converted_user_id = ?
+                WHERE pack_id = ? AND visitor_id = ?
+                AND converted = 0
+                ORDER BY visit_timestamp DESC
+                LIMIT 1
+            ''', (user_id, pack_id, visitor_id))
+        else:
+            await cursor.execute('''
+                UPDATE LANDING_PAGE_ANALYTICS
+                SET converted = 1, converted_user_id = ?
+                WHERE prompt_id = ? AND visitor_id = ?
+                AND converted = 0
+                ORDER BY visit_timestamp DESC
+                LIMIT 1
+            ''', (user_id, prompt_id, visitor_id))
 
         await conn.commit()
 
@@ -2087,7 +2227,7 @@ async def get_prompt_analytics(prompt_id: int, request: Request, current_user: U
         cursor = await conn.cursor()
 
         # Verify prompt belongs to this manager
-        await cursor.execute('SELECT name FROM PROMPTS WHERE id = ? AND user_id = ?', (prompt_id, current_user.id))
+        await cursor.execute('SELECT name FROM PROMPTS WHERE id = ? AND created_by_user_id = ?', (prompt_id, current_user.id))
         prompt = await cursor.fetchone()
         if not prompt:
             return JSONResponse(content={"error": "Prompt not found"}, status_code=404)
@@ -2158,6 +2298,147 @@ async def get_prompt_analytics(prompt_id: int, request: Request, current_user: U
         'daily': daily_data,
         'referrers': referrers
     })
+
+
+@app.get("/api/manager/pack-landing-analytics")
+async def get_pack_landing_analytics(current_user: User = Depends(get_current_user)):
+    """Get landing page analytics for packs owned by the current user."""
+    if current_user is None:
+        return unauthenticated_response()
+
+    if not await current_user.is_admin and not await current_user.is_manager:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    async with get_db_connection(readonly=True) as conn:
+        # Get pack analytics grouped by pack
+        # Admin sees all packs, manager sees only their own
+        if await current_user.is_admin:
+            packs_query = """
+                SELECT p.id, p.name,
+                    COUNT(DISTINCT CASE WHEN a.visit_timestamp > datetime('now', '-1 day') THEN a.visitor_id END) as today_visitors,
+                    COUNT(DISTINCT CASE WHEN a.visit_timestamp > datetime('now', '-7 days') THEN a.visitor_id END) as week_visitors,
+                    COUNT(DISTINCT CASE WHEN a.visit_timestamp > datetime('now', '-30 days') THEN a.visitor_id END) as month_visitors,
+                    COUNT(CASE WHEN a.visit_timestamp > datetime('now', '-30 days') THEN a.id END) as month_visits,
+                    SUM(CASE WHEN a.converted = 1 AND a.visit_timestamp > datetime('now', '-30 days') THEN 1 ELSE 0 END) as conversions
+                FROM PACKS p
+                LEFT JOIN LANDING_PAGE_ANALYTICS a ON a.pack_id = p.id
+                GROUP BY p.id, p.name
+                ORDER BY month_visitors DESC
+            """
+            rows = await conn.execute(packs_query)
+        else:
+            packs_query = """
+                SELECT p.id, p.name,
+                    COUNT(DISTINCT CASE WHEN a.visit_timestamp > datetime('now', '-1 day') THEN a.visitor_id END) as today_visitors,
+                    COUNT(DISTINCT CASE WHEN a.visit_timestamp > datetime('now', '-7 days') THEN a.visitor_id END) as week_visitors,
+                    COUNT(DISTINCT CASE WHEN a.visit_timestamp > datetime('now', '-30 days') THEN a.visitor_id END) as month_visitors,
+                    COUNT(CASE WHEN a.visit_timestamp > datetime('now', '-30 days') THEN a.id END) as month_visits,
+                    SUM(CASE WHEN a.converted = 1 AND a.visit_timestamp > datetime('now', '-30 days') THEN 1 ELSE 0 END) as conversions
+                FROM PACKS p
+                LEFT JOIN LANDING_PAGE_ANALYTICS a ON a.pack_id = p.id
+                WHERE p.created_by_user_id = ?
+                GROUP BY p.id, p.name
+                ORDER BY month_visitors DESC
+            """
+            rows = await conn.execute(packs_query, (current_user.id,))
+
+        packs = []
+        for row in await rows.fetchall():
+            month_visits = row[5] or 0
+            conversions = row[6] or 0
+            packs.append({
+                "id": row[0],
+                "name": row[1],
+                "today_visitors": row[2] or 0,
+                "week_visitors": row[3] or 0,
+                "month_visitors": row[4] or 0,
+                "month_visits": month_visits,
+                "conversions": conversions,
+                "conversion_rate": round((conversions / month_visits * 100) if month_visits > 0 else 0, 1)
+            })
+
+        return {"packs": packs}
+
+
+@app.get("/api/manager/pack-landing-analytics/{pack_id}")
+async def get_pack_analytics_detail(pack_id: int, current_user: User = Depends(get_current_user)):
+    """Get detailed analytics for a specific pack landing page."""
+    if current_user is None:
+        return unauthenticated_response()
+
+    if not await current_user.is_admin and not await current_user.is_manager:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    async with get_db_connection(readonly=True) as conn:
+        # Verify ownership (unless admin)
+        if not await current_user.is_admin:
+            pack = await conn.execute("SELECT created_by_user_id FROM PACKS WHERE id = ?", (pack_id,))
+            pack_row = await pack.fetchone()
+            if not pack_row or pack_row[0] != current_user.id:
+                raise HTTPException(status_code=404, detail="Pack not found")
+
+        # Get pack name
+        pack_info = await conn.execute("SELECT name FROM PACKS WHERE id = ?", (pack_id,))
+        pack_name_row = await pack_info.fetchone()
+        if not pack_name_row:
+            raise HTTPException(status_code=404, detail="Pack not found")
+
+        # Stats
+        stats_query = """
+            SELECT
+                COUNT(id) as total_visits,
+                COUNT(DISTINCT visitor_id) as unique_visitors,
+                SUM(CASE WHEN converted = 1 THEN 1 ELSE 0 END) as conversions
+            FROM LANDING_PAGE_ANALYTICS WHERE pack_id = ?
+        """
+        stats = await (await conn.execute(stats_query, (pack_id,))).fetchone()
+
+        total = stats[0] or 0
+        unique = stats[1] or 0
+        convs = stats[2] or 0
+
+        # Daily breakdown (last 30 days)
+        daily_query = """
+            SELECT DATE(visit_timestamp) as date,
+                COUNT(id) as visits,
+                COUNT(DISTINCT visitor_id) as visitors,
+                SUM(CASE WHEN converted = 1 THEN 1 ELSE 0 END) as conversions
+            FROM LANDING_PAGE_ANALYTICS
+            WHERE pack_id = ? AND visit_timestamp > datetime('now', '-30 days')
+            GROUP BY DATE(visit_timestamp)
+            ORDER BY date DESC
+        """
+        daily_rows = await (await conn.execute(daily_query, (pack_id,))).fetchall()
+
+        # Top referrers
+        ref_query = """
+            SELECT COALESCE(referrer, 'direct') as referrer, COUNT(*) as count
+            FROM LANDING_PAGE_ANALYTICS
+            WHERE pack_id = ? AND visit_timestamp > datetime('now', '-30 days')
+            GROUP BY referrer
+            ORDER BY count DESC
+            LIMIT 10
+        """
+        ref_rows = await (await conn.execute(ref_query, (pack_id,))).fetchall()
+
+        return {
+            "pack_id": pack_id,
+            "pack_name": pack_name_row[0],
+            "stats": {
+                "total_visits": total,
+                "unique_visitors": unique,
+                "conversions": convs,
+                "conversion_rate": round((convs / total * 100) if total > 0 else 0, 1)
+            },
+            "daily": [
+                {"date": r[0], "visits": r[1], "visitors": r[2], "conversions": r[3]}
+                for r in daily_rows
+            ],
+            "referrers": [
+                {"referrer": r[0], "count": r[1]}
+                for r in ref_rows
+            ]
+        }
 
 
 # ============================================================================
@@ -2604,6 +2885,9 @@ async def get_cache_stats(current_user: User = Depends(get_current_user)):
     total_requests = _landing_cache_stats["hits"] + _landing_cache_stats["misses"]
     hit_rate = _landing_cache_stats["hits"] / max(1, total_requests)
 
+    pack_total_requests = _pack_landing_cache_stats["hits"] + _pack_landing_cache_stats["misses"]
+    pack_hit_rate = _pack_landing_cache_stats["hits"] / max(1, pack_total_requests)
+
     return JSONResponse(content={
         "landing_cache": {
             "size": len(_landing_path_cache),
@@ -2612,6 +2896,14 @@ async def get_cache_stats(current_user: User = Depends(get_current_user)):
             "misses": _landing_cache_stats["misses"],
             "hit_rate": round(hit_rate, 4),
             "hit_rate_percent": f"{hit_rate * 100:.2f}%"
+        },
+        "pack_landing_cache": {
+            "size": len(_pack_landing_cache),
+            "max_size": PACK_LANDING_CACHE_SIZE,
+            "hits": _pack_landing_cache_stats["hits"],
+            "misses": _pack_landing_cache_stats["misses"],
+            "hit_rate": round(pack_hit_rate, 4),
+            "hit_rate_percent": f"{pack_hit_rate * 100:.2f}%"
         }
     })
 
@@ -3861,6 +4153,9 @@ async def _handle_login_request(
         login_url: URL for form action (POST)
         register_url: URL for register link
     """
+    # Read ?next= redirect URL (validated in create_login_response)
+    next_url = request.query_params.get("next")
+
     template_context = {
         "request": request,
         "prompt": prompt_context,
@@ -3915,7 +4210,7 @@ async def _handle_login_request(
             # Only try to verify password if it exists and user can use password
             if verify_password(user_result.password, password):
                 user_info = await create_user_info(user_result, False)  # False for login with username and password
-                return create_login_response(user_info)
+                return create_login_response(user_info, redirect_url=next_url)
         else:
             # If user doesn't have a password, return to login screen
             record_failure(request, "login", username)
@@ -3964,7 +4259,7 @@ async def _handle_login_request(
                     user_obj = await get_user_by_id(magic_link["user_id"])
                     if user_obj and user_obj.can_use_magic_link():
                         user_info = await create_user_info(user_obj, True)  # True for magic link login
-                        return create_login_response(user_info)
+                        return create_login_response(user_info, redirect_url=next_url)
                 else:
                     # Magic link is expired - redirect to recovery page
                     return RedirectResponse(url="/magic-link-recovery", status_code=status.HTTP_302_FOUND)
@@ -4947,6 +5242,9 @@ async def chat_post(request: Request, current_user: User = Depends(get_current_u
         logger.info(f"[DEBUG] Values BEFORE: llm_id={before_values[0] if before_values else 'NULL'}, current_prompt_id={before_values[1] if before_values else 'NULL'}")
         
         if form_type == 'prompt':
+            if not await can_user_access_prompt(current_user, prompt_id, cursor):
+                await conn.close()
+                raise HTTPException(status_code=403, detail="Access denied to this prompt")
             logger.info(f"[DEBUG] Updating current_prompt_id to {prompt_id} for user_id {current_user.id}")
             await cursor.execute("UPDATE USER_DETAILS SET current_prompt_id = ? WHERE user_id = ?", (prompt_id, current_user.id))
         elif form_type == 'llm':
@@ -4991,21 +5289,27 @@ async def get_conversation_details(
         
         # Get LLM and Prompt information
         await cursor.execute('''
-            SELECT 
+            SELECT
                 (SELECT l.model FROM LLM l WHERE l.id = ?) AS model,
-                (SELECT p.name FROM PROMPTS p WHERE p.id = ?) AS prompt_name
-        ''', (llm_id, prompt_id))
+                (SELECT p.name FROM PROMPTS p WHERE p.id = ?) AS prompt_name,
+                (SELECT p.forced_llm_id FROM PROMPTS p WHERE p.id = ?) AS forced_llm_id,
+                (SELECT p.hide_llm_name FROM PROMPTS p WHERE p.id = ?) AS hide_llm_name,
+                (SELECT p.allowed_llms FROM PROMPTS p WHERE p.id = ?) AS allowed_llms
+        ''', (llm_id, prompt_id, prompt_id, prompt_id, prompt_id))
         
         result = await cursor.fetchone()
         if not result:
             raise HTTPException(status_code=404, detail="LLM or Prompt not found")
         
-        model, prompt_name = result
+        model, prompt_name, forced_llm_id, hide_llm_name, allowed_llms = result
         await conn.close()
-        
+
     return JSONResponse(content={
         "model": model,
-        "prompt_name": prompt_name
+        "prompt_name": prompt_name,
+        "forced_llm_id": forced_llm_id,
+        "hide_llm_name": bool(hide_llm_name) if hide_llm_name else False,
+        "allowed_llms": orjson.loads(allowed_llms) if allowed_llms else None
     })
 
 @app.patch("/api/conversations/{conversation_id}/model")
@@ -5043,7 +5347,7 @@ async def update_conversation_model(
             # Check if prompt has forced_llm_id - if so, reject model change
             if prompt_id:
                 await cursor.execute('''
-                    SELECT forced_llm_id, name FROM PROMPTS WHERE id = ?
+                    SELECT forced_llm_id, name, allowed_llms FROM PROMPTS WHERE id = ?
                 ''', (prompt_id,))
                 prompt_data = await cursor.fetchone()
                 if prompt_data and prompt_data[0]:
@@ -5053,6 +5357,17 @@ async def update_conversation_model(
                         raise HTTPException(
                             status_code=403,
                             detail=f"This prompt '{prompt_name}' requires a specific AI model and cannot be changed"
+                        )
+
+                # Check allowed_llms restriction
+                if prompt_data and not prompt_data[0] and prompt_data[2]:
+                    allowed_llms_raw = prompt_data[2]
+                    allowed_ids = orjson.loads(allowed_llms_raw)
+                    prompt_name = prompt_data[1]
+                    if int(new_llm_id) not in allowed_ids:
+                        raise HTTPException(
+                            status_code=403,
+                            detail=f"This prompt '{prompt_name}' only allows specific AI models"
                         )
 
             # Verify LLM exists and get model name
@@ -5224,7 +5539,8 @@ async def handle_get_request(request, user_id, current_user, conn, admin_view=Fa
                      ELSE NULL
                    END as external_platform,
                    c.locked, l.model as llm_model,
-                   COALESCE(p.disable_web_search, 0) as web_search_disabled
+                   COALESCE(p.disable_web_search, 0) as web_search_disabled,
+                   p.forced_llm_id, p.hide_llm_name, p.allowed_llms
             FROM conversations c
             JOIN user_details u ON c.user_id = u.user_id
             JOIN llm l ON c.llm_id = l.id
@@ -5243,7 +5559,10 @@ async def handle_get_request(request, user_id, current_user, conn, admin_view=Fa
                 "external_platform": row[4],
                 "locked": bool(row[5]) if row[5] is not None else False,
                 "llm_model": row[6],
-                "web_search_allowed": not bool(row[7])
+                "web_search_allowed": not bool(row[7]),
+                "forced_llm_id": row[8],
+                "hide_llm_name": bool(row[9]) if row[9] else False,
+                "allowed_llms": orjson.loads(row[10]) if row[10] else None
             }
             for row in conversations_rows
         ]
@@ -6514,7 +6833,8 @@ async def get_conversations(
             # First, get WhatsApp conversation (if exists)
             whatsapp_query = f'''
                 SELECT c.id, c.user_id, c.start_date, c.chat_name, 'whatsapp' as external_platform,
-                       c.locked, l.model as llm_model, COALESCE(p.disable_web_search, 0) as web_search_disabled
+                       c.locked, l.model as llm_model, COALESCE(p.disable_web_search, 0) as web_search_disabled,
+                       p.forced_llm_id, p.hide_llm_name, p.allowed_llms
                 FROM conversations c
                 JOIN user_details u ON c.user_id = u.user_id
                 JOIN llm l ON c.llm_id = l.id
@@ -6532,7 +6852,8 @@ async def get_conversations(
                          WHEN json_extract(u.external_platforms, '$.telegram.conversation_id') = c.id THEN 'telegram'
                          ELSE NULL
                        END as external_platform,
-                       c.locked, l.model as llm_model, COALESCE(p.disable_web_search, 0) as web_search_disabled
+                       c.locked, l.model as llm_model, COALESCE(p.disable_web_search, 0) as web_search_disabled,
+                       p.forced_llm_id, p.hide_llm_name, p.allowed_llms
                 FROM conversations c
                 JOIN user_details u ON c.user_id = u.user_id
                 JOIN llm l ON c.llm_id = l.id
@@ -6569,46 +6890,13 @@ async def get_conversations(
                     "external_platform": conv[4],
                     "locked": bool(conv[5]) if conv[5] is not None else False,
                     "llm_model": conv[6],
-                    "web_search_allowed": not bool(conv[7])
+                    "web_search_allowed": not bool(conv[7]),
+                    "forced_llm_id": conv[8],
+                    "hide_llm_name": bool(conv[9]) if conv[9] else False,
+                    "allowed_llms": orjson.loads(conv[10]) if conv[10] else None
                 }
                 for conv in all_conversations
             ])
-
-@app.get("/api/conversations/{conversation_id}/details")
-async def get_conversation_details(conversation_id: int):
-    async with get_db_connection(readonly=True) as conn:
-        cursor = await conn.cursor()
-        await cursor.execute('''
-            SELECT l.model, p.id AS prompt_id, p.name AS prompt_name, c.start_date, c.locked
-            FROM conversations c
-            JOIN user_details u ON c.user_id = u.user_id 
-            JOIN prompts p ON c.role_id = p.id 
-            JOIN llm l ON c.llm_id = l.id
-            WHERE c.id = ? 
-            AND NOT EXISTS (
-                SELECT 1 FROM json_each(u.external_platforms)
-                WHERE json_each.value = c.id
-            )
-        ''', (conversation_id,))
-        row = await cursor.fetchone()
-
-        if row:
-            model = row[0]
-            prompt_id = row[1]
-            prompt_name = row[2]
-            start_date = row[3]
-            locked = row[4]            
-            await conn.close()
-            return JSONResponse(content={
-                'model': model, 
-                'prompt_id': prompt_id,
-                'prompt_name': prompt_name, 
-                'start_date': start_date, 
-                'locked': locked
-            })
-        else:
-            await conn.close()
-            raise HTTPException(status_code=404, detail='Conversation not found')
 
 @app.get("/api/admin/conversations")
 async def get_all_conversations(request: Request, current_user: User = Depends(get_current_user)):
@@ -7269,10 +7557,10 @@ async def start_new_conversation(
     request: NewConversationRequest = NewConversationRequest(),
     current_user: User = Depends(get_current_user)
 ):
-    logger.info(f"[NEW] CREATING NEW CONVERSATION - User: {current_user.username}, folder_id: {request.folder_id}, prompt_id: {request.prompt_id}")
-    
     if current_user is None:
         return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x})
+
+    logger.info(f"[NEW] CREATING NEW CONVERSATION - User: {current_user.username}, folder_id: {request.folder_id}, prompt_id: {request.prompt_id}")
     
     async with get_db_connection() as conn:
         cursor = await conn.cursor()
@@ -7292,15 +7580,31 @@ async def start_new_conversation(
         # Use the provided prompt_id or the user's current_prompt_id
         prompt_id = request.prompt_id if request.prompt_id is not None else current_prompt_id
 
+        forced_llm_id_value = None
+        allowed_llms_value = None
+        hide_llm_name_value = None
+
+        # Validate prompt access
+        if prompt_id and not await can_user_access_prompt(current_user, prompt_id, cursor):
+            raise HTTPException(status_code=403, detail="Access denied to this prompt")
+
         # Check if prompt has forced_llm_id - if so, use that instead of user's default
         if prompt_id:
             await cursor.execute('''
-                SELECT forced_llm_id FROM PROMPTS WHERE id = ?
+                SELECT forced_llm_id, allowed_llms, hide_llm_name FROM PROMPTS WHERE id = ?
             ''', (prompt_id,))
             prompt_llm = await cursor.fetchone()
-            if prompt_llm and prompt_llm[0]:
-                llm_id = prompt_llm[0]
+            forced_llm_id_value = prompt_llm[0] if prompt_llm else None
+            allowed_llms_value = prompt_llm[1] if prompt_llm else None
+            hide_llm_name_value = prompt_llm[2] if prompt_llm else None
+            if forced_llm_id_value:
+                llm_id = forced_llm_id_value
                 logger.info(f"[FORCED_LLM] Prompt {prompt_id} has forced_llm_id={llm_id}, overriding user default")
+            elif allowed_llms_value:
+                allowed_ids = orjson.loads(allowed_llms_value)
+                if allowed_ids and int(llm_id) not in allowed_ids:
+                    llm_id = allowed_ids[0]
+                    logger.info(f"[ALLOWED_LLMS] User default LLM not in allowed list for prompt {prompt_id}, using first allowed: {llm_id}")
 
         # Validate folder_id if provided
         if request.folder_id is not None:
@@ -7344,7 +7648,10 @@ async def start_new_conversation(
             'machine': machine,
             'prompt_name': prompt_name,
             'locked': False,
-            'llm_model': llm_model
+            'llm_model': llm_model,
+            'forced_llm_id': forced_llm_id_value,
+            'hide_llm_name': bool(hide_llm_name_value) if hide_llm_name_value else False,
+            'allowed_llms': orjson.loads(allowed_llms_value) if allowed_llms_value else None
         }, status_code=201)
 
 @app.post("/api/conversations/{conversation_id}/stop")
@@ -8889,69 +9196,245 @@ async def stripe_webhook(request: Request):
     # Handle the checkout.session.completed event
     if event['type'] == 'checkout.session.completed':
         session = event['data']['object']
+        metadata = session.get('metadata', {})
 
-        user_id = int(session['metadata']['user_id'])
-        original_amount = float(session['metadata']['original_amount'])
-        final_amount = float(session['metadata']['final_amount'])
-        discount_code = session['metadata'].get('discount_code', '')
+        # ---- Pack purchase flow ----
+        if metadata.get('type') == 'pack_purchase':
+            pack_id = int(metadata['pack_id'])
+            buyer_user_id = int(metadata['buyer_user_id'])
+            original_price = float(metadata.get('original_price', 0))
+            final_amount = float(metadata.get('final_amount', 0))
+            discount_code = metadata.get('discount_code', '')
+            discount_value = float(metadata.get('discount_value', 0))
 
-        logger.info(f"Stripe payment completed: user_id={user_id}, amount=${final_amount}")
+            logger.info(f"Pack purchase completed: buyer={buyer_user_id}, pack={pack_id}, amount=${final_amount}")
 
-        async with get_db_connection() as conn:
-            cursor = await conn.cursor()
-            try:
-                await conn.execute('BEGIN IMMEDIATE')
+            async with get_db_connection() as conn:
+                cursor = await conn.cursor()
+                try:
+                    await conn.execute('BEGIN IMMEDIATE')
 
-                # Get current balance
-                await cursor.execute(
-                    'SELECT balance FROM USER_DETAILS WHERE user_id = ?',
-                    (user_id,)
-                )
-                result = await cursor.fetchone()
-                balance_before = result[0] if result else 0
-                balance_after = balance_before + original_amount  # Add original amount, not discounted
+                    # Idempotency check (inside transaction to prevent races)
+                    existing = await cursor.execute(
+                        "SELECT id FROM PACK_PURCHASES WHERE payment_reference = ?",
+                        (session['id'],)
+                    )
+                    if await existing.fetchone():
+                        await conn.execute('ROLLBACK')
+                        logger.info(f"Pack purchase already processed: session={session['id']}")
+                        return JSONResponse(content={"status": "success"})
 
-                # Update balance
-                await cursor.execute(
-                    'UPDATE USER_DETAILS SET balance = ? WHERE user_id = ?',
-                    (balance_after, user_id)
-                )
+                    # Record the purchase
+                    await cursor.execute(
+                        """INSERT INTO PACK_PURCHASES
+                           (buyer_user_id, pack_id, amount, currency, payment_method, payment_reference, status)
+                           VALUES (?, ?, ?, 'USD', 'stripe', ?, 'completed')""",
+                        (buyer_user_id, pack_id, final_amount, session['id'])
+                    )
 
-                # Record transaction
-                await cursor.execute('''
-                    INSERT INTO TRANSACTIONS
-                    (user_id, type, amount, balance_before, balance_after,
-                     description, reference_id, discount_code)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (
-                    user_id,
-                    'payment',
-                    original_amount,
-                    balance_before,
-                    balance_after,
-                    f'Stripe payment - ${final_amount:.2f} paid for ${original_amount:.2f} balance',
-                    session['id'],
-                    discount_code if discount_code else None
-                ))
+                    # Grant pack access
+                    await cursor.execute(
+                        """INSERT OR IGNORE INTO PACK_ACCESS
+                           (pack_id, user_id, granted_via) VALUES (?, ?, 'purchase')""",
+                        (pack_id, buyer_user_id)
+                    )
 
-                # Mark discount as used if applicable
-                if discount_code:
+                    # Set current_prompt_id to first active prompt in pack
+                    first_prompt_cursor = await cursor.execute(
+                        """SELECT prompt_id FROM PACK_ITEMS
+                           WHERE pack_id = ? AND is_active = 1
+                           AND (disable_at IS NULL OR disable_at > datetime('now'))
+                           ORDER BY display_order LIMIT 1""",
+                        (pack_id,)
+                    )
+                    first_prompt_row = await first_prompt_cursor.fetchone()
+                    if first_prompt_row:
+                        await cursor.execute(
+                            "UPDATE USER_DETAILS SET current_prompt_id = ? WHERE user_id = ?",
+                            (first_prompt_row[0], buyer_user_id)
+                        )
+
+                    # Revenue split: platform keeps commission, creator gets the rest
+                    from common import get_pricing_config
+                    pricing = await get_pricing_config()
+                    commission_rate = pricing.get("commission", 0.30)
+                    creator_share = final_amount * (1 - commission_rate)
+
+                    # Get pack creator and landing config
+                    pack_row = await cursor.execute(
+                        "SELECT created_by_user_id, landing_reg_config FROM PACKS WHERE id = ?",
+                        (pack_id,)
+                    )
+                    pack_data = await pack_row.fetchone()
+                    creator_id = pack_data[0] if pack_data else None
+
+                    # Read buyer's balance BEFORE applying initial_balance (for TRANSACTIONS record)
+                    bal_cursor = await cursor.execute(
+                        "SELECT balance FROM USER_DETAILS WHERE user_id = ?",
+                        (buyer_user_id,)
+                    )
+                    bal_row = await bal_cursor.fetchone()
+                    buyer_balance_before = bal_row[0] if bal_row else 0
+
+                    # Apply landing_reg_config to the buyer
+                    initial_balance_cost = 0
+                    if pack_data and pack_data[1]:
+                        import json as _json
+                        try:
+                            lrc = _json.loads(pack_data[1]) if isinstance(pack_data[1], str) else pack_data[1]
+                            ib = float(lrc.get("initial_balance", 0))
+                            if ib > 0:
+                                # Scale by discount: initial_balance funded by creator's share
+                                scale = (1 - discount_value / 100) if discount_value > 0 else 1
+                                scaled_ib = ib * scale
+                                # Cap initial_balance to creator's share to prevent platform loss
+                                if scaled_ib > creator_share:
+                                    logger.warning(
+                                        "Pack %s: initial_balance %.2f exceeds creator_share %.2f, clamping",
+                                        pack_id, scaled_ib, creator_share
+                                    )
+                                    scaled_ib = creator_share
+                                if scaled_ib > 0:
+                                    initial_balance_cost = scaled_ib
+                                    await cursor.execute(
+                                        "UPDATE USER_DETAILS SET balance = balance + ? WHERE user_id = ?",
+                                        (scaled_ib, buyer_user_id)
+                                    )
+                            if lrc.get("billing_mode") == "manager_pays" and creator_id:
+                                await cursor.execute(
+                                    "UPDATE USER_DETAILS SET billing_account_id = ? WHERE user_id = ?",
+                                    (creator_id, buyer_user_id)
+                                )
+                            if "public_prompts_access" in lrc:
+                                await cursor.execute(
+                                    "UPDATE USER_DETAILS SET public_prompts_access = ? WHERE user_id = ?",
+                                    (1 if lrc["public_prompts_access"] else 0, buyer_user_id)
+                                )
+                            if "allow_file_upload" in lrc:
+                                await cursor.execute(
+                                    "UPDATE USER_DETAILS SET allow_file_upload = ? WHERE user_id = ?",
+                                    (1 if lrc["allow_file_upload"] else 0, buyer_user_id)
+                                )
+                            if "allow_image_generation" in lrc:
+                                await cursor.execute(
+                                    "UPDATE USER_DETAILS SET allow_image_generation = ? WHERE user_id = ?",
+                                    (1 if lrc["allow_image_generation"] else 0, buyer_user_id)
+                                )
+                        except Exception as lrc_err:
+                            logger.warning(f"Failed to apply pack landing config: {lrc_err}")
+
+                    # Creator net earnings = their share - initial_balance funded
+                    creator_net = creator_share - initial_balance_cost
+                    if creator_net < 0:
+                        logger.warning(
+                            "Pack %s: creator_net negative (%.2f), clamping to 0",
+                            pack_id, creator_net
+                        )
+                        creator_net = 0
+                    if creator_id and creator_net > 0:
+                        await cursor.execute(
+                            "UPDATE USER_DETAILS SET pending_earnings = COALESCE(pending_earnings, 0) + ? WHERE user_id = ?",
+                            (creator_net, creator_id)
+                        )
+
+                    # Record transaction for audit (use actual balance values)
+                    buyer_balance_after = buyer_balance_before + initial_balance_cost
+                    await cursor.execute("""
+                        INSERT INTO TRANSACTIONS
+                        (user_id, type, amount, balance_before, balance_after,
+                         description, reference_id, discount_code)
+                        VALUES (?, 'pack_purchase', ?, ?, ?, ?, ?, ?)
+                    """, (
+                        buyer_user_id,
+                        final_amount,
+                        buyer_balance_before,
+                        buyer_balance_after,
+                        f"Pack purchase: pack_id={pack_id}, paid=${final_amount:.2f}",
+                        session['id'],
+                        discount_code if discount_code else None
+                    ))
+
+                    # Decrement discount usage
+                    if discount_code:
+                        await cursor.execute("""
+                            UPDATE DISCOUNTS SET usage_count = CASE
+                                WHEN unlimited_usage = 1 THEN usage_count
+                                ELSE MAX(0, COALESCE(usage_count, 1) - 1)
+                            END WHERE code = ?
+                        """, (discount_code,))
+
+                    await conn.commit()
+                    logger.info(f"Pack purchase processed: buyer={buyer_user_id}, pack={pack_id}, creator_net=${creator_net:.2f}")
+
+                except Exception as e:
+                    await conn.rollback()
+                    logger.error(f"Error processing pack purchase webhook: {e}")
+                    raise HTTPException(status_code=500, detail="Error processing pack purchase")
+
+        # ---- Balance top-up flow (existing) ----
+        else:
+            user_id = int(session['metadata']['user_id'])
+            original_amount = float(session['metadata']['original_amount'])
+            final_amount = float(session['metadata']['final_amount'])
+            discount_code = session['metadata'].get('discount_code', '')
+
+            logger.info(f"Stripe payment completed: user_id={user_id}, amount=${final_amount}")
+
+            async with get_db_connection() as conn:
+                cursor = await conn.cursor()
+                try:
+                    await conn.execute('BEGIN IMMEDIATE')
+
+                    # Get current balance
+                    await cursor.execute(
+                        'SELECT balance FROM USER_DETAILS WHERE user_id = ?',
+                        (user_id,)
+                    )
+                    result = await cursor.fetchone()
+                    balance_before = result[0] if result else 0
+                    balance_after = balance_before + original_amount
+
+                    # Update balance
+                    await cursor.execute(
+                        'UPDATE USER_DETAILS SET balance = ? WHERE user_id = ?',
+                        (balance_after, user_id)
+                    )
+
+                    # Record transaction
                     await cursor.execute('''
-                        UPDATE DISCOUNTS
-                        SET usage_count = CASE
-                            WHEN unlimited_usage = 1 THEN usage_count
-                            ELSE MAX(0, COALESCE(usage_count, 1) - 1)
-                        END
-                        WHERE code = ?
-                    ''', (discount_code,))
+                        INSERT INTO TRANSACTIONS
+                        (user_id, type, amount, balance_before, balance_after,
+                         description, reference_id, discount_code)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        user_id,
+                        'payment',
+                        original_amount,
+                        balance_before,
+                        balance_after,
+                        f'Stripe payment - ${final_amount:.2f} paid for ${original_amount:.2f} balance',
+                        session['id'],
+                        discount_code if discount_code else None
+                    ))
 
-                await conn.commit()
-                logger.info(f"Balance updated for user {user_id}: ${balance_before:.2f} -> ${balance_after:.2f}")
+                    # Mark discount as used if applicable
+                    if discount_code:
+                        await cursor.execute('''
+                            UPDATE DISCOUNTS
+                            SET usage_count = CASE
+                                WHEN unlimited_usage = 1 THEN usage_count
+                                ELSE MAX(0, COALESCE(usage_count, 1) - 1)
+                            END
+                            WHERE code = ?
+                        ''', (discount_code,))
 
-            except Exception as e:
-                await conn.rollback()
-                logger.error(f"Error processing Stripe webhook: {e}")
-                raise HTTPException(status_code=500, detail="Error processing payment")
+                    await conn.commit()
+                    logger.info(f"Balance updated for user {user_id}: ${balance_before:.2f} -> ${balance_after:.2f}")
+
+                except Exception as e:
+                    await conn.rollback()
+                    logger.error(f"Error processing Stripe webhook: {e}")
+                    raise HTTPException(status_code=500, detail="Error processing payment")
 
     # Handle Connect account status updates
     elif event['type'] == 'account.updated':
@@ -9010,6 +9493,103 @@ async def stripe_webhook(request: Request):
                     await conn.commit()
                     logger.info(f"Restored ${amount:.2f} to user {user_id} pending earnings after failed transfer")
 
+    # Handle chargebacks on pack purchases
+    elif event['type'] == 'charge.dispute.created':
+        dispute = event['data']['object']
+        payment_intent_id = dispute.get('payment_intent')
+
+        logger.warning(f"Chargeback dispute created: {dispute.get('id')}, payment_intent={payment_intent_id}")
+
+        if payment_intent_id:
+            try:
+                # Find the checkout session linked to this payment intent
+                sessions = stripe.checkout.Session.list(payment_intent=payment_intent_id, limit=1)
+                if sessions and sessions.data:
+                    sess = sessions.data[0]
+                    sess_metadata = sess.get('metadata', {})
+
+                    if sess_metadata.get('type') == 'pack_purchase':
+                        pack_id = int(sess_metadata['pack_id'])
+                        buyer_user_id = int(sess_metadata['buyer_user_id'])
+                        final_amount = float(sess_metadata.get('final_amount', 0))
+                        discount_value = float(sess_metadata.get('discount_value', 0))
+
+                        async with get_db_connection() as conn:
+                            await conn.execute('BEGIN IMMEDIATE')
+
+                            # Idempotency check inside transaction (prevents TOCTOU race)
+                            check_cursor = await conn.execute(
+                                "SELECT status FROM PACK_PURCHASES WHERE payment_reference = ?",
+                                (sess.id,)
+                            )
+                            purchase_check = await check_cursor.fetchone()
+                            if purchase_check and purchase_check[0] == 'refunded':
+                                await conn.execute('ROLLBACK')
+                                logger.info(f"Chargeback already processed for payment_intent={payment_intent_id}")
+                                return JSONResponse(content={"status": "already_processed"})
+
+                            try:
+                                # Revoke pack access
+                                await conn.execute(
+                                    "DELETE FROM PACK_ACCESS WHERE pack_id = ? AND user_id = ?",
+                                    (pack_id, buyer_user_id)
+                                )
+                                # Mark purchase as refunded
+                                await conn.execute(
+                                    "UPDATE PACK_PURCHASES SET status = 'refunded' WHERE pack_id = ? AND buyer_user_id = ? AND payment_reference = ?",
+                                    (pack_id, buyer_user_id, sess.id)
+                                )
+
+                                # Calculate initial_balance_cost to revert buyer balance and compute creator_net
+                                from common import get_pricing_config
+                                pricing = await get_pricing_config()
+                                commission_rate = pricing.get("commission", 0.30)
+                                creator_share = final_amount * (1 - commission_rate)
+
+                                initial_balance_cost = 0
+                                pack_cursor = await conn.execute(
+                                    "SELECT created_by_user_id, landing_reg_config FROM PACKS WHERE id = ?",
+                                    (pack_id,)
+                                )
+                                pack_data = await pack_cursor.fetchone()
+                                creator_id = pack_data[0] if pack_data else None
+
+                                if pack_data and pack_data[1]:
+                                    import json as _json
+                                    try:
+                                        lrc = _json.loads(pack_data[1]) if isinstance(pack_data[1], str) else pack_data[1]
+                                        ib = float(lrc.get("initial_balance", 0))
+                                        if ib > 0:
+                                            scale = (1 - discount_value / 100) if discount_value > 0 else 1
+                                            scaled_ib = ib * scale
+                                            if scaled_ib > 0:
+                                                initial_balance_cost = scaled_ib
+                                    except Exception:
+                                        pass
+
+                                # Revert buyer's initial_balance
+                                if initial_balance_cost > 0:
+                                    await conn.execute(
+                                        "UPDATE USER_DETAILS SET balance = MAX(0, balance - ?) WHERE user_id = ?",
+                                        (initial_balance_cost, buyer_user_id)
+                                    )
+
+                                # Reverse creator earnings: deduct creator_net (not creator_share)
+                                creator_net = creator_share - initial_balance_cost
+                                if creator_id and creator_net > 0:
+                                    await conn.execute(
+                                        "UPDATE USER_DETAILS SET pending_earnings = MAX(0, COALESCE(pending_earnings, 0) - ?) WHERE user_id = ?",
+                                        (creator_net, creator_id)
+                                    )
+
+                                await conn.commit()
+                                logger.warning(f"Chargeback processed: revoked access for user={buyer_user_id}, pack={pack_id}, reverted ib=${initial_balance_cost:.2f}, creator_net=${creator_net:.2f}")
+                            except Exception as txn_err:
+                                await conn.rollback()
+                                raise txn_err
+            except Exception as e:
+                logger.error(f"Error processing chargeback: {e}")
+
     return JSONResponse(content={"status": "success"})
 
 
@@ -9050,6 +9630,68 @@ async def payment_success_page(
         "payment_amount": payment_amount
     })
     return templates.TemplateResponse("payment_success.html", context)
+
+
+@app.get("/pack-purchase-success", response_class=HTMLResponse)
+async def pack_purchase_success_page(
+    request: Request,
+    session_id: str = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Success page shown after completing a pack purchase via Stripe."""
+    if not current_user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    pack_name = "Pack"
+    pack_id = None
+    pack_cover_image = None
+    pack_creator = None
+    pack_landing_url = None
+    prompt_count = 0
+    payment_amount = None
+
+    if session_id and STRIPE_SECRET_KEY:
+        try:
+            session = stripe.checkout.Session.retrieve(session_id)
+            if session and session.metadata.get('user_id', session.metadata.get('buyer_user_id')) == str(current_user.id):
+                payment_amount = float(session.metadata.get('final_amount', 0))
+                pid = session.metadata.get('pack_id')
+                if pid:
+                    pack_id = int(pid)
+                    async with get_db_connection(readonly=True) as conn:
+                        cursor = await conn.cursor()
+                        await cursor.execute(
+                            """SELECT p.name, p.slug, p.public_id, p.cover_image,
+                                      u.username,
+                                      (SELECT COUNT(*) FROM PACK_ITEMS pi
+                                       WHERE pi.pack_id = p.id AND pi.is_active = 1
+                                       AND (pi.disable_at IS NULL OR pi.disable_at > datetime('now')))
+                               FROM PACKS p
+                               JOIN USERS u ON p.created_by_user_id = u.id
+                               WHERE p.id = ?""",
+                            (pack_id,)
+                        )
+                        pack_row = await cursor.fetchone()
+                        if pack_row:
+                            pack_name = pack_row[0]
+                            pack_creator = pack_row[4]
+                            prompt_count = pack_row[5]
+                            pack_cover_image = pack_row[3]
+                            pack_landing_url = f"/pack/{pack_row[2]}/{pack_row[1]}/"
+        except Exception as e:
+            logger.error(f"Error retrieving pack purchase session: {e}")
+
+    context = await get_template_context(request, current_user)
+    context.update({
+        "pack_name": pack_name,
+        "pack_id": pack_id,
+        "pack_cover_image": pack_cover_image,
+        "pack_creator": pack_creator,
+        "pack_landing_url": pack_landing_url,
+        "prompt_count": prompt_count,
+        "payment_amount": payment_amount,
+    })
+    return templates.TemplateResponse("pack_purchase_success.html", context)
 
 
 # Simulated payment for development/testing (100% discounts)
@@ -9635,6 +10277,22 @@ async def admin_watchdog_events(request: Request, current_user: User = Depends(g
     f_event_type = request.query_params.get("event_type", "").strip()
     f_conversation_id = request.query_params.get("conversation_id", "").strip()
 
+    # Pagination params
+    ALLOWED_PER_PAGE = [25, 50, 100]
+    try:
+        per_page = int(request.query_params.get("per_page", "25"))
+    except (ValueError, TypeError):
+        per_page = 25
+    if per_page not in ALLOWED_PER_PAGE:
+        per_page = 25
+
+    try:
+        page = int(request.query_params.get("page", "1"))
+    except (ValueError, TypeError):
+        page = 1
+    if page < 1:
+        page = 1
+
     # Build dynamic WHERE clause
     conditions = []
     params = []
@@ -9652,26 +10310,58 @@ async def admin_watchdog_events(request: Request, current_user: User = Depends(g
         params.append(int(f_conversation_id))
 
     where_clause = (" WHERE " + " AND ".join(conditions)) if conditions else ""
+    params_tuple = tuple(params)
 
     async with get_db_connection(readonly=True) as conn:
+        # Total count for pagination
+        cursor = await conn.execute(
+            f"SELECT COUNT(*) FROM WATCHDOG_EVENTS we{where_clause}",
+            params_tuple,
+        )
+        total_events = (await cursor.fetchone())[0]
+        total_pages = max(1, math.ceil(total_events / per_page))
+
+        # Clamp page to valid range
+        if page > total_pages:
+            page = total_pages
+
+        offset = (page - 1) * per_page
+
+        # Stats across the full filtered dataset (not just current page)
+        stat_base = f"SELECT COUNT(*) FROM WATCHDOG_EVENTS we{where_clause}"
+        stat_condition = " AND " if conditions else " WHERE "
+
+        cursor = await conn.execute(
+            f"{stat_base}{stat_condition}we.action_taken = ?",
+            params_tuple + ("hint_generated",),
+        )
+        hints = (await cursor.fetchone())[0]
+
+        cursor = await conn.execute(
+            f"{stat_base}{stat_condition}we.action_taken = ?",
+            params_tuple + ("error",),
+        )
+        errors = (await cursor.fetchone())[0]
+
+        # Paginated event rows
         cursor = await conn.execute(
             f"""SELECT we.*, c.chat_name, p.name AS prompt_name
                 FROM WATCHDOG_EVENTS we
                 LEFT JOIN CONVERSATIONS c ON we.conversation_id = c.id
                 LEFT JOIN PROMPTS p ON we.prompt_id = p.id
                 {where_clause}
-                ORDER BY we.created_at DESC LIMIT 200""",
-            tuple(params),
+                ORDER BY we.created_at DESC LIMIT ? OFFSET ?""",
+            params_tuple + (per_page, offset),
         )
         events = [dict(row) for row in await cursor.fetchall()]
-
-        # Stats for the current result set
-        hints = sum(1 for e in events if e["action_taken"] == "hint_generated")
-        errors = sum(1 for e in events if e["action_taken"] == "error")
 
         # Prompts list for filter dropdown
         cursor = await conn.execute("SELECT id, name FROM PROMPTS ORDER BY name ASC")
         prompts = [dict(row) for row in await cursor.fetchall()]
+
+    # "Showing X-Y of Z" range
+    showing_start = offset + 1 if total_events > 0 else 0
+    showing_end = offset + len(events)
 
     return templates.TemplateResponse(
         "admin_watchdog.html",
@@ -9688,6 +10378,12 @@ async def admin_watchdog_events(request: Request, current_user: User = Depends(g
             },
             "event_types": ["drift", "rabbit_hole", "stuck", "inconsistency", "saturation", "none", "error", "security"],
             "severities": ["info", "nudge", "redirect", "alert"],
+            "page": page,
+            "per_page": per_page,
+            "total_events": total_events,
+            "total_pages": total_pages,
+            "showing_start": showing_start,
+            "showing_end": showing_end,
         },
     )
 
@@ -10136,12 +10832,12 @@ async def select_prompt(
         return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x})
 
 
-    async with get_db_connection(readonly=True) as conn:
+    async with get_db_connection() as conn:
         async with conn.cursor() as cursor:
             # Verify if prompt exists and get basic information
             await cursor.execute("""
                 SELECT id, name, public
-                FROM PROMPTS 
+                FROM PROMPTS
                 WHERE id = ?
             """, (prompt_id,))
             prompt = await cursor.fetchone()
@@ -10151,24 +10847,29 @@ async def select_prompt(
 
             prompt_id, prompt_name, is_public = prompt
 
-            # Verify if the user has access to the prompt
-            is_admin = await current_user.is_admin
+            # Centralized access check (respects category_access + public_prompts_access)
+            has_access = await can_user_access_prompt(current_user, prompt_id, cursor)
 
-            # Verify if the user is owner or editor
+            if not has_access:
+                raise HTTPException(status_code=403, detail="Access denied")
+
+            # Update user's current prompt selection in DB
+            await cursor.execute(
+                "UPDATE USER_DETAILS SET current_prompt_id = ? WHERE user_id = ?",
+                (prompt_id, current_user.id)
+            )
+            await conn.commit()
+
+            # Get permission details for response metadata
+            is_admin = await current_user.is_admin
             await cursor.execute("""
                 SELECT permission_level
                 FROM PROMPT_PERMISSIONS
                 WHERE prompt_id = ? AND user_id = ?
             """, (prompt_id, current_user.id))
             permission = await cursor.fetchone()
-
             is_owner = permission and permission[0] == 'owner'
             is_editor = permission and permission[0] == 'edit'
-
-            has_access = is_admin or is_owner or is_editor or is_public
-
-            if not has_access:
-                raise HTTPException(status_code=403, detail="Access denied")
 
     return JSONResponse({
         "success": True,
@@ -10855,10 +11556,11 @@ def _build_redirect_uri(request: Request) -> str:
 
 
 @app.get("/auth/google")
-async def auth_google(request: Request, prompt_id: int = None):
+async def auth_google(request: Request, prompt_id: int = None, pack_id: int = None):
     """
     Initiate Google OAuth flow.
-    Saves prompt_id in session to determine role after callback.
+    Saves prompt_id/pack_id in session to determine role after callback.
+    If both pack_id and prompt_id are provided, pack_id takes precedence.
     """
     # Rate limiting
     rate_error = check_rate_limits(
@@ -10873,11 +11575,38 @@ async def auth_google(request: Request, prompt_id: int = None):
         logger.error("Google OAuth not configured")
         raise HTTPException(status_code=500, detail="Google OAuth not configured")
 
+    # If both pack_id and prompt_id provided, pack_id takes precedence
+    if pack_id is not None and prompt_id is not None:
+        prompt_id = None
+
+    # Validate pack_id if provided: must exist, be published, and public
+    if pack_id is not None:
+        async with get_db_connection(readonly=True) as conn:
+            cursor = await conn.execute(
+                "SELECT id FROM PACKS WHERE id = ? AND status = 'published' AND is_public = 1",
+                (pack_id,)
+            )
+            result = await cursor.fetchone()
+            if not result:
+                pack_id = None
+
+    # Validate prompt_id if provided: must exist and be public
+    if prompt_id is not None:
+        async with get_db_connection(readonly=True) as conn:
+            cursor = await conn.execute(
+                "SELECT id FROM PROMPTS WHERE id = ? AND public = 1",
+                (prompt_id,)
+            )
+            result = await cursor.fetchone()
+            if not result:
+                prompt_id = None
+
     redirect_uri = _build_redirect_uri(request)
     flow = _get_google_flow(redirect_uri)
 
     # Save context in session
     request.session["oauth_prompt_id"] = prompt_id
+    request.session["oauth_pack_id"] = pack_id
     request.session["oauth_redirect_uri"] = redirect_uri
 
     authorization_url, state = flow.authorization_url(
@@ -10889,6 +11618,85 @@ async def auth_google(request: Request, prompt_id: int = None):
     request.session["oauth_state"] = state
 
     return RedirectResponse(authorization_url)
+
+
+async def _resolve_pack_oauth_context(pack_id):
+    """
+    Resolve pack context for Google OAuth registration.
+    Returns tuple: (pack_id, first_prompt_id, is_paid, landing_config, pack_owner_id, paid_pack_landing_url)
+    All None if pack is invalid.
+    """
+    try:
+        async with get_db_connection(readonly=True) as conn:
+            cursor = await conn.execute(
+                "SELECT landing_reg_config, created_by_user_id, status, is_public, is_paid, public_id, slug FROM PACKS WHERE id = ?",
+                (pack_id,)
+            )
+            pack_config_row = await cursor.fetchone()
+
+            if not pack_config_row or pack_config_row[2] != "published" or not pack_config_row[3]:
+                return (None, None, False, None, None, None)
+
+            if pack_config_row[4]:
+                # Paid pack - redirect to purchase page
+                paid_pack_landing_url = f"/pack/{pack_config_row[5]}/{pack_config_row[6]}/"
+                return (pack_id, None, True, None, None, paid_pack_landing_url)
+
+            # Free pack - check active prompts
+            prompt_cursor = await conn.execute(
+                """SELECT prompt_id FROM PACK_ITEMS
+                   WHERE pack_id = ? AND is_active = 1
+                   AND (disable_at IS NULL OR disable_at > datetime('now'))
+                   ORDER BY display_order ASC LIMIT 1""",
+                (pack_id,)
+            )
+            active_prompt = await prompt_cursor.fetchone()
+            if not active_prompt:
+                return (None, None, False, None, None, None)
+
+            first_prompt_id = active_prompt[0]
+            landing_config = DEFAULT_LANDING_REGISTRATION_CONFIG.copy()
+            if pack_config_row[0]:
+                stored_config = orjson.loads(pack_config_row[0])
+                landing_config.update(stored_config)
+
+            pack_owner_id = pack_config_row[1] if landing_config.get("billing_mode") == "manager_pays" else None
+            return (pack_id, first_prompt_id, False, landing_config, pack_owner_id, None)
+    except Exception as e:
+        logger.warning(f"Could not resolve pack OAuth context for pack {pack_id}: {e}")
+        return (None, None, False, None, None, None)
+
+
+async def _handle_pack_for_existing_user(pack_id, user_id):
+    """
+    Handle pack access for an existing user during Google OAuth login.
+    Returns redirect_url if user needs to purchase (paid pack), None otherwise.
+    """
+    resolved = await _resolve_pack_oauth_context(pack_id)
+    r_pack_id, r_prompt_id, r_is_paid, r_config, r_owner_id, r_paid_url = resolved
+
+    if r_pack_id is None:
+        return None
+
+    # Check if user already has access
+    async with get_db_connection(readonly=True) as conn:
+        has_access = await check_pack_access(conn, pack_id, user_id)
+
+    if has_access:
+        return None  # Normal login, user already has the pack
+
+    if r_is_paid:
+        return r_paid_url  # Redirect to purchase page
+
+    # Free pack - grant access
+    try:
+        async with get_db_connection() as conn:
+            await grant_pack_access(conn, pack_id, user_id, "google_oauth")
+        logger.info(f"Granted pack access via Google OAuth for existing user: user_id={user_id}, pack_id={pack_id}")
+    except Exception as pack_err:
+        logger.error(f"Failed to grant pack access via Google OAuth for existing user: {pack_err}")
+
+    return None
 
 
 @app.get("/auth/google/callback")
@@ -10936,6 +11744,7 @@ async def auth_google_callback(request: Request, code: str = None, state: str = 
 
     # Get stored context
     prompt_id = request.session.pop("oauth_prompt_id", None)
+    pack_id = request.session.pop("oauth_pack_id", None)
     redirect_uri = request.session.pop("oauth_redirect_uri", None)
     request.session.pop("oauth_state", None)
 
@@ -10966,7 +11775,7 @@ async def auth_google_callback(request: Request, code: str = None, state: str = 
             return RedirectResponse(url="/login?error=no_email")
 
         # Determine target role based on context
-        target_role = "user" if prompt_id else "manager"
+        target_role = "user" if (prompt_id or pack_id) else "manager"
 
         # === CASE 1: User with this google_id already exists ===
         user = await get_user_by_google_id(google_id)
@@ -10978,10 +11787,15 @@ async def auth_google_callback(request: Request, code: str = None, state: str = 
                 record_failure(request, "oauth_callback")
                 return RedirectResponse(url="/login?error=account_disabled")
 
+            # Handle pack access for existing user
+            redirect_url = None
+            if pack_id:
+                redirect_url = await _handle_pack_for_existing_user(pack_id, user.id)
+
             # Direct login
             logger.info(f"Google OAuth login for existing user {user.id}")
             user_info = await create_user_info(user, used_magic_link=False)
-            return create_login_response(user_info)
+            return create_login_response(user_info, redirect_url=redirect_url)
 
         # === CASE 2: No user with google_id, check by email ===
         user = await get_user_by_email(email)
@@ -11003,8 +11817,13 @@ async def auth_google_callback(request: Request, code: str = None, state: str = 
             await update_user_google_id(user.id, google_id, "google_linked")
             logger.info(f"Linked Google account to existing user {user.id}")
 
+            # Handle pack access for existing user
+            redirect_url = None
+            if pack_id:
+                redirect_url = await _handle_pack_for_existing_user(pack_id, user.id)
+
             user_info = await create_user_info(user, used_magic_link=False)
-            return create_login_response(user_info)
+            return create_login_response(user_info, redirect_url=redirect_url)
 
         # === CASE 3: New user - create account ===
         # Generate unique username
@@ -11016,24 +11835,83 @@ async def auth_google_callback(request: Request, code: str = None, state: str = 
             llm_row = await cursor.fetchone()
             default_llm_id = llm_row[0] if llm_row else 1
 
-        user_id = await add_user(
-            username=username,
-            prompt_id=prompt_id,
-            all_prompts_access=False,
-            public_prompts_access=True,
-            llm_id=default_llm_id,
-            allow_file_upload=(target_role == "manager"),
-            allow_image_generation=(target_role == "manager"),
-            balance=0.0,
-            phone=None,
-            role_name=target_role,
-            authentication_mode="magic_link_only",  # OAuth users use magic link as fallback
-            initial_password=None,
-            can_change_password=True,
-            email=email,
-            company_id=None,
-            current_user=None
-        )
+        # Resolve pack context for new user registration
+        landing_config = None
+        prompt_owner_id = None
+        paid_pack_landing_url = None
+        analytics_pack_id = pack_id  # Preserve for analytics even if pack_id is cleared
+
+        if pack_id:
+            resolved = await _resolve_pack_oauth_context(pack_id)
+            r_pack_id, r_prompt_id, r_is_paid, r_config, r_owner_id, r_paid_url = resolved
+
+            if r_pack_id is None:
+                # Invalid pack - treat as normal registration
+                pack_id = None
+                analytics_pack_id = None
+            elif r_is_paid:
+                # Paid pack - create user with defaults, redirect to purchase
+                paid_pack_landing_url = r_paid_url
+                pack_id = None  # Don't apply config
+            else:
+                # Free pack - apply landing config
+                prompt_id = r_prompt_id
+                landing_config = r_config
+                prompt_owner_id = r_owner_id
+
+        # Create user with pack config if available, otherwise with defaults
+        if landing_config:
+            # Prepare category_access
+            category_access = landing_config.get("category_access")
+            if isinstance(category_access, list):
+                category_access = orjson.dumps(category_access).decode('utf-8')
+
+            default_llm_id_cfg = landing_config.get("default_llm_id") or landing_config.get("_prompt_forced_llm_id") or default_llm_id
+
+            user_id = await add_user(
+                username=username,
+                prompt_id=prompt_id,
+                all_prompts_access=False,
+                public_prompts_access=landing_config.get("public_prompts_access", True),
+                llm_id=default_llm_id_cfg,
+                allow_file_upload=landing_config.get("allow_file_upload", False),
+                allow_image_generation=landing_config.get("allow_image_generation", False),
+                balance=landing_config.get("initial_balance", 0.0),
+                phone=None,
+                role_name=target_role,
+                authentication_mode="magic_link_only",
+                initial_password=None,
+                can_change_password=True,
+                email=email,
+                company_id=None,
+                current_user=None,
+                category_access=category_access,
+                billing_account_id=prompt_owner_id if landing_config.get("billing_mode") == "manager_pays" else None,
+                billing_limit=landing_config.get("billing_limit") if landing_config.get("billing_mode") == "manager_pays" else None,
+                billing_limit_action=landing_config.get("billing_limit_action", "block") if landing_config.get("billing_mode") == "manager_pays" else "block",
+                billing_auto_refill_amount=landing_config.get("billing_auto_refill_amount", 10.0) if landing_config.get("billing_mode") == "manager_pays" else 10.0,
+                billing_max_limit=landing_config.get("billing_max_limit") if landing_config.get("billing_mode") == "manager_pays" else None
+            )
+        else:
+            # Original add_user call (no pack config)
+            user_id = await add_user(
+                username=username,
+                prompt_id=prompt_id,
+                all_prompts_access=False,
+                public_prompts_access=True,
+                llm_id=default_llm_id,
+                allow_file_upload=(target_role == "manager"),
+                allow_image_generation=(target_role == "manager"),
+                balance=0.0,
+                phone=None,
+                role_name=target_role,
+                authentication_mode="magic_link_only",  # OAuth users use magic link as fallback
+                initial_password=None,
+                can_change_password=True,
+                email=email,
+                company_id=None,
+                current_user=None
+            )
 
         if not user_id:
             logger.error(f"Failed to create user from Google OAuth for email {email}")
@@ -11043,12 +11921,40 @@ async def auth_google_callback(request: Request, code: str = None, state: str = 
         # Set Google ID and auth_provider
         await update_user_google_id(user_id, google_id, "google")
 
+        # Grant pack access for free pack registration
+        if pack_id:
+            try:
+                async with get_db_connection() as conn:
+                    await grant_pack_access(conn, pack_id, user_id, "google_oauth")
+                logger.info(f"Granted pack access via Google OAuth: user_id={user_id}, pack_id={pack_id}")
+            except Exception as pack_err:
+                logger.error(f"Failed to grant pack access via Google OAuth: {pack_err}")
+
+        # Analytics conversion tracking
+        visitor_id = request.cookies.get('_spark_visitor')
+        if visitor_id and analytics_pack_id:
+            try:
+                async with get_db_connection() as conv_conn:
+                    await conv_conn.execute('''
+                        UPDATE LANDING_PAGE_ANALYTICS
+                        SET converted = 1, converted_user_id = ?
+                        WHERE rowid = (
+                            SELECT rowid FROM LANDING_PAGE_ANALYTICS
+                            WHERE pack_id = ? AND visitor_id = ? AND converted = 0
+                            ORDER BY visit_timestamp DESC LIMIT 1
+                        )
+                    ''', (user_id, analytics_pack_id, visitor_id))
+                    await conv_conn.commit()
+            except Exception as conv_err:
+                logger.warning(f"Could not mark analytics conversion for Google OAuth: {conv_err}")
+
         # Get the created user
         user = await get_user_by_id(user_id)
         logger.info(f"Created new {target_role} from Google OAuth: user_id={user_id}, username={username}")
 
+        redirect_url = paid_pack_landing_url  # None for free packs, URL for paid packs
         user_info = await create_user_info(user, used_magic_link=False)
-        return create_login_response(user_info)
+        return create_login_response(user_info, redirect_url=redirect_url)
 
     except Exception as e:
         logger.error(f"Google OAuth callback error: {e}", exc_info=True)
@@ -11132,13 +12038,68 @@ async def verify_email(request: Request, token: str):
         # Determine settings based on role
         is_manager = pending["target_role"] == "manager"
         prompt_id = pending["prompt_id"]
+        pack_id = pending.get("pack_id")
 
         # Get landing registration config if this is a landing page registration
         # Default values (used if no config or not a landing registration)
         landing_config = DEFAULT_LANDING_REGISTRATION_CONFIG.copy()
         prompt_owner_id = None
+        analytics_pack_id = pack_id  # Preserve for analytics even if pack_id is cleared
+        paid_pack_landing_url = None
 
-        if prompt_id and not is_manager:
+        if pack_id and not is_manager:
+            # Pack registration: revalidate pack state and use pack's landing_reg_config
+            try:
+                async with get_db_connection(readonly=True) as conn:
+                    cursor = await conn.execute(
+                        "SELECT landing_reg_config, created_by_user_id, status, is_public, is_paid, public_id, slug FROM PACKS WHERE id = ?",
+                        (pack_id,)
+                    )
+                    pack_config_row = await cursor.fetchone()
+
+                    # Revalidate: pack must still exist, be published, and public
+                    if not pack_config_row or pack_config_row[2] != "published" or not pack_config_row[3]:
+                        logger.warning(f"Pack {pack_id} no longer valid at verify-email (status={pack_config_row[2] if pack_config_row else 'missing'}, is_public={pack_config_row[3] if pack_config_row else 'N/A'})")
+                        pack_id = None
+                        prompt_id = None
+                        analytics_pack_id = None
+                    elif pack_config_row[4]:
+                        # Paid pack: create user with defaults, no config/access until purchase
+                        # Save pack info for analytics and redirect before clearing pack_id
+                        analytics_pack_id = pack_id
+                        paid_pack_landing_url = f"/pack/{pack_config_row[5]}/{pack_config_row[6]}/"
+                        logger.info(f"Pack {pack_id} is paid - user created with defaults, purchase required")
+                        pack_id = None
+                        prompt_id = None
+                    else:
+                        # Pack is still valid - check it has active prompts
+                        prompt_cursor = await conn.execute(
+                            """SELECT prompt_id FROM PACK_ITEMS
+                               WHERE pack_id = ? AND is_active = 1
+                               AND (disable_at IS NULL OR disable_at > datetime('now'))
+                               ORDER BY display_order ASC LIMIT 1""",
+                            (pack_id,)
+                        )
+                        active_prompt = await prompt_cursor.fetchone()
+                        if not active_prompt:
+                            logger.warning(f"Pack {pack_id} has no active prompts at verify-email")
+                            pack_id = None
+                            prompt_id = None
+                            analytics_pack_id = None
+                        else:
+                            # Update prompt_id to current first active prompt
+                            prompt_id = active_prompt[0]
+                            if pack_config_row[0]:
+                                stored_config = orjson.loads(pack_config_row[0])
+                                landing_config.update(stored_config)
+                            if landing_config.get("billing_mode") == "manager_pays":
+                                prompt_owner_id = pack_config_row[1]
+            except Exception as config_err:
+                logger.warning(f"Could not get landing config for pack {pack_id}: {config_err}")
+                pack_id = None
+                prompt_id = None
+                analytics_pack_id = None
+        elif prompt_id and not is_manager:
             try:
                 landing_config = await get_landing_registration_config(prompt_id)
                 # If manager_pays mode, get the prompt owner ID for billing
@@ -11197,6 +12158,20 @@ async def verify_email(request: Request, token: str):
             )
             await conn.commit()
 
+        # Grant pack access if this was a pack registration
+        if pack_id:
+            try:
+                async with get_db_connection() as conn:
+                    await conn.execute(
+                        """INSERT OR IGNORE INTO PACK_ACCESS
+                           (pack_id, user_id, granted_via) VALUES (?, ?, 'registration')""",
+                        (pack_id, user_id)
+                    )
+                    await conn.commit()
+                logger.info(f"Granted pack access: user_id={user_id}, pack_id={pack_id}")
+            except Exception as pack_err:
+                logger.error(f"Failed to grant pack access: {pack_err}")
+
         # Delete pending registration
         await _delete_pending_registration(token)
 
@@ -11207,22 +12182,39 @@ async def verify_email(request: Request, token: str):
             access_token = create_access_token(data={"user_info": user_info})
 
             # Phase 5: Mark analytics conversion if this was a landing page registration
-            if pending["prompt_id"]:
-                visitor_id = request.cookies.get('_spark_visitor')
-                if visitor_id:
-                    try:
-                        async with get_db_connection() as conv_conn:
+            # Pack registrations attribute the conversion to the pack, not the prompt
+            # Use analytics_pack_id to track paid pack registrations even after pack_id is cleared
+            visitor_id = request.cookies.get('_spark_visitor')
+            if visitor_id and (analytics_pack_id or prompt_id):
+                try:
+                    async with get_db_connection() as conv_conn:
+                        if analytics_pack_id:
                             await conv_conn.execute('''
                                 UPDATE LANDING_PAGE_ANALYTICS
                                 SET converted = 1, converted_user_id = ?
-                                WHERE prompt_id = ? AND visitor_id = ? AND converted = 0
-                            ''', (user_id, pending["prompt_id"], visitor_id))
-                            await conv_conn.commit()
-                    except Exception as conv_err:
-                        logger.warning(f"Could not mark analytics conversion: {conv_err}")
+                                WHERE rowid = (
+                                    SELECT rowid FROM LANDING_PAGE_ANALYTICS
+                                    WHERE pack_id = ? AND visitor_id = ? AND converted = 0
+                                    ORDER BY visit_timestamp DESC LIMIT 1
+                                )
+                            ''', (user_id, analytics_pack_id, visitor_id))
+                        else:
+                            await conv_conn.execute('''
+                                UPDATE LANDING_PAGE_ANALYTICS
+                                SET converted = 1, converted_user_id = ?
+                                WHERE rowid = (
+                                    SELECT rowid FROM LANDING_PAGE_ANALYTICS
+                                    WHERE prompt_id = ? AND visitor_id = ? AND converted = 0
+                                    ORDER BY visit_timestamp DESC LIMIT 1
+                                )
+                            ''', (user_id, prompt_id, visitor_id))
+                        await conv_conn.commit()
+                except Exception as conv_err:
+                    logger.warning(f"Could not mark analytics conversion: {conv_err}")
 
-            # Redirect to chat with session cookie
-            response = RedirectResponse(url="/chat", status_code=303)
+            # Redirect: paid pack users go to pack landing page, others to chat
+            redirect_url = paid_pack_landing_url if paid_pack_landing_url else "/chat"
+            response = RedirectResponse(url=redirect_url, status_code=303)
             response.set_cookie(
                 key="session",
                 value=access_token,
@@ -12469,6 +13461,190 @@ async def get_public_prompts(current_user: User = Depends(get_current_user)) -> 
     
     return [{"id": p[0], "name": p[1], "description": p[2], "image": p[3]} for p in public_prompts]
 
+
+# ============================================================
+# PROMPT EXPLORER - Browse & discover public prompts
+# ============================================================
+
+@app.get("/explore", response_class=HTMLResponse)
+async def explore_page(request: Request, current_user: User = Depends(get_current_user)):
+    """Render the Prompt Explorer page."""
+    if current_user is None:
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x})
+
+    context = await get_template_context(request, current_user)
+    return templates.TemplateResponse("explore.html", context)
+
+
+@app.get("/api/explore/categories")
+async def explore_categories(current_user: User = Depends(get_current_user)):
+    """Get all categories available for prompt filtering."""
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    async with get_db_connection(readonly=True) as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute("""
+                SELECT c.id, c.name, c.icon, c.is_age_restricted,
+                       COUNT(pc.prompt_id) as prompt_count
+                FROM CATEGORIES c
+                LEFT JOIN PROMPT_CATEGORIES pc ON c.id = pc.category_id
+                LEFT JOIN PROMPTS p ON pc.prompt_id = p.id AND p.public = 1 AND p.is_unlisted = 0
+                GROUP BY c.id
+                HAVING prompt_count > 0
+                ORDER BY c.display_order
+            """)
+            rows = await cursor.fetchall()
+
+    return [
+        {
+            "id": row[0],
+            "name": row[1],
+            "icon": row[2],
+            "is_age_restricted": bool(row[3]),
+            "count": row[4]
+        }
+        for row in rows
+    ]
+
+
+@app.get("/api/explore/prompts")
+async def explore_prompts(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    category: int = None,
+    search: str = None,
+    page: int = 1,
+    limit: int = 24
+):
+    """Get paginated public prompts with optional filtering."""
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    # Sanitize pagination
+    page = max(1, page)
+    limit = min(max(1, limit), 48)
+    offset = (page - 1) * limit
+
+    async with get_db_connection(readonly=True) as conn:
+        async with conn.cursor() as cursor:
+            # Build query with filters
+            where_clauses = ["p.public = 1", "p.is_unlisted = 0"]
+            params = []
+
+            if category:
+                where_clauses.append("EXISTS (SELECT 1 FROM PROMPT_CATEGORIES pc2 WHERE pc2.prompt_id = p.id AND pc2.category_id = ?)")
+                params.append(category)
+
+            if search and search.strip():
+                search_term = f"%{search.strip()}%"
+                where_clauses.append("(p.name LIKE ? OR p.description LIKE ?)")
+                params.extend([search_term, search_term])
+
+            # Exclude age-restricted categories by default
+            where_clauses.append("""
+                NOT EXISTS (
+                    SELECT 1 FROM PROMPT_CATEGORIES pc_age
+                    JOIN CATEGORIES c_age ON pc_age.category_id = c_age.id
+                    WHERE pc_age.prompt_id = p.id AND c_age.is_age_restricted = 1
+                    AND ? = 0
+                )
+            """)
+            # Pass 0 to hide age-restricted, 1 to show
+            # For now always hide unless category filter explicitly targets one
+            show_age_restricted = 1 if category else 0
+            if category:
+                # Check if the selected category is age-restricted
+                await cursor.execute("SELECT is_age_restricted FROM CATEGORIES WHERE id = ?", (category,))
+                cat_row = await cursor.fetchone()
+                show_age_restricted = 1 if (cat_row and cat_row[0]) else (1 if category else 0)
+            params.append(show_age_restricted)
+
+            where_sql = " AND ".join(where_clauses)
+
+            # Count total
+            count_sql = f"SELECT COUNT(DISTINCT p.id) FROM PROMPTS p WHERE {where_sql}"
+            await cursor.execute(count_sql, params)
+            total = (await cursor.fetchone())[0]
+
+            # Fetch prompts
+            query = f"""
+                SELECT p.id, p.name, p.description, p.image, p.public_id,
+                       p.created_at, p.is_paid, u.username as creator_name
+                FROM PROMPTS p
+                LEFT JOIN USERS u ON p.created_by_user_id = u.id
+                WHERE {where_sql}
+                ORDER BY p.created_at DESC
+                LIMIT ? OFFSET ?
+            """
+            await cursor.execute(query, params + [limit, offset])
+            rows = await cursor.fetchall()
+
+            # Get prompt IDs for category fetch
+            prompt_ids = [row[0] for row in rows]
+
+            # Fetch categories for these prompts
+            prompt_categories = {}
+            if prompt_ids:
+                placeholders = ','.join('?' * len(prompt_ids))
+                await cursor.execute(f"""
+                    SELECT pc.prompt_id, c.id, c.name, c.icon
+                    FROM PROMPT_CATEGORIES pc
+                    JOIN CATEGORIES c ON pc.category_id = c.id
+                    WHERE pc.prompt_id IN ({placeholders})
+                    ORDER BY c.display_order
+                """, prompt_ids)
+                cat_rows = await cursor.fetchall()
+                for cat_row in cat_rows:
+                    pid = cat_row[0]
+                    if pid not in prompt_categories:
+                        prompt_categories[pid] = []
+                    prompt_categories[pid].append({
+                        "id": cat_row[1],
+                        "name": cat_row[2],
+                        "icon": cat_row[3]
+                    })
+
+    # Build response with signed image URLs
+    current_time = datetime.utcnow()
+    new_expiration = current_time + timedelta(hours=AVATAR_TOKEN_EXPIRE_HOURS)
+    prompts = []
+    for row in rows:
+        image_url = None
+        image_fullsize_url = None
+        if row[3]:  # image field
+            img_base = f"{row[3]}_128.webp"
+            token = generate_img_token(img_base, new_expiration, current_user)
+            image_url = f"{CLOUDFLARE_BASE_URL}{img_base}?token={token}"
+            img_full = f"{row[3]}_fullsize.webp"
+            token_full = generate_img_token(img_full, new_expiration, current_user)
+            image_fullsize_url = f"{CLOUDFLARE_BASE_URL}{img_full}?token={token_full}"
+
+        slug = slugify(row[1]) if row[1] else ""
+        prompts.append({
+            "id": row[0],
+            "name": row[1],
+            "description": row[2],
+            "image_url": image_url,
+            "image_fullsize_url": image_fullsize_url,
+            "public_id": row[4],
+            "created_at": row[5],
+            "is_paid": bool(row[6]),
+            "creator_name": row[7],
+            "slug": slug,
+            "categories": prompt_categories.get(row[0], [])
+        })
+
+    total_pages = (total + limit - 1) // limit
+    return {
+        "prompts": prompts,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": total_pages
+    }
+
+
 def ensure_directories(prompt_id, prompt_info):
     prompt_dir = get_prompt_path(prompt_id, prompt_info)
     
@@ -12483,7 +13659,13 @@ def ensure_directories(prompt_id, prompt_info):
         os.makedirs(directory, exist_ok=True)
 
 @app.get("/landing/{prompt_id}/components", response_class=HTMLResponse)
-async def list_components(request: Request, prompt_id: int):
+async def list_components(request: Request, prompt_id: int, current_user: User = Depends(get_current_user)):
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    is_admin = await current_user.is_admin
+    if not await can_manage_prompt(current_user.id, prompt_id, is_admin):
+        raise HTTPException(status_code=403, detail="Access denied")
+
     try:
         prompt_info = await get_prompt_info(prompt_id)
         ensure_directories(prompt_id, prompt_info)
@@ -12804,7 +13986,13 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS    
 
 @app.get("/api/landing/{prompt_id}/images")
-async def get_images(prompt_id: int):
+async def get_images(prompt_id: int, current_user: User = Depends(get_current_user)):
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    is_admin = await current_user.is_admin
+    if not await can_manage_prompt(current_user.id, prompt_id, is_admin):
+        raise HTTPException(status_code=403, detail="Access denied")
+
     prompt_info = await get_prompt_info(prompt_id)
     base_dir = get_prompt_path(prompt_id, prompt_info)
     img_dir = os.path.join(base_dir, "static", "img")
@@ -12998,7 +14186,8 @@ async def _create_pending_registration(
     token: str,
     target_role: str,
     prompt_id: Optional[int],
-    expires_at: datetime
+    expires_at: datetime,
+    pack_id: Optional[int] = None
 ) -> bool:
     """Create a pending registration entry."""
     try:
@@ -13012,10 +14201,10 @@ async def _create_pending_registration(
             await conn.execute(
                 """
                 INSERT INTO PENDING_REGISTRATIONS
-                (email, username, password_hash, token, target_role, prompt_id, expires_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                (email, username, password_hash, token, target_role, prompt_id, pack_id, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (email, username, password_hash, token, target_role, prompt_id, expires_at)
+                (email, username, password_hash, token, target_role, prompt_id, pack_id, expires_at)
             )
             await conn.commit()
             return True
@@ -13030,7 +14219,7 @@ async def _get_pending_registration(token: str) -> Optional[dict]:
         async with get_db_connection(readonly=True) as conn:
             cursor = await conn.execute(
                 """
-                SELECT id, email, username, password_hash, target_role, prompt_id, expires_at
+                SELECT id, email, username, password_hash, target_role, prompt_id, expires_at, pack_id
                 FROM PENDING_REGISTRATIONS
                 WHERE token = ?
                 """,
@@ -13048,7 +14237,8 @@ async def _get_pending_registration(token: str) -> Optional[dict]:
                 "password_hash": result[3],
                 "target_role": result[4],
                 "prompt_id": result[5],
-                "expires_at": datetime.fromisoformat(result[6]) if isinstance(result[6], str) else result[6]
+                "expires_at": datetime.fromisoformat(result[6]) if isinstance(result[6], str) else result[6],
+                "pack_id": result[7]
             }
     except Exception as e:
         logger.error(f"Error getting pending registration: {e}")
@@ -13231,14 +14421,29 @@ async def register_submit(
     prompt_owner_id = None
 
     if prompt_id:
-        # Verify prompt exists and get owner for branding
+        # prompt_public_id is mandatory when prompt_id is present
+        if not prompt_public_id:
+            record_failure(request, "register", email)
+            return JSONResponse({
+                "status": "error",
+                "message": "Invalid prompt"
+            }, status_code=400)
+
+        # Verify prompt exists, is public, and cross-validate with prompt_public_id
         async with get_db_connection(readonly=True) as conn:
             cursor = await conn.execute(
-                "SELECT name, user_id FROM PROMPTS WHERE id = ?",
+                "SELECT name, created_by_user_id, public_id FROM PROMPTS WHERE id = ? AND public = 1",
                 (prompt_id,)
             )
             result = await cursor.fetchone()
             if not result:
+                record_failure(request, "register", email)
+                return JSONResponse({
+                    "status": "error",
+                    "message": "Invalid prompt"
+                }, status_code=400)
+            # Prevent prompt_id manipulation: must match the public_id from the landing
+            if result[2] != prompt_public_id:
                 record_failure(request, "register", email)
                 return JSONResponse({
                     "status": "error",
@@ -13346,6 +14551,170 @@ async def register_submit(
         # The console will show the link if email service is disabled
 
     logger.info(f"Registration pending for {email} as {target_role}")
+
+    return JSONResponse({
+        "status": "success",
+        "message": "If this email is not already registered, you will receive a verification email shortly."
+    })
+
+
+@app.post("/api/register-pack")
+async def register_pack_submit(request: Request):
+    """
+    Process registration via pack landing page.
+    Validates pack, creates pending registration, sends verification email.
+    """
+    await _cleanup_expired_registrations()
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"status": "error", "message": "Invalid request"}, status_code=400)
+
+    email = (body.get("email") or "").strip().lower()
+    password = body.get("password") or ""
+    password_confirm = body.get("password_confirm") or ""
+    pack_id = body.get("pack_id")
+    public_id = body.get("public_id")
+
+    # Rate limiting
+    rate_error = check_rate_limits(
+        request,
+        ip_limit=RLC.REGISTER_BY_IP_ALL,
+        identifier=email,
+        identifier_limit=RLC.REGISTER_BY_EMAIL,
+        action_name="register"
+    )
+    if rate_error:
+        return JSONResponse(rate_error, status_code=429)
+
+    fail_error = check_failure_limit(request, "register", RLC.REGISTER_BY_IP_FAILURES)
+    if fail_error:
+        return JSONResponse(fail_error, status_code=429)
+
+    # Validate required fields
+    if not email or not password or not password_confirm:
+        record_failure(request, "register", email)
+        return JSONResponse({"status": "error", "message": "All fields are required"}, status_code=400)
+
+    if not pack_id or not public_id:
+        record_failure(request, "register", email)
+        return JSONResponse({"status": "error", "message": "Invalid pack"}, status_code=400)
+
+    # Validate passwords
+    if password != password_confirm:
+        record_failure(request, "register", email)
+        return JSONResponse({"status": "error", "message": "Passwords do not match"}, status_code=400)
+
+    if len(password) < 8:
+        record_failure(request, "register", email)
+        return JSONResponse({"status": "error", "message": "Password must be at least 8 characters"}, status_code=400)
+
+    # Validate email
+    is_valid_email, email_error = validate_email_robust(email)
+    if not is_valid_email:
+        record_failure(request, "register", email)
+        return JSONResponse({"status": "error", "message": email_error}, status_code=400)
+
+    # Check existing user
+    existing_user = await _get_user_by_email(email)
+    if existing_user:
+        logger.info(f"Pack registration attempt with existing email: {email}")
+        return JSONResponse({
+            "status": "success",
+            "message": "If this email is not already registered, you will receive a verification email shortly."
+        })
+
+    # Validate pack: exists, published, public, cross-validate public_id
+    first_prompt_id = None
+    pack_owner_id = None
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.execute(
+            "SELECT id, public_id, status, is_public, created_by_user_id, is_paid FROM PACKS WHERE id = ?",
+            (pack_id,)
+        )
+        pack_row = await cursor.fetchone()
+
+        if not pack_row:
+            record_failure(request, "register", email)
+            return JSONResponse({"status": "error", "message": "Invalid pack"}, status_code=400)
+
+        if pack_row[1] != public_id:
+            record_failure(request, "register", email)
+            return JSONResponse({"status": "error", "message": "Invalid pack"}, status_code=400)
+
+        if pack_row[2] != "published" or not pack_row[3]:
+            record_failure(request, "register", email)
+            return JSONResponse({"status": "error", "message": "Invalid pack"}, status_code=400)
+
+        pack_owner_id = pack_row[4]
+
+        # Get first prompt in pack for initial current_prompt_id
+        cursor = await conn.execute(
+            """SELECT prompt_id FROM PACK_ITEMS
+               WHERE pack_id = ? AND is_active = 1
+               AND (disable_at IS NULL OR disable_at > datetime('now'))
+               ORDER BY display_order ASC LIMIT 1""",
+            (pack_id,)
+        )
+        first_item = await cursor.fetchone()
+        if first_item:
+            first_prompt_id = first_item[0]
+
+    if not first_prompt_id:
+        return JSONResponse(
+            {"status": "error", "message": "This pack is currently unavailable"},
+            status_code=400
+        )
+
+    # Generate username
+    username = await _generate_unique_username(email)
+
+    # Hash password and create pending registration
+    password_hash = hash_password(password)
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now() + timedelta(hours=24)
+
+    success = await _create_pending_registration(
+        email=email,
+        username=username,
+        password_hash=password_hash,
+        token=token,
+        target_role="user",
+        prompt_id=first_prompt_id,
+        expires_at=expires_at,
+        pack_id=pack_id,
+    )
+
+    if not success:
+        record_failure(request, "register", email)
+        return JSONResponse({"status": "error", "message": "Registration failed. Please try again."}, status_code=500)
+
+    # Build verification URL
+    scheme = request.url.scheme
+    host = request.url.hostname
+    port = request.url.port
+    if port and port not in [80, 443]:
+        verification_url = f"{scheme}://{host}:{port}/verify-email/{token}"
+    else:
+        verification_url = f"{scheme}://{host}/verify-email/{token}"
+
+    # Get branding from pack owner
+    branding = None
+    if pack_owner_id:
+        from common import get_manager_branding
+        branding = await get_manager_branding(pack_owner_id)
+
+    # Send verification email
+    email_service.send_verification_email(
+        to_email=email,
+        verification_url=verification_url,
+        is_manager=False,
+        prompt_name=None,
+        branding=branding
+    )
+
+    logger.info(f"Pack registration pending for {email}, pack_id={pack_id}")
 
     return JSONResponse({
         "status": "success",

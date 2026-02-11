@@ -31,10 +31,12 @@
             <label for="content" class="form-label">HTML Content</label>
             <textarea id="content" name="content" class="form-control" rows="20">{{ content }}</textarea>
         </div>
+        {% if not is_pack %}
         <div class="mb-3 form-check">
             <input type="checkbox" class="form-check-input" id="useDefaultTemplate" name="useDefaultTemplate" {% if use_default %}checked{% endif %}>
             <label class="form-check-label" for="useDefaultTemplate">Use default template for this section</label>
         </div>
+        {% endif %}
         <button type="submit" class="btn btn-primary">Save</button>
         <a href="/" class="btn btn-secondary ms-2">Back to Admin Index</a>
     </form>
@@ -56,6 +58,14 @@
         var testButton = document.getElementById('testButton');
         testButton.addEventListener('click', function(e) {
             e.preventDefault();
+            {% if is_pack %}
+            var packPublicUrl = '{{ pack_public_url|default("", true) }}';
+            if (packPublicUrl) {
+                window.open(packPublicUrl, '_blank');
+            } else {
+                NotificationModal.warning('No Public URL', 'Save and publish first.');
+            }
+            {% else %}
             var currentDomain = window.location.hostname;
             var baseDomain = currentDomain.split('.').slice(-2).join('.');
             var promptId = '{{ prompt_id }}';
@@ -64,23 +74,25 @@
             var createdBy = '{{ prompt_info.created_by_username }}';
             var newUrl = `https://${createdBy}.${baseDomain}/${promptId}/${promptName}/${section}`;
             window.open(newUrl, '_blank');
+            {% endif %}
         });
 
         $("#editForm").submit(function(e) {
             e.preventDefault();
             var content = editor.getValue();
-            var useDefaultTemplate = $("#useDefaultTemplate").is(":checked");
 
             // Only encode in base64
             var encodedContent = btoa(unescape(encodeURIComponent(content)));
 
+            var formData = { encodedContent: encodedContent };
+            {% if not is_pack %}
+            formData.use_default_template = $("#useDefaultTemplate").is(":checked");
+            {% endif %}
+
             $.ajax({
-                url: "/api/landing/{{ prompt_id }}/pages/{{ section }}",
+                url: "{% if is_pack %}/api/landing/pack/{{ prompt_id }}/pages/{{ section }}{% else %}/api/landing/{{ prompt_id }}/pages/{{ section }}{% endif %}",
                 type: "PUT",
-                data: {
-                    encodedContent: encodedContent,
-                    use_default_template: useDefaultTemplate
-                },
+                data: formData,
                 success: function(response) {
                     if (response.success) {
                         $("#message").html('<div class="alert alert-success">' + response.message + '</div>');

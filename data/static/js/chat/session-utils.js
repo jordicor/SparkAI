@@ -477,27 +477,6 @@ const SessionManager = {
                 }
             }, 100);
         }
-        // Fallback to showGenericModal (chat pages)
-        else if (typeof showGenericModal === 'function') {
-            showGenericModal(
-                'Session Expired',
-                message,
-                'Go to Login',
-                'Cancel',
-                'btn-primary',
-                () => this.redirectToLogin(),
-                true
-            );
-
-            setTimeout(() => {
-                const modal = document.getElementById('genericModal');
-                if (modal) {
-                    modal.addEventListener('hidden.bs.modal', () => {
-                        this._modalShown = false;
-                    }, { once: true });
-                }
-            }, 100);
-        }
         // Last resort: native confirm
         else {
             const shouldRedirect = confirm(message + ' Click OK to go to login.');

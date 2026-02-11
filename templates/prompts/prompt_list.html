@@ -178,18 +178,24 @@
     });
 
     function deletePrompt(promptId) {
-        if (confirm('Are you sure you want to delete this prompt?')) {
-            fetch(`/prompts/delete/${promptId}`, {
-                method: 'DELETE'
-            }).then(response => {
-                if (response.ok) {
-                    NotificationModal.success('Prompt Deleted', 'Prompt deleted successfully!');
-                    window.location.reload();
-                } else {
-                    NotificationModal.error('Delete Failed', 'Failed to delete prompt.');
-                }
-            }).catch(error => console.error('Error:', error));
-        }
+        NotificationModal.confirm(
+            'Delete Prompt',
+            'Are you sure you want to delete this prompt?',
+            () => {
+                fetch(`/prompts/delete/${promptId}`, {
+                    method: 'DELETE'
+                }).then(response => {
+                    if (response.ok) {
+                        NotificationModal.success('Prompt Deleted', 'Prompt deleted successfully!');
+                        window.location.reload();
+                    } else {
+                        NotificationModal.error('Delete Failed', 'Failed to delete prompt.');
+                    }
+                }).catch(error => console.error('Error:', error));
+            },
+            null,
+            { type: 'error', confirmText: 'Delete' }
+        );
     }
 </script>
 {% endblock %}

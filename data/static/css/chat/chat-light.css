@@ -1,6 +1,7 @@
 /* chat-light.css */
 
 :root {
+    --modal-close-filter: none;
     --sidebar-border-color: #e0e0e0;
     --sidebar-bg-color: #f8f9fa;
     --sidebar-text-color: #333333;
@@ -15,8 +16,39 @@
     --button-primary-color: #4caf50;
     --button-primary-hover-color: #45a049;
     --button-secondary-color: #007bff;
-    --dropdown-menu-bg-color: #ffffff; 
+    --dropdown-menu-bg-color: #ffffff;
     --dropdown-item-hover-color: #f0f0f0;
+
+    /* Unified theme variables (for modals, toasts, shared components) */
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8f9fa;
+    --bg-tertiary: #e9ecef;
+    --text-primary: #333333;
+    --text-secondary: #495057;
+    --text-muted: rgba(0, 0, 0, 0.63);
+    --accent: #0056b3;
+    --accent-hover: #003d80;
+    --accent-light: #007bff;
+    --accent-rgb: 0, 86, 179;
+    --border-color: #e0e0e0;
+    --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.08);
+    --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.12);
+    --success: #1e7e34;
+    --success-rgb: 30, 126, 52;
+    --danger: #c82333;
+    --danger-rgb: 200, 35, 51;
+    --warning: #946a00;
+    --warning-rgb: 148, 106, 0;
+    --warning-bg: #ffc107;
+    --info: #0c7abf;
+    --info-rgb: 12, 122, 191;
+    --font-primary: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-secondary: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --bs-body-color: #333333;
+    --bs-body-bg: #ffffff;
+    --bs-secondary-color: rgba(0, 0, 0, 0.63);
+    --bs-tertiary-color: #495057;
+    --bs-border-color: #e0e0e0;
 }
 
 

@@ -104,6 +104,26 @@ def validate_twilio_media_url(url: str) -> bool:
         logger.error(f"Error validating media URL: {e}")
         return False
 
+# ============================================================================
+# Packs System Constants
+# ============================================================================
+MAX_PACKS_PER_USER = 20
+MAX_PACK_ITEMS = 50
+MIN_PACK_ITEMS_TO_PUBLISH = 2
+PACK_CREATION_RATE_LIMIT = 5  # per day
+MAX_PACK_TAGS = 10
+MAX_TAG_LENGTH = 30
+MAX_PACK_PRICE = 999.99
+MIN_PACK_PAID_PRICE = 1.99  # Minimum price for paid packs (prevents near-zero pricing abuse)
+MAX_FREE_INITIAL_BALANCE = 5.00  # Max initial_balance for free packs/prompts (platform absorbs cost)
+MAX_COVER_FULLSIZE_WIDTH = 2560  # Cap fullsize cover output to prevent DoS via aspect ratio inflation
+
+MODERATION_COST_FIXED = 0.03  # Fixed cost charged to creator per moderation check
+MODERATION_MIN_BALANCE = 0.05  # Minimum balance required to attempt moderation
+
+PACK_STATUSES = ['draft', 'pending_review', 'published', 'rejected', 'suspended']
+VALID_NOTICE_PERIODS = [0, 90, 180, 365, 730]
+
 ALGORITHM = "HS256"
 
 MAX_TOKENS = int(os.getenv('MAX_TOKENS', 4096))
@@ -142,7 +162,7 @@ AUTH_IMAGE_ALLOWED_PREFIXES = [p.strip() for p in os.getenv("AUTH_IMAGE_ALLOWED_
 
 # CDN Configuration
 CDN_BASE_URL = os.getenv("CDN_BASE_URL", "")  # For static files (/static/)
-CDN_FILES_URL = os.getenv("CDN_FILES_URL", "https://cdn.yourdomain.com")  # For user files (/users/)
+CDN_FILES_URL = os.getenv("CDN_FILES_URL", "")  # For user files (/users/)
 ENABLE_CDN = os.getenv("ENABLE_CDN", "false").lower() == "true"
 
 def get_static_url(path: str) -> str:

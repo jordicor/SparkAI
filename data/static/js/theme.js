@@ -165,12 +165,6 @@ class ThemeManager {
     initializePromptHandling() {
         const promptSelect = document.getElementById("prompt");
         if (promptSelect) {
-            const savedPromptId = localStorage.getItem('selectedPromptId');
-            
-            if (savedPromptId) {
-                promptSelect.value = savedPromptId;
-            }
-            
             const initialPromptId = promptSelect.value;
             if (typeof updateButtons === 'function') {
                 updateButtons(initialPromptId);

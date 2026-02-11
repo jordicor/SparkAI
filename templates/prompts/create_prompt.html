@@ -118,6 +118,54 @@
                     </label>
                     <small class="form-text text-muted d-block">Pre-screen user messages for inappropriate content before AI responds</small>
                 </div>
+
+                <!-- AI Model Restrictions -->
+                <div class="mt-4 pt-3" style="border-top: 1px solid var(--border-color);">
+                    <label class="form-label"><i class="fas fa-robot me-1 text-muted"></i>AI Model Restrictions</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="llm_mode" id="llmModeAny" value="any" checked onchange="toggleLLMOptions()">
+                        <label class="form-check-label" for="llmModeAny">
+                            Any model (user chooses)
+                        </label>
+                    </div>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="radio" name="llm_mode" id="llmModeRestricted" value="restricted" onchange="toggleLLMOptions()">
+                        <label class="form-check-label" for="llmModeRestricted">
+                            Restrict to specific models
+                            <i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="Users can only choose from the selected models when using this prompt."></i>
+                        </label>
+                    </div>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="radio" name="llm_mode" id="llmModeForced" value="forced" onchange="toggleLLMOptions()">
+                        <label class="form-check-label" for="llmModeForced">
+                            Force specific model
+                            <i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="When enabled, users cannot choose a different AI model. The selected model will always be used for this prompt."></i>
+                        </label>
+                    </div>
+
+                    <!-- Restricted options: checkbox list of models -->
+                    <div id="restrictedLLMOptions" class="mt-2" style="display: none;">
+                        <div id="llmCheckboxList" class="ms-3" style="max-height: 220px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 6px; padding: 8px;"></div>
+                        <input type="hidden" id="allowedLLMsInput" name="allowed_llms">
+                    </div>
+
+                    <!-- Forced options: single select + hide name -->
+                    <div id="forcedLLMOptions" style="display: none;">
+                        <div class="mb-3 mt-2">
+                            <label for="forcedLLM" class="form-label">Select Model</label>
+                            <select class="form-select" id="forcedLLM" name="forced_llm_id">
+                                <!-- LLMs loaded dynamically -->
+                            </select>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" id="hideLLMName" name="hide_llm_name">
+                            <label class="form-check-label" for="hideLLMName">
+                                Hide model name in chat UI
+                                <small class="text-muted d-block">Show "AI" instead of model name</small>
+                            </label>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -358,78 +406,39 @@
         </div>
         <p class="text-muted small mb-3">Configure pricing for your public prompt. You earn 70% of your markup when others use it.</p>
 
-        <div class="flex-row">
-            <div class="flex-column">
-                <div class="mb-3">
-                    <label class="form-label">Pricing Model</label>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="is_paid" id="pricingFree" value="0" checked onchange="togglePricingOptions()">
-                        <label class="form-check-label" for="pricingFree">
-                            <i class="fas fa-gift me-1 text-success"></i>Free
-                            <small class="text-muted d-block">Anyone can use without paying markup</small>
-                        </label>
-                    </div>
-                    <div class="form-check mt-2">
-                        <input class="form-check-input" type="radio" name="is_paid" id="pricingPaid" value="1" onchange="togglePricingOptions()">
-                        <label class="form-check-label" for="pricingPaid">
-                            <i class="fas fa-coins me-1 text-warning"></i>Paid
-                            <small class="text-muted d-block">Earn money when others use this prompt</small>
-                        </label>
-                    </div>
-                </div>
+        <div class="mb-3">
+            <label class="form-label">Pricing Model</label>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="is_paid" id="pricingFree" value="0" checked onchange="togglePricingOptions()">
+                <label class="form-check-label" for="pricingFree">
+                    <i class="fas fa-gift me-1 text-success"></i>Free
+                    <small class="text-muted d-block">Anyone can use without paying markup</small>
+                </label>
+            </div>
+            <div class="form-check mt-2">
+                <input class="form-check-input" type="radio" name="is_paid" id="pricingPaid" value="1" onchange="togglePricingOptions()">
+                <label class="form-check-label" for="pricingPaid">
+                    <i class="fas fa-coins me-1 text-warning"></i>Paid
+                    <small class="text-muted d-block">Earn money when others use this prompt</small>
+                </label>
+            </div>
+        </div>
 
-                <div id="markupOptions" style="display: none;">
-                    <div class="mb-3">
-                        <label for="markupInput" class="form-label">Your Markup ($ per million tokens)</label>
-                        <div class="input-group">
-                            <span class="input-group-text">$</span>
-                            <input type="text" class="form-control" id="markupInput" name="markup_per_mtokens"
-                                   value="0" inputmode="decimal" pattern="[0-9]*\.?[0-9]*"
-                                   oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1'); updateEarningsPreview()">
-                            <span class="input-group-text">/ Mtokens</span>
-                        </div>
-                    </div>
-
-                    <div class="alert alert-success" id="earningsPreview">
-                        <i class="fas fa-calculator me-2"></i>
-                        <strong>You will earn:</strong> <span id="previewEarnings">$0.00</span> per million tokens (70% of markup)
-                    </div>
+        <div id="markupOptions" style="display: none;">
+            <div class="mb-3">
+                <label for="markupInput" class="form-label">Your Markup ($ per million tokens)</label>
+                <div class="input-group">
+                    <span class="input-group-text">$</span>
+                    <input type="text" class="form-control" id="markupInput" name="markup_per_mtokens"
+                           value="0" inputmode="decimal" pattern="[0-9]*\.?[0-9]*"
+                           oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1'); updateEarningsPreview()">
+                    <span class="input-group-text">/ Mtokens</span>
                 </div>
             </div>
 
-            <div class="flex-column">
-                <div class="mb-3">
-                    <label class="form-label">AI Model Restrictions</label>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="llm_mode" id="llmModeAny" value="any" checked onchange="toggleLLMOptions()">
-                        <label class="form-check-label" for="llmModeAny">
-                            Any model (user chooses)
-                        </label>
-                    </div>
-                    <div class="form-check mt-2">
-                        <input class="form-check-input" type="radio" name="llm_mode" id="llmModeForced" value="forced" onchange="toggleLLMOptions()">
-                        <label class="form-check-label" for="llmModeForced">
-                            Force specific model
-                            <i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="When enabled, users cannot choose a different AI model. The selected model will always be used for this prompt."></i>
-                        </label>
-                    </div>
-                </div>
-
-                <div id="forcedLLMOptions" style="display: none;">
-                    <div class="mb-3">
-                        <label for="forcedLLM" class="form-label">Select Model</label>
-                        <select class="form-select" id="forcedLLM" name="forced_llm_id">
-                            <!-- LLMs loaded dynamically -->
-                        </select>
-                    </div>
-                    <div class="form-check mb-3">
-                        <input type="checkbox" class="form-check-input" id="hideLLMName" name="hide_llm_name">
-                        <label class="form-check-label" for="hideLLMName">
-                            Hide model name in chat UI
-                            <small class="text-muted d-block">Show "AI" instead of model name</small>
-                        </label>
-                    </div>
-                </div>
+            <div class="alert alert-success" id="earningsPreview">
+                <i class="fas fa-calculator me-2"></i>
+                <strong>You will earn:</strong> <span id="previewEarnings">$0.00</span> per million tokens (70% of markup)
             </div>
         </div>
     </div>
@@ -724,9 +733,10 @@
     }
 
     function toggleLLMOptions() {
-        const isForced = document.getElementById('llmModeForced').checked;
-        document.getElementById('forcedLLMOptions').style.display = isForced ? 'block' : 'none';
-        document.getElementById('forcedLLM').disabled = !isForced;
+        const mode = document.querySelector('input[name="llm_mode"]:checked')?.value || 'any';
+        document.getElementById('restrictedLLMOptions').style.display = mode === 'restricted' ? 'block' : 'none';
+        document.getElementById('forcedLLMOptions').style.display = mode === 'forced' ? 'block' : 'none';
+        document.getElementById('forcedLLM').disabled = mode !== 'forced';
     }
 
     function loadLLMs() {
@@ -736,9 +746,11 @@
                 const select = document.getElementById('forcedLLM');
                 const preWdSelect = document.getElementById('preWatchdogLLM');
                 const postWdSelect = document.getElementById('postWatchdogLLM');
+                const checkboxList = document.getElementById('llmCheckboxList');
                 select.innerHTML = '<option value="">Select a model</option>';
                 preWdSelect.innerHTML = '<option value="">Select a model</option>';
                 postWdSelect.innerHTML = '<option value="">Select a model</option>';
+                checkboxList.innerHTML = '';
                 llms.forEach(llm => {
                     const option = document.createElement('option');
                     option.value = llm.id;
@@ -746,6 +758,15 @@
                     select.appendChild(option);
                     preWdSelect.appendChild(option.cloneNode(true));
                     postWdSelect.appendChild(option.cloneNode(true));
+
+                    // Add checkbox for restricted mode
+                    const div = document.createElement('div');
+                    div.className = 'form-check';
+                    div.innerHTML = `
+                        <input class="form-check-input llm-restrict-checkbox" type="checkbox" id="llmRestrict_${llm.id}" value="${llm.id}">
+                        <label class="form-check-label" for="llmRestrict_${llm.id}">${llm.machine} - ${llm.model}</label>
+                    `;
+                    checkboxList.appendChild(div);
                 });
             })
             .catch(error => console.error('Error loading LLMs:', error));
@@ -1027,6 +1048,14 @@
         // Form validation on submit
         document.getElementById('createPromptForm').addEventListener('submit', function(e) {
             serializeWatchdogConfig();
+            // Serialize allowed LLMs for restricted mode
+            const llmMode = document.querySelector('input[name="llm_mode"]:checked')?.value;
+            if (llmMode === 'restricted') {
+                const selectedIds = Array.from(document.querySelectorAll('.llm-restrict-checkbox:checked')).map(cb => parseInt(cb.value));
+                document.getElementById('allowedLLMsInput').value = JSON.stringify(selectedIds);
+            } else {
+                document.getElementById('allowedLLMsInput').value = '';
+            }
             if (!validateCategories()) {
                 e.preventDefault();
                 document.getElementById('categoriesSection').scrollIntoView({ behavior: 'smooth' });

@@ -16,6 +16,36 @@ body, h5 {
     --message-input-bg-color: #2b1500;
     --message-user-bg-color: #ff6600;
     --message-bot-bg-color: #8b4513;
+
+    /* Unified theme variables (for modals, toasts, shared components) */
+    --bg-primary: #2b1500;
+    --bg-secondary: #1a0d00;
+    --bg-tertiary: #4d2600;
+    --text-primary: #ff9966;
+    --text-secondary: #ff8533;
+    --text-muted: rgba(255, 153, 102, 0.75);
+    --accent: #ff6600;
+    --accent-hover: #ff9933;
+    --accent-light: #ff8533;
+    --accent-rgb: 255, 102, 0;
+    --border-color: #ff6600;
+    --shadow-soft: 0 2px 8px rgba(255, 102, 0, 0.2);
+    --shadow-hover: 0 4px 12px rgba(255, 102, 0, 0.4);
+    --success: #2d8a63;
+    --success-rgb: 45, 138, 99;
+    --danger: #ff4500;
+    --danger-rgb: 255, 69, 0;
+    --warning: #ffd700;
+    --warning-rgb: 255, 215, 0;
+    --info: #ff9933;
+    --info-rgb: 255, 153, 51;
+    --font-primary: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-secondary: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --bs-body-color: #ff9966;
+    --bs-body-bg: #2b1500;
+    --bs-secondary-color: rgba(255, 153, 102, 0.75);
+    --bs-tertiary-color: #ff8533;
+    --bs-border-color: #ff6600;
 }
 
 body {

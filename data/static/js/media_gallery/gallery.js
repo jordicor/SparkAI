@@ -117,9 +117,9 @@ function deleteImages(imageIds) {
 
 // Delete single image from viewer
 function deleteCurrentImage(url, index, imageData) {
-    if (confirm('Are you sure you want to delete this image?')) {
+    NotificationModal.confirm('Delete Image', 'Are you sure you want to delete this image?', () => {
         deleteImages([imageData.id]);
-    }
+    }, null, { type: 'error', confirmText: 'Delete' });
 }
 
 // Event Listeners
@@ -137,10 +137,10 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('deleteSelectedAll')?.addEventListener('click', function() {
         const selectedImages = document.querySelectorAll('#all .image-checkbox:checked');
         if (selectedImages.length > 0) {
-            if (confirm(`Are you sure you want to delete ${selectedImages.length} selected images?`)) {
+            NotificationModal.confirm('Delete Images', `Are you sure you want to delete ${selectedImages.length} selected images?`, () => {
                 const idsToDelete = Array.from(selectedImages).map(checkbox => parseInt(checkbox.dataset.id));
                 deleteImages(idsToDelete);
-            }
+            }, null, { type: 'error', confirmText: 'Delete' });
         } else {
             NotificationModal.warning('Selection Required', 'Please select at least one image to delete');
         }
@@ -149,10 +149,10 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('deleteSelectedBot')?.addEventListener('click', function() {
         const selectedImages = document.querySelectorAll('#bot .image-checkbox:checked');
         if (selectedImages.length > 0) {
-            if (confirm(`Are you sure you want to delete ${selectedImages.length} selected images?`)) {
+            NotificationModal.confirm('Delete Images', `Are you sure you want to delete ${selectedImages.length} selected images?`, () => {
                 const idsToDelete = Array.from(selectedImages).map(checkbox => parseInt(checkbox.dataset.id));
                 deleteImages(idsToDelete);
-            }
+            }, null, { type: 'error', confirmText: 'Delete' });
         } else {
             NotificationModal.warning('Selection Required', 'Please select at least one image to delete');
         }
@@ -161,10 +161,10 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('deleteSelectedUser')?.addEventListener('click', function() {
         const selectedImages = document.querySelectorAll('#user .image-checkbox:checked');
         if (selectedImages.length > 0) {
-            if (confirm(`Are you sure you want to delete ${selectedImages.length} selected images?`)) {
+            NotificationModal.confirm('Delete Images', `Are you sure you want to delete ${selectedImages.length} selected images?`, () => {
                 const idsToDelete = Array.from(selectedImages).map(checkbox => parseInt(checkbox.dataset.id));
                 deleteImages(idsToDelete);
-            }
+            }, null, { type: 'error', confirmText: 'Delete' });
         } else {
             NotificationModal.warning('Selection Required', 'Please select at least one image to delete');
         }

@@ -460,35 +460,39 @@
             return;
         }
 
-        if (!confirm('Withdraw your pending earnings? The funds will be sent to your connected bank account and typically arrive within 2-3 business days.')) {
-            return;
-        }
+        NotificationModal.confirm(
+            'Withdraw Earnings',
+            'Withdraw your pending earnings? The funds will be sent to your connected bank account and typically arrive within 2-3 business days.',
+            async () => {
+                const withdrawBtn = document.getElementById('withdrawBtn');
+                withdrawBtn.disabled = true;
+                withdrawBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Processing...';
 
-        const withdrawBtn = document.getElementById('withdrawBtn');
-        withdrawBtn.disabled = true;
-        withdrawBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Processing...';
+                try {
+                    const response = await fetch('/api/creator/request-payout', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
 
-        try {
-            const response = await fetch('/api/creator/request-payout', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
+                    const data = await response.json();
 
-            const data = await response.json();
-
-            if (response.ok && data.success) {
-                NotificationModal.success('Payout Sent!', data.message || 'Your payout has been sent to your bank account.');
-                loadEarningsData();
-            } else {
-                NotificationModal.error('Payout Failed', data.message || 'Failed to process payout. Please try again.');
-            }
-        } catch (error) {
-            console.error('Error requesting payout:', error);
-            NotificationModal.error('Error', 'An error occurred. Please try again.');
-        } finally {
-            withdrawBtn.innerHTML = '<i class="fas fa-money-bill-wave me-1"></i> Request Withdrawal';
-            updateWithdrawButton();
-        }
+                    if (response.ok && data.success) {
+                        NotificationModal.success('Payout Sent!', data.message || 'Your payout has been sent to your bank account.');
+                        loadEarningsData();
+                    } else {
+                        NotificationModal.error('Payout Failed', data.message || 'Failed to process payout. Please try again.');
+                    }
+                } catch (error) {
+                    console.error('Error requesting payout:', error);
+                    NotificationModal.error('Error', 'An error occurred. Please try again.');
+                } finally {
+                    withdrawBtn.innerHTML = '<i class="fas fa-money-bill-wave me-1"></i> Request Withdrawal';
+                    updateWithdrawButton();
+                }
+            },
+            null,
+            { type: 'warning', confirmText: 'Withdraw' }
+        );
     }
 
     function formatCurrency(amount) {

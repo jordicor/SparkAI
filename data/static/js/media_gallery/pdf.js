@@ -38,7 +38,7 @@ function downloadPdf(path) {
 function deletePdf(encodedPath) {
     const path = decodeURIComponent(encodedPath);
 
-    if (confirm('Are you sure you want to delete this PDF?')) {
+    NotificationModal.confirm('Delete PDF', 'Are you sure you want to delete this PDF?', () => {
         const payload = {
             pdf_path: path.startsWith('data/') ? path : `data${path}`
         };
@@ -73,7 +73,7 @@ function deletePdf(encodedPath) {
             console.error('Error deleting PDF:', error);
             NotificationModal.error('Delete Error', `Error deleting PDF: ${error.message}`);
         });
-    }
+    }, null, { type: 'error', confirmText: 'Delete' });
 }
 
 /**
@@ -86,7 +86,7 @@ function deleteSelectedPdfs() {
         return;
     }
 
-    if (confirm(`Are you sure you want to delete ${selectedPdfs.length} selected PDFs?`)) {
+    NotificationModal.confirm('Delete PDFs', `Are you sure you want to delete ${selectedPdfs.length} selected PDFs?`, () => {
         const pdfPaths = Array.from(selectedPdfs).map(checkbox => decodeURIComponent(checkbox.dataset.path));
 
         fetch('/delete-pdfs', {
@@ -111,7 +111,7 @@ function deleteSelectedPdfs() {
             console.error('Error deleting PDFs:', error);
             NotificationModal.error('Delete Error', 'An error occurred while deleting the PDFs');
         });
-    }
+    }, null, { type: 'error', confirmText: 'Delete' });
 }
 
 /**

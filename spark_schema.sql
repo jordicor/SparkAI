@@ -59,6 +59,8 @@ CREATE TABLE PROMPTS (
     disable_web_search BOOLEAN DEFAULT 0,
     enable_moderation BOOLEAN DEFAULT 0,
     watchdog_config TEXT DEFAULT NULL,
+    allow_in_packs BOOLEAN DEFAULT 0,
+    pack_notice_period_days INTEGER DEFAULT 0,
     FOREIGN KEY (voice_id) REFERENCES VOICES (id),
     FOREIGN KEY (created_by_user_id) REFERENCES USERS (id)
 );
@@ -286,9 +288,11 @@ CREATE TABLE PENDING_REGISTRATIONS (
     token TEXT UNIQUE NOT NULL,
     target_role TEXT NOT NULL DEFAULT 'user',
     prompt_id INTEGER,
+    pack_id INTEGER DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     expires_at TIMESTAMP NOT NULL,
-    FOREIGN KEY (prompt_id) REFERENCES PROMPTS(id)
+    FOREIGN KEY (prompt_id) REFERENCES PROMPTS(id),
+    FOREIGN KEY (pack_id) REFERENCES PACKS(id)
 );
 
 CREATE UNIQUE INDEX idx_pending_token ON PENDING_REGISTRATIONS(token);
@@ -300,7 +304,8 @@ CREATE INDEX idx_pending_expires ON PENDING_REGISTRATIONS(expires_at);
 -- =============================================================================
 CREATE TABLE LANDING_PAGE_ANALYTICS (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    prompt_id INTEGER NOT NULL,
+    prompt_id INTEGER,
+    pack_id INTEGER DEFAULT NULL,
     visitor_id TEXT,
     page_path TEXT,
     referrer TEXT,
@@ -309,10 +314,12 @@ CREATE TABLE LANDING_PAGE_ANALYTICS (
     converted BOOLEAN DEFAULT 0,
     converted_user_id INTEGER,
     visit_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (prompt_id) REFERENCES PROMPTS(id) ON DELETE CASCADE
+    FOREIGN KEY (prompt_id) REFERENCES PROMPTS(id) ON DELETE CASCADE,
+    FOREIGN KEY (pack_id) REFERENCES PACKS(id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_analytics_prompt ON LANDING_PAGE_ANALYTICS(prompt_id);
+CREATE INDEX idx_analytics_pack ON LANDING_PAGE_ANALYTICS(pack_id);
 CREATE INDEX idx_analytics_timestamp ON LANDING_PAGE_ANALYTICS(visit_timestamp);
 CREATE INDEX idx_analytics_visitor ON LANDING_PAGE_ANALYTICS(visitor_id);
 CREATE INDEX idx_analytics_converted ON LANDING_PAGE_ANALYTICS(converted);
@@ -555,3 +562,90 @@ CREATE TABLE WATCHDOG_STATE (
 
 -- Composite index for cadence calculation (used by watchdog actor)
 CREATE INDEX idx_messages_conv_type_id ON MESSAGES(conversation_id, type, id);
+
+-- =============================================================================
+-- PACKS (curated collections of prompts sold as products)
+-- =============================================================================
+CREATE TABLE PACKS (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
+    description TEXT,
+    cover_image TEXT,
+    created_by_user_id INTEGER NOT NULL,
+    is_public BOOLEAN DEFAULT 0,
+    is_paid BOOLEAN DEFAULT 0,
+    price DECIMAL DEFAULT 0.00,
+    status TEXT DEFAULT 'draft',
+    public_id TEXT UNIQUE,
+    landing_reg_config TEXT DEFAULT NULL,
+    tags TEXT DEFAULT NULL,
+    max_items INTEGER DEFAULT 50,
+    has_custom_landing BOOLEAN DEFAULT 0,
+    rejection_reason TEXT DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by_user_id) REFERENCES USERS(id)
+);
+
+CREATE UNIQUE INDEX idx_packs_public_id ON PACKS(public_id);
+CREATE INDEX idx_packs_status ON PACKS(status);
+CREATE INDEX idx_packs_created_by ON PACKS(created_by_user_id);
+
+-- =============================================================================
+-- PACK_ITEMS (prompts included in a pack)
+-- =============================================================================
+CREATE TABLE PACK_ITEMS (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pack_id INTEGER NOT NULL,
+    prompt_id INTEGER NOT NULL,
+    display_order INTEGER DEFAULT 0,
+    notice_period_snapshot INTEGER DEFAULT 0,
+    disable_at TIMESTAMP DEFAULT NULL,
+    is_active BOOLEAN DEFAULT 1,
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (pack_id) REFERENCES PACKS(id) ON DELETE CASCADE,
+    FOREIGN KEY (prompt_id) REFERENCES PROMPTS(id),
+    UNIQUE(pack_id, prompt_id)
+);
+
+CREATE INDEX idx_pack_items_pack ON PACK_ITEMS(pack_id);
+CREATE INDEX idx_pack_items_prompt ON PACK_ITEMS(prompt_id);
+
+-- =============================================================================
+-- PACK_ACCESS (user entitlements to packs)
+-- =============================================================================
+CREATE TABLE PACK_ACCESS (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pack_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    granted_via TEXT NOT NULL,
+    granted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP DEFAULT NULL,
+    FOREIGN KEY (pack_id) REFERENCES PACKS(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES USERS(id) ON DELETE CASCADE,
+    UNIQUE(pack_id, user_id)
+);
+
+CREATE INDEX idx_pack_access_user ON PACK_ACCESS(user_id);
+CREATE INDEX idx_pack_access_pack ON PACK_ACCESS(pack_id);
+
+-- =============================================================================
+-- PACK_PURCHASES (purchase tracking)
+-- =============================================================================
+CREATE TABLE PACK_PURCHASES (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    buyer_user_id INTEGER NOT NULL,
+    pack_id INTEGER NOT NULL,
+    amount DECIMAL NOT NULL,
+    currency TEXT DEFAULT 'USD',
+    payment_method TEXT,
+    payment_reference TEXT,
+    status TEXT DEFAULT 'completed',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (buyer_user_id) REFERENCES USERS(id),
+    FOREIGN KEY (pack_id) REFERENCES PACKS(id)
+);
+
+CREATE INDEX idx_pack_purchases_buyer ON PACK_PURCHASES(buyer_user_id);
+CREATE INDEX idx_pack_purchases_pack ON PACK_PURCHASES(pack_id);

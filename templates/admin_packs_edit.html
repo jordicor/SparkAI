@@ -1,0 +1,432 @@
+{% extends 'base_admin.html' %}
+
+{% block title %}{{ 'Edit: ' + pack.name if pack else 'New Pack' }} - SPARK{% endblock %}
+
+{% block page_title %}{{ 'Edit: ' + pack.name if pack else 'New Pack' }}{% endblock %}
+{% block page_subtitle %}<p class="page-subtitle">{{ 'Modify pack settings and contents' if pack else 'Create a new AI prompt pack' }}</p>{% endblock %}
+
+{% block page_actions %}
+<a href="/admin/packs" class="btn btn-outline-secondary">
+    <i class="fas fa-arrow-left me-1"></i> Back to Packs
+</a>
+{% endblock %}
+
+{% block styles %}
+<style>
+    .tag-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border-radius: 16px;
+        background: var(--accent-light, rgba(99,102,241,0.15));
+        color: var(--accent, #6366f1);
+        font-size: 0.85rem;
+        margin: 2px;
+    }
+    .tag-chip .tag-remove {
+        cursor: pointer;
+        font-size: 0.75rem;
+        opacity: 0.7;
+    }
+    .tag-chip .tag-remove:hover { opacity: 1; }
+
+    .pack-items-table .drag-handle {
+        cursor: grab;
+        color: var(--text-muted, #888);
+        font-size: 1.1rem;
+    }
+    .pack-items-table .drag-handle:hover { color: var(--text-primary, #fff); }
+    .pack-items-table .prompt-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        object-fit: cover;
+    }
+    .pack-items-table .prompt-avatar-placeholder {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: var(--bg-tertiary, #333);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        color: var(--text-muted, #888);
+    }
+
+    #addPromptResults {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    .prompt-search-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid var(--border-color, #333);
+        transition: background 0.15s;
+    }
+    .prompt-search-item:hover {
+        background: var(--bg-tertiary, #333);
+    }
+    .prompt-search-item img {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        object-fit: cover;
+    }
+    .prompt-search-item .prompt-search-placeholder {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: var(--bg-tertiary, #333);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        color: var(--text-muted, #888);
+    }
+    .price-row { display: none; }
+    .price-row.visible { display: flex; }
+
+    /* Cover image upload */
+    .cover-image-wrapper { max-width: 512px; }
+    .cover-image-container { position: relative; width: 100%; aspect-ratio: 16/9; background: var(--bg-tertiary, #333); border-radius: 8px; overflow: hidden; cursor: pointer; border: 2px dashed var(--border-color, #444); }
+    .cover-image-container:hover .cover-icons { opacity: 1; }
+    .cover-image-container.hidden { display: none; }
+    .cover-preview { width: 100%; height: 100%; object-fit: cover; }
+    .cover-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-muted, #888); gap: 8px; }
+    .cover-placeholder i { font-size: 2rem; }
+    .cover-icons { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; opacity: 0; transition: opacity 0.2s; }
+    .cover-icon { width: 32px; height: 32px; border-radius: 50%; background: rgba(0,0,0,0.6); color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 14px; }
+    .cover-icon:hover { background: rgba(0,0,0,0.8); }
+    .cover-icon.delete:hover { background: var(--danger, #dc3545); }
+    .cover-preview-new { position: relative; max-width: 512px; aspect-ratio: 16/9; border-radius: 8px; overflow: hidden; }
+    .cover-preview-new.hidden { display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<form id="packForm" autocomplete="off">
+    <input type="hidden" id="packId" value="{{ pack.id if pack else '' }}">
+    <input type="hidden" id="packTagsData" value="{{ pack.tags|tojson|e if pack and pack.tags else '[]' }}">
+
+    {% if pack and pack.status == 'rejected' and pack.rejection_reason %}
+    <div class="alert alert-danger" style="margin-bottom: 1.5rem; display: flex; align-items: flex-start; gap: 0.75rem;">
+        <div style="flex: 1;">
+            <strong><i class="fas fa-exclamation-triangle"></i> Pack Rejected</strong>
+            <p style="margin: 0.5rem 0 0;">{{ pack.rejection_reason }}</p>
+        </div>
+        <button type="button" style="background: none; border: none; font-size: 1.25rem; cursor: pointer; color: inherit; padding: 0; line-height: 1;" onclick="this.parentElement.remove()">&times;</button>
+    </div>
+    {% endif %}
+
+    <!-- Basic Information -->
+    <div class="section-container">
+        <div class="section-title"><i class="fas fa-info-circle"></i> Basic Information</div>
+        <div class="flex-row">
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label class="form-label" for="packName">Pack Name</label>
+                    <input class="form-control" id="packName" name="name" required maxlength="100"
+                           value="{{ pack.name if pack else '' }}" placeholder="e.g. Super Entrepreneur AI">
+                </div>
+            </div>
+            <div class="flex-column">
+                <div class="mb-3">
+                    <label class="form-label" for="packSlug">Slug</label>
+                    <input class="form-control" id="packSlug" name="slug" maxlength="120"
+                           value="{{ pack.slug if pack else '' }}" placeholder="auto-generated-from-name">
+                    <small class="text-muted">URL-friendly identifier. Auto-generated from name if left empty.</small>
+                </div>
+            </div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="packDescription">Description</label>
+            <textarea class="form-control" id="packDescription" name="description" rows="3"
+                      maxlength="500" placeholder="Describe what this pack offers...">{{ pack.description if pack else '' }}</textarea>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Cover Image</label>
+            <div class="cover-image-wrapper">
+                <div class="cover-image-container" id="coverImageContainer">
+                    {% if pack and pack.cover_image %}
+                        <img src="/api/packs/{{ pack.id }}/cover/512" alt="Cover" id="currentCoverImage" class="cover-preview">
+                        <div class="cover-icons">
+                            <span class="cover-icon edit" title="Change image"><i class="fas fa-pencil-alt"></i></span>
+                            <span class="cover-icon delete" title="Remove image"><i class="fas fa-trash"></i></span>
+                        </div>
+                    {% else %}
+                        <div class="cover-placeholder">
+                            <i class="fas fa-image"></i>
+                            <span>Upload cover image (16:9)</span>
+                        </div>
+                        <div class="cover-icons">
+                            <span class="cover-icon edit" title="Upload image"><i class="fas fa-pencil-alt"></i></span>
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="cover-preview-new hidden" id="coverPreviewContainer">
+                    <img id="coverPreviewImage" alt="Preview" class="cover-preview">
+                    <div class="cover-icons">
+                        <span class="cover-icon edit" title="Change"><i class="fas fa-pencil-alt"></i></span>
+                        <span class="cover-icon cancel" title="Cancel"><i class="fas fa-times"></i></span>
+                    </div>
+                </div>
+                <input type="file" id="coverImageInput" accept="image/*" style="display:none">
+            </div>
+            <small class="text-muted">Recommended: 16:9 ratio, at least 512px wide</small>
+        </div>
+    </div>
+
+    <!-- Pricing & Tags -->
+    <div class="section-container">
+        <div class="section-title"><i class="fas fa-tags"></i> Pricing & Tags</div>
+        <div class="mb-3">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="packIsPaid" name="is_paid"
+                       {{ 'checked' if pack and pack.is_paid else '' }}>
+                <label class="form-check-label" for="packIsPaid">This is a paid pack</label>
+            </div>
+        </div>
+        <div class="flex-row price-row" id="priceRow">
+            <div class="flex-column" style="max-width: 200px;">
+                <div class="mb-3">
+                    <label class="form-label" for="packPrice">Price (USD)</label>
+                    <div class="input-group">
+                        <span class="input-group-text">$</span>
+                        <input type="number" class="form-control" id="packPrice" name="price"
+                               min="0" max="999.99" step="0.01" value="{{ '%.2f'|format(pack.price) if pack else '0.00' }}">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Tags</label>
+            <div id="tagsContainer" class="mb-2"></div>
+            <div class="input-group" style="max-width: 350px;">
+                <input class="form-control" id="tagInput" maxlength="30" placeholder="Add a tag...">
+                <button type="button" class="btn btn-outline-secondary" id="addTagBtn">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+            <small class="text-muted">Max 10 tags, 30 characters each. Press Enter or click + to add.</small>
+        </div>
+    </div>
+
+    <!-- Prompts in this Pack -->
+    <div class="section-container">
+        <div class="section-title"><i class="fas fa-layer-group"></i> Prompts in this Pack</div>
+        {% if not pack %}
+        <p class="text-muted">Save the pack first, then you can add prompts.</p>
+        {% else %}
+        <div class="table-wrapper">
+            <table class="table pack-items-table">
+                <thead>
+                    <tr>
+                        <th style="width:40px;"></th>
+                        <th style="width:30px;">#</th>
+                        <th style="width:40px;"></th>
+                        <th>Prompt</th>
+                        <th>Owner</th>
+                        <th>Notice</th>
+                        <th class="text-end" style="width:60px;">Remove</th>
+                    </tr>
+                </thead>
+                <tbody id="packItemsBody">
+                    {% for item in pack_items %}
+                    <tr data-prompt-id="{{ item.prompt_id }}">
+                        <td><i class="fas fa-grip-vertical drag-handle"></i></td>
+                        <td class="item-order">{{ loop.index }}</td>
+                        <td>
+                            {% if item.prompt_image %}
+                            <img class="prompt-avatar" src="/static/{{ item.prompt_image }}" alt="">
+                            {% else %}
+                            <div class="prompt-avatar-placeholder">
+                                <i class="fas fa-robot"></i>
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td>{{ item.prompt_name }}</td>
+                        <td><small class="text-muted">{{ item.prompt_owner_username or '--' }}</small></td>
+                        <td>
+                            {% if item.notice_period_snapshot == 0 %}
+                            <small class="text-muted">--</small>
+                            {% elif item.notice_period_snapshot >= 365 %}
+                            {{ item.notice_period_snapshot // 365 }}y
+                            {% else %}
+                            {{ item.notice_period_snapshot }}d
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                    onclick="removePackItem({{ item.prompt_id }}, '{{ item.prompt_name|e }}')">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr id="noItemsRow">
+                        <td colspan="7" class="text-center text-muted py-3">
+                            No prompts added yet. Click "Add Prompt" below.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <button type="button" class="btn btn-outline-primary mt-2" data-bs-toggle="modal" data-bs-target="#addPromptModal">
+            <i class="fas fa-plus me-1"></i> Add Prompt
+        </button>
+        {% endif %}
+    </div>
+
+    <!-- Landing Page Config -->
+    <div class="section-container">
+        <div class="section-title"><i class="fas fa-cog"></i> Landing Page Config</div>
+        {% set lrc = {} %}
+        {% if pack and pack.landing_reg_config is mapping %}
+            {% set lrc = pack.landing_reg_config %}
+        {% endif %}
+        <div class="flex-row">
+            <div class="flex-column" style="max-width: 200px;">
+                <div class="mb-3">
+                    <label class="form-label" for="lrcBalance">Initial Balance (USD)</label>
+                    <div class="input-group">
+                        <span class="input-group-text">$</span>
+                        <input type="number" class="form-control" id="lrcBalance"
+                               min="0" step="0.01" value="{{ lrc.initial_balance|default(5.0) }}">
+                    </div>
+                    <small class="text-muted" id="lrcBalanceHint">Max: ${{ '%.2f'|format(max_initial_balance|default(5.0)) }}</small>
+                </div>
+            </div>
+            <div class="flex-column" style="max-width: 200px;">
+                <div class="mb-3">
+                    <label class="form-label" for="lrcBilling">Billing Mode</label>
+                    <select class="form-select" id="lrcBilling">
+                        <option value="user_pays" {{ 'selected' if lrc.billing_mode|default('user_pays') == 'user_pays' else '' }}>User Pays</option>
+                        <option value="manager_pays" {{ 'selected' if lrc.billing_mode|default('') == 'manager_pays' else '' }}>Manager Pays</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="mb-3">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="lrcPublicPrompts"
+                       {{ 'checked' if lrc.public_prompts_access|default(true) else '' }}>
+                <label class="form-check-label" for="lrcPublicPrompts">Allow browsing public prompts</label>
+            </div>
+        </div>
+        <div class="mb-3">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="lrcFileUpload"
+                       {{ 'checked' if lrc.allow_file_upload|default(false) else '' }}>
+                <label class="form-check-label" for="lrcFileUpload">Allow file upload</label>
+            </div>
+        </div>
+        <div class="mb-3">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="lrcImageGen"
+                       {{ 'checked' if lrc.allow_image_generation|default(false) else '' }}>
+                <label class="form-check-label" for="lrcImageGen">Allow image generation</label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="section-container">
+        <div class="d-flex gap-2 flex-wrap">
+            <button type="submit" class="btn btn-primary" id="saveDraftBtn">
+                <i class="fas fa-save me-1"></i> Save Draft
+            </button>
+            {% if pack %}
+            {% if pack.status != 'published' %}
+            <button type="button" class="btn btn-success" id="publishBtn" onclick="publishPack()">
+                <i class="fas fa-globe me-1"></i> Publish
+            </button>
+            {% else %}
+            <button type="button" class="btn btn-warning" id="unpublishBtn" onclick="unpublishPack()">
+                <i class="fas fa-eye-slash me-1"></i> Unpublish
+            </button>
+            {% endif %}
+            {% if pack.public_id %}
+            <a href="/pack/{{ pack.public_id }}/{{ pack.slug }}/" target="_blank" class="btn btn-outline-secondary">
+                <i class="fas fa-external-link-alt me-1"></i> Preview Landing
+            </a>
+            {% endif %}
+            <a href="/admin/packs/{{ pack.id }}/landing" class="btn btn-outline-info">
+                <i class="fas fa-paint-brush me-1"></i> Manage Landing Page
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Sales History (only for existing packs) -->
+    {% if pack %}
+    <div class="section-container" style="margin-top: 1.5rem;">
+        <div class="section-title"><i class="fas fa-receipt"></i> Sales History</div>
+        <div id="salesSummary" style="display:none; margin-bottom: 1rem;">
+            <span class="badge bg-primary" style="font-size: 0.9rem; padding: 6px 12px; margin-right: 8px;">
+                <i class="fas fa-shopping-cart me-1"></i> <span id="salesCount">0</span> purchases
+            </span>
+            <span class="badge bg-success" style="font-size: 0.9rem; padding: 6px 12px;">
+                <i class="fas fa-dollar-sign me-1"></i> <span id="salesRevenue">0.00</span> revenue
+            </span>
+        </div>
+        <div id="salesLoading" class="text-muted"><i class="fas fa-spinner fa-spin me-1"></i> Loading sales data...</div>
+        <div id="salesEmpty" style="display:none;" class="text-muted py-3 text-center">No purchases yet.</div>
+        <div class="table-wrapper" id="salesTableWrapper" style="display:none;">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Buyer</th>
+                        <th>Email</th>
+                        <th class="text-end">Amount</th>
+                        <th>Method</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="salesTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+</form>
+
+<!-- Add Prompt Modal -->
+{% if pack %}
+<div class="modal fade" id="addPromptModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content" style="background: var(--bg-secondary, #1e1e1e); color: var(--text-primary, #fff);">
+            <div class="modal-header" style="border-color: var(--border-color, #333);">
+                <h5 class="modal-title"><i class="fas fa-search me-1"></i> Add Prompt to Pack</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input class="form-control mb-3" id="promptSearchInput" placeholder="Search prompts..." autocomplete="off">
+                <div id="addPromptResults"></div>
+                <div id="promptSearchEmpty" class="text-center text-muted py-3" style="display:none;">
+                    No matching prompts found.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    const COMMISSION_RATE = {{ commission_rate|default(0.30) }};
+    const MAX_FREE_BALANCE = {{ max_free_initial_balance|default(5.0) }};
+</script>
+<script src="{{ get_static_url('/static/js/admin-packs.js') }}"></script>
+{% endblock %}

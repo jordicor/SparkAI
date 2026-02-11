@@ -16,6 +16,7 @@ body, h5 {
 }
 
 :root {
+    --modal-close-filter: none;
     --sidebar-bg-color: #f2f2f2;
     --sidebar-border-color: #cccccc;
     --sidebar-text-color: #000000;
@@ -25,6 +26,36 @@ body, h5 {
     --message-input-bg-color: #eaeaea;
     --message-user-bg-color: #d0d0d0;
     --message-bot-bg-color: #f0f0f0;
+
+    /* Unified theme variables (for modals, toasts, shared components) */
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8f8f8;
+    --bg-tertiary: #f2f2f2;
+    --text-primary: #000000;
+    --text-secondary: #333333;
+    --text-muted: #666666;
+    --accent: #000000;
+    --accent-hover: #333333;
+    --accent-light: #444444;
+    --accent-rgb: 0, 0, 0;
+    --border-color: #cccccc;
+    --shadow-soft: none;
+    --shadow-hover: none;
+    --success: #333333;
+    --success-rgb: 51, 51, 51;
+    --danger: #333333;
+    --danger-rgb: 51, 51, 51;
+    --warning: #666666;
+    --warning-rgb: 102, 102, 102;
+    --info: #444444;
+    --info-rgb: 68, 68, 68;
+    --font-primary: 'Georgia', serif;
+    --font-secondary: 'Georgia', serif;
+    --bs-body-color: #000000;
+    --bs-body-bg: #ffffff;
+    --bs-secondary-color: #666666;
+    --bs-tertiary-color: #333333;
+    --bs-border-color: #cccccc;
 }
 
 body {

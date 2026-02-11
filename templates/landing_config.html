@@ -971,46 +971,58 @@
 
         // Delete page
         async function deletePage(pageName) {
-            if (!confirm(`Are you sure you want to delete the page "${pageName}"?`)) return;
+            NotificationModal.confirm(
+                'Delete Page',
+                `Are you sure you want to delete the page "${pageName}"?`,
+                async () => {
+                    try {
+                        const response = await secureFetch(`/api/landing/${promptId}/pages/${pageName}`, {
+                            method: 'DELETE'
+                        });
+                        if (!response) return; // Session expired
 
-            try {
-                const response = await secureFetch(`/api/landing/${promptId}/pages/${pageName}`, {
-                    method: 'DELETE'
-                });
-                if (!response) return; // Session expired
-
-                const data = await response.json();
-                if (data.success) {
-                    window.location.reload();
-                } else {
-                    NotificationModal.error('Page Deletion Failed', data.message || 'Error deleting page');
-                }
-            } catch (err) {
-                console.error('Error:', err);
-                NotificationModal.error('Page Deletion Failed', 'Error deleting page');
-            }
+                        const data = await response.json();
+                        if (data.success) {
+                            window.location.reload();
+                        } else {
+                            NotificationModal.error('Page Deletion Failed', data.message || 'Error deleting page');
+                        }
+                    } catch (err) {
+                        console.error('Error:', err);
+                        NotificationModal.error('Page Deletion Failed', 'Error deleting page');
+                    }
+                },
+                null,
+                { type: 'error', confirmText: 'Delete' }
+            );
         }
 
         // Delete component
         async function deleteComponent(type, name) {
-            if (!confirm(`Are you sure you want to delete the component "${name}"?`)) return;
+            NotificationModal.confirm(
+                'Delete Component',
+                `Are you sure you want to delete the component "${name}"?`,
+                async () => {
+                    try {
+                        const response = await secureFetch(`/api/landing/${promptId}/components/${type}/${name}`, {
+                            method: 'DELETE'
+                        });
+                        if (!response) return; // Session expired
 
-            try {
-                const response = await secureFetch(`/api/landing/${promptId}/components/${type}/${name}`, {
-                    method: 'DELETE'
-                });
-                if (!response) return; // Session expired
-
-                const data = await response.json();
-                if (data.success) {
-                    window.location.reload();
-                } else {
-                    NotificationModal.error('Component Deletion Failed', data.message || 'Error deleting component');
-                }
-            } catch (err) {
-                console.error('Error:', err);
-                NotificationModal.error('Component Deletion Failed', 'Error deleting component');
-            }
+                        const data = await response.json();
+                        if (data.success) {
+                            window.location.reload();
+                        } else {
+                            NotificationModal.error('Component Deletion Failed', data.message || 'Error deleting component');
+                        }
+                    } catch (err) {
+                        console.error('Error:', err);
+                        NotificationModal.error('Component Deletion Failed', 'Error deleting component');
+                    }
+                },
+                null,
+                { type: 'error', confirmText: 'Delete' }
+            );
         }
 
         // Image upload
@@ -1096,21 +1108,27 @@
 
         // Delete image
         async function deleteImage(imageId) {
-            if (!confirm('Are you sure you want to delete this image?')) return;
+            NotificationModal.confirm(
+                'Delete Image',
+                'Are you sure you want to delete this image?',
+                async () => {
+                    try {
+                        const response = await secureFetch(`/api/landing/${promptId}/images/${imageId}`, {
+                            method: 'DELETE'
+                        });
+                        if (!response) return; // Session expired
 
-            try {
-                const response = await secureFetch(`/api/landing/${promptId}/images/${imageId}`, {
-                    method: 'DELETE'
-                });
-                if (!response) return; // Session expired
-
-                const data = await response.json();
-                NotificationModal.info('Image Deleted', data.message);
-                loadImages();
-            } catch (err) {
-                console.error('Error:', err);
-                NotificationModal.error('Image Deletion Failed', 'Error deleting image');
-            }
+                        const data = await response.json();
+                        NotificationModal.info('Image Deleted', data.message);
+                        loadImages();
+                    } catch (err) {
+                        console.error('Error:', err);
+                        NotificationModal.error('Image Deletion Failed', 'Error deleting image');
+                    }
+                },
+                null,
+                { type: 'error', confirmText: 'Delete' }
+            );
         }
 
         // Initialize fullsize viewer
@@ -1851,147 +1869,163 @@
         }
 
         async function activateDomain() {
-            if (!confirm('Activate this domain?\n\nThis will use 1 of your available slots.')) {
-                return;
-            }
+            NotificationModal.confirm(
+                'Activate Domain',
+                'Activate this domain? This will use 1 of your available slots.',
+                async () => {
+                    try {
+                        const response = await secureFetch(`/api/domains/${promptId}/activate`, {
+                            method: 'POST'
+                        });
+                        if (!response) return; // Session expired
 
-            try {
-                const response = await secureFetch(`/api/domains/${promptId}/activate`, {
-                    method: 'POST'
-                });
-                if (!response) return; // Session expired
+                        const data = await response.json();
 
-                const data = await response.json();
-
-                if (response.ok && data.success) {
-                    NotificationModal.success('Domain Activated!', 'Slots: ' + data.slots.used + '/' + data.slots.purchased + ' in use');
-                    window.location.reload();
-                } else {
-                    NotificationModal.error('Activation Failed', data.detail || data.message || 'Error activating domain');
-                }
-            } catch (err) {
-                console.error('Error:', err);
-                NotificationModal.error('Activation Error', 'Error activating domain');
-            }
+                        if (response.ok && data.success) {
+                            NotificationModal.success('Domain Activated!', 'Slots: ' + data.slots.used + '/' + data.slots.purchased + ' in use');
+                            window.location.reload();
+                        } else {
+                            NotificationModal.error('Activation Failed', data.detail || data.message || 'Error activating domain');
+                        }
+                    } catch (err) {
+                        console.error('Error:', err);
+                        NotificationModal.error('Activation Error', 'Error activating domain');
+                    }
+                },
+                null,
+                { type: 'confirm', confirmText: 'Activate' }
+            );
         }
 
         async function purchaseAndActivate() {
-            if (!confirm(`Purchase a domain slot and activate?\n\nThis will charge $${SLOT_PRICE.toFixed(2)} from your balance.`)) {
-                return;
-            }
+            NotificationModal.confirm(
+                'Purchase & Activate Domain',
+                `Purchase a domain slot and activate? This will charge $${SLOT_PRICE.toFixed(2)} from your balance.`,
+                async () => {
+                    try {
+                        // First purchase a slot
+                        const purchaseResponse = await secureFetch('/api/domains/slots/purchase', {
+                            method: 'POST'
+                        });
+                        if (!purchaseResponse) return; // Session expired
 
-            try {
-                // First purchase a slot
-                const purchaseResponse = await secureFetch('/api/domains/slots/purchase', {
-                    method: 'POST'
-                });
-                if (!purchaseResponse) return; // Session expired
+                        const purchaseData = await purchaseResponse.json();
 
-                const purchaseData = await purchaseResponse.json();
+                        if (!purchaseResponse.ok || !purchaseData.success) {
+                            NotificationModal.error('Slot Purchase Failed', purchaseData.detail || purchaseData.message || 'Error purchasing slot');
+                            return;
+                        }
 
-                if (!purchaseResponse.ok || !purchaseData.success) {
-                    NotificationModal.error('Slot Purchase Failed', purchaseData.detail || purchaseData.message || 'Error purchasing slot');
-                    return;
-                }
+                        // Then activate the domain
+                        const activateResponse = await secureFetch(`/api/domains/${promptId}/activate`, {
+                            method: 'POST'
+                        });
+                        if (!activateResponse) return; // Session expired
 
-                // Then activate the domain
-                const activateResponse = await secureFetch(`/api/domains/${promptId}/activate`, {
-                    method: 'POST'
-                });
-                if (!activateResponse) return; // Session expired
+                        const activateData = await activateResponse.json();
 
-                const activateData = await activateResponse.json();
-
-                if (activateResponse.ok && activateData.success) {
-                    NotificationModal.success('Domain Activated!', `Slot purchased: $${SLOT_PRICE.toFixed(2)}\nSlots: ${activateData.slots.used}/${activateData.slots.purchased} in use`);
-                    window.location.reload();
-                } else {
-                    NotificationModal.warning('Partial Success', 'Slot purchased but activation failed: ' + (activateData.detail || activateData.message));
-                    window.location.reload();
-                }
-            } catch (err) {
-                console.error('Error:', err);
-                NotificationModal.error('Slot Purchase Error', 'Error purchasing slot');
-            }
+                        if (activateResponse.ok && activateData.success) {
+                            NotificationModal.success('Domain Activated!', `Slot purchased: $${SLOT_PRICE.toFixed(2)}\nSlots: ${activateData.slots.used}/${activateData.slots.purchased} in use`);
+                            window.location.reload();
+                        } else {
+                            NotificationModal.warning('Partial Success', 'Slot purchased but activation failed: ' + (activateData.detail || activateData.message));
+                            window.location.reload();
+                        }
+                    } catch (err) {
+                        console.error('Error:', err);
+                        NotificationModal.error('Slot Purchase Error', 'Error purchasing slot');
+                    }
+                },
+                null,
+                { type: 'warning', confirmText: 'Purchase & Activate' }
+            );
         }
 
         async function activateDomainFree() {
-            if (!confirm('Activate this domain for free (admin)?')) {
-                return;
-            }
+            NotificationModal.confirm(
+                'Activate Domain (Free)',
+                'Activate this domain for free (admin)?',
+                async () => {
+                    try {
+                        const response = await secureFetch(`/admin/domains/${promptId}/activate-free`, {
+                            method: 'POST'
+                        });
+                        if (!response) return; // Session expired
 
-            try {
-                const response = await secureFetch(`/admin/domains/${promptId}/activate-free`, {
-                    method: 'POST'
-                });
-                if (!response) return; // Session expired
+                        const data = await response.json();
 
-                const data = await response.json();
-
-                if (response.ok && data.success) {
-                    NotificationModal.success('Domain Activated!', 'Domain activated successfully (free)!');
-                    window.location.reload();
-                } else {
-                    NotificationModal.error('Activation Failed', data.detail || data.message || 'Error activating domain');
-                }
-            } catch (err) {
-                console.error('Error:', err);
-                NotificationModal.error('Activation Error', 'Error activating domain');
-            }
+                        if (response.ok && data.success) {
+                            NotificationModal.success('Domain Activated!', 'Domain activated successfully (free)!');
+                            window.location.reload();
+                        } else {
+                            NotificationModal.error('Activation Failed', data.detail || data.message || 'Error activating domain');
+                        }
+                    } catch (err) {
+                        console.error('Error:', err);
+                        NotificationModal.error('Activation Error', 'Error activating domain');
+                    }
+                },
+                null,
+                { type: 'confirm', confirmText: 'Activate' }
+            );
         }
 
         async function toggleDomainOff() {
-            if (!confirm('Deactivate this domain?\n\nThe slot will be freed and can be used for another prompt.\nThe domain configuration will be preserved.')) {
-                return;
-            }
+            NotificationModal.confirm(
+                'Deactivate Domain',
+                'Deactivate this domain? The slot will be freed and can be used for another prompt. The domain configuration will be preserved.',
+                async () => {
+                    try {
+                        const response = await secureFetch(`/api/domains/${promptId}/deactivate`, {
+                            method: 'POST'
+                        });
+                        if (!response) return; // Session expired
 
-            try {
-                const response = await secureFetch(`/api/domains/${promptId}/deactivate`, {
-                    method: 'POST'
-                });
-                if (!response) return; // Session expired
+                        const data = await response.json();
 
-                const data = await response.json();
-
-                if (response.ok && data.success) {
-                    NotificationModal.success('Domain Deactivated', 'Slots: ' + data.slots.used + '/' + data.slots.purchased + ' in use');
-                    window.location.reload();
-                } else {
-                    NotificationModal.error('Deactivation Failed', data.detail || data.message || 'Error deactivating domain');
-                }
-            } catch (err) {
-                console.error('Error:', err);
-                NotificationModal.error('Deactivation Error', 'Error deactivating domain');
-            }
+                        if (response.ok && data.success) {
+                            NotificationModal.success('Domain Deactivated', 'Slots: ' + data.slots.used + '/' + data.slots.purchased + ' in use');
+                            window.location.reload();
+                        } else {
+                            NotificationModal.error('Deactivation Failed', data.detail || data.message || 'Error deactivating domain');
+                        }
+                    } catch (err) {
+                        console.error('Error:', err);
+                        NotificationModal.error('Deactivation Error', 'Error deactivating domain');
+                    }
+                },
+                null,
+                { type: 'warning', confirmText: 'Deactivate' }
+            );
         }
 
         async function removeDomain() {
-            const msg = 'Remove this domain configuration?\n\n' +
-                        'WARNING: If you remove the domain, you will need to configure and verify it again.\n' +
-                        'The slot remains available for use on any prompt.';
+            NotificationModal.confirm(
+                'Remove Domain',
+                'Remove this domain configuration? WARNING: If you remove the domain, you will need to configure and verify it again. The slot remains available for use on any prompt.',
+                async () => {
+                    try {
+                        const response = await secureFetch(`/api/domains/${promptId}`, {
+                            method: 'DELETE'
+                        });
+                        if (!response) return; // Session expired
 
-            if (!confirm(msg)) {
-                return;
-            }
+                        const data = await response.json();
 
-            try {
-                const response = await secureFetch(`/api/domains/${promptId}`, {
-                    method: 'DELETE'
-                });
-                if (!response) return; // Session expired
-
-                const data = await response.json();
-
-                if (response.ok && data.success) {
-                    NotificationModal.success('Domain Removed', 'Domain configuration has been removed.');
-                    window.location.reload();
-                } else {
-                    NotificationModal.error('Removal Failed', data.detail || data.message || 'Error removing domain');
-                }
-            } catch (err) {
-                console.error('Error:', err);
-                NotificationModal.error('Removal Error', 'Error removing domain');
-            }
+                        if (response.ok && data.success) {
+                            NotificationModal.success('Domain Removed', 'Domain configuration has been removed.');
+                            window.location.reload();
+                        } else {
+                            NotificationModal.error('Removal Failed', data.detail || data.message || 'Error removing domain');
+                        }
+                    } catch (err) {
+                        console.error('Error:', err);
+                        NotificationModal.error('Removal Error', 'Error removing domain');
+                    }
+                },
+                null,
+                { type: 'error', confirmText: 'Remove' }
+            );
         }
     </script>
 {% endblock %}

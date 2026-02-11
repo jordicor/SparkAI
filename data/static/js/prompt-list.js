@@ -102,15 +102,23 @@ function setupEventListeners() {
     // Delete form confirmation
     const promptsForm = document.getElementById('promptsForm');
     if (promptsForm) {
+        let confirmedSubmit = false;
         promptsForm.addEventListener('submit', function(e) {
             const count = document.querySelectorAll('.prompt-checkbox:checked').length;
             if (count === 0) {
                 e.preventDefault();
                 return;
             }
-            if (!confirm(`Are you sure you want to delete ${count} prompt(s)? This action cannot be undone.`)) {
-                e.preventDefault();
+            if (confirmedSubmit) {
+                confirmedSubmit = false;
+                return;
             }
+            e.preventDefault();
+            const form = this;
+            NotificationModal.confirm('Delete Prompts', `Are you sure you want to delete ${count} prompt(s)? This action cannot be undone.`, () => {
+                confirmedSubmit = true;
+                form.requestSubmit();
+            }, null, { type: 'error', confirmText: 'Delete' });
         });
     }
 }

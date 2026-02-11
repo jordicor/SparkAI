@@ -86,61 +86,12 @@ function removeWaitingMessage() {
 // Form submit handler moved to main.js to avoid conflicts
 // document.getElementById('form-message').onsubmit = function(e) { ... };
 
-function showGenericModal(title, message, confirmText, cancelText, confirmClass, onConfirm, hideOnConfirm = true) {
-    const modalElement = document.getElementById('genericModal');
-    const modal = new bootstrap.Modal(modalElement);
-    const confirmBtn = document.getElementById('genericModalConfirmBtn');
-    const cancelBtn = document.getElementById('genericModalCancelBtn');
-    const modalLabel = document.getElementById('genericModalLabel');
-    const modalBody = document.getElementById('genericModalBody');
-
-    // Reset button state and content
-    confirmBtn.style.display = ''; // Show confirm button
-    confirmBtn.disabled = false; // Enable confirm button
-    confirmBtn.className = `btn ${confirmClass}`; // Apply style class
-    confirmBtn.textContent = confirmText; // Set confirm button text
-
-    cancelBtn.style.display = ''; // Show cancel button
-    cancelBtn.textContent = cancelText; // Set cancel button text
-
-    modalLabel.textContent = title; // Set modal title
-    modalBody.textContent = message; // Set modal message
-
-    // Assign onclick event to confirm button
-    confirmBtn.onclick = () => {
-        if (hideOnConfirm) {
-            modal.hide();
-        }
-        onConfirm(modal);
-    };
-
-    // Assign onclick event to cancel button
-    cancelBtn.onclick = () => {
-        modal.hide();
-    };
-
-    // Assign keyboard handlers
-    modalElement.addEventListener('keydown', function(event) {
-        if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            confirmBtn.click();
-        } else if (event.key === 'Escape') {
-            event.preventDefault();
-            cancelBtn.click();
-        }
-    }, { once: true });
-
-    modal.show();
-}
 
 
 function deleteConversation(conversationId) {
-    showGenericModal(
+    NotificationModal.confirm(
         'Confirm Deletion',
         'Are you sure you want to delete this conversation?',
-        'Delete',
-        'Cancel',
-        'btn-danger',
         withSession(() => {
             // Close dropdown menu before proceeding
             const conversationElement = document.querySelector(`[data-conversation-id="${conversationId}"]`);
@@ -156,7 +107,7 @@ function deleteConversation(conversationId) {
             removeAllExternalPlatformAssociations(conversationId)
                 .then(() => {
                     // Then, delete conversation using secureFetch
-                    return secureFetch(`/api/conversations/${conversationId}`, { 
+                    return secureFetch(`/api/conversations/${conversationId}`, {
                         method: 'DELETE'
                     });
                 })
@@ -169,7 +120,7 @@ function deleteConversation(conversationId) {
                 .then(data => {
                     const conversationElement = document.querySelector(`[data-conversation-id="${conversationId}"]`);
                     const wasExternal = conversationElement && conversationElement.closest('#external-chats-container');
-                    
+
                     removeConversationElement(conversationId);
 
                     if (wasExternal) {
@@ -185,7 +136,9 @@ function deleteConversation(conversationId) {
                     console.error('Error deleting the chat:', error);
                     NotificationModal.error('Delete Error', 'An error occurred while deleting the chat. Please try again.');
                 });
-        })
+        }),
+        null,
+        { type: 'error', confirmText: 'Delete' }
     );
 }
 
@@ -193,12 +146,9 @@ function toggleLockConversation(conversationId, lock) {
     const action = lock ? 'lock' : 'unlock';
     const actionCapitalized = lock ? 'Lock' : 'Unlock';
 
-    showGenericModal(
+    NotificationModal.confirm(
         `Confirm ${actionCapitalized}`,
         `Are you sure you want to ${action} this conversation?`,
-        actionCapitalized,
-        'Cancel',
-        lock ? 'btn-warning' : 'btn-success',
         withSession(() => {
             secureFetch(`/api/conversations/${conversationId}/lock`, {
                 method: 'POST',
@@ -263,7 +213,9 @@ function toggleLockConversation(conversationId, lock) {
                 console.error(`Error ${action}ing the chat:`, error);
                 NotificationModal.error(`${actionCapitalized} Error`, `An error occurred while ${action}ing the chat. Please try again.`);
             });
-        })
+        }),
+        null,
+        { type: lock ? 'warning' : 'success', confirmText: actionCapitalized }
     );
 }
 
@@ -298,23 +250,12 @@ function updateExternalSection() {
 }
 
 function downloadPDF(conversationId) {
-    showGenericModal(
+    NotificationModal.confirm(
         'Download PDF',
         'Do you want to download this conversation as PDF?',
-        'Download',
-        'Cancel',
-        'btn-primary',
         withSession((modal) => {
-            const confirmBtn = document.getElementById('genericModalConfirmBtn');
-            const cancelBtn = document.getElementById('genericModalCancelBtn');
-            const modalLabel = document.getElementById('genericModalLabel');
-            const modalBody = document.getElementById('genericModalBody');
+            modal.update({ message: 'Processing...', showConfirm: false, showCancel: false });
 
-            // Disable confirm button to prevent multiple clicks
-            confirmBtn.disabled = true;
-            confirmBtn.textContent = 'Processing...';
-
-            // Make AJAX request to endpoint
             secureFetch(`/download-pdf/${conversationId}`)
                 .then(response => {
                     if (!response.ok) {
@@ -323,49 +264,27 @@ function downloadPDF(conversationId) {
                     return response.json();
                 })
                 .then(data => {
-                    // Update modal content with response message
-                    modalLabel.textContent = 'PDF Generation Started';
-                    modalBody.textContent = data.message;
-                    confirmBtn.style.display = 'none'; // Hide confirm button
-                    cancelBtn.textContent = 'Close';
+                    modal.update({ title: 'PDF Generation Started', message: data.message, showCancel: true, cancelText: 'Close' });
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    modalLabel.textContent = 'Error';
-                    modalBody.textContent = 'An error occurred while starting PDF generation.';
-                    confirmBtn.style.display = 'none'; // Hide confirm button
-                    cancelBtn.textContent = 'Close';
-                })
-                .finally(() => {
-                    // Re-enable confirm button in case of retry
-                    confirmBtn.disabled = false;
-                    confirmBtn.textContent = 'Download';
+                    modal.update({ title: 'Error', message: 'An error occurred while starting PDF generation.', showCancel: true, cancelText: 'Close' });
                 });
         }),
-        false // Don't hide modal when clicking "Confirm"
+        null,
+        { confirmText: 'Download', hideOnConfirm: false }
     );
 }
 
 
 
 function downloadAudio(conversationId) {
-    showGenericModal(
+    NotificationModal.confirm(
         'Download MP3',
         'Do you want to download this conversation as MP3?',
-        'Download',
-        'Cancel',
-        'btn-primary',
         withSession((modal) => {
-            const confirmBtn = document.getElementById('genericModalConfirmBtn');
-            const cancelBtn = document.getElementById('genericModalCancelBtn');
-            const modalLabel = document.getElementById('genericModalLabel');
-            const modalBody = document.getElementById('genericModalBody');
+            modal.update({ message: 'Processing...', showConfirm: false, showCancel: false });
 
-            // Disable confirm button to prevent multiple clicks
-            confirmBtn.disabled = true;
-            confirmBtn.textContent = 'Processing...';
-
-            // Make AJAX request to endpoint
             secureFetch(`/download-mp3/${conversationId}`)
                 .then(response => {
                     if (!response.ok) {
@@ -374,26 +293,15 @@ function downloadAudio(conversationId) {
                     return response.json();
                 })
                 .then(data => {
-                    // Update modal content with response message
-                    modalLabel.textContent = 'MP3 Generation Started';
-                    modalBody.textContent = data.message;
-                    confirmBtn.style.display = 'none'; // Hide confirm button
-                    cancelBtn.textContent = 'Close';
+                    modal.update({ title: 'MP3 Generation Started', message: data.message, showCancel: true, cancelText: 'Close' });
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    modalLabel.textContent = 'Error';
-                    modalBody.textContent = 'An error occurred while starting MP3 generation.';
-                    confirmBtn.style.display = 'none'; // Hide confirm button
-                    cancelBtn.textContent = 'Close';
-                })
-                .finally(() => {
-                    // Re-enable confirm button in case of retry
-                    confirmBtn.disabled = false;
-                    confirmBtn.textContent = 'Download';
+                    modal.update({ title: 'Error', message: 'An error occurred while starting MP3 generation.', showCancel: true, cancelText: 'Close' });
                 });
         }),
-        false // Don't hide modal when clicking "Confirm"
+        null,
+        { confirmText: 'Download', hideOnConfirm: false }
     );
 }
 
@@ -477,18 +385,10 @@ function removeLoadingIndicator() {
 }
 
 function showInsufficientBalancePopup(failedAction) {
-    document.getElementById('failedAction').textContent = failedAction;
-
-    $('#insufficientBalancePopup').modal({
-      keyboard: false, 
-      backdrop: 'static'
-    });
-}
-
-function closePopup() {
-    var myModalEl = document.getElementById('insufficientBalancePopup');
-    var modal = bootstrap.Modal.getInstance(myModalEl); 
-    modal.hide();
+    NotificationModal.warning(
+        'Insufficient Balance!',
+        `Unable to perform ${failedAction} due to insufficient balance.<br>Reload your balance <a href="/">here</a>.`
+    );
 }
 
     //console.log("Initializing imageHandler");
@@ -621,12 +521,9 @@ function closePopup() {
         },
 
 		deleteImage: function(messageId) {
-			showGenericModal(
+			NotificationModal.confirm(
 				'Confirm Deletion',
 				'Are you sure you want to delete this image?',
-				'Delete',
-				'Cancel',
-				'btn-danger',
 				() => {
 					fetch(`/api/delete-image/${messageId}`, {
 						method: 'DELETE',
@@ -637,29 +534,26 @@ function closePopup() {
 							this.closeFullsize();
 							this.onImagesDeleted([messageId]);
 							this.images = this.images.filter(img => img.id !== messageId);
-							
+
 							// Find image element
 							const imgElement = document.querySelector(`img[data-message-id="${messageId}"]`);
 							if (imgElement) {
 								const messageElement = imgElement.closest('.message');
 								if (messageElement) {
-									// Determine if it's a user or bot message
-									const isUserMessage = messageElement.classList.contains('user');
-									
 									// Create correct message structure
 									const messageContentContainer = document.createElement('div');
 									messageContentContainer.classList.add('message-content-container');
-									
+
 									const messageContent = document.createElement('div');
 									messageContent.classList.add('message-content');
-									
+
 									const deletedText = document.createElement('p');
 									deletedText.textContent = '[image deleted]';
-									
+
 									// Build message structure
 									messageContent.appendChild(deletedText);
 									messageContentContainer.appendChild(messageContent);
-									
+
 									// Replace message content
 									messageElement.innerHTML = '';
 									messageElement.appendChild(messageContentContainer);
@@ -670,7 +564,9 @@ function closePopup() {
 						}
 					})
 					.catch(error => console.error('Error:', error));
-				}
+				},
+				null,
+				{ type: 'error', confirmText: 'Delete' }
 			);
 		},
 		

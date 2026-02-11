@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+
+{% block title %}Purchase Successful - SPARK{% endblock %}
+
+{% block styles %}
+{# Theme CSS loaded by theme-loader.js #}
+<style>
+    .success-container {
+        max-width: 560px;
+        margin: 0 auto;
+        text-align: center;
+        padding: 2rem;
+    }
+    .success-icon {
+        font-size: 5rem;
+        color: #43b581;
+        margin-bottom: 1.5rem;
+        animation: checkmark 0.5s ease-in-out;
+    }
+    @keyframes checkmark {
+        0% { transform: scale(0); opacity: 0; }
+        50% { transform: scale(1.2); }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    .pack-info {
+        background: rgba(114, 137, 218, 0.1);
+        border: 1px solid rgba(114, 137, 218, 0.3);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+        display: flex;
+        align-items: center;
+        gap: 1.2rem;
+        text-align: left;
+    }
+    .pack-info-cover {
+        width: 120px;
+        min-width: 120px;
+        aspect-ratio: 16 / 9;
+        border-radius: 8px;
+        object-fit: cover;
+        background: rgba(114, 137, 218, 0.15);
+    }
+    .pack-info-cover-placeholder {
+        width: 120px;
+        min-width: 120px;
+        aspect-ratio: 16 / 9;
+        border-radius: 8px;
+        background: linear-gradient(135deg, rgba(114, 137, 218, 0.3), rgba(114, 137, 218, 0.1));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        font-weight: bold;
+        color: rgba(114, 137, 218, 0.6);
+    }
+    .pack-info-details h3 {
+        margin: 0 0 0.3rem 0;
+        font-size: 1.1rem;
+    }
+    .pack-info-details .meta {
+        font-size: 0.85rem;
+        color: #72767d;
+    }
+    .purchase-amount {
+        background: rgba(67, 181, 129, 0.1);
+        border: 1px solid rgba(67, 181, 129, 0.3);
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 1rem 0;
+    }
+    .purchase-amount .label {
+        font-size: 0.9rem;
+        color: #72767d;
+        margin-bottom: 0.3rem;
+    }
+    .purchase-amount .amount {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: #43b581;
+    }
+    .access-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: rgba(67, 181, 129, 0.15);
+        color: #43b581;
+        padding: 0.4rem 1rem;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin: 0.5rem 0 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block header %}{% endblock %}
+
+{% block toolbar %}{% endblock %}
+
+{% block content %}
+<div class="success-container">
+    <div class="success-icon">
+        <i class="fas fa-check-circle"></i>
+    </div>
+
+    <h1 class="mb-3">Purchase Successful!</h1>
+    <p class="text-muted mb-3">You now have full access to this pack.</p>
+
+    <div class="pack-info">
+        {% if pack_cover_image %}
+        <img src="/api/packs/{{ pack_id }}/cover/240" alt="{{ pack_name }}" class="pack-info-cover">
+        {% else %}
+        <div class="pack-info-cover-placeholder">{{ pack_name[:1] }}</div>
+        {% endif %}
+        <div class="pack-info-details">
+            <h3>{{ pack_name }}</h3>
+            <div class="meta">{{ prompt_count }} prompt{{ 's' if prompt_count != 1 else '' }} included</div>
+            {% if pack_creator %}
+            <div class="meta">by @{{ pack_creator }}</div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if payment_amount is not none %}
+    <div class="purchase-amount">
+        <div class="label">Amount Paid</div>
+        <div class="amount">${{ "%.2f"|format(payment_amount) }}</div>
+    </div>
+    {% endif %}
+
+    <div class="access-badge">
+        <i class="fas fa-unlock"></i> Access Granted
+    </div>
+
+    <div class="d-grid gap-2 mt-3">
+        <a href="/chat" class="btn btn-primary btn-lg">
+            <i class="fas fa-comments me-2"></i>Start Chatting
+        </a>
+        {% if pack_landing_url %}
+        <a href="{{ pack_landing_url }}" class="btn btn-outline-secondary">
+            <i class="fas fa-box me-2"></i>View Pack
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

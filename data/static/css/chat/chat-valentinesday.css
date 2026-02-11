@@ -36,6 +36,25 @@ body, h5 {
     --message-input-bg-color: #FFB6C1;
     --message-user-bg-color: #FF4EBD;
     --message-bot-bg-color: #AD005D;
+
+    /* Unified theme variables (for modals, toasts, shared components) */
+    --shadow-soft: 0 2px 8px rgba(199, 21, 133, 0.2);
+    --shadow-hover: 0 4px 12px rgba(199, 21, 133, 0.3);
+    --success: #A03558;
+    --success-rgb: 160, 53, 88;
+    --danger: #B22234;
+    --danger-rgb: 178, 34, 52;
+    --warning: #B8860B;
+    --warning-rgb: 184, 134, 11;
+    --info: #7A2D4A;
+    --info-rgb: 122, 45, 74;
+    --font-primary: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-secondary: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --bs-body-color: #5C1A33;
+    --bs-body-bg: #FFF0F5;
+    --bs-secondary-color: #8E4162;
+    --bs-tertiary-color: #7A2D4A;
+    --bs-border-color: #E87DA3;
 }
 
 body {
