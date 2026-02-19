@@ -442,45 +442,93 @@
 
                         <!-- Configuration form (hidden until loaded) -->
                         <form id="regConfigForm" style="display: none;">
-                            <!-- Access Section -->
-                            <div class="mb-4">
-                                <h6 class="fw-semibold border-bottom pb-2"><i class="fas fa-key me-2 text-primary"></i>Access</h6>
-                                <div class="form-check mb-2">
-                                    <input type="checkbox" class="form-check-input" id="publicPromptsAccess" name="public_prompts_access">
-                                    <label class="form-check-label" for="publicPromptsAccess">
-                                        Allow access to public prompts
-                                    </label>
-                                    <div class="form-text">If unchecked, users can only see this prompt (captive users)</div>
-                                </div>
 
-                                <div id="categoryAccessSection" class="ms-4 mt-3" style="display: none;">
-                                    <label class="form-label">Category filter (optional)</label>
-                                    <select id="categoryAccess" class="form-select" multiple size="4">
-                                        <!-- Options loaded dynamically -->
-                                    </select>
-                                    <div class="form-text">Hold Ctrl/Cmd to select multiple. Leave empty for all categories.</div>
-                                </div>
-                            </div>
-
-                            <!-- Billing Section -->
+                            <!-- ========== ESSENTIAL SETTINGS ========== -->
                             <div class="mb-4">
-                                <h6 class="fw-semibold border-bottom pb-2"><i class="fas fa-credit-card me-2 text-primary"></i>Billing Mode</h6>
+                                <h6 class="fw-semibold border-bottom pb-2"><i class="fas fa-credit-card me-2 text-primary"></i>Who pays for AI usage?</h6>
                                 <div class="form-check">
                                     <input type="radio" class="form-check-input" id="billingUserPays" name="billing_mode" value="user_pays" checked>
                                     <label class="form-check-label" for="billingUserPays">
-                                        User pays their own balance
+                                        Users pay from their own balance
                                     </label>
                                     <div class="form-text">Users must add funds to their account to use AI</div>
                                 </div>
                                 <div class="form-check mt-2">
                                     <input type="radio" class="form-check-input" id="billingManagerPays" name="billing_mode" value="manager_pays">
                                     <label class="form-check-label" for="billingManagerPays">
-                                        I pay for this user (Team Mode)
+                                        I cover usage costs for my users
                                     </label>
                                     <div class="form-text">AI usage costs will be deducted from your balance</div>
                                 </div>
+                            </div>
 
-                                <div id="billingLimitSection" class="ms-4 mt-3" style="display: none;">
+                            <div class="mb-4" id="initialBalanceSection">
+                                <h6 class="fw-semibold border-bottom pb-2"><i class="fas fa-wallet me-2 text-primary"></i>Welcome credit for new users ($)</h6>
+                                <div class="input-group" style="max-width: 200px;">
+                                    <span class="input-group-text">$</span>
+                                    <input type="text" class="form-control" id="initialBalance" name="initial_balance" value="0.00" inputmode="decimal" pattern="[0-9]*\.?[0-9]*" oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')">
+                                </div>
+                                <div class="form-text">Starting balance for new users (only when users pay their own balance)</div>
+                            </div>
+
+                            <!-- ========== ADVANCED SETTINGS ========== -->
+                            <details class="mb-4">
+                                <summary class="fw-semibold mb-3" style="cursor: pointer; color: var(--text-secondary, #b9bbbe);">
+                                    <i class="fas fa-cogs me-2 text-muted"></i>Advanced settings
+                                </summary>
+
+                                <!-- Marketplace Access -->
+                                <div class="mb-4 ms-2">
+                                    <h6 class="fw-semibold border-bottom pb-2"><i class="fas fa-key me-2 text-primary"></i>Marketplace Access</h6>
+                                    <div class="form-check mb-2">
+                                        <input type="checkbox" class="form-check-input" id="publicPromptsAccess" name="public_prompts_access">
+                                        <label class="form-check-label" for="publicPromptsAccess">
+                                            Users can browse the public marketplace
+                                        </label>
+                                        <div class="form-text">If unchecked, users can only see this prompt (captive users)</div>
+                                    </div>
+
+                                    <div id="categoryAccessSection" class="ms-4 mt-3" style="display: none;">
+                                        <label class="form-label">Restrict visible categories</label>
+                                        <select id="categoryAccess" class="form-select" multiple size="4">
+                                            <!-- Options loaded dynamically -->
+                                        </select>
+                                        <div class="form-text">Hold Ctrl/Cmd to select multiple. Leave empty for all categories.</div>
+                                    </div>
+                                </div>
+
+                                <!-- Permissions -->
+                                <div class="mb-4 ms-2">
+                                    <h6 class="fw-semibold border-bottom pb-2"><i class="fas fa-shield-alt me-2 text-primary"></i>Permissions</h6>
+                                    <div class="form-check mb-2">
+                                        <input type="checkbox" class="form-check-input" id="allowFileUpload" name="allow_file_upload">
+                                        <label class="form-check-label" for="allowFileUpload">
+                                            Users can upload files in chat
+                                        </label>
+                                        <div class="form-text">Allow uploading images, PDFs, and other files</div>
+                                    </div>
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" id="allowImageGeneration" name="allow_image_generation">
+                                        <label class="form-check-label" for="allowImageGeneration">
+                                            Users can generate images
+                                        </label>
+                                        <div class="form-text">Allow AI image generation (DALL-E, etc.)</div>
+                                    </div>
+                                </div>
+
+                                <!-- Default AI Model -->
+                                <div class="mb-4 ms-2">
+                                    <h6 class="fw-semibold border-bottom pb-2"><i class="fas fa-robot me-2 text-primary"></i>Default AI model</h6>
+                                    <select id="defaultLlmId" name="default_llm_id" class="form-select" style="max-width: 300px;">
+                                        <option value="">Use prompt's forced model (or system default)</option>
+                                        <!-- Options loaded dynamically -->
+                                    </select>
+                                    <div class="form-text">The AI model new users will have selected by default</div>
+                                </div>
+
+                                <!-- Billing Limits (only visible when manager_pays) -->
+                                <div id="billingLimitSection" class="mb-4 ms-2" style="display: none;">
+                                    <h6 class="fw-semibold border-bottom pb-2"><i class="fas fa-tachometer-alt me-2 text-primary"></i>Billing Limits</h6>
                                     <div class="row g-2 align-items-end">
                                         <div class="col-auto">
                                             <label class="form-label">Monthly limit per user</label>
@@ -520,46 +568,7 @@
                                         <div class="form-text small">Auto-refill increases the limit automatically when reached</div>
                                     </div>
                                 </div>
-                            </div>
-
-                            <!-- AI Model Section -->
-                            <div class="mb-4">
-                                <h6 class="fw-semibold border-bottom pb-2"><i class="fas fa-robot me-2 text-primary"></i>Default AI Model</h6>
-                                <select id="defaultLlmId" name="default_llm_id" class="form-select" style="max-width: 300px;">
-                                    <option value="">Use prompt's forced model (or system default)</option>
-                                    <!-- Options loaded dynamically -->
-                                </select>
-                                <div class="form-text">The AI model new users will have selected by default</div>
-                            </div>
-
-                            <!-- Permissions Section -->
-                            <div class="mb-4">
-                                <h6 class="fw-semibold border-bottom pb-2"><i class="fas fa-shield-alt me-2 text-primary"></i>Permissions</h6>
-                                <div class="form-check mb-2">
-                                    <input type="checkbox" class="form-check-input" id="allowFileUpload" name="allow_file_upload">
-                                    <label class="form-check-label" for="allowFileUpload">
-                                        Allow file upload
-                                    </label>
-                                    <div class="form-text">Users can upload files (images, PDFs, etc.) in chat</div>
-                                </div>
-                                <div class="form-check">
-                                    <input type="checkbox" class="form-check-input" id="allowImageGeneration" name="allow_image_generation">
-                                    <label class="form-check-label" for="allowImageGeneration">
-                                        Allow image generation
-                                    </label>
-                                    <div class="form-text">Users can generate images with AI (DALL-E, etc.)</div>
-                                </div>
-                            </div>
-
-                            <!-- Balance Section -->
-                            <div class="mb-4" id="initialBalanceSection">
-                                <h6 class="fw-semibold border-bottom pb-2"><i class="fas fa-wallet me-2 text-primary"></i>Initial Balance</h6>
-                                <div class="input-group" style="max-width: 200px;">
-                                    <span class="input-group-text">$</span>
-                                    <input type="text" class="form-control" id="initialBalance" name="initial_balance" value="0.00" inputmode="decimal" pattern="[0-9]*\.?[0-9]*" oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')">
-                                </div>
-                                <div class="form-text">Starting balance for new users (only when "user pays" is selected)</div>
-                            </div>
+                            </details>
 
                             <!-- Summary Preview -->
                             <div class="alert alert-info mb-4" id="regSummary">
@@ -1632,6 +1641,11 @@
         function toggleBillingSection() {
             const managerPays = document.getElementById('billingManagerPays').checked;
             document.getElementById('billingLimitSection').style.display = managerPays ? 'block' : 'none';
+            // Auto-open Advanced section when manager_pays is selected so billing limits are visible
+            if (managerPays) {
+                const advancedDetails = document.querySelector('#regConfigForm > details');
+                if (advancedDetails) advancedDetails.open = true;
+            }
             toggleBalanceSection();
             toggleAutoRefillFields();
         }

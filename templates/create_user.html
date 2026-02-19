@@ -191,7 +191,7 @@
 
     <!-- Section 5: Category Access (visible when public prompts enabled) -->
     <div class="section-container" id="categoryAccessSection" style="display: none;">
-        <div class="section-title">Category Access (Curator Mode)</div>
+        <div class="section-title">Category Access</div>
         <p class="text-muted small mb-3">Select which categories of public prompts this user can access. Leave "All Categories" checked to give access to all.</p>
         <div class="mb-3 form-check">
             <input type="checkbox" class="form-check-input" id="allowAllCategories" checked onchange="toggleCategorySelection()">
@@ -220,9 +220,9 @@
         </div>
     </div>
 
-    <!-- Section 6: Billing Mode (Enterprise) -->
+    <!-- Section 6: Team Billing -->
     <div class="section-container" id="billingModeSection">
-        <div class="section-title">Billing Mode (Enterprise)</div>
+        <div class="section-title">Team Billing</div>
         <p class="text-muted small mb-3">Choose who pays for this user's AI consumption.</p>
 
         <div class="mb-3">
@@ -236,13 +236,13 @@
             <div class="form-check mt-2">
                 <input type="radio" class="form-check-input" name="billing_mode" value="manager_pays" id="billingManagerPays" onchange="toggleBillingOptions()">
                 <label class="form-check-label" for="billingManagerPays">
-                    <strong>I pay for this user (Enterprise Mode)</strong>
+                    <strong>I cover this user's AI usage costs</strong>
                     <br><small class="text-muted">All AI costs will be charged to YOUR balance.</small>
                 </label>
             </div>
         </div>
 
-        <div id="enterpriseBillingOptions" style="display: none;" class="border rounded p-3 bg-light">
+        <div id="teamBillingOptions" style="display: none;" class="border rounded p-3 bg-light">
             <div class="mb-3">
                 <label class="form-label">Monthly Spending Limit</label>
                 <div class="form-check">
@@ -578,7 +578,7 @@
             ownOnlyWarning.style.display = this.value === 'own_only' ? 'block' : 'none';
         });
 
-        // Category access handler (Reseller Mode)
+        // Category access handler (Curation)
         const publicPromptsCheckbox = document.getElementById('publicPromptsAccess');
         const categoryAccessSection = document.getElementById('categoryAccessSection');
 
@@ -625,10 +625,10 @@
         document.querySelectorAll('.category-checkbox').forEach(cb => cb.checked = false);
     }
 
-    // Billing mode functions (Enterprise)
+    // Team Billing functions
     function toggleBillingOptions() {
         const managerPays = document.getElementById('billingManagerPays').checked;
-        const optionsDiv = document.getElementById('enterpriseBillingOptions');
+        const optionsDiv = document.getElementById('teamBillingOptions');
         optionsDiv.style.display = managerPays ? 'block' : 'none';
 
         if (!managerPays) {

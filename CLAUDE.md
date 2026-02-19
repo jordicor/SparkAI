@@ -29,6 +29,13 @@ This is a Flask/FastAPI hybrid web application that provides an AI chat interfac
 - **WebSocket**: Real-time communication using FastAPI WebSocket
 - **Authentication**: JWT-based authentication system
 - **File Storage**: Local file system with organized directory structure
+- **Reverse Proxy**: Nginx via Laragon (see Nginx section below)
+
+### Nginx Configuration
+- **Live config location**: `C:\laragon\etc\nginx\sites-enabled\` (e.g., `00-default.conf` or similar). This is the REAL config that nginx uses.
+- **Repo seed/template**: `nginx/spark-main.conf` and `nginx/snippets/` are template files for reference/GitHub. They use `{{PLACEHOLDERS}}` and are NOT the live config.
+- **CRITICAL**: Before modifying any live nginx config file, ALWAYS create a backup copy first (e.g., `cp 00-default.conf 00-default.conf.bak_YYYYMMDD`). Never delete or overwrite existing backups.
+- **Proxy headers**: Nginx sets `Host`, `X-Forwarded-Proto`, `X-Forwarded-For`, and `X-Original-Host` on proxied requests. It does NOT set `X-Forwarded-Host`.
 
 ### Key Components
 
@@ -276,7 +283,7 @@ css/
 │   ├── xmas.css         # Festive red/green theme
 │   ├── valentinesday.css# Romantic pink theme
 │   ├── memphis.css      # 80s postmodern theme
-│   ├── neumorphism.css  # Soft UI theme
+│   ├── nekoglass.css    # Anime glassmorphism dark theme
 │   ├── frutigeraero.css # Aero 2000s glassy theme
 │   ├── eink.css         # E-reader black/white theme
 │   ├── katarishoji.css  # Elegant gold/navy theme

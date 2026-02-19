@@ -5,6 +5,15 @@ let currentEditingFolderId = null;
 let currentMovingConversationId = null;
 let currentSelectedFolderId = null; // Track currently selected folder for new chat creation
 
+// Per-folder cursor pagination state: { lowestLoadedId: number, allLoaded: boolean, loading: boolean }
+const folderPaginationState = new Map();
+const FOLDER_CHATS_PAGE_SIZE = 5;
+
+// Folder-level pagination (client-side, all folders loaded but rendered in batches)
+const FOLDERS_INITIAL_LIMIT = 10;
+const FOLDERS_LOAD_MORE_SIZE = 25;
+let foldersDisplayedCount = 0;
+
 // Initialize folders functionality
 async function initializeFolders() {
     await loadChatFolders();
@@ -15,7 +24,7 @@ async function initializeFolders() {
 // Setup event listeners for folders
 function setupFoldersEventListeners() {
     // Add folder button
-    document.getElementById('add-folder-btn')?.addEventListener('click', showAddFolderModal);
+    document.getElementById('add-folder-header-btn')?.addEventListener('click', showAddFolderModal);
     
     // Save folder button
     document.getElementById('saveFolderBtn')?.addEventListener('click', saveFolderHandler);
@@ -139,36 +148,53 @@ async function loadChatFolders() {
     }
 }
 
-// Render chat folders in sidebar
+// Render chat folders in sidebar (paginated: shows first batch, "Load more" for rest)
 function renderChatFolders() {
     const container = document.getElementById('chat-folders-container');
     if (!container) return;
-    
-    // Clear but preserve the 'New Folder' button
-    const newFolderBtn = container.querySelector('.new-folder-item');
+
     container.innerHTML = '';
-    
-    // Re-add the 'New Folder' button first
-    if (!newFolderBtn) {
-        const newFolderElement = document.createElement('div');
-        newFolderElement.className = 'new-folder-item';
-        newFolderElement.id = 'add-folder-btn';
-        newFolderElement.title = 'New Folder';
-        newFolderElement.innerHTML = `
-            <i class="fas fa-folder-plus"></i>
-            <span>New Folder</span>
-        `;
-        newFolderElement.addEventListener('click', showAddFolderModal);
-        container.appendChild(newFolderElement);
-    } else {
-        container.appendChild(newFolderBtn);
-    }
-    
-    // Add all folders
-    chatFolders.forEach(folder => {
-        const folderElement = createFolderElement(folder);
-        container.appendChild(folderElement);
+    foldersDisplayedCount = 0;
+
+    const initialBatch = chatFolders.slice(0, FOLDERS_INITIAL_LIMIT);
+    initialBatch.forEach(folder => {
+        container.appendChild(createFolderElement(folder));
     });
+    foldersDisplayedCount = initialBatch.length;
+
+    if (chatFolders.length > FOLDERS_INITIAL_LIMIT) {
+        appendFoldersLoadMoreButton(container);
+    }
+}
+
+// Append "Load more" button for folders list
+function appendFoldersLoadMoreButton(container) {
+    const remaining = chatFolders.length - foldersDisplayedCount;
+    const loadMoreBtn = document.createElement('button');
+    loadMoreBtn.className = 'folders-load-more-btn';
+    loadMoreBtn.innerHTML = `Load more (${remaining}) <i class="fas fa-chevron-down"></i>`;
+    loadMoreBtn.onclick = loadMoreFolders;
+    container.appendChild(loadMoreBtn);
+}
+
+// Load next batch of folders
+function loadMoreFolders() {
+    const container = document.getElementById('chat-folders-container');
+    if (!container) return;
+
+    // Remove existing "Load more" button
+    const existingBtn = container.querySelector('.folders-load-more-btn');
+    if (existingBtn) existingBtn.remove();
+
+    const nextBatch = chatFolders.slice(foldersDisplayedCount, foldersDisplayedCount + FOLDERS_LOAD_MORE_SIZE);
+    nextBatch.forEach(folder => {
+        container.appendChild(createFolderElement(folder));
+    });
+    foldersDisplayedCount += nextBatch.length;
+
+    if (foldersDisplayedCount < chatFolders.length) {
+        appendFoldersLoadMoreButton(container);
+    }
 }
 
 // Create folder element
@@ -191,6 +217,7 @@ function createFolderElement(folder) {
     const chatCountText = chatCount === 1 ? '1 chat' : `${chatCount} chats`;
 
     folderContent.innerHTML = `
+        <i class="fas fa-chevron-right folder-chevron"></i>
         <i class="fas ${iconClass} folder-icon me-2" style="color: ${folder.color}; font-size: 16px;"></i>
         <span class="folder-name">${escapeHTML(folder.name)}</span>
     `;
@@ -203,9 +230,9 @@ function createFolderElement(folder) {
     actionsDiv.className = 'folder-actions dropdown';
     actionsDiv.innerHTML = `
         <button class="btn btn-sm btn-ghost dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="fas fa-ellipsis-v"></i>
+            <i class="fas fa-ellipsis-h"></i>
         </button>
-        <ul class="dropdown-menu dropdown-menu-dark">
+        <ul class="dropdown-menu dropdown-menu-dark folder-dropdown-menu">
             <li><a class="dropdown-item" href="#" onclick="showEditFolderModal(${folder.id})">
                 <i class="fas fa-edit"></i> Edit
             </a></li>
@@ -214,7 +241,21 @@ function createFolderElement(folder) {
             </a></li>
         </ul>
     `;
-    
+
+    // Raise folder z-index and unlock overflow when dropdown opens
+    actionsDiv.addEventListener('shown.bs.dropdown', () => {
+        const folderItem = actionsDiv.closest('.folder-item');
+        if (folderItem) folderItem.style.zIndex = '10';
+        const container = actionsDiv.closest('#chat-folders-container');
+        if (container) container.style.overflow = 'visible';
+    });
+    actionsDiv.addEventListener('hidden.bs.dropdown', () => {
+        const folderItem = actionsDiv.closest('.folder-item');
+        if (folderItem) folderItem.style.zIndex = '';
+        const container = actionsDiv.closest('#chat-folders-container');
+        if (container) container.style.overflow = '';
+    });
+
     // Click handler for folder (expand/collapse chats in folder)
     folderContent.addEventListener('click', () => toggleFolderChats(folder.id));
     
@@ -243,11 +284,13 @@ function toggleFolderChats(folderId) {
     // Update selected folder tracking
     const wasExpanded = container.style.display !== 'none';
     
-    // Collapse all other folders first
+    // Collapse all other folders first and clear their pagination state
     document.querySelectorAll('.folder-chats-container').forEach(folderContainer => {
         folderContainer.style.display = 'none';
+        const collapsedFolderId = folderContainer.id.replace('folder-chats-', '');
+        if (collapsedFolderId) folderPaginationState.delete(Number(collapsedFolderId));
     });
-    
+
     // Remove active styling from all folders and update icons
     document.querySelectorAll('.folder-item').forEach(item => {
         item.classList.remove('folder-selected');
@@ -263,6 +306,7 @@ function toggleFolderChats(folderId) {
         // If this folder was expanded, collapse it and deselect
         container.style.display = 'none';
         currentSelectedFolderId = null;
+        folderPaginationState.delete(folderId);
         folderItem.dataset.folderExpanded = 'false';
         const icon = folderItem.querySelector('.folder-icon');
         if (icon) {
@@ -292,7 +336,7 @@ function toggleFolderChats(folderId) {
 // Update conversation count for a specific folder without reloading everything
 async function updateFolderConversationCount(folderId) {
     try {
-        const response = await secureFetch(`/api/conversations?user_id=1&folder_id=${folderId}`);
+        const response = await secureFetch(`/api/conversations?user_id=${user_id}&folder_id=${folderId}&limit=50`);
         if (!response) {
             // secureFetch returned null (session expired, modal already shown)
             return;
@@ -316,37 +360,89 @@ async function updateFolderConversationCount(folderId) {
     }
 }
 
-// Load chats for a specific folder
-async function loadFolderChats(folderId, onComplete = null) {
-    try {
-        const response = await secureFetch(`/api/conversations?user_id=${user_id}&folder_id=${folderId}`);
-        if (!response) {
-            // secureFetch returned null (session expired, modal already shown)
-            return;
-        }
-        const conversations = await response.json();
-        
-        const container = document.getElementById(`folder-chats-${folderId}`);
-        if (!container) return;
-        
+// Load chats for a specific folder with cursor pagination
+async function loadFolderChats(folderId, onComplete = null, maxId = null) {
+    const container = document.getElementById(`folder-chats-${folderId}`);
+    if (!container) return;
+
+    // In-flight guard via pagination state
+    let state = folderPaginationState.get(folderId);
+    if (state && state.loading) return;
+
+    const isFirstPage = (maxId === null);
+
+    if (isFirstPage) {
+        // Reset state and clear container for fresh load
+        state = { lowestLoadedId: Infinity, allLoaded: false, loading: true };
+        folderPaginationState.set(folderId, state);
         container.innerHTML = '';
-        
-        conversations.forEach(conversation => {
-            const chatElement = createFolderChatElement(conversation);
-            container.appendChild(chatElement);
-        });
-        
+    } else {
+        if (!state) return;
+        state.loading = true;
+        // Remove existing "Load more" button before fetching next page
+        const existingBtn = container.querySelector('.folder-load-more-btn');
+        if (existingBtn) existingBtn.remove();
+    }
+
+    try {
+        let url = `/api/conversations?user_id=${user_id}&folder_id=${folderId}&limit=${FOLDER_CHATS_PAGE_SIZE}`;
+        if (maxId !== null) url += `&max_id=${maxId}`;
+
+        const response = await secureFetch(url);
+        if (!response) return; // secureFetch returned null (session expired)
+
+        const conversations = await response.json();
+
+        if (isFirstPage && conversations.length === 0) {
+            const emptyMsg = document.createElement('div');
+            emptyMsg.className = 'folder-empty-msg';
+            emptyMsg.textContent = 'Empty folder';
+            container.appendChild(emptyMsg);
+        } else {
+            conversations.forEach(conversation => {
+                const chatElement = createFolderChatElement(conversation);
+                container.appendChild(chatElement);
+
+                // Track lowest loaded ID for cursor
+                const convId = Number(conversation.id);
+                if (convId < state.lowestLoadedId) {
+                    state.lowestLoadedId = convId;
+                }
+            });
+
+            // Determine if all items have been loaded
+            if (conversations.length < FOLDER_CHATS_PAGE_SIZE) {
+                state.allLoaded = true;
+            } else {
+                // Append "Load more" button
+                const loadMoreBtn = document.createElement('button');
+                loadMoreBtn.className = 'folder-load-more-btn';
+                loadMoreBtn.innerHTML = 'Load more <i class="fas fa-chevron-down"></i>';
+                loadMoreBtn.onclick = () => loadMoreFolderChats(folderId);
+                container.appendChild(loadMoreBtn);
+            }
+        }
+
         // Execute callback if provided (after DOM is updated)
         if (onComplete && typeof onComplete === 'function') {
             onComplete();
         }
     } catch (error) {
         if (error.message === 'Session expired') {
-            // Session validation was already handled by secureFetch, no need to log as error
+            // Already handled by secureFetch
         } else {
             console.error('Error loading folder chats:', error);
         }
+    } finally {
+        if (state) state.loading = false;
     }
+}
+
+// Load next page of chats for a folder
+function loadMoreFolderChats(folderId) {
+    const state = folderPaginationState.get(folderId);
+    if (!state || state.allLoaded || state.loading) return;
+    loadFolderChats(folderId, null, state.lowestLoadedId - 1);
 }
 
 // Create chat element for folder
@@ -375,7 +471,13 @@ function createFolderChatElement(conversation) {
     chatContent.appendChild(chatInfo);
     chatContent.appendChild(chatMenu);
     chatElement.appendChild(chatContent);
-    
+
+    // Make folder chat items draggable (to move out of folder or between folders)
+    chatElement.setAttribute('draggable', 'true');
+    chatElement.style.cursor = 'grab';
+    chatElement.addEventListener('dragstart', handleDragStart);
+    chatElement.addEventListener('dragend', handleDragEnd);
+
     // Click handler to continue conversation
     chatElement.addEventListener('click', (e) => {
         if (!e.target.closest('.chat-menu')) {
@@ -436,23 +538,62 @@ function createChatMenuForFolder(conversation) {
     chatMenuContent.appendChild(whatsappLink);
     
     // Add folder options section
-    addFolderOptionsToMenu(chatMenuContent, conversation.id);
+    addFolderOptionsToMenu(chatMenuContent, conversation.id, true);
 
-    let isMenuOpen = false;
-
-    // Click handler for chat-menu-content div
     chatMenu.addEventListener('click', (e) => {
         e.stopPropagation();
-        isMenuOpen = !isMenuOpen;
-        chatMenuContent.style.display = isMenuOpen ? 'block' : 'none';
+
+        const isCurrentlyOpen = chatMenuContent.style.display === 'block';
+
+        closeAllChatMenus();
+
+        if (!isCurrentlyOpen) {
+            const buttonRect = chatMenu.getBoundingClientRect();
+
+            // Portal to body to escape all overflow clipping containers
+            chatMenuContent._originParent = chatMenu;
+            document.body.appendChild(chatMenuContent);
+
+            chatMenuContent.style.position = 'fixed';
+            chatMenuContent.style.right = (window.innerWidth - buttonRect.right) + 'px';
+            chatMenuContent.style.left = 'auto';
+            chatMenuContent.style.top = (buttonRect.bottom + 2) + 'px';
+            chatMenuContent.style.zIndex = '9999';
+            chatMenuContent.style.display = 'block';
+
+            const parentItem = chatMenu.closest('.list-group-item');
+            if (parentItem) parentItem.style.zIndex = '10';
+
+            // Check if menu overflows viewport bottom
+            const menuRect = chatMenuContent.getBoundingClientRect();
+            if (menuRect.bottom > window.innerHeight) {
+                chatMenuContent.style.top = (buttonRect.top - menuRect.height - 2) + 'px';
+                chatMenuContent.classList.add('menu-above');
+            } else {
+                chatMenuContent.classList.remove('menu-above');
+            }
+
+            // Close on sidebar scroll so the menu doesn't float detached
+            const listGroup = chatMenu.closest('.list-group');
+            if (listGroup) {
+                listGroup.addEventListener('scroll', closeAllChatMenus, { once: true });
+            }
+        }
     });
 
-    // Handler to close menu when clicking outside
+    // Close menu when clicking outside
     document.addEventListener('click', (e) => {
-        if (!chatMenu.contains(e.target) && isMenuOpen) {
-            isMenuOpen = false;
-            chatMenuContent.style.display = 'none';
+        if (!chatMenu.contains(e.target) && !chatMenuContent.contains(e.target) && chatMenuContent.style.display === 'block') {
+            closeAllChatMenus();
         }
+    });
+
+    // Close menu when clicking a menu item
+    chatMenuContent.addEventListener('click', (e) => {
+        if (e.target.closest('a')) {
+            closeAllChatMenus();
+        }
+        e.stopPropagation();
     });
 
     return chatMenu;
@@ -528,14 +669,33 @@ const moveChatToFolder = withSession(async function(conversationId, folderId) {
         
         if (response.ok) {
             NotificationModal.toast(result.message || 'Chat moved successfully', 'success');
-            
+
             // Close modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('moveChatModal'));
             modal.hide();
-            
-            // Refresh UI
-            loadChatFolders();
-            loadConversations(false, false);
+
+            if (folderId) {
+                // Moving INTO a folder: remove from main sidebar list
+                removeConversationElement(conversationId);
+                if (typeof loadedConversationIds !== 'undefined') {
+                    loadedConversationIds.delete(conversationId);
+                }
+
+                // If the active conversation was moved, open folder and highlight it
+                if (Number(conversationId) === Number(currentConversationId)) {
+                    await openFolderAndHighlight(folderId, conversationId);
+                } else {
+                    await reloadFoldersPreservingState();
+                }
+            } else {
+                // Removing FROM a folder: refresh folders and reload main conversation list
+                await reloadFoldersPreservingState();
+                allConversationsLoaded = false;
+                lowestLoadedId = Infinity;
+                document.getElementById('dynamic-chats-container').innerHTML = '';
+                loadedConversationIds.clear();
+                loadConversations(false, true);
+            }
         } else {
             NotificationModal.toast(result.error || 'Failed to move chat', 'error');
         }
@@ -544,6 +704,62 @@ const moveChatToFolder = withSession(async function(conversationId, folderId) {
         NotificationModal.toast('Failed to move chat', 'error');
     }
 });
+
+// Open a folder and highlight a specific conversation inside it
+async function openFolderAndHighlight(folderId, conversationId) {
+    // Wait for folder section DOM to be rebuilt
+    await loadChatFolders();
+
+    // Collapse all folders first
+    document.querySelectorAll('.folder-chats-container').forEach(fc => {
+        fc.style.display = 'none';
+        const id = fc.id.replace('folder-chats-', '');
+        if (id) folderPaginationState.delete(Number(id));
+    });
+    document.querySelectorAll('.folder-item').forEach(item => {
+        item.classList.remove('folder-selected');
+        item.dataset.folderExpanded = 'false';
+        const icon = item.querySelector('.folder-icon');
+        if (icon) {
+            icon.classList.remove('fa-folder-open');
+            icon.classList.add('fa-folder');
+        }
+    });
+
+    // Expand the target folder
+    const container = document.getElementById(`folder-chats-${folderId}`);
+    const folderItem = document.querySelector(`[data-folder-id="${folderId}"]`);
+    if (!container || !folderItem) return;
+
+    container.style.display = 'block';
+    currentSelectedFolderId = folderId;
+    folderItem.classList.add('folder-selected');
+    folderItem.dataset.folderExpanded = 'true';
+    const icon = folderItem.querySelector('.folder-icon');
+    if (icon) {
+        icon.classList.remove('fa-folder');
+        icon.classList.add('fa-folder-open');
+    }
+
+    // Load folder chats and highlight the moved conversation via onComplete callback
+    await loadFolderChats(folderId, () => {
+        const chatEl = container.querySelector(`[data-conversation-id="${conversationId}"]`);
+        if (chatEl && Number(conversationId) === Number(currentConversationId)) {
+            chatEl.classList.add('active-chat');
+        }
+    });
+
+    updateNewChatButtonState();
+}
+
+// Reload folders while preserving the currently expanded folder
+async function reloadFoldersPreservingState() {
+    const expandedFolderId = currentSelectedFolderId;
+    await loadChatFolders();
+    if (expandedFolderId) {
+        toggleFolderChats(expandedFolderId);
+    }
+}
 
 // Remove from folder handler
 function removeFromFolderHandler() {
@@ -622,29 +838,54 @@ function makeFoldersDroppable() {
             folderItem.addEventListener('dragenter', handleDragEnter);
             folderItem.addEventListener('dragleave', handleDragLeave);
         });
-        
-        // Also make the main chats area a drop zone (to remove from folders)
-        const mainChatsArea = document.querySelector('.sidebar-section:not(.folders-section) h3');
-        if (mainChatsArea) {
-            const dropZone = document.createElement('div');
-            dropZone.className = 'main-chats-drop-zone';
-            dropZone.textContent = 'Drop here to remove from folder';
-            dropZone.style.cssText = 'display: none; padding: 10px; border: 2px dashed var(--sidebar-border-color); border-radius: 6px; margin: 5px 0; text-align: center; font-size: 0.8rem; color: var(--sidebar-text-color); opacity: 0.7;';
-            
-            mainChatsArea.parentNode.insertBefore(dropZone, mainChatsArea.nextSibling);
-            
-            dropZone.addEventListener('dragover', handleDragOver);
-            dropZone.addEventListener('drop', (e) => handleDrop(e, null)); // null means remove from folder
-            dropZone.addEventListener('dragenter', (e) => {
-                e.preventDefault();
-                dropZone.style.display = 'block';
-                dropZone.style.backgroundColor = 'rgba(114, 137, 218, 0.1)';
-            });
-            dropZone.addEventListener('dragleave', (e) => {
-                if (!dropZone.contains(e.relatedTarget)) {
-                    dropZone.style.backgroundColor = '';
+
+        // Make expanded folder chat lists also drop targets (drop onto the open chat list)
+        const folderChatsContainers = document.querySelectorAll('.folder-chats-container');
+        folderChatsContainers.forEach(container => {
+            const folderId = parseInt(container.id.replace('folder-chats-', ''));
+            container.addEventListener('dragover', handleDragOver);
+            container.addEventListener('drop', (e) => handleDrop(e, folderId));
+            container.addEventListener('dragenter', (e) => {
+                if (draggedConversationId) {
+                    e.preventDefault();
+                    // Highlight the parent folder item
+                    const folderItem = document.querySelector(`[data-folder-id="${folderId}"]`);
+                    if (folderItem) folderItem.classList.add('drag-over');
                 }
             });
+            container.addEventListener('dragleave', (e) => {
+                if (!container.contains(e.relatedTarget)) {
+                    const folderItem = document.querySelector(`[data-folder-id="${folderId}"]`);
+                    if (folderItem) folderItem.classList.remove('drag-over');
+                }
+            });
+        });
+        
+        // Make the main chats container a drop zone (to remove from folders)
+        const mainChatsContainer = document.getElementById('dynamic-chats-container');
+        if (mainChatsContainer && !mainChatsContainer.hasAttribute('data-drop-zone-ready')) {
+            mainChatsContainer.setAttribute('data-drop-zone-ready', 'true');
+            mainChatsContainer.addEventListener('dragover', handleDragOver);
+            mainChatsContainer.addEventListener('drop', (e) => handleDrop(e, null));
+            mainChatsContainer.addEventListener('dragenter', (e) => {
+                if (draggedConversationId) {
+                    e.preventDefault();
+                    mainChatsContainer.classList.add('drag-over');
+                }
+            });
+            mainChatsContainer.addEventListener('dragleave', (e) => {
+                if (!mainChatsContainer.contains(e.relatedTarget)) {
+                    mainChatsContainer.classList.remove('drag-over');
+                }
+            });
+        }
+
+        // Also the load-more button area as drop target
+        const loadMoreBtn = document.getElementById('load-more-button');
+        if (loadMoreBtn && !loadMoreBtn.hasAttribute('data-drop-zone-ready')) {
+            loadMoreBtn.setAttribute('data-drop-zone-ready', 'true');
+            loadMoreBtn.addEventListener('dragover', handleDragOver);
+            loadMoreBtn.addEventListener('drop', (e) => handleDrop(e, null));
         }
     };
     
@@ -672,11 +913,6 @@ function handleDragStart(e) {
         folder.classList.add('drop-zone-active');
     });
     
-    const dropZone = document.querySelector('.main-chats-drop-zone');
-    if (dropZone) {
-        dropZone.style.display = 'block';
-    }
-    
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/html', e.target.outerHTML);
 }
@@ -691,11 +927,9 @@ function handleDragEnd(e) {
         folder.classList.remove('drop-zone-active', 'drag-over');
     });
     
-    const dropZone = document.querySelector('.main-chats-drop-zone');
-    if (dropZone) {
-        dropZone.style.display = 'none';
-        dropZone.style.backgroundColor = '';
-    }
+    // Remove drag-over highlight from main chats container
+    const mainChatsContainer = document.getElementById('dynamic-chats-container');
+    if (mainChatsContainer) mainChatsContainer.classList.remove('drag-over');
 }
 
 function handleDragOver(e) {
@@ -757,13 +991,33 @@ const moveChatToFolderDragDrop = withSession(async function(conversationId, fold
         
         if (response.ok) {
             NotificationModal.toast(
-                folderId ? 'Chat moved to folder successfully' : 'Chat removed from folder successfully', 
+                folderId ? 'Chat moved to folder successfully' : 'Chat removed from folder successfully',
                 'success'
             );
-            
-            // Refresh UI
-            loadChatFolders();
-            loadConversations(false, false);
+
+            if (folderId) {
+                // Moving INTO a folder: remove from main sidebar list
+                removeConversationElement(conversationId);
+                if (typeof loadedConversationIds !== 'undefined') {
+                    loadedConversationIds.delete(conversationId);
+                }
+
+                // If the active conversation was moved, open folder and highlight it
+                if (Number(conversationId) === Number(currentConversationId)) {
+                    await openFolderAndHighlight(folderId, conversationId);
+                } else {
+                    // Non-active conversation: open the target folder to show where it landed
+                    await openFolderAndHighlight(folderId, conversationId);
+                }
+            } else {
+                // Removing FROM a folder: refresh folders and reload main conversation list
+                await reloadFoldersPreservingState();
+                allConversationsLoaded = false;
+                lowestLoadedId = Infinity;
+                document.getElementById('dynamic-chats-container').innerHTML = '';
+                loadedConversationIds.clear();
+                loadConversations(false, true);
+            }
         } else {
             NotificationModal.toast(result.error || 'Failed to move chat', 'error');
         }
@@ -810,7 +1064,7 @@ function isConversationInFolder(conversationId) {
 }
 
 // Add folder options to existing chat menu
-function addFolderOptionsToMenu(menuContent, conversationId) {
+function addFolderOptionsToMenu(menuContent, conversationId, isInFolderContext = false) {
     // Create folder section
     const folderSection = document.createElement('div');
     folderSection.className = 'folders-menu-section';
@@ -829,7 +1083,7 @@ function addFolderOptionsToMenu(menuContent, conversationId) {
     }
     
     // Add "Remove from Folder" option only if chat is in a folder
-    const isInFolder = isConversationInFolder(conversationId);
+    const isInFolder = isInFolderContext || isConversationInFolder(conversationId);
     if (isInFolder) {
         const removeFromFolderLink = createFolderMenuLink('fa-times', 'Remove from Folder', () => {
             moveChatToFolderDragDrop(conversationId, null);

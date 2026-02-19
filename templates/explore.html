@@ -61,6 +61,33 @@
         <!-- Rendered by JS on card click -->
     </div>
 </div>
+
+<!-- Landing Preview Overlay -->
+<div id="landingPreviewOverlay" class="landing-preview-overlay">
+    <button class="landing-preview-close" onclick="closeLandingPreview()" title="Close (Esc)">
+        <i class="fas fa-times"></i>
+    </button>
+    <button id="previewPrevBtn" class="landing-preview-nav prev" onclick="navigatePreview(-1)">
+        <i class="fas fa-chevron-left"></i>
+    </button>
+    <button id="previewNextBtn" class="landing-preview-nav next" onclick="navigatePreview(1)">
+        <i class="fas fa-chevron-right"></i>
+    </button>
+    <iframe id="landingPreviewIframe" class="landing-preview-iframe"
+            sandbox="allow-scripts" loading="lazy"></iframe>
+    <div class="landing-preview-bar">
+        <div class="landing-preview-bar-info">
+            <span id="previewItemName" class="preview-name"></span>
+            <span class="preview-by">by</span>
+            <span id="previewItemCreator" class="preview-creator"></span>
+            <span id="previewCounter" class="preview-counter"></span>
+        </div>
+        <div class="landing-preview-bar-actions">
+            <button id="previewCtaBtn" class="landing-preview-cta" onclick="previewCtaAction()"></button>
+            <button class="landing-preview-close-btn" onclick="closeLandingPreview()">Close</button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}

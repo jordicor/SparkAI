@@ -33,6 +33,11 @@
     <!-- Page-specific styles -->
     {% block styles %}{% endblock %}
 
+    <!-- Creator branding CSS variables (only on storefront/product pages) -->
+    {% if branding is defined and branding.context_type is defined and branding.context_type != 'platform' %}
+    <style>:root { --creator-primary: {{ branding.brand_color_primary }}; --creator-secondary: {{ branding.brand_color_secondary }}; }</style>
+    {% endif %}
+
     <!-- Extra head content (libraries, meta tags, etc.) -->
     {% block head_extra %}{% endblock %}
 </head>
@@ -67,7 +72,7 @@
 
     <!-- Real Content (hidden until ready) -->
     <div id="page-content" style="display: none;">
-        {% include 'navbar.html' %}
+        {% block navbar %}{% include 'navbar.html' %}{% endblock %}
 
         <!-- Main Content -->
         <div class="main-container">

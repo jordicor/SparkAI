@@ -5,6 +5,7 @@
 
 const ExploreState = {
     activeTab: 'prompts',    // 'prompts' | 'packs'
+    activeFilter: null,      // 'mine' | 'favorites' | null
     prompts: [],
     packs: [],
     categories: [],
@@ -14,7 +15,10 @@ const ExploreState = {
     totalPages: 1,
     total: 0,
     limit: 24,
-    loading: false
+    loading: false,
+    iframeActive: false,
+    iframeLandingItems: [],  // items with landings (for left/right nav)
+    iframeCurrentIndex: 0
 };
 
 // Debounce utility
@@ -60,6 +64,12 @@ function setupEventListeners() {
 
     // Close modal on Escape key
     document.addEventListener('keydown', (e) => {
+        if (ExploreState.iframeActive) {
+            if (e.key === 'Escape') closeLandingPreview();
+            else if (e.key === 'ArrowLeft') navigatePreview(-1);
+            else if (e.key === 'ArrowRight') navigatePreview(1);
+            return;
+        }
         if (e.key === 'Escape') closeModal();
     });
 }
@@ -74,6 +84,7 @@ function switchTab(tab, tabEl) {
     ExploreState.currentPage = 1;
     ExploreState.searchQuery = '';
     ExploreState.activeCategory = null;
+    ExploreState.activeFilter = null;
 
     // Reset search input
     const searchInput = document.getElementById('exploreSearch');
@@ -86,14 +97,12 @@ function switchTab(tab, tabEl) {
     document.querySelectorAll('.explore-tab').forEach(t => t.classList.remove('active'));
     if (tabEl) tabEl.classList.add('active');
 
-    // Show/hide category chips (only for prompts)
-    const chips = document.getElementById('categoryChips');
-    if (chips) chips.style.display = tab === 'prompts' ? '' : 'none';
-
-    // Load content
+    // Render appropriate chips and load content
     if (tab === 'prompts') {
+        renderCategories();
         loadPrompts();
     } else {
+        renderPackChips();
         loadPacks();
     }
 }
@@ -127,6 +136,12 @@ async function loadPrompts() {
     if (ExploreState.activeCategory) {
         params.set('category', ExploreState.activeCategory);
     }
+    if (ExploreState.activeFilter === 'mine') {
+        params.set('mine', '1');
+    }
+    if (ExploreState.activeFilter === 'favorites') {
+        params.set('favorites', '1');
+    }
     if (ExploreState.searchQuery.trim()) {
         params.set('search', ExploreState.searchQuery.trim());
     }
@@ -144,6 +159,7 @@ async function loadPrompts() {
         renderPrompts();
         renderPagination();
         updateResultsBar();
+        buildLandingItemsList();
     } catch (err) {
         console.error('Failed to load prompts:', err);
         showEmptyState('Error loading prompts. Please try again.');
@@ -163,6 +179,9 @@ async function loadPacks() {
         limit: ExploreState.limit
     });
 
+    if (ExploreState.activeFilter === 'mine') {
+        params.set('mine', '1');
+    }
     if (ExploreState.searchQuery.trim()) {
         params.set('search', ExploreState.searchQuery.trim());
     }
@@ -180,6 +199,7 @@ async function loadPacks() {
         renderPacks();
         renderPagination();
         updateResultsBar();
+        buildLandingItemsList();
     } catch (err) {
         console.error('Failed to load packs:', err);
         showEmptyState('Error loading packs. Please try again.');
@@ -196,26 +216,38 @@ async function loadPacks() {
 function renderCategories() {
     const container = document.getElementById('categoryChips');
     if (!container) return;
+    container.style.display = '';
+
+    const noFilter = !ExploreState.activeFilter && !ExploreState.activeCategory;
 
     // "All" chip
-    let html = `<button class="category-chip active" data-category="" onclick="selectCategory(null, this)">
+    let html = `<button class="category-chip ${noFilter ? 'active' : ''}" onclick="selectCategory(null, this)">
         <i class="fas fa-globe"></i> All
     </button>`;
 
+    // Special filter chips
+    html += `<button class="category-chip ${ExploreState.activeFilter === 'mine' ? 'active' : ''}" onclick="selectFilter('mine', this)">
+        <i class="fas fa-user"></i> My Prompts
+    </button>`;
+    html += `<button class="category-chip ${ExploreState.activeFilter === 'favorites' ? 'active' : ''}" onclick="selectFilter('favorites', this)">
+        <i class="fas fa-star"></i> Favorites
+    </button>`;
+
+    // Visual divider
+    html += '<span class="chip-divider"></span>';
+
     ExploreState.categories.forEach(cat => {
-        // Skip age-restricted from main view
         if (cat.is_age_restricted) return;
-        html += `<button class="category-chip" data-category="${cat.id}" onclick="selectCategory(${cat.id}, this)">
+        html += `<button class="category-chip ${ExploreState.activeCategory === cat.id ? 'active' : ''}" data-category="${cat.id}" onclick="selectCategory(${cat.id}, this)">
             <i class="fas ${cat.icon || 'fa-tag'}"></i> ${escapeHtml(cat.name)}
             <span class="chip-count">${cat.count}</span>
         </button>`;
     });
 
-    // Add age-restricted as a separate toggle if exists
     const ageRestricted = ExploreState.categories.filter(c => c.is_age_restricted);
     if (ageRestricted.length > 0) {
         ageRestricted.forEach(cat => {
-            html += `<button class="category-chip" data-category="${cat.id}" onclick="selectCategory(${cat.id}, this)" title="Age-restricted content">
+            html += `<button class="category-chip ${ExploreState.activeCategory === cat.id ? 'active' : ''}" data-category="${cat.id}" onclick="selectCategory(${cat.id}, this)" title="Age-restricted content">
                 <i class="fas ${cat.icon || 'fa-tag'}"></i> ${escapeHtml(cat.name)}
                 <span class="chip-count">${cat.count}</span>
             </button>`;
@@ -225,8 +257,26 @@ function renderCategories() {
     container.innerHTML = html;
 }
 
+function renderPackChips() {
+    const container = document.getElementById('categoryChips');
+    if (!container) return;
+    container.style.display = '';
+
+    const noFilter = !ExploreState.activeFilter;
+
+    let html = `<button class="category-chip ${noFilter ? 'active' : ''}" onclick="selectFilter(null, this)">
+        <i class="fas fa-globe"></i> All
+    </button>`;
+    html += `<button class="category-chip ${ExploreState.activeFilter === 'mine' ? 'active' : ''}" onclick="selectFilter('mine', this)">
+        <i class="fas fa-user"></i> My Packs
+    </button>`;
+
+    container.innerHTML = html;
+}
+
 function selectCategory(categoryId, chipEl) {
     ExploreState.activeCategory = categoryId;
+    ExploreState.activeFilter = null;
     ExploreState.currentPage = 1;
 
     // Update active chip visual
@@ -234,6 +284,22 @@ function selectCategory(categoryId, chipEl) {
     if (chipEl) chipEl.classList.add('active');
 
     loadPrompts();
+}
+
+function selectFilter(filter, chipEl) {
+    ExploreState.activeFilter = filter;
+    ExploreState.activeCategory = null;
+    ExploreState.currentPage = 1;
+
+    // Update active chip visual
+    document.querySelectorAll('.category-chip').forEach(c => c.classList.remove('active'));
+    if (chipEl) chipEl.classList.add('active');
+
+    if (ExploreState.activeTab === 'prompts') {
+        loadPrompts();
+    } else {
+        loadPacks();
+    }
 }
 
 // ============================================================
@@ -264,10 +330,33 @@ function renderPrompts() {
             .map(c => `<span class="card-tag"><i class="fas ${c.icon || 'fa-tag'}"></i> ${escapeHtml(c.name)}</span>`)
             .join('');
 
-        const paidBadge = prompt.is_paid ? '<span class="card-paid-badge">PRO</span>' : '';
+        let paidBadge = '';
+        if (prompt.purchase_price !== null && prompt.purchase_price !== undefined) {
+            paidBadge = prompt.purchase_price > 0
+                ? `<span class="card-paid-badge">$${Number(prompt.purchase_price).toFixed(2)}</span>`
+                : '<span class="card-paid-badge" style="background:var(--success,#43b581)">FREE</span>';
+        } else if (prompt.is_paid) {
+            paidBadge = '<span class="card-paid-badge">PRO</span>';
+        }
 
-        html += `<div class="prompt-card" onclick='openModal(${JSON.stringify(prompt).replace(/'/g, "&#39;")})'>
+        let visibilityBadge = '';
+        if (ExploreState.activeFilter === 'mine') {
+            if (!prompt.is_public) {
+                visibilityBadge = '<span class="card-visibility-badge private"><i class="fas fa-lock"></i> Private</span>';
+            } else if (prompt.is_unlisted) {
+                visibilityBadge = '<span class="card-visibility-badge unlisted"><i class="fas fa-eye-slash"></i> Unlisted</span>';
+            }
+        }
+
+        const favClass = prompt.is_favorite ? 'is-favorite' : '';
+        const favIcon = prompt.is_favorite ? 'fas' : 'far';
+
+        html += `<div class="prompt-card" onclick='openExploreItem(${JSON.stringify(prompt).replace(/'/g, "&#39;")}, "prompt")'>
             ${paidBadge}
+            ${visibilityBadge}
+            <button class="explore-fav-btn ${favClass}" onclick="event.stopPropagation(); toggleExploreFavorite(${prompt.id}, this)" title="${prompt.is_favorite ? 'Remove from favorites' : 'Add to favorites'}">
+                <i class="${favIcon} fa-star"></i>
+            </button>
             ${avatarHtml}
             <div class="card-name">${escapeHtml(prompt.name)}</div>
             <div class="card-description">${descSnippet}</div>
@@ -305,7 +394,17 @@ function renderPacks() {
             ? escapeHtml(pack.description.substring(0, 100))
             : '';
 
-        html += `<div class="pack-card" onclick='openPackModal(${JSON.stringify(pack).replace(/'/g, "&#39;")})'>
+        let visibilityBadge = '';
+        if (ExploreState.activeFilter === 'mine') {
+            if (pack.status === 'draft') {
+                visibilityBadge = '<span class="card-visibility-badge draft"><i class="fas fa-pencil-alt"></i> Draft</span>';
+            } else if (!pack.is_public) {
+                visibilityBadge = '<span class="card-visibility-badge private"><i class="fas fa-lock"></i> Private</span>';
+            }
+        }
+
+        html += `<div class="pack-card" onclick='openExploreItem(${JSON.stringify(pack).replace(/'/g, "&#39;")}, "pack")'>
+            ${visibilityBadge}
             ${coverHtml}
             <div class="pack-card-body">
                 <div class="card-name">${escapeHtml(pack.name)}</div>
@@ -457,8 +556,23 @@ function openModal(prompt) {
         ? `<a href="${landingUrl}" target="_blank" class="modal-secondary-btn"><i class="fas fa-external-link-alt"></i> Landing Page</a>`
         : '';
 
+    const modalFavClass = prompt.is_favorite ? 'is-favorite' : '';
+    const modalFavIcon = prompt.is_favorite ? 'fas' : 'far';
+
+    let visibilityNotice = '';
+    if (ExploreState.activeFilter === 'mine') {
+        if (!prompt.is_public) {
+            visibilityNotice = '<div class="visibility-notice"><i class="fas fa-lock"></i> This prompt is private — only you can see it</div>';
+        } else if (prompt.is_unlisted) {
+            visibilityNotice = '<div class="visibility-notice"><i class="fas fa-eye-slash"></i> This prompt is unlisted — only accessible via direct link</div>';
+        }
+    }
+
     document.getElementById('modalContent').innerHTML = `
         <button class="modal-close-btn" onclick="closeModal()" title="Close"><i class="fas fa-times"></i></button>
+        <button class="modal-fav-btn ${modalFavClass}" onclick="toggleExploreFavorite(${prompt.id}, this)" title="${prompt.is_favorite ? 'Remove from favorites' : 'Add to favorites'}">
+            <i class="${modalFavIcon} fa-star"></i>
+        </button>
         <div class="modal-header-section">
             ${avatarHtml}
             <div class="modal-info">
@@ -466,11 +580,10 @@ function openModal(prompt) {
                 <div class="modal-creator">by <span>@${escapeHtml(creatorName)}</span></div>
             </div>
         </div>
+        ${visibilityNotice}
         <div class="modal-description">${escapeHtml(description)}</div>
         <div class="modal-tags">${tagsHtml}</div>
-        <button class="modal-cta" onclick="chatWithPrompt(${prompt.id}, '${escapeAttr(prompt.name)}')">
-            <i class="fas fa-comments"></i> Chat Now
-        </button>
+        ${getPromptCTA(prompt)}
         <div class="modal-secondary-actions">
             ${landingBtn}
             <button class="modal-secondary-btn" onclick="sharePrompt('${escapeAttr(prompt.name)}', '${landingUrl || ''}')">
@@ -481,6 +594,56 @@ function openModal(prompt) {
 
     backdrop.classList.add('active');
     document.body.style.overflow = 'hidden';
+}
+
+function getPromptCTA(prompt) {
+    // If user already has access or is the owner, show "Chat Now"
+    if (prompt.user_has_access || prompt.is_mine) {
+        return `<button class="modal-cta" onclick="chatWithPrompt(${prompt.id}, '${escapeAttr(prompt.name)}')">
+            <i class="fas fa-comments"></i> Chat Now
+        </button>`;
+    }
+    // If purchase_price is set and > 0, show buy button
+    if (prompt.purchase_price !== null && prompt.purchase_price !== undefined && prompt.purchase_price > 0) {
+        return `<button class="modal-cta" onclick="purchasePrompt(${prompt.id})">
+            <i class="fas fa-shopping-cart"></i> Buy for $${Number(prompt.purchase_price).toFixed(2)}
+        </button>`;
+    }
+    // If purchase_price === 0, show free access button
+    if (prompt.purchase_price !== null && prompt.purchase_price !== undefined && prompt.purchase_price === 0) {
+        return `<button class="modal-cta" onclick="purchasePrompt(${prompt.id})">
+            <i class="fas fa-unlock"></i> Get Access &mdash; Free
+        </button>`;
+    }
+    // Default: Chat Now (public access)
+    return `<button class="modal-cta" onclick="chatWithPrompt(${prompt.id}, '${escapeAttr(prompt.name)}')">
+        <i class="fas fa-comments"></i> Chat Now
+    </button>`;
+}
+
+async function purchasePrompt(promptId) {
+    try {
+        const res = await fetch('/api/prompts/' + promptId + '/purchase', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            credentials: 'include'
+        });
+        const data = await res.json();
+        if (data.checkout_url) {
+            window.location = data.checkout_url;
+        } else if (data.free_purchase) {
+            window.location = '/chat';
+        } else if (data.redirect) {
+            window.location = data.redirect;
+        } else if (data.message) {
+            alert(data.message);
+        } else if (data.detail) {
+            alert(data.detail);
+        }
+    } catch (err) {
+        console.error('Purchase failed:', err);
+        alert('Purchase failed. Please try again.');
+    }
 }
 
 // ============================================================
@@ -516,6 +679,15 @@ function openPackModal(pack) {
         ? `<a href="${landingUrl}" target="_blank" class="modal-secondary-btn"><i class="fas fa-external-link-alt"></i> View Landing</a>`
         : '';
 
+    let packVisibilityNotice = '';
+    if (ExploreState.activeFilter === 'mine') {
+        if (pack.status === 'draft') {
+            packVisibilityNotice = '<div class="visibility-notice"><i class="fas fa-pencil-alt"></i> This pack is a draft — not yet published</div>';
+        } else if (!pack.is_public) {
+            packVisibilityNotice = '<div class="visibility-notice"><i class="fas fa-lock"></i> This pack is private — only you can see it</div>';
+        }
+    }
+
     document.getElementById('modalContent').innerHTML = `
         <button class="modal-close-btn" onclick="closeModal()" title="Close"><i class="fas fa-times"></i></button>
         <div class="pack-modal-header">
@@ -526,6 +698,7 @@ function openPackModal(pack) {
                 <div class="pack-modal-price">${priceLabel}</div>
             </div>
         </div>
+        ${packVisibilityNotice}
         ${description ? `<div class="modal-description">${escapeHtml(description)}</div>` : ''}
         ${tagsHtml ? `<div class="modal-tags">${tagsHtml}</div>` : ''}
         <div class="pack-modal-prompts" id="packModalPrompts">
@@ -754,6 +927,207 @@ async function sharePrompt(name, landingUrl) {
             NotificationModal.info('Share Link', `<input class="form-control" value="${safeUrl}" readonly onclick="this.select()">`);
         }
     }
+}
+
+// ============================================================
+// FAVORITES TOGGLE
+// ============================================================
+
+async function toggleExploreFavorite(promptId, btnEl) {
+    // Optimistic UI update
+    const isFav = btnEl.classList.contains('is-favorite');
+    const icon = btnEl.querySelector('i');
+
+    btnEl.classList.toggle('is-favorite');
+    icon.className = isFav ? 'far fa-star' : 'fas fa-star';
+    btnEl.title = isFav ? 'Add to favorites' : 'Remove from favorites';
+
+    try {
+        const res = await fetch(`/api/home/favorites/${promptId}`, { method: 'POST' });
+        if (!res.ok) throw new Error('Failed to toggle favorite');
+        const data = await res.json();
+
+        // Update local state
+        const prompt = ExploreState.prompts.find(p => p.id === promptId);
+        if (prompt) prompt.is_favorite = data.is_favorite;
+
+        // Sync all buttons for this prompt (card + modal may both be visible)
+        document.querySelectorAll(`.explore-fav-btn, .modal-fav-btn`).forEach(btn => {
+            // Find buttons that match this promptId by checking onclick
+            const onclickAttr = btn.getAttribute('onclick') || '';
+            if (onclickAttr.includes(`toggleExploreFavorite(${promptId},`)) {
+                const ico = btn.querySelector('i');
+                if (data.is_favorite) {
+                    btn.classList.add('is-favorite');
+                    ico.className = 'fas fa-star';
+                    btn.title = 'Remove from favorites';
+                } else {
+                    btn.classList.remove('is-favorite');
+                    ico.className = 'far fa-star';
+                    btn.title = 'Add to favorites';
+                }
+            }
+        });
+
+        // Update badge visibility in the card
+        renderPrompts();
+    } catch (err) {
+        console.error('Failed to toggle favorite:', err);
+        // Revert optimistic update
+        btnEl.classList.toggle('is-favorite');
+        icon.className = isFav ? 'fas fa-star' : 'far fa-star';
+        btnEl.title = isFav ? 'Remove from favorites' : 'Add to favorites';
+    }
+}
+
+// ============================================================
+// LANDING PREVIEW OVERLAY
+// ============================================================
+
+function buildLandingItemsList() {
+    // Build list of items with landing pages for iframe navigation
+    if (ExploreState.activeTab === 'prompts') {
+        ExploreState.iframeLandingItems = ExploreState.prompts
+            .filter(p => p.has_landing_page && p.public_id && p.slug)
+            .map(p => ({...p, _type: 'prompt'}));
+    } else {
+        ExploreState.iframeLandingItems = ExploreState.packs
+            .filter(p => (p.has_landing_page || p.has_custom_landing) && p.public_id && p.slug)
+            .map(p => ({...p, _type: 'pack'}));
+    }
+}
+
+function openExploreItem(item, type) {
+    // Dispatcher: iframe preview for items with landing, modal for others
+    if (type === 'prompt') {
+        if (item.has_landing_page && item.public_id && item.slug) {
+            openLandingPreview(item, type);
+        } else {
+            openModal(item);
+        }
+    } else {
+        if ((item.has_landing_page || item.has_custom_landing) && item.public_id && item.slug) {
+            openLandingPreview(item, type);
+        } else {
+            openPackModal(item);
+        }
+    }
+}
+
+function openLandingPreview(item, type) {
+    const overlay = document.getElementById('landingPreviewOverlay');
+    if (!overlay) return;
+
+    // Find index in landing items list
+    const idx = ExploreState.iframeLandingItems.findIndex(i => i.id === item.id && i._type === type);
+    ExploreState.iframeCurrentIndex = idx >= 0 ? idx : 0;
+    ExploreState.iframeActive = true;
+
+    // Build URL — append ?preview=1 to skip custom domain redirects and analytics
+    const url = type === 'prompt'
+        ? `/p/${encodeURIComponent(item.public_id)}/${encodeURIComponent(item.slug)}/?preview=1`
+        : `/pack/${encodeURIComponent(item.public_id)}/${encodeURIComponent(item.slug)}/?preview=1`;
+
+    const iframe = document.getElementById('landingPreviewIframe');
+    iframe.src = url;
+
+    updatePreviewBar(item, type);
+    updatePreviewNavigation();
+
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeLandingPreview() {
+    const overlay = document.getElementById('landingPreviewOverlay');
+    if (!overlay) return;
+
+    overlay.classList.remove('active');
+    document.body.style.overflow = '';
+    ExploreState.iframeActive = false;
+
+    // Clear iframe to stop any running content
+    const iframe = document.getElementById('landingPreviewIframe');
+    if (iframe) iframe.src = 'about:blank';
+}
+
+function navigatePreview(direction) {
+    const items = ExploreState.iframeLandingItems;
+    if (items.length <= 1) return;
+
+    let newIndex = ExploreState.iframeCurrentIndex + direction;
+    // Wrap around
+    if (newIndex < 0) newIndex = items.length - 1;
+    if (newIndex >= items.length) newIndex = 0;
+
+    ExploreState.iframeCurrentIndex = newIndex;
+    const item = items[newIndex];
+    const type = item._type;
+
+    const url = type === 'prompt'
+        ? `/p/${encodeURIComponent(item.public_id)}/${encodeURIComponent(item.slug)}/?preview=1`
+        : `/pack/${encodeURIComponent(item.public_id)}/${encodeURIComponent(item.slug)}/?preview=1`;
+
+    document.getElementById('landingPreviewIframe').src = url;
+    updatePreviewBar(item, type);
+    updatePreviewNavigation();
+}
+
+function updatePreviewBar(item, type) {
+    const nameEl = document.getElementById('previewItemName');
+    const creatorEl = document.getElementById('previewItemCreator');
+    const ctaBtn = document.getElementById('previewCtaBtn');
+
+    if (nameEl) nameEl.textContent = item.name || '';
+    if (creatorEl) creatorEl.textContent = '@' + (item.creator_name || item.created_by_username || 'Unknown');
+
+    // CTA button
+    if (ctaBtn) {
+        if (type === 'prompt') {
+            if (item.user_has_access || item.is_mine) {
+                ctaBtn.textContent = 'Chat Now';
+                ctaBtn.onclick = () => { closeLandingPreview(); chatWithPrompt(item.id, item.name); };
+            } else if (item.purchase_price !== null && item.purchase_price !== undefined && item.purchase_price > 0) {
+                ctaBtn.textContent = 'Buy $' + Number(item.purchase_price).toFixed(2);
+                ctaBtn.onclick = () => { closeLandingPreview(); purchasePrompt(item.id); };
+            } else if (item.purchase_price === 0) {
+                ctaBtn.textContent = 'Get Free';
+                ctaBtn.onclick = () => { closeLandingPreview(); purchasePrompt(item.id); };
+            } else {
+                ctaBtn.textContent = 'Chat Now';
+                ctaBtn.onclick = () => { closeLandingPreview(); chatWithPrompt(item.id, item.name); };
+            }
+        } else {
+            // Pack
+            if (item.is_paid) {
+                ctaBtn.textContent = 'Buy $' + Number(item.price).toFixed(2);
+                ctaBtn.onclick = () => { closeLandingPreview(); purchasePack(item.id, ''); };
+            } else {
+                ctaBtn.textContent = 'Get Free';
+                ctaBtn.onclick = () => { closeLandingPreview(); claimFreePack(item.id, ''); };
+            }
+        }
+    }
+}
+
+function updatePreviewNavigation() {
+    const items = ExploreState.iframeLandingItems;
+    const counter = document.getElementById('previewCounter');
+    const prevBtn = document.getElementById('previewPrevBtn');
+    const nextBtn = document.getElementById('previewNextBtn');
+
+    if (counter) {
+        counter.textContent = items.length > 1
+            ? `${ExploreState.iframeCurrentIndex + 1} / ${items.length}`
+            : '';
+    }
+
+    if (prevBtn) prevBtn.style.display = items.length > 1 ? '' : 'none';
+    if (nextBtn) nextBtn.style.display = items.length > 1 ? '' : 'none';
+}
+
+function previewCtaAction() {
+    // Fallback -- individual CTA buttons set their own onclick
 }
 
 // ============================================================

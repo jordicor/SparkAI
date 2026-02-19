@@ -127,12 +127,12 @@ const NotificationModal = {
                 }
                 #notificationModal.modal-success #notificationModalIcon {
                     background-color: var(--success);
-                    color: white;
+                    color: var(--success-btn-text, white);
                 }
                 #notificationModal.modal-success #notificationModalConfirmBtn {
                     background-color: var(--success);
                     border-color: var(--success);
-                    color: white;
+                    color: var(--success-btn-text, white);
                 }
                 #notificationModal.modal-success #notificationModalConfirmBtn:hover {
                     filter: brightness(0.9);
@@ -178,12 +178,12 @@ const NotificationModal = {
                 }
                 #notificationModal.modal-info #notificationModalIcon {
                     background-color: var(--info);
-                    color: white;
+                    color: var(--info-btn-text, white);
                 }
                 #notificationModal.modal-info #notificationModalConfirmBtn {
                     background-color: var(--info);
                     border-color: var(--info);
-                    color: white;
+                    color: var(--info-btn-text, white);
                 }
                 #notificationModal.modal-info #notificationModalConfirmBtn:hover {
                     filter: brightness(0.9);
@@ -195,12 +195,12 @@ const NotificationModal = {
                 }
                 #notificationModal.modal-confirm #notificationModalIcon {
                     background-color: var(--accent);
-                    color: white;
+                    color: var(--accent-btn-text, white);
                 }
                 #notificationModal.modal-confirm #notificationModalConfirmBtn {
                     background-color: var(--accent);
                     border-color: var(--accent);
-                    color: white;
+                    color: var(--accent-btn-text, white);
                 }
                 #notificationModal.modal-confirm #notificationModalConfirmBtn:hover {
                     filter: brightness(0.9);

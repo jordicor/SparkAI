@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Home - SPARK{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ get_static_url('/static/css/home.css') }}">
+{% endblock %}
+
+{% block header %}
+<!-- Override base header to remove default page-header -->
+{% endblock %}
+
+{% block toolbar %}{% endblock %}
+
+{% block content %}
+<div class="home-container">
+    <!-- Greeting -->
+    <div class="home-greeting" id="home-greeting">
+        <h1 class="home-greeting-title" id="home-greeting-title"></h1>
+        <p class="home-greeting-subtitle" id="home-greeting-subtitle"></p>
+    </div>
+
+    <!-- Chat Input Bar -->
+    <div class="home-chat-input" id="home-chat-input">
+        <input type="text" id="home-input" class="home-input-field"
+               placeholder="Write something to start chatting..." autocomplete="off" autofocus>
+        <select id="home-prompt-select" class="home-prompt-select">
+            <option value="">Select prompt...</option>
+        </select>
+        <button id="home-send-btn" class="home-send-btn" title="Start chat">
+            <i class="fas fa-arrow-right"></i>
+        </button>
+    </div>
+
+    <!-- Favorite Chips -->
+    <div class="home-favorites" id="home-favorites" style="display:none"></div>
+
+    <!-- Two-Column Section -->
+    <div class="home-columns" id="home-columns">
+        <!-- Left: Latest Prompts (marketplace discovery) -->
+        <div class="home-col home-latest" id="home-latest" style="display:none">
+            <h2 class="home-col-title">Latest Prompts</h2>
+            <div class="home-col-list" id="home-latest-list"></div>
+            <a href="/explore" class="home-col-action">Explore <i class="fas fa-arrow-right"></i></a>
+        </div>
+
+        <!-- Right: My Packs & Prompts (user's library) -->
+        <div class="home-col home-library" id="home-library">
+            <div class="home-col-header">
+                <h2 class="home-col-title">My Packs &amp; Prompts</h2>
+                <div class="home-tab-toggle" id="home-tab-toggle">
+                    <button class="home-tab active" data-tab="prompts">Prompts</button>
+                    <button class="home-tab" data-tab="packs">Packs</button>
+                </div>
+            </div>
+            <div class="home-col-list" id="home-library-list"></div>
+            <button class="home-col-action" id="home-view-all-btn" style="display:none">
+                View All <i class="fas fa-arrow-right"></i>
+            </button>
+            <!-- Empty state -->
+            <div class="home-empty" id="home-library-empty" style="display:none">
+                <i class="fas fa-compass"></i>
+                <p>No prompts yet</p>
+                <a href="/explore" class="home-empty-link">Explore to find your first AI assistant</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View All Modal -->
+<div class="home-modal-overlay" id="home-modal-overlay" style="display:none">
+    <div class="home-modal">
+        <div class="home-modal-header">
+            <h3 class="home-modal-title">All Prompts</h3>
+            <button class="home-modal-close" id="home-modal-close"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="home-modal-tabs" id="home-modal-tabs">
+            <button class="home-tab active" data-tab="prompts">Prompts</button>
+            <button class="home-tab" data-tab="packs">Packs</button>
+        </div>
+        <div class="home-modal-list" id="home-modal-list"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    window._homeConfig = {
+        canManage: {{ 'true' if is_admin|default(false) or is_manager|default(false) else 'false' }}
+    };
+</script>
+<script src="{{ get_static_url('/static/js/home.js') }}"></script>
+{% endblock %}

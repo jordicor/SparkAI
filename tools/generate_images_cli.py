@@ -74,6 +74,36 @@ OPENAI_MODEL_MAX_REFS = {
     "dall-e-3": 0,
 }
 
+# =============================================================================
+# SIZE PRESETS
+# =============================================================================
+SIZE_PRESETS = {
+    "720p":  {"16:9": (1280, 720),  "9:16": (720, 1280),  "4:3": (960, 720),   "3:4": (720, 960),   "1:1": (720, 720)},
+    "1080p": {"16:9": (1920, 1080), "9:16": (1080, 1920), "4:3": (1440, 1080), "3:4": (1080, 1440), "1:1": (1080, 1080)},
+    "2k":    {"16:9": (2560, 1440), "9:16": (1440, 2560), "4:3": (1920, 1440), "3:4": (1440, 1920), "1:1": (1440, 1440)},
+    "4k":    {"16:9": (3840, 2160), "9:16": (2160, 3840), "4:3": (2880, 2160), "3:4": (2160, 2880), "1:1": (2160, 2160)},
+}
+
+def resolve_size(size_arg: str, ratio: str) -> tuple:
+    """Resolve size argument to (width, height) tuple.
+
+    Accepts presets ('720p', '1080p', '2k', '4k') or explicit 'WxH' (e.g. '3840x2160').
+    Returns None if no size specified.
+    """
+    if not size_arg:
+        return None
+
+    size_lower = size_arg.lower()
+    if size_lower in SIZE_PRESETS:
+        return SIZE_PRESETS[size_lower].get(ratio, SIZE_PRESETS[size_lower]["1:1"])
+
+    # Try WxH format
+    match = re.match(r'^(\d+)x(\d+)$', size_arg)
+    if match:
+        return (int(match.group(1)), int(match.group(2)))
+
+    raise ValueError(f"Invalid size: '{size_arg}'. Use presets (720p, 1080p, 2k, 4k) or WxH format (e.g. 3840x2160)")
+
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -122,7 +152,9 @@ async def generate_image_gemini(
     prompt: str,
     ratio: str = "1:1",
     reference_images: list = None,
-    model: str = None
+    model: str = None,
+    size: tuple = None,
+    quality: str = "high"
 ) -> tuple:
     """Generate image using Google Gemini with optional references."""
     selected_model = model or GEMINI_IMAGE_MODEL
@@ -152,6 +184,8 @@ async def generate_image_gemini(
             print(f"Added {refs_added} reference images to Gemini request", file=sys.stderr)
 
     ratio_instruction = f" Make sure the image has an aspect ratio of {ratio}." if ratio != "1:1" else ""
+    if size:
+        ratio_instruction += f" Output resolution should be {size[0]}x{size[1]} pixels."
 
     if reference_images and len(reference_images) > 0:
         generation_prompt = f"""Use the reference images above to understand the visual style, characters, or elements to include.
@@ -201,7 +235,9 @@ async def generate_image_poe(
     prompt: str,
     ratio: str = "16:9",
     reference_images: list = None,
-    model: str = None
+    model: str = None,
+    size: tuple = None,
+    quality: str = "high"
 ) -> tuple:
     """Generate image using Poe API (FLUX models) with optional references."""
     if not POE_API_KEY:
@@ -256,11 +292,16 @@ Requirements:
 
     content.append({"type": "text", "text": full_prompt})
 
+    extra_body_params = {"aspect": ratio, "quality": quality}
+    if size:
+        extra_body_params["width"] = size[0]
+        extra_body_params["height"] = size[1]
+
     response = client.chat.completions.create(
         model=selected_model,
         messages=[{"role": "user", "content": content}],
         stream=False,
-        extra_body={"aspect": ratio, "quality": "high"}
+        extra_body=extra_body_params
     )
 
     if response.choices and len(response.choices) > 0:
@@ -297,7 +338,9 @@ async def generate_image_openai(
     prompt: str,
     ratio: str = "16:9",
     reference_images: list = None,
-    model: str = None
+    model: str = None,
+    size: tuple = None,
+    quality: str = "high"
 ) -> tuple:
     """Generate image using OpenAI gpt-image models."""
     from openai import OpenAI
@@ -313,15 +356,19 @@ async def generate_image_openai(
         "4:3": "1536x1024",
         "3:4": "1024x1536",
     }
-    size = size_map.get(ratio, "1536x1024")
+    if size:
+        size_str = f"{size[0]}x{size[1]}"
+    else:
+        size_str = size_map.get(ratio, "1536x1024")
 
     is_gpt_image = selected_model.startswith("gpt-image")
+    quality_param = quality if is_gpt_image else ("hd" if quality == "high" else "standard")
 
     response = client.images.generate(
         model=selected_model,
         prompt=prompt,
-        size=size,
-        quality="high" if is_gpt_image else "hd",
+        size=size_str,
+        quality=quality_param,
         n=1,
     )
 
@@ -346,7 +393,9 @@ async def generate_image(
     prompt: str,
     reference_images: list = None,
     engine: str = None,
-    model: str = None
+    model: str = None,
+    size: tuple = None,
+    quality: str = "high"
 ) -> tuple:
     """Generate an image using the specified engine."""
     selected_engine = (engine or IMAGE_GENERATION_ENGINE).lower()
@@ -359,11 +408,11 @@ async def generate_image(
         ratio = "1:1"
 
     if selected_engine in ('nano-banana', 'gemini'):
-        return await generate_image_gemini(prompt, ratio, reference_images, model)
+        return await generate_image_gemini(prompt, ratio, reference_images, model, size=size, quality=quality)
     elif selected_engine == 'poe':
-        return await generate_image_poe(prompt, ratio, reference_images, model)
+        return await generate_image_poe(prompt, ratio, reference_images, model, size=size, quality=quality)
     elif selected_engine == 'openai':
-        return await generate_image_openai(prompt, ratio, reference_images, model)
+        return await generate_image_openai(prompt, ratio, reference_images, model, size=size, quality=quality)
     else:
         raise ValueError(f"Unsupported engine: {selected_engine}. Use: gemini, poe, or openai")
 
@@ -382,6 +431,8 @@ Examples:
   python generate_images_cli.py --prompt "Landing hero" --engine poe --ratio 16:9 -o hero.png
   python generate_images_cli.py --prompt "Similar style" --engine poe --refs ref.png -o result.png
   python generate_images_cli.py --prompt "Photo" --engine gemini --model gemini-3-pro-image-preview -o photo.png
+  python generate_images_cli.py --prompt "Wallpaper" --engine poe --model nanobananapro --ratio 16:9 --size 4k -o wall.webp
+  python generate_images_cli.py --prompt "Photo" --engine openai --size 2k -o photo.png
 
 Engines:
   gemini (default) : gemini-2.5-flash-image, gemini-3-pro-image-preview (up to 14 refs)
@@ -401,6 +452,11 @@ Engines:
                         help="Aspect ratio (default: 1:1)")
     parser.add_argument("--refs", "--references", nargs="+", default=None,
                         help="Reference image paths")
+    parser.add_argument("--size", "-s", default=None,
+                        help="Image size: preset (720p, 1080p, 2k, 4k) or WxH (e.g. 3840x2160)")
+    parser.add_argument("--quality", default="high",
+                        choices=["low", "medium", "high"],
+                        help="Image quality (default: high)")
     parser.add_argument("--quiet", "-q", action="store_true", help="Minimal output")
     parser.add_argument("--json", "-j", action="store_true", help="Output result as JSON")
 
@@ -411,15 +467,20 @@ Engines:
         if args.ratio and args.ratio not in prompt:
             prompt = f"{prompt} {args.ratio}"
 
+        size = resolve_size(args.size, args.ratio) if args.size else None
+
         if not args.quiet and not args.json:
             engine_name = args.engine or IMAGE_GENERATION_ENGINE
-            print(f"Generating with {engine_name}...", file=sys.stderr)
+            size_info = f" at {size[0]}x{size[1]}" if size else ""
+            print(f"Generating with {engine_name}{size_info}...", file=sys.stderr)
 
         image_bytes, revised_prompt, ratio = await generate_image(
             prompt=prompt,
             reference_images=args.refs,
             engine=args.engine,
-            model=args.model
+            model=args.model,
+            size=size,
+            quality=args.quality
         )
 
         output_path = Path(args.output)
@@ -433,7 +494,8 @@ Engines:
                 "success": True,
                 "output": str(output_path.absolute()),
                 "size": len(image_bytes),
-                "ratio": ratio
+                "ratio": ratio,
+                "size_px": f"{size[0]}x{size[1]}" if size else None
             }
             print(orjson.dumps(result).decode())
         else:

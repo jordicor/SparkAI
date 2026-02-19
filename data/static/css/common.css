@@ -451,12 +451,45 @@
 }
 
 /* ==========================================================
-   Navbar Z-Index Fix
-   Ensures navbar dropdowns appear above page content
+   Navbar
    ========================================================== */
 .navbar {
     position: relative;
     z-index: 1030;
+    padding: 0.4rem 1rem;
+}
+
+.navbar .navbar-brand {
+    font-size: 1.25rem;
+    letter-spacing: 0.3px;
+    margin-right: 1rem;
+}
+
+/* User avatar in navbar (image or initials) */
+.navbar-user-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    object-fit: cover;
+    border: 2px solid var(--border-color, rgba(255,255,255,0.3));
+}
+
+/* Initials fallback */
+.navbar-user-initials {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent, #7289da);
+    color: #fff !important;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+/* User name inherits color from .nav-link (themed) */
+.navbar-user-name {
+    font-weight: 500;
+    font-size: 0.9rem;
 }
 
 /* Theme submenu needs to be above all page content */

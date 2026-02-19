@@ -262,13 +262,105 @@
 .card-paid-badge {
     position: absolute;
     top: 10px;
-    right: 10px;
+    left: 10px;
     font-size: 0.7rem;
     padding: 2px 8px;
     border-radius: 10px;
     background: var(--warning, #faa61a);
     color: #1a1a1a;
     font-weight: 600;
+    z-index: 2;
+}
+
+/* Visibility Badges (Private / Unlisted / Draft) */
+.card-visibility-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Shift visibility badge down when paid badge is also present */
+.card-paid-badge + .card-visibility-badge {
+    top: 34px;
+}
+
+.card-visibility-badge.private {
+    background: var(--danger, #dc3545);
+    color: #fff;
+}
+
+.card-visibility-badge.unlisted {
+    background: var(--warning, #ffc107);
+    color: #000;
+}
+
+.card-visibility-badge.draft {
+    background: var(--text-muted, #6c757d);
+    color: #fff;
+}
+
+/* Visibility Notice (Modal) */
+.visibility-notice {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    background: var(--bg-tertiary, #2a2a2a);
+    color: var(--text-muted, #aaa);
+    border: 1px solid var(--border-color, #444);
+}
+
+/* Favorite Star Button (Card) */
+.explore-fav-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 6px;
+    opacity: 0;
+    transition: opacity 0.2s, color 0.2s, transform 0.15s;
+    z-index: 3;
+    line-height: 1;
+}
+
+.prompt-card:hover .explore-fav-btn,
+.explore-fav-btn.is-favorite {
+    opacity: 1;
+}
+
+.explore-fav-btn.is-favorite {
+    color: #f59e0b;
+}
+
+.explore-fav-btn:hover {
+    color: #f59e0b;
+    transform: scale(1.2);
+}
+
+/* Chip Divider (between filter chips and category chips) */
+.chip-divider {
+    width: 1px;
+    height: 24px;
+    background: var(--border-color);
+    margin: 0 4px;
+    align-self: center;
+    flex-shrink: 0;
 }
 
 /* ============================================================
@@ -332,6 +424,32 @@
     color: var(--text-primary);
     background: var(--bg-secondary);
 }
+
+/* Favorite Star Button (Modal) */
+.modal-fav-btn {
+    position: absolute;
+    top: 12px;
+    right: 48px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.3rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: color 0.2s, transform 0.15s;
+    z-index: 2;
+}
+
+.modal-fav-btn.is-favorite {
+    color: #f59e0b;
+}
+
+.modal-fav-btn:hover {
+    color: #f59e0b;
+    transform: scale(1.15);
+}
+
 
 /* Modal Content */
 .modal-header-section {
@@ -871,5 +989,227 @@
     .explore-tab {
         padding: 6px 14px;
         font-size: 0.88rem;
+    }
+
+    .explore-fav-btn {
+        opacity: 1;
+        font-size: 0.95rem;
+        top: 6px;
+        right: 6px;
+    }
+}
+
+/* ============================================================
+   LANDING PREVIEW OVERLAY
+   ============================================================ */
+
+.landing-preview-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    background: rgba(0, 0, 0, 0.92);
+    display: flex;
+    flex-direction: column;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s, visibility 0.3s;
+}
+
+.landing-preview-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.landing-preview-iframe {
+    flex: 1;
+    width: 100%;
+    border: none;
+    background: #fff;
+}
+
+/* Close button */
+.landing-preview-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 2010;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    font-size: 1.2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, transform 0.15s;
+    backdrop-filter: blur(4px);
+}
+
+.landing-preview-close:hover {
+    background: rgba(0, 0, 0, 0.85);
+    transform: scale(1.1);
+}
+
+/* Navigation arrows */
+.landing-preview-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2010;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, transform 0.15s;
+    backdrop-filter: blur(4px);
+}
+
+.landing-preview-nav.prev {
+    left: 12px;
+}
+
+.landing-preview-nav.next {
+    right: 12px;
+}
+
+.landing-preview-nav:hover {
+    background: rgba(0, 0, 0, 0.8);
+    transform: translateY(-50%) scale(1.1);
+}
+
+/* Bottom bar */
+.landing-preview-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    background: var(--bg-primary, #1a1a2e);
+    border-top: 1px solid var(--border-color, #333);
+    flex-shrink: 0;
+}
+
+.landing-preview-bar-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.preview-name {
+    font-weight: 700;
+    color: var(--text-primary, #fff);
+    font-size: 0.95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.preview-by {
+    color: var(--text-muted, #888);
+    font-size: 0.85rem;
+}
+
+.preview-creator {
+    color: var(--accent, #7289da);
+    font-weight: 600;
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.preview-counter {
+    color: var(--text-muted, #888);
+    font-size: 0.8rem;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+.landing-preview-bar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    margin-left: 16px;
+}
+
+.landing-preview-cta {
+    padding: 8px 20px;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent, #7289da);
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+    white-space: nowrap;
+}
+
+.landing-preview-cta:hover {
+    background: var(--accent-hover, #5b6eae);
+    transform: translateY(-1px);
+}
+
+.landing-preview-close-btn {
+    padding: 8px 16px;
+    border: 1.5px solid var(--border-color, #444);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary, #ccc);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+    white-space: nowrap;
+}
+
+.landing-preview-close-btn:hover {
+    border-color: var(--accent, #7289da);
+    color: var(--text-primary, #fff);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .landing-preview-bar {
+        flex-direction: column;
+        gap: 8px;
+        padding: 8px 12px;
+    }
+
+    .landing-preview-bar-info {
+        justify-content: center;
+        text-align: center;
+    }
+
+    .landing-preview-bar-actions {
+        margin-left: 0;
+        justify-content: center;
+        width: 100%;
+    }
+
+    .landing-preview-cta {
+        flex: 1;
+    }
+
+    .landing-preview-nav {
+        width: 36px;
+        height: 36px;
+        font-size: 0.95rem;
+    }
+
+    .landing-preview-close {
+        width: 34px;
+        height: 34px;
+        font-size: 1rem;
     }
 }

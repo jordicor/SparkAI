@@ -24,7 +24,7 @@
 const ThemeManager = {
     themes: [
         'default', 'writer', 'coder', 'light', 'xmas', 'halloween',
-        'valentinesday', 'neumorphism', 'frutigeraero', 'memphis',
+        'valentinesday', 'nekoglass', 'frutigeraero', 'memphis',
         'terminal', 'eink', 'katarishoji'
     ],
 
@@ -304,7 +304,12 @@ const ThemeManager = {
         try {
             // Use shared promise to avoid duplicate requests
             if (!window.__userInitPromise) {
-                window.__userInitPromise = fetch('/api/user/init', {
+                let initUrl = '/api/user/init';
+                const storeMatch = window.location.pathname.match(/^\/store\/([^/]+)/);
+                if (storeMatch) {
+                    initUrl += `?context_type=storefront&context_id=${encodeURIComponent(storeMatch[1])}`;
+                }
+                window.__userInitPromise = fetch(initUrl, {
                     method: 'GET',
                     credentials: 'include',
                     headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -505,6 +510,12 @@ const ThemeManager = {
         if (theme === 'xmas' && typeof createSnowflakes === 'function') {
             createSnowflakes();
         }
+
+        // Handle nekoglass glass effects
+        if (theme === 'nekoglass') {
+            NekoGlassControls.init();
+        }
+        // Cleanup handled by NekoGlassControls' theme:changed listener
 
         // Dispatch event for other components
         document.dispatchEvent(new CustomEvent('theme:changed', {

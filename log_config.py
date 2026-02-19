@@ -39,6 +39,13 @@ def setup_logging():
     for log in [logger, uvicorn_error, uvicorn_access, uvicorn_asgi]:
         log.addHandler(console_handler)
 
+    # Apply the same formatter to the root logger so every module
+    # (clients, security_config, packs_router, etc.) gets timestamps.
+    root = logging.getLogger()
+    root.handlers = []
+    root.addHandler(console_handler)
+    root.setLevel(logging.INFO)
+
     # Configure the logging level for Uvicorn loggers
     for log in [uvicorn_error, uvicorn_access, uvicorn_asgi]:
         log.setLevel(logging.INFO)

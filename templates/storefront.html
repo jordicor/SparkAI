@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ storefront.profile.display_name }} - Storefront{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ get_static_url('/static/css/storefront.css') }}">
+{% endblock %}
+
+{% block head_extra %}
+<meta name="description" content="{{ storefront.profile.bio[:160] if storefront.profile.bio else storefront.profile.display_name ~ ' - Creator Storefront' }}">
+<meta property="og:title" content="{{ storefront.profile.display_name }} - Storefront">
+<meta property="og:description" content="{{ storefront.profile.bio[:200] if storefront.profile.bio else 'Browse products from ' ~ storefront.profile.display_name }}">
+<meta property="og:type" content="profile">
+{% if storefront.avatar_url %}
+<meta property="og:image" content="{{ get_static_url('/static/' ~ storefront.avatar_url ~ '_fullsize.webp') }}">
+{% endif %}
+{% endblock %}
+
+{% block header %}
+<div class="storefront-header">
+    <div class="storefront-hero">
+        <div class="storefront-avatar-wrapper">
+            {% if storefront.avatar_url %}
+            <img src="{{ get_static_url('/static/' ~ storefront.avatar_url ~ '_128.webp') }}" alt="{{ storefront.profile.display_name }}" class="storefront-avatar">
+            {% else %}
+            <div class="storefront-avatar storefront-avatar-placeholder">
+                {{ storefront.profile.display_name[0]|upper }}
+            </div>
+            {% endif %}
+        </div>
+        <h1 class="storefront-name">{{ storefront.profile.display_name }}
+            {% if storefront.profile.is_verified %}<i class="fas fa-check-circle storefront-verified" title="Verified Creator"></i>{% endif %}
+        </h1>
+        {% if storefront.profile.bio %}
+        <p class="storefront-bio">{{ storefront.profile.bio }}</p>
+        {% endif %}
+        <div class="storefront-stats">
+            <span><strong>{{ storefront.stats.prompt_count }}</strong> {{ 'product' if storefront.stats.prompt_count == 1 else 'products' }}</span>
+            {% if storefront.stats.pack_count > 0 %}
+            <span class="storefront-stat-sep">|</span>
+            <span><strong>{{ storefront.stats.pack_count }}</strong> {{ 'pack' if storefront.stats.pack_count == 1 else 'packs' }}</span>
+            {% endif %}
+        </div>
+        {% if storefront.profile.social_links %}
+        <div class="storefront-social">
+            {% set icon_map = {'website': 'fas fa-globe', 'twitter': 'fab fa-x-twitter', 'linkedin': 'fab fa-linkedin', 'youtube': 'fab fa-youtube', 'instagram': 'fab fa-instagram', 'github': 'fab fa-github'} %}
+            {% for key, url in storefront.profile.social_links.items() %}
+            <a href="{{ url }}" target="_blank" rel="noopener noreferrer" class="storefront-social-link" title="{{ key|capitalize }}">
+                <i class="{{ icon_map.get(key, 'fas fa-link') }}"></i>
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="storefront-content">
+    {% if storefront.packs %}
+    <section class="storefront-section">
+        <h2 class="storefront-section-title"><i class="fas fa-layer-group"></i> Packs</h2>
+        <div class="storefront-grid">
+            {% for pack in storefront.packs %}
+            <div class="storefront-card">
+                {% if pack.cover_image %}
+                <div class="storefront-card-img" style="background-image: url('{{ get_static_url('/static/' ~ pack.cover_image) }}');"></div>
+                {% else %}
+                <div class="storefront-card-img storefront-card-img-placeholder" style="background: linear-gradient(135deg, var(--creator-primary, var(--accent)), var(--creator-secondary, var(--accent-hover)));"></div>
+                {% endif %}
+                <div class="storefront-card-body">
+                    <h3 class="storefront-card-title">{{ pack.name }}</h3>
+                    {% if pack.description %}
+                    <p class="storefront-card-desc">{{ pack.description[:120] }}{% if pack.description|length > 120 %}...{% endif %}</p>
+                    {% endif %}
+                    <div class="storefront-card-meta">
+                        <span class="storefront-card-count">{{ pack.item_count }} {{ 'item' if pack.item_count == 1 else 'items' }}</span>
+                        {% if pack.is_paid %}
+                        <span class="storefront-badge storefront-badge-paid">${{ "%.2f"|format(pack.price) }}</span>
+                        {% else %}
+                        <span class="storefront-badge storefront-badge-free">Free</span>
+                        {% endif %}
+                        {% if pack.id in storefront.viewer_access.pack_ids %}
+                        <span class="storefront-badge storefront-badge-owned">Owned</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <a href="/p/{{ pack.public_id }}/{{ pack.slug }}" class="storefront-card-link"></a>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if storefront.prompts %}
+    <section class="storefront-section">
+        <h2 class="storefront-section-title"><i class="fas fa-wand-magic-sparkles"></i> Products</h2>
+        <div class="storefront-grid">
+            {% for prompt in storefront.prompts %}
+            <div class="storefront-card">
+                {% if prompt.image %}
+                <div class="storefront-card-img" style="background-image: url('{{ get_static_url('/static/' ~ prompt.image ~ '_128.webp') }}');"></div>
+                {% else %}
+                <div class="storefront-card-img storefront-card-img-placeholder" style="background: linear-gradient(135deg, var(--creator-primary, var(--accent)), var(--creator-secondary, var(--accent-hover)));"></div>
+                {% endif %}
+                <div class="storefront-card-body">
+                    <h3 class="storefront-card-title">{{ prompt.name }}</h3>
+                    {% if prompt.description %}
+                    <p class="storefront-card-desc">{{ prompt.description[:120] }}{% if prompt.description|length > 120 %}...{% endif %}</p>
+                    {% endif %}
+                    <div class="storefront-card-meta">
+                        {% if prompt.is_paid %}
+                        <span class="storefront-badge storefront-badge-paid">Premium</span>
+                        {% else %}
+                        <span class="storefront-badge storefront-badge-free">Free</span>
+                        {% endif %}
+                        {% if prompt.id in storefront.viewer_access.prompt_ids %}
+                        <span class="storefront-badge storefront-badge-owned">Owned</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <a href="/landing/{{ prompt.public_id }}" class="storefront-card-link"></a>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if not storefront.prompts and not storefront.packs %}
+    <div class="storefront-empty">
+        <i class="fas fa-store" style="font-size: 3rem; opacity: 0.3;"></i>
+        <p>This creator hasn't published any products yet.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ get_static_url('/static/js/storefront.js') }}"></script>
+{% endblock %}

@@ -20,6 +20,7 @@
 :root {
     /* ----- Backgrounds ----- */
     --bg-primary: #000000;
+    --bg-primary-rgb: 0, 0, 0;
     --bg-secondary: #0a0a0a;
     --bg-tertiary: #1a1a1a;
 
@@ -59,6 +60,11 @@
     --bs-secondary-color: rgba(0, 255, 0, 0.52);
     --bs-tertiary-color: #00cc00;
     --bs-border-color: rgba(0, 255, 0, 0.3);
+
+    /* Notification modal button text on bright backgrounds */
+    --success-btn-text: #000;
+    --info-btn-text: #000;
+    --accent-btn-text: #000;
 }
 
 /* ==========================================================

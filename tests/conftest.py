@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS USER_DETAILS (
     tokens_spent INTEGER DEFAULT 0,
     pending_earnings REAL DEFAULT 0,
     created_by INTEGER,
-    reseller_markup_per_mtokens REAL DEFAULT 0,
+    referral_markup_per_mtokens REAL DEFAULT 0,
     billing_account_id INTEGER,
     billing_limit REAL,
     billing_limit_action TEXT DEFAULT 'block',

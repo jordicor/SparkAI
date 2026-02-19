@@ -1,0 +1,394 @@
+{% extends 'base.html' %}
+
+{% block title %}My Storefront{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ get_static_url('/static/css/storefront.css') }}">
+<style>
+    /* Management page specific styles */
+    .storefront-mgmt { max-width: 1200px; margin: 0 auto; }
+    .storefront-mgmt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+    @media (max-width: 768px) { .storefront-mgmt-grid { grid-template-columns: 1fr; } }
+
+    .form-section { margin-bottom: 1.5rem; }
+    .form-section label { display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-primary); }
+    .form-section input, .form-section textarea {
+        width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color);
+        border-radius: 6px; background: var(--bg-tertiary); color: var(--text-primary);
+        font-size: 0.9rem;
+    }
+    .form-section textarea { min-height: 100px; resize: vertical; }
+    .form-section .form-hint { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem; }
+
+    .slug-input-group { display: flex; align-items: center; gap: 0.5rem; }
+    .slug-prefix { color: var(--text-muted); font-size: 0.85rem; white-space: nowrap; }
+    .slug-status { font-size: 0.8rem; margin-top: 0.25rem; }
+    .slug-available { color: var(--success); }
+    .slug-taken { color: var(--danger); }
+
+    .avatar-upload-area {
+        width: 128px; height: 128px; border-radius: 50%;
+        border: 2px dashed var(--border-color); display: flex; align-items: center;
+        justify-content: center; cursor: pointer; overflow: hidden;
+        background: var(--bg-tertiary); transition: border-color 0.2s;
+    }
+    .avatar-upload-area:hover { border-color: var(--accent); }
+    .avatar-upload-area img { width: 100%; height: 100%; object-fit: cover; }
+    .avatar-upload-area .placeholder { text-align: center; color: var(--text-muted); font-size: 0.8rem; }
+
+    .social-links-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    @media (max-width: 576px) { .social-links-grid { grid-template-columns: 1fr; } }
+    .social-input-group { display: flex; align-items: center; gap: 0.5rem; }
+    .social-input-group i { width: 20px; text-align: center; color: var(--text-muted); }
+    .social-input-group input { flex: 1; }
+
+    .toggle-switch { display: flex; align-items: center; gap: 0.75rem; }
+    .toggle-switch input[type="checkbox"] { width: 40px; height: 22px; }
+
+    .preview-panel {
+        background: var(--bg-secondary); border-radius: 12px; padding: 1.5rem;
+        border: 1px solid var(--border-color); position: sticky; top: 1rem;
+    }
+    .preview-panel h3 { font-size: 1rem; margin-bottom: 1rem; color: var(--text-secondary); }
+
+    .btn-save-profile {
+        background: var(--accent); color: white; border: none; padding: 0.75rem 2rem;
+        border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 1rem;
+    }
+    .btn-save-profile:hover { background: var(--accent-hover); }
+    .btn-save-profile:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+{% endblock %}
+
+{% block back_url %}/{% endblock %}
+{% block back_title %}Back to Home{% endblock %}
+{% block page_title %}My Storefront{% endblock %}
+{% block page_subtitle %}<p class="text-muted mb-0">Manage your public creator profile</p>{% endblock %}
+
+{% block content %}
+<div class="storefront-mgmt">
+    <div class="storefront-mgmt-grid">
+        <!-- Left: Form -->
+        <div class="storefront-form-panel">
+            <form id="profileForm">
+                <!-- Display Name -->
+                <div class="form-section">
+                    <label for="displayName">Display Name</label>
+                    <input type="text" id="displayName" maxlength="200" placeholder="Your brand or creator name" required>
+                </div>
+
+                <!-- Slug -->
+                <div class="form-section">
+                    <label for="slugInput">Storefront URL</label>
+                    <div class="slug-input-group">
+                        <span class="slug-prefix">/store/</span>
+                        <input type="text" id="slugInput" maxlength="64" placeholder="your-slug" pattern="[a-z0-9][a-z0-9-]*[a-z0-9]">
+                    </div>
+                    <div id="slugStatus" class="slug-status"></div>
+                    <p class="form-hint">Lowercase letters, numbers, and hyphens only.</p>
+                </div>
+
+                <!-- Avatar -->
+                <div class="form-section">
+                    <label>Avatar</label>
+                    <div class="avatar-upload-area" id="avatarUpload">
+                        <div class="placeholder" id="avatarPlaceholder">
+                            <i class="fas fa-camera" style="font-size: 1.5rem;"></i><br>
+                            Click to upload
+                        </div>
+                    </div>
+                    <input type="file" id="avatarInput" accept="image/*" style="display: none;">
+                    <p class="form-hint">Recommended: 256x256px or larger, square format.</p>
+                </div>
+
+                <!-- Bio -->
+                <div class="form-section">
+                    <label for="bioInput">Bio</label>
+                    <textarea id="bioInput" maxlength="2000" placeholder="Tell visitors about yourself or your brand..."></textarea>
+                    <p class="form-hint"><span id="bioCount">0</span>/2000</p>
+                </div>
+
+                <!-- Social Links -->
+                <div class="form-section">
+                    <label>Social Links</label>
+                    <div class="social-links-grid">
+                        <div class="social-input-group">
+                            <i class="fas fa-globe"></i>
+                            <input type="url" id="socialWebsite" placeholder="https://yourwebsite.com" data-key="website">
+                        </div>
+                        <div class="social-input-group">
+                            <i class="fab fa-x-twitter"></i>
+                            <input type="url" id="socialTwitter" placeholder="https://x.com/yourprofile" data-key="twitter">
+                        </div>
+                        <div class="social-input-group">
+                            <i class="fab fa-linkedin"></i>
+                            <input type="url" id="socialLinkedin" placeholder="https://linkedin.com/in/..." data-key="linkedin">
+                        </div>
+                        <div class="social-input-group">
+                            <i class="fab fa-youtube"></i>
+                            <input type="url" id="socialYoutube" placeholder="https://youtube.com/@..." data-key="youtube">
+                        </div>
+                        <div class="social-input-group">
+                            <i class="fab fa-instagram"></i>
+                            <input type="url" id="socialInstagram" placeholder="https://instagram.com/..." data-key="instagram">
+                        </div>
+                        <div class="social-input-group">
+                            <i class="fab fa-github"></i>
+                            <input type="url" id="socialGithub" placeholder="https://github.com/..." data-key="github">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Public Toggle -->
+                <div class="form-section">
+                    <label>Visibility</label>
+                    <div class="toggle-switch">
+                        <input type="checkbox" id="isPublic">
+                        <span>Make storefront public</span>
+                    </div>
+                    <p class="form-hint">When public, anyone can visit your storefront at the URL above.</p>
+                </div>
+
+                <!-- Actions -->
+                <div class="form-section" style="display: flex; gap: 1rem; align-items: center;">
+                    <button type="submit" class="btn-save-profile" id="saveBtn">Save Profile</button>
+                    <a href="#" id="viewStorefrontLink" target="_blank" style="color: var(--accent); display: none;">
+                        <i class="fas fa-external-link-alt"></i> View Storefront
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        <!-- Right: Preview -->
+        <div>
+            <div class="preview-panel">
+                <h3><i class="fas fa-eye"></i> Preview</h3>
+                <div id="previewArea">
+                    <div style="text-align: center; padding: 2rem;">
+                        <div class="avatar-upload-area" style="margin: 0 auto 1rem; pointer-events: none;">
+                            <div class="placeholder" id="previewAvatar">
+                                <i class="fas fa-user" style="font-size: 2rem;"></i>
+                            </div>
+                        </div>
+                        <h4 id="previewName" style="color: var(--text-primary);">Your Name</h4>
+                        <p id="previewBio" style="color: var(--text-secondary); font-size: 0.9rem;"></p>
+                        <div id="previewSocial" style="display: flex; justify-content: center; gap: 1rem; margin-top: 0.5rem;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var form = document.getElementById('profileForm');
+    var displayNameInput = document.getElementById('displayName');
+    var slugInput = document.getElementById('slugInput');
+    var slugStatus = document.getElementById('slugStatus');
+    var bioInput = document.getElementById('bioInput');
+    var bioCount = document.getElementById('bioCount');
+    var avatarUpload = document.getElementById('avatarUpload');
+    var avatarInput = document.getElementById('avatarInput');
+    var isPublicCheckbox = document.getElementById('isPublic');
+    var saveBtn = document.getElementById('saveBtn');
+    var viewLink = document.getElementById('viewStorefrontLink');
+    var previewName = document.getElementById('previewName');
+    var previewBio = document.getElementById('previewBio');
+    var previewAvatar = document.getElementById('previewAvatar');
+    var previewSocial = document.getElementById('previewSocial');
+
+    var slugCheckTimeout = null;
+    var currentProfile = null;
+
+    // Social link icon mapping for preview
+    var socialIcons = {
+        website: 'fas fa-globe',
+        twitter: 'fab fa-x-twitter',
+        linkedin: 'fab fa-linkedin',
+        youtube: 'fab fa-youtube',
+        instagram: 'fab fa-instagram',
+        github: 'fab fa-github'
+    };
+
+    // Load existing profile
+    async function loadProfile() {
+        try {
+            var resp = await fetch('/api/creator-profile');
+            var data = await resp.json();
+            if (data.profile) {
+                currentProfile = data.profile;
+                displayNameInput.value = data.profile.display_name || '';
+                slugInput.value = data.profile.slug || '';
+                bioInput.value = data.profile.bio || '';
+                isPublicCheckbox.checked = data.profile.is_public;
+
+                // Social links
+                var links = data.profile.social_links || {};
+                document.querySelectorAll('.social-input-group input').forEach(function(input) {
+                    var key = input.dataset.key;
+                    if (links[key]) input.value = links[key];
+                });
+
+                // Avatar
+                if (data.profile.avatar_url) {
+                    avatarUpload.innerHTML = '<img src="' + window.CDN_BASE_URL + '/' + data.profile.avatar_url + '_128.webp" alt="Avatar">';
+                    previewAvatar.innerHTML = '<img src="' + window.CDN_BASE_URL + '/' + data.profile.avatar_url + '_128.webp" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';
+                }
+
+                // View link
+                if (data.profile.is_public && data.profile.slug) {
+                    viewLink.href = '/store/' + data.profile.slug;
+                    viewLink.style.display = 'inline';
+                }
+
+                updatePreview();
+                updateBioCount();
+            }
+        } catch (e) {
+            console.error('Failed to load profile:', e);
+        }
+    }
+
+    function updatePreview() {
+        previewName.textContent = displayNameInput.value || 'Your Name';
+        previewBio.textContent = bioInput.value || '';
+
+        // Update social preview
+        var html = '';
+        document.querySelectorAll('.social-input-group input').forEach(function(input) {
+            var val = input.value.trim();
+            if (val) {
+                var icon = socialIcons[input.dataset.key] || 'fas fa-link';
+                html += '<a href="' + val + '" target="_blank" rel="noopener" style="color: var(--text-muted); font-size: 1.2rem;" title="' + input.dataset.key + '"><i class="' + icon + '"></i></a>';
+            }
+        });
+        previewSocial.innerHTML = html;
+    }
+
+    function updateBioCount() {
+        bioCount.textContent = bioInput.value.length;
+    }
+
+    // Slug availability check
+    function checkSlug() {
+        var slug = slugInput.value.trim();
+        if (!slug || slug.length < 2) {
+            slugStatus.textContent = '';
+            return;
+        }
+
+        slugStatus.textContent = 'Checking...';
+        slugStatus.className = 'slug-status';
+
+        fetch('/api/creator-profile/check-slug?slug=' + encodeURIComponent(slug))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.available) {
+                    slugStatus.textContent = 'Available';
+                    slugStatus.className = 'slug-status slug-available';
+                } else {
+                    slugStatus.textContent = data.reason === 'reserved' ? 'Reserved' : 'Already taken';
+                    slugStatus.className = 'slug-status slug-taken';
+                }
+            })
+            .catch(function() { slugStatus.textContent = ''; });
+    }
+
+    // Event listeners
+    displayNameInput.addEventListener('input', updatePreview);
+    bioInput.addEventListener('input', function() { updatePreview(); updateBioCount(); });
+
+    // Update social preview when social inputs change
+    document.querySelectorAll('.social-input-group input').forEach(function(input) {
+        input.addEventListener('input', updatePreview);
+    });
+
+    slugInput.addEventListener('input', function() {
+        // Auto-format: lowercase, replace spaces with hyphens
+        this.value = this.value.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-');
+        clearTimeout(slugCheckTimeout);
+        slugCheckTimeout = setTimeout(checkSlug, 500);
+    });
+
+    // Avatar upload
+    avatarUpload.addEventListener('click', function() { avatarInput.click(); });
+    avatarInput.addEventListener('change', async function() {
+        if (!this.files || !this.files[0]) return;
+        var formData = new FormData();
+        formData.append('file', this.files[0]);
+
+        saveBtn.disabled = true;
+        try {
+            var resp = await fetch('/api/creator-profile/avatar', { method: 'POST', body: formData });
+            if (!resp.ok) {
+                var err = await resp.json();
+                alert(err.detail || 'Upload failed');
+                return;
+            }
+            var data = await resp.json();
+            var imgUrl = window.CDN_BASE_URL + '/' + data.avatar_url + '_128.webp';
+            avatarUpload.innerHTML = '<img src="' + imgUrl + '" alt="Avatar">';
+            previewAvatar.innerHTML = '<img src="' + imgUrl + '" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';
+        } catch (e) {
+            alert('Upload failed');
+        } finally {
+            saveBtn.disabled = false;
+        }
+    });
+
+    // Form submit
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving...';
+
+        var socialLinks = {};
+        document.querySelectorAll('.social-input-group input').forEach(function(input) {
+            var val = input.value.trim();
+            if (val) socialLinks[input.dataset.key] = val;
+        });
+
+        try {
+            var resp = await fetch('/api/creator-profile', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    display_name: displayNameInput.value.trim(),
+                    slug: slugInput.value.trim(),
+                    bio: bioInput.value.trim(),
+                    social_links: socialLinks,
+                    is_public: isPublicCheckbox.checked
+                })
+            });
+            var data = await resp.json();
+            if (data.success) {
+                saveBtn.textContent = 'Saved!';
+                if (data.slug) {
+                    slugInput.value = data.slug;
+                }
+                if (data.slug && isPublicCheckbox.checked) {
+                    viewLink.href = '/store/' + data.slug;
+                    viewLink.style.display = 'inline';
+                } else {
+                    viewLink.style.display = 'none';
+                }
+                setTimeout(function() { saveBtn.textContent = 'Save Profile'; saveBtn.disabled = false; }, 2000);
+            } else {
+                alert(data.error || 'Save failed');
+                saveBtn.textContent = 'Save Profile';
+                saveBtn.disabled = false;
+            }
+        } catch (e) {
+            alert('Save failed');
+            saveBtn.textContent = 'Save Profile';
+            saveBtn.disabled = false;
+        }
+    });
+
+    loadProfile();
+});
+</script>
+{% endblock %}

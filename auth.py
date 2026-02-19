@@ -316,7 +316,7 @@ async def create_user_info(user, used_magic_link):
         "used_magic_link": used_magic_link  # New boolean field
     }
 
-def create_login_response(user_info, redirect_url=None):
+def create_login_response(user_info, redirect_url=None, default_redirect="/home"):
     token = create_access_token(
         data={
             "sub": user_info["username"],
@@ -327,10 +327,8 @@ def create_login_response(user_info, redirect_url=None):
     # Use provided redirect_url if it's a safe internal path
     if redirect_url and redirect_url.startswith("/") and not redirect_url.startswith("//"):
         url_redirect = redirect_url
-    elif user_info["is_admin"] or user_info["is_manager"]:
-        url_redirect = "/"
     else:
-        url_redirect = "/chat"
+        url_redirect = default_redirect
 
     response = RedirectResponse(url=url_redirect, status_code=status.HTTP_302_FOUND)
 

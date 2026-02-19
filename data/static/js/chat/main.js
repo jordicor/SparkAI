@@ -190,6 +190,45 @@ document.addEventListener('DOMContentLoaded', function() {
             window.history.replaceState({}, '', window.location.pathname);
             startNewConversation();
         }
+
+        // Handle navigation from the home page via sessionStorage keys
+        const homeStartPromptId = sessionStorage.getItem('home_start_prompt_id');
+        const homeStartMessage = sessionStorage.getItem('home_start_message');
+        const homeOpenConversationId = sessionStorage.getItem('home_open_conversation_id');
+
+        if (homeStartPromptId) {
+            sessionStorage.removeItem('home_start_prompt_id');
+            sessionStorage.removeItem('home_open_conversation_id');
+            sessionStorage.removeItem('home_start_message');
+            startNewConversation(homeStartPromptId).then(() => {
+                if (homeStartMessage) {
+                    sendMessage(homeStartMessage);
+                }
+            });
+        } else if (homeOpenConversationId) {
+            sessionStorage.removeItem('home_open_conversation_id');
+            const convId = parseInt(homeOpenConversationId, 10);
+            const convElement = document.querySelector(`[data-conversation-id="${convId}"]`);
+            if (convElement) {
+                // Conversation is already in the sidebar list
+                const chatName = convElement.querySelector('.chat-name')
+                    ? convElement.querySelector('.chat-name').textContent.trim()
+                    : 'Chat ' + convId;
+                const machine = convElement.getAttribute('data-machine');
+                convElement.classList.add('active-chat');
+                continueConversation(convId, chatName, machine);
+            } else {
+                // Conversation not in sidebar (e.g. inside a folder or beyond loaded range)
+                fetch('/api/conversations/' + convId + '/details')
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        continueConversation(convId, data.chat_name || 'Chat ' + convId, data.machine || 'machine');
+                    })
+                    .catch(function(err) {
+                        console.error('Failed to open conversation from home:', err);
+                    });
+            }
+        }
     }).catch(error => {
         console.error('Error during initial load:', error);
         // Make sure to enable controls even if there's an error

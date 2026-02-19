@@ -15,8 +15,9 @@ DB_RETRY_DELAY_BASE = float(os.getenv('DB_RETRY_DELAY_BASE', '0.2'))
 LOCK_ERROR_MESSAGES = ("database is locked", "database table is locked")
 
 CACHE_SIZE = 1024 * 50  # 50 MB cache
+
+# Per-connection PRAGMAs (must be set on each new connection)
 PRAGMA_STATEMENTS_RW = [
-    "PRAGMA journal_mode=WAL",
     "PRAGMA foreign_keys = ON",
     f"PRAGMA cache_size={-CACHE_SIZE}",
     "PRAGMA synchronous=NORMAL",
@@ -32,6 +33,21 @@ PRAGMA_STATEMENTS_RO = [
     "PRAGMA busy_timeout=5000",
 ]
 
+_wal_initialized = False
+
+
+async def ensure_wal_mode():
+    """Set WAL journal mode once at startup (persistent across connections)."""
+    global _wal_initialized
+    if _wal_initialized:
+        return
+    conn = await aiosqlite.connect(f"file:data/{dbname}?mode=rw", uri=True, timeout=DEFAULT_DB_TIMEOUT)
+    try:
+        await conn.execute("PRAGMA journal_mode=WAL")
+    finally:
+        await conn.close()
+    _wal_initialized = True
+
 
 @asynccontextmanager
 async def get_db_connection(readonly=False):
@@ -42,12 +58,12 @@ async def get_db_connection(readonly=False):
         timeout=DEFAULT_DB_TIMEOUT,
     )
     conn.row_factory = aiosqlite.Row
-    
-    # Apply PRAGMA configurations
+
+    # Apply per-connection PRAGMA configurations
     pragma_statements = PRAGMA_STATEMENTS_RO if readonly else PRAGMA_STATEMENTS_RW
     for statement in pragma_statements:
         await conn.execute(statement)
-    
+
     try:
         yield conn
     finally:
@@ -343,7 +359,7 @@ async def count_user_packs_today(conn, user_id):
     """Count packs created by user today (for rate limiting)."""
     cursor = await conn.execute(
         """SELECT COUNT(*) FROM PACKS
-           WHERE created_by_user_id = ? AND date(created_at) = date('now')""",
+           WHERE created_by_user_id = ? AND created_at >= date('now') AND created_at < date('now', '+1 day')""",
         (user_id,),
     )
     return (await cursor.fetchone())[0]
@@ -358,31 +374,47 @@ async def count_user_packs(conn, user_id):
     return (await cursor.fetchone())[0]
 
 
-async def get_public_packs(conn, search="", page=1, limit=24):
+async def get_public_packs(conn, search="", page=1, limit=24, user_id=None, mine_only=False):
     """Return published public packs for the explorer, paginated.
     Only exposes fields safe for public consumption (no internal config)."""
     offset = (page - 1) * limit
+    uid = user_id if user_id is not None else -1
+
+    if mine_only and user_id is not None:
+        base_where = "p.created_by_user_id = ?"
+        base_params = (uid,)
+        count_where = "created_by_user_id = ?"
+        count_params = (uid,)
+    else:
+        base_where = "p.status = 'published' AND p.is_public = 1"
+        base_params = ()
+        count_where = "status = 'published' AND is_public = 1"
+        count_params = ()
+
+    order_clause = "ORDER BY p.ranking_score DESC, p.created_at DESC" if not mine_only else "ORDER BY p.created_at DESC"
     cursor = await conn.execute(
-        """SELECT p.id, p.name, p.slug, p.description,
+        f"""SELECT p.id, p.name, p.slug, p.description,
                   CASE WHEN p.cover_image IS NOT NULL AND p.cover_image != '' THEN 1 ELSE 0 END AS has_cover_image,
                   p.is_paid, p.price, p.tags, p.public_id, p.created_at,
                   u.username AS created_by_username,
-                  (SELECT COUNT(*) FROM PACK_ITEMS WHERE pack_id = p.id AND is_active = 1 AND (disable_at IS NULL OR disable_at > datetime('now'))) AS item_count
+                  (SELECT COUNT(*) FROM PACK_ITEMS WHERE pack_id = p.id AND is_active = 1 AND (disable_at IS NULL OR disable_at > datetime('now'))) AS item_count,
+                  CASE WHEN p.created_by_user_id = ? THEN 1 ELSE 0 END AS is_mine,
+                  p.is_public, p.status, p.has_custom_landing, p.ranking_score
            FROM PACKS p
            LEFT JOIN USERS u ON p.created_by_user_id = u.id
-           WHERE p.status = 'published' AND p.is_public = 1
+           WHERE {base_where}
              AND (p.name LIKE ? OR p.description LIKE ?)
-           ORDER BY p.created_at DESC
+           {order_clause}
            LIMIT ? OFFSET ?""",
-        (f"%{search}%", f"%{search}%", limit, offset),
+        (uid,) + base_params + (f"%{search}%", f"%{search}%", limit, offset),
     )
     packs = await cursor.fetchall()
 
     cursor = await conn.execute(
-        """SELECT COUNT(*) FROM PACKS
-           WHERE status = 'published' AND is_public = 1
+        f"""SELECT COUNT(*) FROM PACKS
+           WHERE {count_where}
              AND (name LIKE ? OR description LIKE ?)""",
-        (f"%{search}%", f"%{search}%"),
+        count_params + (f"%{search}%", f"%{search}%"),
     )
     total = (await cursor.fetchone())[0]
     return packs, total

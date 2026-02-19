@@ -262,7 +262,11 @@ async def create_prompt_post(
     allowed_llms: Optional[str] = Form(None),
     disable_web_search: bool = Form(False),
     enable_moderation: bool = Form(False),
-    watchdog_config: Optional[str] = Form(None)
+    watchdog_config: Optional[str] = Form(None),
+    # Extension settings
+    extensions_enabled: bool = Form(False),
+    extensions_auto_advance: bool = Form(False),
+    extensions_free_selection: bool = Form(True),
 ):
     if current_user is None:
         return templates.TemplateResponse("login.html", {"request": request})
@@ -352,11 +356,11 @@ async def create_prompt_post(
             cursor = await conn.execute(
                 """INSERT INTO Prompts (name, prompt, description, voice_id, created_by_user_id, created_at, public,
                    is_paid, markup_per_mtokens, forced_llm_id, hide_llm_name, disable_web_search, enable_moderation,
-                   watchdog_config, allowed_llms)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   watchdog_config, allowed_llms, extensions_enabled, extensions_auto_advance, extensions_free_selection)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (name, prompt, description, voice_id, current_user.id, datetime.utcnow(), public,
                  is_paid_bool, actual_markup, actual_forced_llm_id, actual_hide_llm_name, disable_web_search, enable_moderation,
-                 watchdog_config_json, actual_allowed_llms)
+                 watchdog_config_json, actual_allowed_llms, extensions_enabled, extensions_auto_advance, extensions_free_selection)
             )
             prompt_id = cursor.lastrowid
 
@@ -384,6 +388,13 @@ async def create_prompt_post(
         if image and image.filename:
             await process_prompt_image_upload(prompt_id, image, prompt_info, current_user)
 
+        # Auto-create creator profile if needed (non-blocking)
+        try:
+            from storefront_service import ensure_creator_profile
+            await ensure_creator_profile(current_user.id, current_user.username)
+        except Exception as e:
+            logger.warning("Could not auto-create creator profile: %s", e)
+
     return RedirectResponse(url="/prompts", status_code=303)
 
 
@@ -393,11 +404,12 @@ async def edit_prompt(request: Request, prompt_id: int, current_user: User = Dep
         return templates.TemplateResponse("login.html", {"request": request})
     
     async with get_db_connection(readonly=True) as conn:
-        # Get prompt information including pricing fields
+        # Get prompt information including pricing fields and extensions config
         async with conn.execute("""SELECT name, prompt, description, voice_id, image, created_by_user_id, public,
                                           is_paid, markup_per_mtokens, forced_llm_id, hide_llm_name, disable_web_search,
                                           enable_moderation, watchdog_config, allow_in_packs, pack_notice_period_days,
-                                          allowed_llms
+                                          allowed_llms, extensions_enabled, extensions_auto_advance, extensions_free_selection,
+                                          purchase_price
                                    FROM Prompts WHERE id = ?""", (prompt_id,)) as cursor:
             prompt = await cursor.fetchone()
         
@@ -500,6 +512,12 @@ async def edit_prompt(request: Request, prompt_id: int, current_user: User = Dep
         "pack_notice_period_days": prompt[15] if prompt[15] else 0,
         # Allowed LLMs (restricted mode)
         "allowed_llms_json": prompt[16] or "[]",
+        # Extensions config
+        "extensions_enabled": bool(prompt[17]) if prompt[17] else False,
+        "extensions_auto_advance": bool(prompt[18]) if prompt[18] else False,
+        "extensions_free_selection": bool(prompt[19]) if prompt[19] is not None else True,
+        # Purchase price
+        "purchase_price": prompt[20],
     })
     return templates.TemplateResponse("prompts/edit_prompt.html", context)
 
@@ -531,6 +549,12 @@ async def update_prompt(
     # Pack inclusion settings
     allow_in_packs: bool = Form(False),
     pack_notice_period_days: int = Form(0),
+    # Extension settings
+    extensions_enabled: bool = Form(False),
+    extensions_auto_advance: bool = Form(False),
+    extensions_free_selection: bool = Form(True),
+    # Individual purchase
+    purchase_price: Optional[str] = Form(None),
 ):
     if current_user is None:
         return templates.TemplateResponse("login.html", {"request": request})
@@ -672,18 +696,40 @@ async def update_prompt(
             if not is_withdrawal and pack_notice_period_days < current_notice_days:
                 raise HTTPException(status_code=400, detail=f"Notice period can only be increased. Current: {current_notice_days} days")
 
-            # Update the prompt information including pricing and pack fields
+            # Process purchase_price: empty string or None = NULL, otherwise parse as float
+            actual_purchase_price = None
+            if purchase_price is not None and purchase_price.strip() != '':
+                try:
+                    actual_purchase_price = float(purchase_price)
+                    if actual_purchase_price < 0:
+                        raise HTTPException(status_code=400, detail="Purchase price cannot be negative")
+                except ValueError:
+                    raise HTTPException(status_code=400, detail="Invalid purchase price")
+            # Only set purchase_price if prompt is paid; clear if not
+            if not is_paid_bool:
+                actual_purchase_price = None
+
+            # Update the prompt information including pricing, pack, and extension fields
             await cursor.execute(
                 """UPDATE Prompts SET name = ?, prompt = ?, description = ?, voice_id = ?, public = ?,
                    is_paid = ?, markup_per_mtokens = ?, forced_llm_id = ?, hide_llm_name = ?, disable_web_search = ?,
                    enable_moderation = ?, watchdog_config = ?, allow_in_packs = ?, pack_notice_period_days = ?,
-                   allowed_llms = ?
+                   allowed_llms = ?, extensions_enabled = ?, extensions_auto_advance = ?, extensions_free_selection = ?,
+                   purchase_price = ?
                    WHERE id = ?""",
                 (name, prompt, description, voice_id, public,
                  is_paid_bool, actual_markup, actual_forced_llm_id, actual_hide_llm_name, disable_web_search,
                  enable_moderation, watchdog_config_json, allow_in_packs, pack_notice_period_days,
-                 actual_allowed_llms, prompt_id)
+                 actual_allowed_llms, extensions_enabled, extensions_auto_advance, extensions_free_selection,
+                 actual_purchase_price, prompt_id)
             )
+
+            # If extensions were just disabled, clean active_extension_id from all conversations
+            if not extensions_enabled:
+                await cursor.execute(
+                    "UPDATE CONVERSATIONS SET active_extension_id = NULL WHERE role_id = ?",
+                    (prompt_id,),
+                )
 
             # Handle pack withdrawal: when allow_in_packs goes from true to false,
             # schedule or deactivate PACK_ITEMS based on notice_period_snapshot
@@ -750,7 +796,7 @@ async def update_prompt(
 @router.delete("/prompts/delete/{prompt_id}")
 async def delete_prompt(prompt_id: int, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request})
+        raise HTTPException(status_code=401, detail="Not authenticated")
     
     async with get_db_connection() as conn:
         # Verify if the user is admin or owner
@@ -760,9 +806,9 @@ async def delete_prompt(prompt_id: int, current_user: User = Depends(get_current
         async with conn.execute("""
             SELECT p.*, u.username as owner_username
             FROM Prompts p
-            JOIN PROMPT_PERMISSIONS pp ON p.id = pp.prompt_id
-            JOIN Users u ON pp.user_id = u.id
-            WHERE p.id = ? AND pp.permission_level = 'owner'
+            LEFT JOIN PROMPT_PERMISSIONS pp ON p.id = pp.prompt_id AND pp.permission_level = 'owner'
+            LEFT JOIN Users u ON pp.user_id = u.id
+            WHERE p.id = ?
         """, (prompt_id,)) as cursor:
             prompt_info = await cursor.fetchone()
 
@@ -780,36 +826,54 @@ async def delete_prompt(prompt_id: int, current_user: User = Depends(get_current
         prompt_public_id = prompt_info['public_id'] if 'public_id' in prompt_info.keys() else None
 
         try:
-            # Delete the prompt from the database
+            # Clean up all child table references before deleting the prompt
+            await conn.execute(
+                "UPDATE USER_DETAILS SET current_prompt_id = NULL WHERE current_prompt_id = ?",
+                (prompt_id,)
+            )
+            await conn.execute(
+                "UPDATE CONVERSATIONS SET active_extension_id = NULL, role_id = NULL WHERE role_id = ?",
+                (prompt_id,)
+            )
+            await conn.execute('DELETE FROM PROMPT_PERMISSIONS WHERE prompt_id = ?', (prompt_id,))
+            await conn.execute('DELETE FROM PROMPT_AGENT_MAPPING WHERE prompt_id = ?', (prompt_id,))
+            await conn.execute('DELETE FROM PROMPT_SECTION_CONFIGS WHERE prompt_id = ?', (prompt_id,))
+            await conn.execute('DELETE FROM WATCHDOG_EVENTS WHERE prompt_id = ?', (prompt_id,))
+            await conn.execute('DELETE FROM WATCHDOG_STATE WHERE prompt_id = ?', (prompt_id,))
+            await conn.execute('DELETE FROM PACK_ITEMS WHERE prompt_id = ?', (prompt_id,))
+            await conn.execute('DELETE FROM PENDING_REGISTRATIONS WHERE prompt_id = ?', (prompt_id,))
+            await conn.execute('DELETE FROM CREATOR_EARNINGS WHERE prompt_id = ?', (prompt_id,))
+
+            # Now safe to delete the prompt (CASCADE tables auto-cleanup:
+            # PROMPT_CATEGORIES, PROMPT_CUSTOM_DOMAINS, PROMPT_EXTENSIONS, LANDING_PAGE_ANALYTICS)
             cursor = await conn.execute('DELETE FROM Prompts WHERE id = ? RETURNING id', (prompt_id,))
             deleted = await cursor.fetchone()
-            
+
             if not deleted:
                 raise HTTPException(status_code=404, detail="Prompt not found")
-            
-            # Delete associated permissions
-            await conn.execute('DELETE FROM PROMPT_PERMISSIONS WHERE prompt_id = ?', (prompt_id,))
-            
+
             # Delete the prompt folder and its contents
-            hash_prefix1, hash_prefix2, user_hash = generate_user_hash(prompt_info['owner_username'])
-            sanitized_prompt_name = sanitize_name(prompt_info['name'])
-            padded_id = f"{prompt_id:07d}"
-            prompt_dir = os.path.join(
-                users_directory,
-                hash_prefix1,
-                hash_prefix2,
-                user_hash,
-                "prompts",
-                padded_id[:3],
-                f"{padded_id[3:]}_{sanitized_prompt_name}"
-            )
-            
-            if os.path.exists(prompt_dir):
-                try:
-                    shutil.rmtree(prompt_dir)
-                except Exception as e:
-                    logger.error(f"Error deleting prompt directory {prompt_dir}: {e}")
-            
+            owner_username = prompt_info['owner_username']
+            if owner_username:
+                hash_prefix1, hash_prefix2, user_hash = generate_user_hash(owner_username)
+                sanitized_prompt_name = sanitize_name(prompt_info['name'])
+                padded_id = f"{prompt_id:07d}"
+                prompt_dir = os.path.join(
+                    users_directory,
+                    hash_prefix1,
+                    hash_prefix2,
+                    user_hash,
+                    "prompts",
+                    padded_id[:3],
+                    f"{padded_id[3:]}_{sanitized_prompt_name}"
+                )
+
+                if os.path.exists(prompt_dir):
+                    try:
+                        shutil.rmtree(prompt_dir)
+                    except Exception as e:
+                        logger.error(f"Error deleting prompt directory {prompt_dir}: {e}")
+
             await conn.commit()
 
             # Invalidate landing cache
@@ -853,9 +917,9 @@ async def delete_prompts_batch(request: Request, current_user: User = Depends(ge
                 async with conn.execute("""
                     SELECT p.*, u.username as owner_username
                     FROM Prompts p
-                    JOIN PROMPT_PERMISSIONS pp ON p.id = pp.prompt_id
-                    JOIN Users u ON pp.user_id = u.id
-                    WHERE p.id = ? AND pp.permission_level = 'owner'
+                    LEFT JOIN PROMPT_PERMISSIONS pp ON p.id = pp.prompt_id AND pp.permission_level = 'owner'
+                    LEFT JOIN Users u ON pp.user_id = u.id
+                    WHERE p.id = ?
                 """, (prompt_id,)) as cursor:
                     prompt_info = await cursor.fetchone()
 
@@ -885,29 +949,49 @@ async def delete_prompts_batch(request: Request, current_user: User = Depends(ge
                 # Save public_id for cache invalidation (before deleting)
                 prompt_public_id = prompt_info['public_id'] if 'public_id' in prompt_info.keys() else None
 
-                # Delete prompt
-                await conn.execute('DELETE FROM Prompts WHERE id = ?', (prompt_id,))
+                # Clean up all child table references before deleting the prompt
+                await conn.execute(
+                    "UPDATE USER_DETAILS SET current_prompt_id = NULL WHERE current_prompt_id = ?",
+                    (prompt_id,)
+                )
+                await conn.execute(
+                    "UPDATE CONVERSATIONS SET active_extension_id = NULL, role_id = NULL WHERE role_id = ?",
+                    (prompt_id,)
+                )
                 await conn.execute('DELETE FROM PROMPT_PERMISSIONS WHERE prompt_id = ?', (prompt_id,))
+                await conn.execute('DELETE FROM PROMPT_AGENT_MAPPING WHERE prompt_id = ?', (prompt_id,))
+                await conn.execute('DELETE FROM PROMPT_SECTION_CONFIGS WHERE prompt_id = ?', (prompt_id,))
+                await conn.execute('DELETE FROM WATCHDOG_EVENTS WHERE prompt_id = ?', (prompt_id,))
+                await conn.execute('DELETE FROM WATCHDOG_STATE WHERE prompt_id = ?', (prompt_id,))
+                await conn.execute('DELETE FROM PACK_ITEMS WHERE prompt_id = ?', (prompt_id,))
+                await conn.execute('DELETE FROM PENDING_REGISTRATIONS WHERE prompt_id = ?', (prompt_id,))
+                await conn.execute('DELETE FROM CREATOR_EARNINGS WHERE prompt_id = ?', (prompt_id,))
+
+                # Now safe to delete the prompt (CASCADE tables auto-cleanup:
+                # PROMPT_CATEGORIES, PROMPT_CUSTOM_DOMAINS, PROMPT_EXTENSIONS, LANDING_PAGE_ANALYTICS)
+                await conn.execute('DELETE FROM Prompts WHERE id = ?', (prompt_id,))
 
                 # Delete prompt directory
-                hash_prefix1, hash_prefix2, user_hash = generate_user_hash(prompt_info['owner_username'])
-                sanitized_prompt_name = sanitize_name(prompt_info['name'])
-                padded_id = f"{prompt_id:07d}"
-                prompt_dir = os.path.join(
-                    users_directory,
-                    hash_prefix1,
-                    hash_prefix2,
-                    user_hash,
-                    "prompts",
-                    padded_id[:3],
-                    f"{padded_id[3:]}_{sanitized_prompt_name}"
-                )
+                owner_username = prompt_info['owner_username']
+                if owner_username:
+                    hash_prefix1, hash_prefix2, user_hash = generate_user_hash(owner_username)
+                    sanitized_prompt_name = sanitize_name(prompt_info['name'])
+                    padded_id = f"{prompt_id:07d}"
+                    prompt_dir = os.path.join(
+                        users_directory,
+                        hash_prefix1,
+                        hash_prefix2,
+                        user_hash,
+                        "prompts",
+                        padded_id[:3],
+                        f"{padded_id[3:]}_{sanitized_prompt_name}"
+                    )
 
-                if os.path.exists(prompt_dir):
-                    try:
-                        shutil.rmtree(prompt_dir)
-                    except Exception as e:
-                        logger.error(f"Error deleting prompt directory {prompt_dir}: {e}")
+                    if os.path.exists(prompt_dir):
+                        try:
+                            shutil.rmtree(prompt_dir)
+                        except Exception as e:
+                            logger.error(f"Error deleting prompt directory {prompt_dir}: {e}")
 
                 await conn.commit()
 
@@ -994,7 +1078,7 @@ async def get_manager_accessible_prompts(manager_id: int):
             FROM PROMPTS p
             LEFT JOIN PROMPT_PERMISSIONS pp ON p.id = pp.prompt_id
             WHERE p.created_by_user_id = ?
-               OR pp.user_id = ?
+               OR (pp.user_id = ? AND pp.permission_level IN ('owner', 'edit'))
                OR p.public = TRUE
             """
             await cursor.execute(query, (manager_id, manager_id))
@@ -2040,3 +2124,290 @@ async def get_prompt_owner_id(prompt_id: int) -> Optional[int]:
             )
             result = await cursor.fetchone()
             return result[0] if result else None
+
+
+# =============================================================================
+# Extension CRUD API Endpoints
+# =============================================================================
+
+def _extension_row_to_dict(row, include_prompt_text=True) -> dict:
+    """Convert a PROMPT_EXTENSIONS row to a JSON-serializable dict."""
+    d = {
+        "id": row["id"],
+        "name": row["name"],
+        "slug": row["slug"],
+        "description": row["description"] or "",
+        "display_order": row["display_order"],
+        "is_default": bool(row["is_default"]),
+    }
+    if include_prompt_text:
+        d["prompt_text"] = row["prompt_text"]
+    return d
+
+
+async def _generate_unique_slug(conn, prompt_id: int, name: str, exclude_id: int = None) -> str:
+    """Generate a unique slug for the given prompt, appending a numeric suffix on conflict."""
+    base_slug = slugify(name)
+    slug = base_slug
+    suffix = 1
+    while True:
+        exclude_clause = " AND id != ?" if exclude_id else ""
+        params = (prompt_id, slug, exclude_id) if exclude_id else (prompt_id, slug)
+        cursor = await conn.execute(
+            f"SELECT 1 FROM PROMPT_EXTENSIONS WHERE prompt_id = ? AND slug = ?{exclude_clause} LIMIT 1",
+            params,
+        )
+        if not await cursor.fetchone():
+            return slug
+        slug = f"{base_slug}-{suffix}"
+        suffix += 1
+
+
+@router.get("/api/prompts/{prompt_id}/extensions")
+async def list_extensions(prompt_id: int, current_user: User = Depends(get_current_user)):
+    """List all extensions for a prompt, ordered by display_order."""
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    # Authorization: user must be able to manage the prompt OR have a conversation with it
+    is_admin_user = await current_user.is_admin
+    can_manage = await can_manage_prompt(current_user.id, prompt_id, is_admin_user)
+    if not can_manage:
+        async with get_db_connection(readonly=True) as conn:
+            cursor = await conn.execute(
+                "SELECT 1 FROM CONVERSATIONS WHERE user_id = ? AND role_id = ? LIMIT 1",
+                (current_user.id, prompt_id),
+            )
+            has_conversation = await cursor.fetchone()
+        if not has_conversation:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+    async with get_db_connection(readonly=True) as conn:
+        # Verify prompt exists
+        cursor = await conn.execute("SELECT id FROM Prompts WHERE id = ?", (prompt_id,))
+        if not await cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Prompt not found")
+
+        cursor = await conn.execute(
+            """SELECT id, name, slug, prompt_text, description, display_order, is_default
+               FROM PROMPT_EXTENSIONS
+               WHERE prompt_id = ?
+               ORDER BY display_order""",
+            (prompt_id,),
+        )
+        rows = await cursor.fetchall()
+        extensions = [_extension_row_to_dict(row, include_prompt_text=can_manage) for row in rows]
+
+    return JSONResponse(content=extensions)
+
+
+@router.post("/api/prompts/{prompt_id}/extensions", status_code=201)
+async def create_extension(prompt_id: int, request: Request, current_user: User = Depends(get_current_user)):
+    """Create a new extension for a prompt."""
+    is_admin_user = await current_user.is_admin
+    if not await can_manage_prompt(current_user.id, prompt_id, is_admin_user):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    body = await request.json()
+    name = (body.get("name") or "").strip()
+    prompt_text = (body.get("prompt_text") or "").strip()
+    description = (body.get("description") or "").strip()
+    is_default = bool(body.get("is_default", False))
+
+    if not name:
+        raise HTTPException(status_code=400, detail="Extension name is required")
+    if not prompt_text:
+        raise HTTPException(status_code=400, detail="Extension prompt_text is required")
+
+    async with get_db_connection() as conn:
+        # Verify prompt exists
+        cursor = await conn.execute("SELECT id FROM Prompts WHERE id = ?", (prompt_id,))
+        if not await cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Prompt not found")
+
+        slug = await _generate_unique_slug(conn, prompt_id, name)
+
+        # Determine display_order (max + 1)
+        cursor = await conn.execute(
+            "SELECT COALESCE(MAX(display_order), -1) FROM PROMPT_EXTENSIONS WHERE prompt_id = ?",
+            (prompt_id,),
+        )
+        max_order = (await cursor.fetchone())[0]
+        display_order = max_order + 1
+
+        # If is_default, unset any existing default
+        if is_default:
+            await conn.execute(
+                "UPDATE PROMPT_EXTENSIONS SET is_default = 0 WHERE prompt_id = ? AND is_default = 1",
+                (prompt_id,),
+            )
+
+        cursor = await conn.execute(
+            """INSERT INTO PROMPT_EXTENSIONS (prompt_id, name, slug, prompt_text, description, display_order, is_default)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (prompt_id, name, slug, prompt_text, description, display_order, is_default),
+        )
+        new_id = cursor.lastrowid
+        await conn.commit()
+
+        # Fetch the created row
+        cursor = await conn.execute(
+            """SELECT id, name, slug, prompt_text, description, display_order, is_default
+               FROM PROMPT_EXTENSIONS WHERE id = ?""",
+            (new_id,),
+        )
+        row = await cursor.fetchone()
+
+    return JSONResponse(content=_extension_row_to_dict(row), status_code=201)
+
+
+@router.put("/api/prompts/{prompt_id}/extensions/reorder")
+async def reorder_extensions(prompt_id: int, request: Request, current_user: User = Depends(get_current_user)):
+    """Bulk reorder extensions by updating display_order based on array index."""
+    is_admin_user = await current_user.is_admin
+    if not await can_manage_prompt(current_user.id, prompt_id, is_admin_user):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    body = await request.json()
+    order = body.get("order")
+    if not isinstance(order, list) or not all(isinstance(x, int) for x in order):
+        raise HTTPException(status_code=400, detail="'order' must be an array of extension IDs")
+
+    async with get_db_connection() as conn:
+        for idx, ext_id in enumerate(order):
+            await conn.execute(
+                "UPDATE PROMPT_EXTENSIONS SET display_order = ? WHERE id = ? AND prompt_id = ?",
+                (idx, ext_id, prompt_id),
+            )
+        await conn.commit()
+
+    return JSONResponse(content={"success": True})
+
+
+@router.put("/api/prompts/{prompt_id}/extensions/{extension_id}")
+async def update_extension(prompt_id: int, extension_id: int, request: Request, current_user: User = Depends(get_current_user)):
+    """Update an existing extension."""
+    is_admin_user = await current_user.is_admin
+    if not await can_manage_prompt(current_user.id, prompt_id, is_admin_user):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    body = await request.json()
+
+    async with get_db_connection() as conn:
+        # Fetch existing extension
+        cursor = await conn.execute(
+            "SELECT id, name, slug, prompt_text, description, display_order, is_default FROM PROMPT_EXTENSIONS WHERE id = ? AND prompt_id = ?",
+            (extension_id, prompt_id),
+        )
+        existing = await cursor.fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Extension not found")
+
+        # Determine updated values (partial update: only provided fields change)
+        new_name = body["name"].strip() if "name" in body else existing["name"]
+        if not new_name:
+            raise HTTPException(status_code=400, detail="Extension name cannot be empty")
+
+        new_prompt_text = body["prompt_text"].strip() if "prompt_text" in body else existing["prompt_text"]
+        if not new_prompt_text:
+            raise HTTPException(status_code=400, detail="Extension prompt text cannot be empty")
+        new_description = body.get("description", existing["description"]) or ""
+        if isinstance(new_description, str):
+            new_description = new_description.strip()
+        new_is_default = bool(body["is_default"]) if "is_default" in body else bool(existing["is_default"])
+
+        # Re-generate slug if name changed
+        if "name" in body and body["name"].strip() != existing["name"]:
+            new_slug = await _generate_unique_slug(conn, prompt_id, new_name, exclude_id=extension_id)
+        else:
+            new_slug = existing["slug"]
+
+        # If setting as default, unset others first
+        if new_is_default and not existing["is_default"]:
+            await conn.execute(
+                "UPDATE PROMPT_EXTENSIONS SET is_default = 0 WHERE prompt_id = ? AND is_default = 1",
+                (prompt_id,),
+            )
+
+        await conn.execute(
+            """UPDATE PROMPT_EXTENSIONS
+               SET name = ?, slug = ?, prompt_text = ?, description = ?, is_default = ?, updated_at = CURRENT_TIMESTAMP
+               WHERE id = ? AND prompt_id = ?""",
+            (new_name, new_slug, new_prompt_text, new_description, new_is_default, extension_id, prompt_id),
+        )
+        await conn.commit()
+
+        # Fetch updated row
+        cursor = await conn.execute(
+            """SELECT id, name, slug, prompt_text, description, display_order, is_default
+               FROM PROMPT_EXTENSIONS WHERE id = ?""",
+            (extension_id,),
+        )
+        row = await cursor.fetchone()
+
+    return JSONResponse(content=_extension_row_to_dict(row))
+
+
+@router.delete("/api/prompts/{prompt_id}/extensions/{extension_id}")
+async def delete_extension(prompt_id: int, extension_id: int, current_user: User = Depends(get_current_user)):
+    """Delete an extension. Clears active_extension_id references and reassigns default if needed."""
+    is_admin_user = await current_user.is_admin
+    if not await can_manage_prompt(current_user.id, prompt_id, is_admin_user):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    async with get_db_connection() as conn:
+        # Verify the extension exists and belongs to this prompt
+        cursor = await conn.execute(
+            "SELECT id, is_default FROM PROMPT_EXTENSIONS WHERE id = ? AND prompt_id = ?",
+            (extension_id, prompt_id),
+        )
+        existing = await cursor.fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Extension not found")
+
+        was_default = bool(existing["is_default"])
+
+        # Clear active_extension_id in conversations that reference this extension
+        await conn.execute(
+            "UPDATE CONVERSATIONS SET active_extension_id = NULL WHERE active_extension_id = ?",
+            (extension_id,),
+        )
+
+        # Delete the extension
+        await conn.execute("DELETE FROM PROMPT_EXTENSIONS WHERE id = ?", (extension_id,))
+
+        # If deleted extension was default, assign default to the first remaining extension
+        if was_default:
+            cursor = await conn.execute(
+                "SELECT id FROM PROMPT_EXTENSIONS WHERE prompt_id = ? ORDER BY display_order LIMIT 1",
+                (prompt_id,),
+            )
+            next_default = await cursor.fetchone()
+            if next_default:
+                await conn.execute(
+                    "UPDATE PROMPT_EXTENSIONS SET is_default = 1 WHERE id = ?",
+                    (next_default["id"],),
+                )
+
+        # Recompact display_order to avoid gaps (breaks sequential mode navigation)
+        cursor = await conn.execute(
+            "SELECT id FROM PROMPT_EXTENSIONS WHERE prompt_id = ? ORDER BY display_order",
+            (prompt_id,),
+        )
+        remaining = await cursor.fetchall()
+        for idx, row in enumerate(remaining):
+            await conn.execute(
+                "UPDATE PROMPT_EXTENSIONS SET display_order = ? WHERE id = ?",
+                (idx, row[0]),
+            )
+
+        # If no extensions remain, auto-disable extensions on the prompt
+        if not remaining:
+            await conn.execute(
+                "UPDATE PROMPTS SET extensions_enabled = 0 WHERE id = ?",
+                (prompt_id,),
+            )
+
+        await conn.commit()
+
+    return JSONResponse(content={"success": True})

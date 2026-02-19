@@ -164,6 +164,44 @@
         </div>
     </div>
 
+    <div class="section-container">
+        <div class="section-title">
+            After Login
+            <span class="info-icon" data-bs-toggle="tooltip" data-bs-html="true" title="Choose which page to land on after logging in.">&#8505;&#65039;</span>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">When I log in, take me to:</label>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="afterLogin" id="afterLoginHome" value="/home">
+                <label class="form-check-label" for="afterLoginHome">
+                    Home
+                    <small class="text-muted d-block">Main page with search, favorites and library</small>
+                </label>
+            </div>
+            <div class="form-check mt-2">
+                <input class="form-check-input" type="radio" name="afterLogin" id="afterLoginChat" value="/chat">
+                <label class="form-check-label" for="afterLoginChat">
+                    Chat
+                    <small class="text-muted d-block">Go straight to your conversations</small>
+                </label>
+            </div>
+            <div class="form-check mt-2">
+                <input class="form-check-input" type="radio" name="afterLogin" id="afterLoginExplore" value="/explore">
+                <label class="form-check-label" for="afterLoginExplore">
+                    Explore
+                    <small class="text-muted d-block">Browse and discover public products</small>
+                </label>
+            </div>
+            <div class="form-check mt-2">
+                <input class="form-check-input" type="radio" name="afterLogin" id="afterLoginDashboard" value="/dashboard">
+                <label class="form-check-label" for="afterLoginDashboard">
+                    Dashboard
+                    <small class="text-muted d-block">Stats, usage and account overview</small>
+                </label>
+            </div>
+        </div>
+    </div>
+
     <div class="d-flex justify-content-between align-items-center">
         <div>
             <button type="submit" class="btn btn-primary">Save Changes</button>
@@ -238,5 +276,6 @@
     let currentUserVoiceId = "{{ current_user_voice_id }}";
     let currentUserId = "{{ current_user_id }}";
     let originalPhoneNumber = "{{ user_data['phone_number'] }}";
+    let homePreferences = {{ home_preferences | tojson }};
 </script>
 {% endblock %}

@@ -33,6 +33,7 @@ CREATE TABLE USERS (
     username TEXT UNIQUE NOT NULL,
     password TEXT,
     phone_number TEXT,
+    phone_verified BOOLEAN DEFAULT FALSE,
     role_id INTEGER,
     is_enabled BOOLEAN, user_info TEXT, profile_picture TEXT, email TEXT,
     FOREIGN KEY (role_id) REFERENCES USER_ROLES(id)
@@ -61,11 +62,41 @@ CREATE TABLE PROMPTS (
     watchdog_config TEXT DEFAULT NULL,
     allow_in_packs BOOLEAN DEFAULT 0,
     pack_notice_period_days INTEGER DEFAULT 0,
+    extensions_enabled BOOLEAN DEFAULT 0,
+    extensions_auto_advance BOOLEAN DEFAULT 0,
+    extensions_free_selection BOOLEAN DEFAULT 1,
+    has_welcome_page BOOLEAN DEFAULT 0,
+    welcome_bg_image TEXT DEFAULT NULL,
+    welcome_accent TEXT DEFAULT NULL,
+    purchase_price DECIMAL DEFAULT NULL,
+    ranking_score REAL DEFAULT 0,
+    has_landing_page BOOLEAN DEFAULT 0,
     FOREIGN KEY (voice_id) REFERENCES VOICES (id),
     FOREIGN KEY (created_by_user_id) REFERENCES USERS (id)
 );
 
 CREATE UNIQUE INDEX idx_prompts_public_id ON PROMPTS(public_id);
+
+-- =============================================================================
+-- PROMPT_EXTENSIONS (levels/phases for prompts)
+-- =============================================================================
+CREATE TABLE PROMPT_EXTENSIONS (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prompt_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    prompt_text TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    display_order INTEGER DEFAULT 0,
+    is_default BOOLEAN DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (prompt_id) REFERENCES PROMPTS(id) ON DELETE CASCADE,
+    UNIQUE(prompt_id, slug)
+);
+
+CREATE INDEX idx_prompt_extensions_prompt_id ON PROMPT_EXTENSIONS(prompt_id);
+CREATE INDEX idx_prompt_extensions_order ON PROMPT_EXTENSIONS(prompt_id, display_order);
 
 CREATE TABLE CONVERSATIONS (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,11 +104,13 @@ CREATE TABLE CONVERSATIONS (
     role_id INTEGER,
     llm_id INTEGER,
     locked BOOLEAN,
-    start_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, chat_name TEXT, stats TEXT, last_analyzed TIMESTAMP, folder_id INTEGER 
+    start_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, chat_name TEXT, stats TEXT, last_analyzed TIMESTAMP, folder_id INTEGER
                 REFERENCES CHAT_FOLDERS(id),
+    active_extension_id INTEGER DEFAULT NULL,
     FOREIGN KEY (user_id) REFERENCES USERS(id),
     FOREIGN KEY (role_id) REFERENCES PROMPTS(id),
-    FOREIGN KEY (llm_id) REFERENCES LLM(id)
+    FOREIGN KEY (llm_id) REFERENCES LLM(id),
+    FOREIGN KEY (active_extension_id) REFERENCES PROMPT_EXTENSIONS(id)
 );
 
 CREATE TABLE MESSAGES (
@@ -92,6 +125,24 @@ CREATE TABLE MESSAGES (
     FOREIGN KEY (conversation_id) REFERENCES CONVERSATIONS(id),
     FOREIGN KEY (user_id) REFERENCES USERS(id)
 );
+
+-- =============================================================================
+-- MESSAGES_FTS (full-text search index for message content)
+-- Virtual table using FTS5 for fast text search. Rowid maps to MESSAGES.id.
+-- =============================================================================
+-- CREATE VIRTUAL TABLE IF NOT EXISTS MESSAGES_FTS USING fts5(
+--   search_text,
+--   tokenize = 'unicode61 remove_diacritics 2'
+-- );
+
+-- Triggers to keep FTS index in sync with MESSAGES table:
+-- trg_messages_fts_insert  - AFTER INSERT: extracts text from plain or JSON multimodal messages
+-- trg_messages_fts_update  - AFTER UPDATE: removes old entry, inserts updated text
+-- trg_messages_fts_delete  - AFTER DELETE: removes entry from FTS index
+
+-- Complementary performance indices:
+-- CREATE INDEX IF NOT EXISTS idx_messages_conv_id_id ON MESSAGES(conversation_id, id DESC);
+-- CREATE INDEX IF NOT EXISTS idx_messages_user_bookmark ON MESSAGES(user_id, is_bookmarked);
 
 CREATE TABLE MAGIC_LINKS (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -191,7 +242,7 @@ CREATE TABLE USER_DETAILS (
     all_prompts_access BOOLEAN DEFAULT (FALSE),
     allow_file_upload BOOLEAN DEFAULT (FALSE),
     allow_image_generation BOOLEAN DEFAULT (FALSE),
-    external_platforms INTEGER,
+    external_platforms TEXT,
     created_by INTEGER,
     voice_id INTEGER,
     public_prompts_access BOOLEAN DEFAULT (FALSE),
@@ -202,7 +253,7 @@ CREATE TABLE USER_DETAILS (
     user_api_keys TEXT DEFAULT NULL,
     api_key_mode VARCHAR(20) DEFAULT 'both_prefer_own',
     category_access TEXT DEFAULT NULL,
-    reseller_markup_per_mtokens DECIMAL DEFAULT 0.00,
+    referral_markup_per_mtokens DECIMAL DEFAULT 0.00,
     pending_earnings DECIMAL DEFAULT 0.00,
     billing_account_id INTEGER DEFAULT NULL,
     billing_limit DECIMAL DEFAULT NULL,
@@ -212,6 +263,7 @@ CREATE TABLE USER_DETAILS (
     billing_auto_refill_amount DECIMAL DEFAULT 10.00,
     billing_max_limit DECIMAL DEFAULT NULL,
     billing_auto_refill_count INTEGER DEFAULT 0,
+    home_preferences TEXT DEFAULT NULL,
     CONSTRAINT USER_DETAILS_PK PRIMARY KEY (user_id),
     CONSTRAINT FK_USER_DETAILS_LLM FOREIGN KEY (llm_id) REFERENCES LLM(id),
     CONSTRAINT FK_USER_DETAILS_PROMPTS_2 FOREIGN KEY (current_prompt_id) REFERENCES PROMPTS(id),
@@ -224,6 +276,18 @@ CREATE TABLE USER_DETAILS (
 CREATE INDEX idx_user_details_category_access ON USER_DETAILS(category_access);
 CREATE INDEX idx_user_details_created_by ON USER_DETAILS(created_by);
 CREATE INDEX idx_user_details_billing_account ON USER_DETAILS(billing_account_id);
+
+CREATE TABLE FAVORITE_PROMPTS (
+    user_id INTEGER NOT NULL,
+    prompt_id INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, prompt_id),
+    FOREIGN KEY (user_id) REFERENCES USERS(id) ON DELETE CASCADE,
+    FOREIGN KEY (prompt_id) REFERENCES PROMPTS(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_favorite_prompts_user ON FAVORITE_PROMPTS(user_id);
+CREATE INDEX idx_favorite_prompts_prompt ON FAVORITE_PROMPTS(prompt_id);
 
 CREATE TABLE CHAT_FOLDERS (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -300,6 +364,26 @@ CREATE INDEX idx_pending_email ON PENDING_REGISTRATIONS(email);
 CREATE INDEX idx_pending_expires ON PENDING_REGISTRATIONS(expires_at);
 
 -- =============================================================================
+-- PENDING_ENTITLEMENTS (claim access for existing users from landing pages)
+-- =============================================================================
+CREATE TABLE PENDING_ENTITLEMENTS (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    token TEXT UNIQUE NOT NULL,
+    prompt_id INTEGER,
+    pack_id INTEGER,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES USERS(id),
+    FOREIGN KEY (prompt_id) REFERENCES PROMPTS(id),
+    FOREIGN KEY (pack_id) REFERENCES PACKS(id)
+);
+
+CREATE UNIQUE INDEX idx_pending_entitlements_token ON PENDING_ENTITLEMENTS(token);
+CREATE INDEX idx_pending_entitlements_user ON PENDING_ENTITLEMENTS(user_id);
+CREATE INDEX idx_pending_entitlements_expires ON PENDING_ENTITLEMENTS(expires_at);
+
+-- =============================================================================
 -- LANDING_PAGE_ANALYTICS (visitor tracking for landing pages)
 -- =============================================================================
 CREATE TABLE LANDING_PAGE_ANALYTICS (
@@ -332,7 +416,7 @@ CREATE TABLE CREATOR_EARNINGS (
     creator_id INTEGER NOT NULL,
     prompt_id INTEGER NOT NULL,
     consumer_id INTEGER NOT NULL,
-    reseller_id INTEGER,
+    referral_id INTEGER,
     tokens_consumed INTEGER NOT NULL,
     gross_amount DECIMAL NOT NULL,
     platform_commission DECIMAL NOT NULL,
@@ -341,7 +425,7 @@ CREATE TABLE CREATOR_EARNINGS (
     FOREIGN KEY (creator_id) REFERENCES USERS(id),
     FOREIGN KEY (prompt_id) REFERENCES PROMPTS(id),
     FOREIGN KEY (consumer_id) REFERENCES USERS(id),
-    FOREIGN KEY (reseller_id) REFERENCES USERS(id)
+    FOREIGN KEY (referral_id) REFERENCES USERS(id)
 );
 
 CREATE INDEX idx_creator_earnings_creator ON CREATOR_EARNINGS(creator_id);
@@ -473,8 +557,8 @@ CREATE TABLE PROMPT_CUSTOM_DOMAINS (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     prompt_id INTEGER NOT NULL UNIQUE,
     custom_domain TEXT NOT NULL UNIQUE,
-    verification_status TEXT DEFAULT 'pending'
-        CHECK(verification_status IN ('pending', 'verified', 'failed', 'expired')),
+    verification_status INTEGER DEFAULT 0
+        CHECK(verification_status IN (0, 1, 2, 3)),
     verification_token TEXT,
     last_verification_attempt TIMESTAMP,
     last_verification_success TIMESTAMP,
@@ -583,6 +667,10 @@ CREATE TABLE PACKS (
     max_items INTEGER DEFAULT 50,
     has_custom_landing BOOLEAN DEFAULT 0,
     rejection_reason TEXT DEFAULT NULL,
+    has_welcome_page BOOLEAN DEFAULT 0,
+    welcome_bg_image TEXT DEFAULT NULL,
+    welcome_accent TEXT DEFAULT NULL,
+    ranking_score REAL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (created_by_user_id) REFERENCES USERS(id)
@@ -631,6 +719,70 @@ CREATE INDEX idx_pack_access_user ON PACK_ACCESS(user_id);
 CREATE INDEX idx_pack_access_pack ON PACK_ACCESS(pack_id);
 
 -- =============================================================================
+-- USER_CREATOR_RELATIONSHIPS (N:N user-creator tracking)
+-- =============================================================================
+CREATE TABLE USER_CREATOR_RELATIONSHIPS (
+    user_id INTEGER NOT NULL,
+    creator_id INTEGER NOT NULL,
+    relationship_type TEXT NOT NULL CHECK (relationship_type IN (
+        'registered_via', 'purchased_from', 'assigned_by'
+    )),
+    source_type TEXT CHECK (source_type IN ('prompt', 'pack', 'manual', 'oauth')),
+    source_id INTEGER,
+    is_primary BOOLEAN NOT NULL DEFAULT 0,
+    first_interaction_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_interaction_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, creator_id, relationship_type),
+    FOREIGN KEY (user_id) REFERENCES USERS(id) ON DELETE CASCADE,
+    FOREIGN KEY (creator_id) REFERENCES USERS(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_ucr_creator ON USER_CREATOR_RELATIONSHIPS(creator_id);
+CREATE UNIQUE INDEX idx_ucr_single_primary ON USER_CREATOR_RELATIONSHIPS(user_id) WHERE is_primary = 1;
+
+-- =============================================================================
+-- CREATOR_PROFILES (public creator identity and storefront configuration)
+-- =============================================================================
+CREATE TABLE CREATOR_PROFILES (
+    user_id INTEGER PRIMARY KEY,
+    slug TEXT NOT NULL UNIQUE,
+    display_name TEXT NOT NULL,
+    bio TEXT,
+    avatar_url TEXT,
+    social_links TEXT,
+    custom_domain TEXT,
+    domain_verification_status INTEGER NOT NULL DEFAULT 0 CHECK(domain_verification_status IN (0,1,2,3)),
+    domain_verification_token TEXT,
+    branding_id INTEGER,
+    is_public BOOLEAN NOT NULL DEFAULT 0,
+    is_verified BOOLEAN NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES USERS(id) ON DELETE CASCADE,
+    FOREIGN KEY (branding_id) REFERENCES MANAGER_BRANDING(id) ON DELETE SET NULL
+);
+
+CREATE UNIQUE INDEX idx_creator_profiles_slug ON CREATOR_PROFILES(slug);
+CREATE UNIQUE INDEX idx_creator_profiles_domain ON CREATOR_PROFILES(custom_domain) WHERE custom_domain IS NOT NULL;
+
+-- =============================================================================
+-- USER_CAPTIVE_DOMAINS (captive users linked to assigned domain/prompt)
+-- =============================================================================
+CREATE TABLE USER_CAPTIVE_DOMAINS (
+    user_id    INTEGER NOT NULL,
+    domain_id  INTEGER NOT NULL,
+    prompt_id  INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, domain_id),
+    FOREIGN KEY (user_id) REFERENCES USERS(id) ON DELETE CASCADE,
+    FOREIGN KEY (domain_id) REFERENCES PROMPT_CUSTOM_DOMAINS(id) ON DELETE CASCADE,
+    FOREIGN KEY (prompt_id) REFERENCES PROMPTS(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_captive_domain_id ON USER_CAPTIVE_DOMAINS(domain_id);
+CREATE INDEX idx_captive_prompt_id ON USER_CAPTIVE_DOMAINS(prompt_id);
+
+-- =============================================================================
 -- PACK_PURCHASES (purchase tracking)
 -- =============================================================================
 CREATE TABLE PACK_PURCHASES (
@@ -649,3 +801,36 @@ CREATE TABLE PACK_PURCHASES (
 
 CREATE INDEX idx_pack_purchases_buyer ON PACK_PURCHASES(buyer_user_id);
 CREATE INDEX idx_pack_purchases_pack ON PACK_PURCHASES(pack_id);
+
+-- =============================================================================
+-- PROMPT_PURCHASES (individual prompt purchase tracking)
+-- =============================================================================
+CREATE TABLE PROMPT_PURCHASES (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    buyer_user_id INTEGER NOT NULL,
+    prompt_id INTEGER NOT NULL,
+    amount DECIMAL NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'USD',
+    payment_method TEXT,
+    payment_reference TEXT,
+    discount_code TEXT,
+    status TEXT NOT NULL DEFAULT 'completed',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (buyer_user_id) REFERENCES USERS(id),
+    FOREIGN KEY (prompt_id) REFERENCES PROMPTS(id)
+);
+
+CREATE UNIQUE INDEX idx_prompt_purchases_unique ON PROMPT_PURCHASES(buyer_user_id, prompt_id);
+CREATE INDEX idx_prompt_purchases_prompt ON PROMPT_PURCHASES(prompt_id);
+CREATE UNIQUE INDEX idx_prompt_purchases_reference ON PROMPT_PURCHASES(payment_reference) WHERE payment_reference IS NOT NULL;
+
+-- =============================================================================
+-- PERFORMANCE INDEXES (hot-path queries)
+-- =============================================================================
+CREATE INDEX idx_prompt_permissions_prompt_user ON PROMPT_PERMISSIONS(prompt_id, user_id);
+CREATE INDEX idx_magic_links_token ON MAGIC_LINKS(token);
+CREATE INDEX idx_users_phone_number ON USERS(phone_number);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_unique ON USERS(phone_number) WHERE phone_number IS NOT NULL;
+CREATE INDEX idx_conversations_user_id ON CONVERSATIONS(user_id);
+CREATE INDEX idx_conversations_role_id ON CONVERSATIONS(role_id);
+CREATE INDEX idx_prompts_public_feed ON PROMPTS(public, is_unlisted, created_at DESC);

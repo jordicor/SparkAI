@@ -4,9 +4,8 @@ data/users/
 __pycache__/
 tst/
 
-# Documentation - include docs/ folder and its .md files
-!docs/
-!docs/*.md
+# Documentation - internal only, not published
+docs/
 
 # Security config - include forbidden names list
 !data/config/

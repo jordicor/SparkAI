@@ -37,7 +37,7 @@
     }
 
     onReady(() => {
-        const voiceButton = document.getElementById('voice-call-button');
+        const voiceButton = document.getElementById('plus-voice-call');
         const overlay = document.getElementById('voice-overlay');
         const startStopButton = document.getElementById('voice-start-stop');
         const muteButton = document.getElementById('voice-mute-toggle');
@@ -174,7 +174,7 @@
                     closeButton.disabled = true;
                     muteButton.classList.remove('hidden');
                     statusIcon.classList.add('active');
-                    statusIcon.innerHTML = '<i class="fas fa-phone"></i>';
+                    statusIcon.innerHTML = '<i class="voice-wave-icon"></i>';
                     lockChatInputs(true);
                     break;
                 case 'updating':

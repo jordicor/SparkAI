@@ -62,6 +62,7 @@ stt_engine = os.getenv('STT_ENGINE')
 service_sid = os.getenv('SERVICE_SID')
 twilio_sid = os.getenv('TWILIO_SID')
 twilio_auth = os.getenv('TWILIO_AUTH')
+twilio_messaging_service_sid = os.getenv('TWILIO_MESSAGING_SERVICE_SID')
 
 # Twilio security: allowed domains for media URLs (anti-SSRF)
 TWILIO_ALLOWED_MEDIA_DOMAINS = frozenset([
@@ -127,7 +128,6 @@ VALID_NOTICE_PERIODS = [0, 90, 180, 365, 730]
 ALGORITHM = "HS256"
 
 MAX_TOKENS = int(os.getenv('MAX_TOKENS', 4096))
-TOKEN_LIMIT = int(os.getenv('TOKEN_LIMIT', 500000))
 MAX_MESSAGE_SIZE = int(os.getenv('MAX_MESSAGE_SIZE', 5120))
 
 # Image upload security limits
@@ -162,7 +162,7 @@ AUTH_IMAGE_ALLOWED_PREFIXES = [p.strip() for p in os.getenv("AUTH_IMAGE_ALLOWED_
 
 # CDN Configuration
 CDN_BASE_URL = os.getenv("CDN_BASE_URL", "")  # For static files (/static/)
-CDN_FILES_URL = os.getenv("CDN_FILES_URL", "")  # For user files (/users/)
+CDN_FILES_URL = os.getenv("CDN_FILES_URL", "https://fstcdn.jordicor.com")  # For user files (/users/)
 ENABLE_CDN = os.getenv("ENABLE_CDN", "false").lower() == "true"
 
 def get_static_url(path: str) -> str:
@@ -207,16 +207,59 @@ templates = Jinja2Templates(directory="templates")
 templates.env.globals['get_static_url'] = get_static_url
 
 
-async def get_template_context(request, current_user):
+async def get_template_context(request, current_user, branding_context=None):
     """Generate base context for templates that include navbar.html"""
     is_manager = await current_user.is_manager if current_user else False
     is_admin = await current_user.is_admin if current_user else False
+
+    navbar_avatar_url = ""
+    navbar_initials = ""
+
+    if current_user:
+        # Fetch profile picture, checking alter-ego first
+        async with get_db_connection(readonly=True) as conn:
+            cursor = await conn.execute(
+                """SELECT u.username, u.profile_picture,
+                          ud.current_alter_ego_id, ae.name AS alter_ego_name,
+                          ae.profile_picture AS alter_ego_profile_picture
+                   FROM USERS u
+                   JOIN USER_DETAILS ud ON u.id = ud.user_id
+                   LEFT JOIN USER_ALTER_EGOS ae ON ud.current_alter_ego_id = ae.id
+                   WHERE u.id = ?""",
+                (current_user.id,)
+            )
+            row = await cursor.fetchone()
+
+        if row and row["current_alter_ego_id"]:
+            display_name = row["alter_ego_name"] or current_user.username
+            profile_picture = row["alter_ego_profile_picture"]
+        else:
+            display_name = current_user.username
+            profile_picture = row["profile_picture"] if row else None
+
+        navbar_initials = display_name[0].upper() if display_name else ""
+
+        if profile_picture and CLOUDFLARE_BASE_URL:
+            expiration = datetime.now(timezone.utc) + timedelta(hours=AVATAR_TOKEN_EXPIRE_HOURS)
+            payload = {"exp": expiration, "username": current_user.username}
+            token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+            navbar_avatar_url = f"{CLOUDFLARE_BASE_URL}{profile_picture}_32.webp?token={token}"
+
+    # Contextual branding (defaults to platform if no context passed)
+    branding = await get_branding_for_context(context=branding_context)
+    branding["is_custom_domain"] = getattr(request.state, "custom_domain", False)
+    if not branding["is_custom_domain"]:
+        branding["hide_spark_branding"] = False
+
     return {
         "request": request,
         "username": current_user.username if current_user else "",
         "is_manager": is_manager,
         "is_admin": is_admin,
-        "get_static_url": get_static_url
+        "get_static_url": get_static_url,
+        "navbar_avatar_url": navbar_avatar_url,
+        "navbar_initials": navbar_initials,
+        "branding": branding
     }
 
 # Get the absolute path of the current script
@@ -380,9 +423,9 @@ async def deduct_balance(user_id: int, amount: float):
                 result = await conn.execute('''
                     UPDATE USER_DETAILS
                     SET balance = balance - ?
-                    WHERE user_id = ?
+                    WHERE user_id = ? AND balance >= ?
                     RETURNING balance
-                ''', (amount, user_id))
+                ''', (amount, user_id, amount))
                 new_balance = await result.fetchone()
 
                 if new_balance is not None:
@@ -1175,7 +1218,7 @@ async def get_pricing_config() -> dict:
 
 async def add_pending_earnings(user_id: int, amount: float, conn=None, cursor=None) -> bool:
     """
-    Increment pending_earnings for a user (creator or reseller).
+    Increment pending_earnings for a user (creator or referral).
     If conn/cursor provided, uses them (for transaction). Otherwise creates new connection.
     """
     if amount <= 0:
@@ -1243,7 +1286,7 @@ async def record_creator_earnings(
     gross_amount: float,
     platform_commission: float,
     net_earnings: float,
-    reseller_id: int = None,
+    referral_id: int = None,
     conn=None,
     cursor=None
 ) -> bool:
@@ -1256,11 +1299,11 @@ async def record_creator_earnings(
 
     insert_sql = '''
         INSERT INTO CREATOR_EARNINGS
-        (creator_id, prompt_id, consumer_id, reseller_id, tokens_consumed,
+        (creator_id, prompt_id, consumer_id, referral_id, tokens_consumed,
          gross_amount, platform_commission, net_earnings, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     '''
-    params = (creator_id, prompt_id, consumer_id, reseller_id, tokens_consumed,
+    params = (creator_id, prompt_id, consumer_id, referral_id, tokens_consumed,
               gross_amount, platform_commission, net_earnings)
 
     if conn and cursor:
@@ -1338,13 +1381,13 @@ async def get_prompt_pricing_info(prompt_id: int, conn=None) -> dict:
     }
 
 
-async def get_user_reseller_info(user_id: int, conn=None) -> dict:
+async def get_user_referral_info(user_id: int, conn=None) -> dict:
     """
-    Get reseller information for a user.
-    Returns dict with: created_by (reseller_id), reseller_markup_per_mtokens
+    Get referral information for a user.
+    Returns dict with: created_by (referral_id), referral_markup_per_mtokens
     """
     query = '''
-        SELECT created_by, reseller_markup_per_mtokens
+        SELECT created_by, referral_markup_per_mtokens
         FROM USER_DETAILS
         WHERE user_id = ?
     '''
@@ -1358,18 +1401,18 @@ async def get_user_reseller_info(user_id: int, conn=None) -> dict:
             row = await cursor.fetchone()
 
     if not row:
-        return {'created_by': None, 'reseller_markup_per_mtokens': 0.0}
+        return {'created_by': None, 'referral_markup_per_mtokens': 0.0}
 
     return {
         'created_by': row[0],
-        'reseller_markup_per_mtokens': float(row[1] or 0)
+        'referral_markup_per_mtokens': float(row[1] or 0)
     }
 
 
 async def get_user_billing_info(user_id: int, conn=None) -> dict:
     """
-    Get enterprise billing configuration for a user.
-    Returns dict with billing fields for enterprise mode.
+    Get team billing configuration for a user.
+    Returns dict with billing fields for team billing.
     """
     query = '''
         SELECT billing_account_id, billing_limit, billing_limit_action,
@@ -1514,9 +1557,9 @@ async def consume_token(
 
     Pricing Scenarios:
     A) FREE Prompt: API cost * (1 + margin_free)
-    B) PAID Prompt (external user): API cost * (1 + margin_paid) + creator_markup + reseller_markup
+    B) PAID Prompt (external user): API cost * (1 + margin_paid) + creator_markup + referral_markup
     C) Creator uses OWN prompt: API cost * (1 + margin_personal)
-    D) Same as B but with reseller markup added
+    D) Same as B but with referral markup added
     """
     try:
         # Convert to float and calculate API cost
@@ -1541,9 +1584,9 @@ async def consume_token(
 
         # Initialize earnings tracking
         creator_earnings = 0.0
-        reseller_earnings = 0.0
+        referral_earnings = 0.0
         creator_id = None
-        reseller_id = None
+        referral_id = None
 
         # Determine pricing scenario
         if prompt_id:
@@ -1572,19 +1615,19 @@ async def consume_token(
                 # Calculate creator markup
                 creator_markup = creator_markup_per_mtokens * total_tokens / 1_000_000
 
-                # Check for reseller markup
-                user_reseller_info = await get_user_reseller_info(user_id, conn)
-                reseller_markup_per_mtokens = user_reseller_info['reseller_markup_per_mtokens']
-                potential_reseller_id = user_reseller_info['created_by']
+                # Check for referral markup
+                user_referral_info = await get_user_referral_info(user_id, conn)
+                referral_markup_per_mtokens = user_referral_info['referral_markup_per_mtokens']
+                potential_referral_id = user_referral_info['created_by']
 
-                reseller_markup = 0.0
-                if reseller_markup_per_mtokens > 0 and potential_reseller_id:
-                    reseller_id = potential_reseller_id
-                    reseller_markup = reseller_markup_per_mtokens * total_tokens / 1_000_000
+                referral_markup = 0.0
+                if referral_markup_per_mtokens > 0 and potential_referral_id:
+                    referral_id = potential_referral_id
+                    referral_markup = referral_markup_per_mtokens * total_tokens / 1_000_000
 
-                total_cost = base_cost + creator_markup + reseller_markup
+                total_cost = base_cost + creator_markup + referral_markup
 
-                # Calculate earnings (70% of markup goes to creator/reseller)
+                # Calculate earnings (70% of markup goes to creator/referral)
                 if creator_markup > 0 and creator_id:
                     platform_commission = creator_markup * commission_rate
                     creator_earnings = creator_markup - platform_commission
@@ -1598,7 +1641,7 @@ async def consume_token(
                         gross_amount=creator_markup,
                         platform_commission=platform_commission,
                         net_earnings=creator_earnings,
-                        reseller_id=reseller_id,
+                        referral_id=referral_id,
                         conn=conn,
                         cursor=cursor
                     )
@@ -1606,29 +1649,29 @@ async def consume_token(
                     # Add to creator's pending earnings
                     await add_pending_earnings(creator_id, creator_earnings, conn, cursor)
 
-                if reseller_markup > 0 and reseller_id:
-                    reseller_platform_commission = reseller_markup * commission_rate
-                    reseller_earnings = reseller_markup - reseller_platform_commission
+                if referral_markup > 0 and referral_id:
+                    referral_platform_commission = referral_markup * commission_rate
+                    referral_earnings = referral_markup - referral_platform_commission
 
-                    # Add to reseller's pending earnings
-                    await add_pending_earnings(reseller_id, reseller_earnings, conn, cursor)
+                    # Add to referral's pending earnings
+                    await add_pending_earnings(referral_id, referral_earnings, conn, cursor)
 
                 logger.debug(
                     f"[consume_token] Scenario B/D (PAID): API={api_cost:.6f}, base={base_cost:.6f}, "
-                    f"creator_markup={creator_markup:.6f}, reseller_markup={reseller_markup:.6f}, "
-                    f"total={total_cost:.6f}, creator_earnings={creator_earnings:.6f}, reseller_earnings={reseller_earnings:.6f}"
+                    f"creator_markup={creator_markup:.6f}, referral_markup={referral_markup:.6f}, "
+                    f"total={total_cost:.6f}, creator_earnings={creator_earnings:.6f}, referral_earnings={referral_earnings:.6f}"
                 )
         else:
             # No prompt_id - fallback to free pricing (shouldn't happen normally)
             total_cost = api_cost * (1 + margin_free)
             logger.debug(f"[consume_token] No prompt_id - using free margin: API={api_cost:.6f}, total={total_cost:.6f}")
 
-        # Check for enterprise billing mode
+        # Check for team billing
         billing_info = await get_user_billing_info(user_id, conn)
         billing_account_id = billing_info['billing_account_id']
 
         if billing_account_id:
-            # ENTERPRISE MODE: charge manager's account instead of user's
+            # TEAM BILLING: charge manager's account instead of user's
             manager_id = billing_account_id
 
             # Reset monthly billing counter if new month
@@ -1651,7 +1694,7 @@ async def consume_token(
             if billing_limit is not None:
                 if current_month_spent + total_cost > billing_limit:
                     if billing_limit_action == 'block':
-                        logger.info(f"[consume_token] Enterprise user {user_id} blocked - monthly limit reached. Limit: {billing_limit}, Spent: {current_month_spent}, Requested: {total_cost}")
+                        logger.info(f"[consume_token] Team-billed user {user_id} blocked - monthly limit reached. Limit: {billing_limit}, Spent: {current_month_spent}, Requested: {total_cost}")
                         return False
                     elif billing_limit_action == 'auto_refill':
                         # Auto-refill: increase the limit automatically
@@ -1659,7 +1702,7 @@ async def consume_token(
 
                         # Check if we would exceed the maximum limit cap
                         if max_limit is not None and new_limit > max_limit:
-                            logger.info(f"[consume_token] Enterprise user {user_id} blocked - auto_refill would exceed max limit. Current: {billing_limit}, Max: {max_limit}")
+                            logger.info(f"[consume_token] Team-billed user {user_id} blocked - auto_refill would exceed max limit. Current: {billing_limit}, Max: {max_limit}")
                             return False
 
                         # Update the billing limit and increment auto_refill_count
@@ -1670,11 +1713,11 @@ async def consume_token(
                             WHERE user_id = ?
                         ''', (new_limit, user_id))
 
-                        logger.info(f"[consume_token] Enterprise user {user_id} auto-refill triggered. Limit: {billing_limit} -> {new_limit}")
+                        logger.info(f"[consume_token] Team-billed user {user_id} auto-refill triggered. Limit: {billing_limit} -> {new_limit}")
                         billing_limit = new_limit  # Update local variable for subsequent checks
                     else:
                         # 'notify' - log warning but continue
-                        logger.warning(f"[consume_token] Enterprise user {user_id} over monthly limit (action=notify). Limit: {billing_limit}, Spent: {current_month_spent + total_cost}")
+                        logger.warning(f"[consume_token] Team-billed user {user_id} over monthly limit (action=notify). Limit: {billing_limit}, Spent: {current_month_spent + total_cost}")
 
             # Check manager's balance
             await cursor.execute('SELECT balance FROM USER_DETAILS WHERE user_id = ?', (manager_id,))
@@ -1708,7 +1751,18 @@ async def consume_token(
                 WHERE user_id = ?
             ''', (total_cost, input_tokens, output_tokens + reasoning_tokens, input_cost_total, output_cost_total, total_cost, total_tokens, user_id))
 
-            logger.debug(f"[consume_token] Enterprise mode: charged manager {manager_id} ${total_cost:.6f} for user {user_id}")
+            # Record daily usage summary (under actual user, not manager)
+            await record_daily_usage(
+                user_id=user_id,
+                usage_type='ai_tokens',
+                cost=total_cost,
+                tokens_in=input_tokens,
+                tokens_out=output_tokens + reasoning_tokens,
+                conn=conn,
+                cursor=cursor
+            )
+
+            logger.debug(f"[consume_token] Team billing: charged manager {manager_id} ${total_cost:.6f} for user {user_id}")
 
         else:
             # STANDARD MODE: charge user's own balance
@@ -1812,30 +1866,30 @@ async def get_branding_for_user(user_id: int, conn=None) -> dict:
     Otherwise return default branding.
     """
     query = '''
-        SELECT ud.created_by
-        FROM USER_DETAILS ud
-        WHERE ud.user_id = ?
+        SELECT ucr.creator_id
+        FROM USER_CREATOR_RELATIONSHIPS ucr
+        WHERE ucr.user_id = ? AND ucr.is_primary = 1
     '''
 
     if conn:
         cursor = await conn.execute(query, (user_id,))
         row = await cursor.fetchone()
-        created_by = row[0] if row else None
+        creator_id = row[0] if row else None
 
-        if created_by:
-            return await get_manager_branding(created_by, conn)
+        if creator_id:
+            return await get_manager_branding(creator_id, conn)
     else:
         async with get_db_connection(readonly=True) as new_conn:
             cursor = await new_conn.execute(query, (user_id,))
             row = await cursor.fetchone()
-            created_by = row[0] if row else None
+            creator_id = row[0] if row else None
 
-            if created_by:
-                return await get_manager_branding(created_by, new_conn)
+            if creator_id:
+                return await get_manager_branding(creator_id, new_conn)
 
     # Return default branding
     return {
-        'company_name': 'SparkAI',
+        'company_name': 'Spark',
         'logo_url': None,
         'brand_color_primary': '#6366f1',
         'brand_color_secondary': '#10B981',
@@ -1845,3 +1899,126 @@ async def get_branding_for_user(user_id: int, conn=None) -> dict:
         'forced_theme': None,
         'disable_theme_selector': False
     }
+
+
+def _safe_color(value, fallback='#6366f1'):
+    """Validate hex color to prevent CSS injection. Returns fallback if invalid."""
+    if value and re.fullmatch(r'#[0-9a-fA-F]{3,8}', value):
+        return value
+    return fallback
+
+
+async def get_branding_for_context(context=None, conn=None) -> dict:
+    """
+    Resolve branding based on navigation context.
+    - context=None -> SPARK platform defaults (0 queries)
+    - context={"creator_id": X} -> that creator's branding
+    - context={"storefront_slug": "john"} -> lookup creator by slug -> branding
+    - context={"prompt_id": X} -> lookup creator by prompt -> branding
+    - context={"pack_id": X} -> lookup creator by pack -> branding
+    """
+    PLATFORM_DEFAULTS = {
+        'company_name': 'Spark',
+        'logo_url': None,
+        'brand_color_primary': '#6366f1',
+        'brand_color_secondary': '#10B981',
+        'footer_text': None,
+        'email_signature': None,
+        'hide_spark_branding': False,
+        'forced_theme': None,
+        'disable_theme_selector': False,
+        'context_type': 'platform',
+        'is_custom_domain': False
+    }
+
+    if context is None:
+        return PLATFORM_DEFAULTS
+
+    creator_id = None
+    context_type = 'platform'
+
+    async def _resolve(connection):
+        nonlocal creator_id, context_type
+
+        if 'creator_id' in context:
+            creator_id = context['creator_id']
+            context_type = 'storefront'
+        elif 'storefront_slug' in context:
+            cursor = await connection.execute(
+                "SELECT user_id FROM CREATOR_PROFILES WHERE slug = ?",
+                (context['storefront_slug'],)
+            )
+            row = await cursor.fetchone()
+            if row:
+                creator_id = row[0]
+                context_type = 'storefront'
+        elif 'prompt_id' in context:
+            cursor = await connection.execute(
+                "SELECT created_by_user_id FROM PROMPTS WHERE id = ?",
+                (context['prompt_id'],)
+            )
+            row = await cursor.fetchone()
+            if row:
+                creator_id = row[0]
+                context_type = 'product'
+        elif 'pack_id' in context:
+            cursor = await connection.execute(
+                "SELECT created_by_user_id FROM PACKS WHERE id = ?",
+                (context['pack_id'],)
+            )
+            row = await cursor.fetchone()
+            if row:
+                creator_id = row[0]
+                context_type = 'product'
+
+    if conn:
+        await _resolve(conn)
+    else:
+        async with get_db_connection(readonly=True) as new_conn:
+            await _resolve(new_conn)
+
+    if not creator_id:
+        return PLATFORM_DEFAULTS
+
+    branding = await get_manager_branding(creator_id, conn)
+    branding['brand_color_primary'] = _safe_color(branding.get('brand_color_primary'), '#6366f1')
+    branding['brand_color_secondary'] = _safe_color(branding.get('brand_color_secondary'), '#10B981')
+    branding['context_type'] = context_type
+    branding['is_custom_domain'] = False
+
+    return branding
+
+
+async def upsert_creator_relationship(cursor, user_id: int, creator_id: int, rel_type: str, source_type: str, source_id: int = None):
+    """
+    Insert or update a creator relationship.
+    PK is (user_id, creator_id, relationship_type) -- allows multiple types per pair.
+    Sets is_primary=1 only if no existing primary (enforced by UNIQUE index).
+    Self-relationships are silently skipped.
+    """
+    if user_id == creator_id:
+        return
+
+    existing = await (await cursor.execute(
+        "SELECT 1 FROM USER_CREATOR_RELATIONSHIPS WHERE user_id = ? AND creator_id = ? AND relationship_type = ?",
+        (user_id, creator_id, rel_type)
+    )).fetchone()
+    if existing:
+        await cursor.execute(
+            "UPDATE USER_CREATOR_RELATIONSHIPS SET last_interaction_at = CURRENT_TIMESTAMP WHERE user_id = ? AND creator_id = ? AND relationship_type = ?",
+            (user_id, creator_id, rel_type))
+        return
+
+    try:
+        await cursor.execute("""
+            INSERT INTO USER_CREATOR_RELATIONSHIPS
+            (user_id, creator_id, relationship_type, source_type, source_id, is_primary)
+            VALUES (?, ?, ?, ?, ?, 1)
+        """, (user_id, creator_id, rel_type, source_type, source_id))
+    except sqlite3.IntegrityError:
+        # UNIQUE constraint on is_primary=1 fired -- insert as non-primary
+        await cursor.execute("""
+            INSERT INTO USER_CREATOR_RELATIONSHIPS
+            (user_id, creator_id, relationship_type, source_type, source_id, is_primary)
+            VALUES (?, ?, ?, ?, ?, 0)
+        """, (user_id, creator_id, rel_type, source_type, source_id))

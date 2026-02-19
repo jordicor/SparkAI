@@ -1,0 +1,488 @@
+{% extends 'base_admin.html' %}
+
+{% block title %}Ranking Configuration - SPARK{% endblock %}
+
+{% block styles %}
+<style>
+    .preview-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 10px;
+        padding: 1rem;
+    }
+    .preview-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid rgba(255,255,255,0.2);
+    }
+    .preview-item:last-child {
+        border-bottom: none;
+    }
+    .help-text {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+    .formula-block {
+        font-family: 'Courier New', monospace;
+        font-size: 0.85rem;
+        line-height: 1.6;
+        padding: 0.75rem;
+        background: var(--bg-tertiary);
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+    }
+    .formula-weight {
+        font-weight: bold;
+        color: #a78bfa;
+    }
+    .status-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+    .status-badge.piggyback {
+        background: rgba(59, 130, 246, 0.15);
+        color: #60a5fa;
+    }
+    .status-badge.scheduled {
+        background: rgba(16, 185, 129, 0.15);
+        color: #34d399;
+    }
+    .mode-option {
+        padding: 0.75rem 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        cursor: pointer;
+        transition: border-color 0.2s;
+    }
+    .mode-option:hover {
+        border-color: var(--accent);
+    }
+    .mode-option.active {
+        border-color: var(--accent);
+        background: rgba(var(--accent-rgb, 99, 102, 241), 0.05);
+    }
+</style>
+{% endblock %}
+
+{% block page_title %}Ranking Configuration{% endblock %}
+
+{% block page_subtitle %}
+<p class="page-subtitle">Configure how prompts are ranked and scored on the Explore page.</p>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Configuration Form -->
+    <div class="col-lg-7 mb-4">
+        <form id="rankingForm">
+            <!-- Recalculation Mode Section -->
+            <div class="section-container">
+                <div class="section-title"><i class="fas fa-sync-alt me-2"></i>Recalculation Mode</div>
+                <p class="help-text mb-3">Choose when ranking scores are recalculated.</p>
+
+                <div class="mb-3">
+                    <label class="mode-option d-flex align-items-start {% if ranking_config.mode == 'piggyback' %}active{% endif %}" id="modePiggybackLabel">
+                        <input type="radio" name="mode" value="piggyback" class="form-check-input me-2 mt-1"
+                               {% if ranking_config.mode == 'piggyback' %}checked{% endif %}>
+                        <div>
+                            <strong>Piggyback (Lazy)</strong>
+                            <div class="help-text">Recalculates on-demand when users visit /explore. Lower resource usage, slightly stale results.</div>
+                        </div>
+                    </label>
+                    <label class="mode-option d-flex align-items-start {% if ranking_config.mode == 'scheduled' %}active{% endif %}" id="modeScheduledLabel">
+                        <input type="radio" name="mode" value="scheduled" class="form-check-input me-2 mt-1"
+                               {% if ranking_config.mode == 'scheduled' %}checked{% endif %}>
+                        <div>
+                            <strong>Scheduled (Periodic)</strong>
+                            <div class="help-text">Background recalculation at fixed intervals. Always-fresh results, uses more resources.</div>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="mb-3">
+                    <label for="interval_hours" class="form-label">
+                        Recalculation Interval
+                        <span class="badge bg-secondary ms-1">Default: 6 hours</span>
+                    </label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="interval_hours" name="interval_hours"
+                               min="1" max="168" step="1"
+                               value="{{ ranking_config.interval_hours }}">
+                        <span class="input-group-text">hours</span>
+                    </div>
+                    <small class="help-text">Minimum hours between ranking recalculations (1 = hourly, 168 = weekly).</small>
+                </div>
+            </div>
+
+            <!-- Ranking Weights Section -->
+            <div class="section-container">
+                <div class="section-title"><i class="fas fa-balance-scale me-2"></i>Ranking Weights</div>
+                <p class="help-text mb-3">Each metric is multiplied by its weight to produce the final ranking score.</p>
+
+                <div class="mb-3">
+                    <label for="w_users_with_access" class="form-label">
+                        Users with Access
+                        <span class="badge bg-secondary ms-1">Default: 3</span>
+                    </label>
+                    <input type="number" class="form-control weight-input" id="w_users_with_access"
+                           name="users_with_access" min="0" max="100" step="0.5"
+                           value="{{ ranking_config.weights.users_with_access }}">
+                    <small class="help-text">Points per user who has access to the prompt.</small>
+                </div>
+
+                <div class="mb-3">
+                    <label for="w_purchases" class="form-label">
+                        Purchases
+                        <span class="badge bg-secondary ms-1">Default: 5</span>
+                    </label>
+                    <input type="number" class="form-control weight-input" id="w_purchases"
+                           name="purchases" min="0" max="100" step="0.5"
+                           value="{{ ranking_config.weights.purchases }}">
+                    <small class="help-text">Points per purchase.</small>
+                </div>
+
+                <div class="mb-3">
+                    <label for="w_unique_chatters" class="form-label">
+                        Unique Chatters
+                        <span class="badge bg-secondary ms-1">Default: 4</span>
+                    </label>
+                    <input type="number" class="form-control weight-input" id="w_unique_chatters"
+                           name="unique_chatters" min="0" max="100" step="0.5"
+                           value="{{ ranking_config.weights.unique_chatters }}">
+                    <small class="help-text">Points per unique user who chatted.</small>
+                </div>
+
+                <div class="mb-3">
+                    <label for="w_landing_conversions" class="form-label">
+                        Landing Conversions
+                        <span class="badge bg-secondary ms-1">Default: 6</span>
+                    </label>
+                    <input type="number" class="form-control weight-input" id="w_landing_conversions"
+                           name="landing_conversions" min="0" max="100" step="0.5"
+                           value="{{ ranking_config.weights.landing_conversions }}">
+                    <small class="help-text">Points per landing page conversion.</small>
+                </div>
+
+                <div class="mb-3">
+                    <label for="w_favorites" class="form-label">
+                        Favorites
+                        <span class="badge bg-secondary ms-1">Default: 2</span>
+                    </label>
+                    <input type="number" class="form-control weight-input" id="w_favorites"
+                           name="favorites" min="0" max="100" step="0.5"
+                           value="{{ ranking_config.weights.favorites }}">
+                    <small class="help-text">Points per favorite.</small>
+                </div>
+
+                <div class="mb-3">
+                    <label for="w_has_landing_boost" class="form-label">
+                        Has Landing Page Boost
+                        <span class="badge bg-secondary ms-1">Default: 15</span>
+                    </label>
+                    <input type="number" class="form-control weight-input" id="w_has_landing_boost"
+                           name="has_landing_boost" min="0" max="200" step="1"
+                           value="{{ ranking_config.weights.has_landing_boost }}">
+                    <small class="help-text">Flat bonus for having a landing page.</small>
+                </div>
+
+                <div class="mb-3">
+                    <label for="w_recency_max_bonus" class="form-label">
+                        Recency Max Bonus
+                        <span class="badge bg-secondary ms-1">Default: 30</span>
+                    </label>
+                    <input type="number" class="form-control weight-input" id="w_recency_max_bonus"
+                           name="recency_max_bonus" min="0" max="200" step="1"
+                           value="{{ ranking_config.weights.recency_max_bonus }}">
+                    <small class="help-text">Max bonus for new prompts (decays linearly over 90 days).</small>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                <button type="submit" class="btn btn-primary btn-lg" id="saveBtn">
+                    <i class="fas fa-save me-1"></i> Save Configuration
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="resetBtn">
+                    <i class="fas fa-undo me-1"></i> Reset to Defaults
+                </button>
+            </div>
+            <small class="help-text d-block mt-2">
+                <i class="fas fa-info-circle me-1"></i>
+                Changing weights will affect prompt positioning after the next recalculation.
+            </small>
+        </form>
+    </div>
+
+    <!-- Status & Formula Preview -->
+    <div class="col-lg-5">
+        <!-- Status Section -->
+        <div class="section-container">
+            <div class="section-title"><i class="fas fa-info-circle me-2"></i>Status</div>
+
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <span>Last recalculation:</span>
+                <strong id="lastUpdatedDisplay">--</strong>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <span>Current mode:</span>
+                <span class="status-badge {{ ranking_config.mode }}" id="currentModeBadge">
+                    {{ ranking_config.mode | capitalize }}
+                </span>
+            </div>
+
+            <button type="button" class="btn btn-warning w-100" id="recalcBtn">
+                <i class="fas fa-calculator me-1"></i> Recalculate Now
+            </button>
+        </div>
+
+        <!-- Formula Preview Section -->
+        <div class="section-container">
+            <div class="section-title"><i class="fas fa-function me-2"></i>Formula Preview</div>
+            <p class="help-text mb-3">Current scoring formula with live weights:</p>
+
+            <div class="preview-card">
+                <div class="formula-block" style="background: rgba(0,0,0,0.2); border-color: rgba(255,255,255,0.1); color: white;">
+                    Score = (access x <span class="formula-weight" id="fw_access">{{ ranking_config.weights.users_with_access }}</span>)<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; + (purchases x <span class="formula-weight" id="fw_purchases">{{ ranking_config.weights.purchases }}</span>)<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; + (chatters x <span class="formula-weight" id="fw_chatters">{{ ranking_config.weights.unique_chatters }}</span>)<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; + (conversions x <span class="formula-weight" id="fw_conversions">{{ ranking_config.weights.landing_conversions }}</span>)<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; + (favorites x <span class="formula-weight" id="fw_favorites">{{ ranking_config.weights.favorites }}</span>)<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; + (has_landing x <span class="formula-weight" id="fw_landing">{{ ranking_config.weights.has_landing_boost }}</span>)<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; + recency_bonus(<span class="formula-weight" id="fw_recency">{{ ranking_config.weights.recency_max_bonus }}</span>)
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <h6 class="mb-2" style="color: var(--text-secondary);">Weight Summary</h6>
+                <div class="preview-card">
+                    <div class="preview-item">
+                        <span>Users with access</span>
+                        <span id="ps_access">x{{ ranking_config.weights.users_with_access }}</span>
+                    </div>
+                    <div class="preview-item">
+                        <span>Purchases</span>
+                        <span id="ps_purchases">x{{ ranking_config.weights.purchases }}</span>
+                    </div>
+                    <div class="preview-item">
+                        <span>Unique chatters</span>
+                        <span id="ps_chatters">x{{ ranking_config.weights.unique_chatters }}</span>
+                    </div>
+                    <div class="preview-item">
+                        <span>Landing conversions</span>
+                        <span id="ps_conversions">x{{ ranking_config.weights.landing_conversions }}</span>
+                    </div>
+                    <div class="preview-item">
+                        <span>Favorites</span>
+                        <span id="ps_favorites">x{{ ranking_config.weights.favorites }}</span>
+                    </div>
+                    <div class="preview-item">
+                        <span>Landing page boost</span>
+                        <span id="ps_landing">+{{ ranking_config.weights.has_landing_boost }}</span>
+                    </div>
+                    <div class="preview-item">
+                        <span>Recency max bonus</span>
+                        <span id="ps_recency">+{{ ranking_config.weights.recency_max_bonus }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    // Default weight values
+    const DEFAULTS = {
+        users_with_access: 3,
+        purchases: 5,
+        unique_chatters: 4,
+        landing_conversions: 6,
+        favorites: 2,
+        has_landing_boost: 15,
+        recency_max_bonus: 30
+    };
+    const DEFAULT_MODE = 'piggyback';
+    const DEFAULT_INTERVAL = 6;
+
+    // Format the last_updated timestamp
+    const lastUpdatedTs = {{ ranking_config.last_updated }};
+
+    function formatTimestamp(ts) {
+        if (!ts || ts === 0) return 'Never';
+        const d = new Date(ts * 1000);
+        return d.toLocaleString(undefined, {
+            year: 'numeric', month: 'short', day: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        });
+    }
+
+    document.getElementById('lastUpdatedDisplay').textContent = formatTimestamp(lastUpdatedTs);
+
+    // Mode radio toggle styling
+    const modeRadios = document.querySelectorAll('input[name="mode"]');
+    modeRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            document.querySelectorAll('.mode-option').forEach(el => el.classList.remove('active'));
+            this.closest('.mode-option').classList.add('active');
+        });
+    });
+
+    // Live formula preview update
+    function updateFormulaPreview() {
+        const access = document.getElementById('w_users_with_access').value;
+        const purchases = document.getElementById('w_purchases').value;
+        const chatters = document.getElementById('w_unique_chatters').value;
+        const conversions = document.getElementById('w_landing_conversions').value;
+        const favorites = document.getElementById('w_favorites').value;
+        const landing = document.getElementById('w_has_landing_boost').value;
+        const recency = document.getElementById('w_recency_max_bonus').value;
+
+        // Formula weights
+        document.getElementById('fw_access').textContent = access;
+        document.getElementById('fw_purchases').textContent = purchases;
+        document.getElementById('fw_chatters').textContent = chatters;
+        document.getElementById('fw_conversions').textContent = conversions;
+        document.getElementById('fw_favorites').textContent = favorites;
+        document.getElementById('fw_landing').textContent = landing;
+        document.getElementById('fw_recency').textContent = recency;
+
+        // Summary
+        document.getElementById('ps_access').textContent = 'x' + access;
+        document.getElementById('ps_purchases').textContent = 'x' + purchases;
+        document.getElementById('ps_chatters').textContent = 'x' + chatters;
+        document.getElementById('ps_conversions').textContent = 'x' + conversions;
+        document.getElementById('ps_favorites').textContent = 'x' + favorites;
+        document.getElementById('ps_landing').textContent = '+' + landing;
+        document.getElementById('ps_recency').textContent = '+' + recency;
+    }
+
+    // Attach live preview listeners to all weight inputs
+    document.querySelectorAll('.weight-input').forEach(input => {
+        input.addEventListener('input', updateFormulaPreview);
+        input.addEventListener('change', updateFormulaPreview);
+    });
+
+    // Reset to defaults
+    document.getElementById('resetBtn').addEventListener('click', function() {
+        document.getElementById('w_users_with_access').value = DEFAULTS.users_with_access;
+        document.getElementById('w_purchases').value = DEFAULTS.purchases;
+        document.getElementById('w_unique_chatters').value = DEFAULTS.unique_chatters;
+        document.getElementById('w_landing_conversions').value = DEFAULTS.landing_conversions;
+        document.getElementById('w_favorites').value = DEFAULTS.favorites;
+        document.getElementById('w_has_landing_boost').value = DEFAULTS.has_landing_boost;
+        document.getElementById('w_recency_max_bonus').value = DEFAULTS.recency_max_bonus;
+        document.getElementById('interval_hours').value = DEFAULT_INTERVAL;
+
+        // Reset mode to piggyback
+        const piggybackRadio = document.querySelector('input[name="mode"][value="piggyback"]');
+        piggybackRadio.checked = true;
+        piggybackRadio.dispatchEvent(new Event('change'));
+
+        updateFormulaPreview();
+        NotificationModal.toast('Defaults restored. Click Save to apply.', 'info');
+    });
+
+    // Save form
+    document.getElementById('rankingForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const saveBtn = document.getElementById('saveBtn');
+        const originalText = saveBtn.innerHTML;
+
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+
+        const selectedMode = document.querySelector('input[name="mode"]:checked').value;
+
+        const data = {
+            mode: selectedMode,
+            interval_hours: parseInt(document.getElementById('interval_hours').value, 10),
+            weights: {
+                users_with_access: parseFloat(document.getElementById('w_users_with_access').value),
+                purchases: parseFloat(document.getElementById('w_purchases').value),
+                unique_chatters: parseFloat(document.getElementById('w_unique_chatters').value),
+                landing_conversions: parseFloat(document.getElementById('w_landing_conversions').value),
+                favorites: parseFloat(document.getElementById('w_favorites').value),
+                has_landing_boost: parseFloat(document.getElementById('w_has_landing_boost').value),
+                recency_max_bonus: parseFloat(document.getElementById('w_recency_max_bonus').value)
+            }
+        };
+
+        try {
+            const response = await fetch('/api/admin/ranking-config', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                saveBtn.innerHTML = '<i class="fas fa-check me-1"></i> Saved!';
+                saveBtn.classList.remove('btn-primary');
+                saveBtn.classList.add('btn-success');
+
+                // Update mode badge
+                const badge = document.getElementById('currentModeBadge');
+                badge.className = 'status-badge ' + selectedMode;
+                badge.textContent = selectedMode.charAt(0).toUpperCase() + selectedMode.slice(1);
+
+                setTimeout(() => {
+                    saveBtn.innerHTML = originalText;
+                    saveBtn.classList.remove('btn-success');
+                    saveBtn.classList.add('btn-primary');
+                    saveBtn.disabled = false;
+                }, 2000);
+            } else {
+                NotificationModal.error('Save Failed', result.message || 'Error saving ranking configuration');
+                saveBtn.innerHTML = originalText;
+                saveBtn.disabled = false;
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            NotificationModal.error('Save Error', 'An error occurred while saving ranking configuration');
+            saveBtn.innerHTML = originalText;
+            saveBtn.disabled = false;
+        }
+    });
+
+    // Recalculate Now button
+    document.getElementById('recalcBtn').addEventListener('click', async function() {
+        const btn = this;
+        const originalText = btn.innerHTML;
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Recalculating...';
+
+        try {
+            const response = await fetch('/api/admin/ranking-recalculate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                NotificationModal.toast('Ranking recalculated successfully', 'success');
+                // Update the last updated display
+                const now = new Date();
+                document.getElementById('lastUpdatedDisplay').textContent = formatTimestamp(now.getTime() / 1000);
+            } else {
+                NotificationModal.error('Recalculation Failed', result.message || 'Error during recalculation');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            NotificationModal.error('Recalculation Error', 'An error occurred during ranking recalculation');
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    });
+</script>
+{% endblock %}

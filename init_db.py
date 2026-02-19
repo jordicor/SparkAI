@@ -12,6 +12,14 @@ def init_db():
         with sqlite3.connect(db_path) as conn:
             with open(schema_path, 'r') as f:
                 conn.executescript(f.read())
+
+            # Seed SYSTEM_CONFIG with ranking defaults
+            conn.execute("INSERT OR IGNORE INTO SYSTEM_CONFIG (key, value) VALUES ('ranking_mode', 'piggyback')")
+            conn.execute("INSERT OR IGNORE INTO SYSTEM_CONFIG (key, value) VALUES ('ranking_interval_hours', '6')")
+            conn.execute("INSERT OR IGNORE INTO SYSTEM_CONFIG (key, value) VALUES ('ranking_weights', '{\"W1\":3,\"W2\":5,\"W3\":4,\"W4\":6,\"W5\":2,\"W6\":15,\"W7\":30}')")
+            conn.execute("INSERT OR IGNORE INTO SYSTEM_CONFIG (key, value) VALUES ('ranking_last_updated', '0')")
+            conn.commit()
+
         print(f"Database {db_path} initialized successfully.")
     except sqlite3.Error as e:
         print(f"Database error: {e}")

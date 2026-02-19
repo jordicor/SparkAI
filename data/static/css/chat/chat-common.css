@@ -18,21 +18,29 @@
 }
 
 /* =============================================
-   Sidebar Collapse/Expand (Desktop only)
+   Sidebar Collapse/Expand
    ============================================= */
 
 /* Home + Collapse buttons row - top of sidebar */
 .sidebar-collapse-row {
-    display: none;
+    display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 8px 12px 0;
     flex-shrink: 0;
 }
 
-@media (min-width: 769px) {
-    .sidebar-collapse-row {
-        display: flex;
+/* Sidebar nav icon group (Home, Explore, Dashboard) */
+.sidebar-nav-icons {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+/* Hide collapse button on mobile (not useful there) */
+@media (max-width: 768px) {
+    .btn-collapse-sidebar {
+        display: none;
     }
 }
 
@@ -100,5 +108,1000 @@
 
     html.sidebar-collapsed .btn-expand-sidebar {
         display: flex;
+    }
+}
+
+/* =============================================
+   Sidebar User Area
+   ============================================= */
+.sidebar-user {
+    min-height: var(--chat-input-h, 68px);
+    padding: 8px 16px;
+    border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.sidebar-user::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    clip-path: inset(-10px 0 0 0);
+    pointer-events: none;
+}
+
+.sidebar-user #user-balance {
+    display: none;
+}
+
+.sidebar-user .dropdown {
+    flex: 1;
+    min-width: 0;
+}
+
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    border-radius: 50%;
+    background: var(--accent-light, rgba(124, 141, 255, 0.3));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent, #a8b4ff);
+    overflow: hidden;
+}
+
+.user-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+.user-info-text {
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+}
+
+.user-info-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary, #e0e0e8);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.user-info-role {
+    font-size: 11px;
+    color: var(--text-muted, #9ea3b0);
+}
+
+.btn-logout {
+    background: none;
+    border: none;
+    color: var(--text-muted, #9ea3b0);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 6px;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-logout:hover {
+    color: var(--danger, #dc3545);
+    background: rgba(220, 53, 69, 0.1);
+    text-decoration: none;
+}
+
+/* =============================================
+   Sidebar Top Fixed (New Chat + Search)
+   ============================================= */
+.sidebar-top-fixed {
+    flex-shrink: 0;
+    padding: 15px 15px 0;
+}
+
+/* Extra spacing after New Chat button */
+.sidebar-section .btn-group.w-100 {
+    margin-bottom: 8px;
+}
+
+/* =============================================
+   Sidebar Section Headers
+   ============================================= */
+.sidebar-section h3 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sidebar-section-icon {
+    font-size: 11px;
+    color: var(--accent, #5865F2);
+}
+
+/* + button on section headers (e.g. Folders) */
+.btn-section-action {
+    background: none;
+    border: none;
+    color: var(--text-muted, #9ea3b0);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: auto;
+    line-height: 1;
+    transition: all 0.15s ease;
+}
+
+.btn-section-action:hover {
+    color: var(--text-primary, #e0e0e8);
+    background: rgba(128, 128, 128, 0.2);
+}
+
+/* =============================================
+   Chats Section - fills remaining sidebar space
+   so the drop zone covers the empty area below
+   ============================================= */
+.chats-section {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+#dynamic-chats-container {
+    flex-grow: 1;
+}
+
+/* =============================================
+   Folder Chevron (expand/collapse indicator)
+   ============================================= */
+.folder-chevron {
+    font-size: 10px;
+    color: var(--text-muted, #9ea3b0);
+    width: 14px;
+    text-align: center;
+    flex-shrink: 0;
+    margin-right: 4px;
+    transition: transform 0.2s ease;
+}
+
+.folder-item[data-folder-expanded="true"] .folder-chevron {
+    transform: rotate(90deg);
+}
+
+/* Folder item - flat rest state, hover reveals */
+.folder-item {
+    background: transparent;
+    border: 1px solid transparent;
+    box-shadow: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.folder-item:hover {
+    background-color: rgba(128, 128, 128, 0.12);
+    border-color: rgba(128, 128, 128, 0.25);
+}
+
+/* Bookmarks button - flat rest state */
+#my-bookmarks-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    box-shadow: none;
+    font-size: 14px;
+}
+
+#my-bookmarks-btn:hover {
+    background-color: rgba(128, 128, 128, 0.12);
+    border-color: rgba(128, 128, 128, 0.25);
+}
+
+/* Folders container - scrollable list showing ~5.5 collapsed folders */
+#chat-folders-container {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+/* "Load more" button for the folders list */
+.folders-load-more-btn {
+    display: block;
+    width: 100%;
+    padding: 6px 8px;
+    margin-top: 4px;
+    background: transparent;
+    border: 1px solid var(--border-color, rgba(128, 128, 128, 0.25));
+    border-radius: 4px;
+    color: var(--text-muted, #9ea3b0);
+    font-size: 0.8rem;
+    cursor: pointer;
+    text-align: center;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.folders-load-more-btn:hover {
+    background-color: rgba(128, 128, 128, 0.15);
+    color: var(--text-primary, #dcddde);
+}
+
+/* Empty folder message */
+.folder-empty-msg {
+    padding: 6px 12px 6px 26px;
+    font-size: 12px;
+    color: var(--text-muted, #9ea3b0);
+    font-style: italic;
+}
+
+/* =============================================
+   Bookmark Conversation Group Headers
+   ============================================= */
+.bookmark-conversation-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 16px;
+    margin: 18px 0 6px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.bookmark-conversation-header:first-child {
+    margin-top: 4px;
+}
+
+.bookmark-conversation-header::before,
+.bookmark-conversation-header::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-color, rgba(255, 255, 255, 0.12));
+}
+
+.bookmark-conversation-name {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted, #9ea3b0);
+    white-space: nowrap;
+    transition: color 0.15s ease;
+}
+
+.bookmark-conversation-header:hover .bookmark-conversation-name {
+    color: var(--accent, #5865F2);
+}
+
+/* =============================================
+   Chat Menu Z-Index Fix
+   ============================================= */
+/* Each list-group-item has position:relative, creating a stacking context.
+   Raise z-index on hover so dropdown menus appear above sibling items. */
+.list-group .list-group-item:hover {
+    z-index: 2;
+}
+
+/* =============================================
+   Chat Menu Ellipsis - Show on Hover / Active
+   ============================================= */
+/* Hidden by default; visible when conversation is hovered or active.
+   Theme files keep only the color; opacity logic lives here. */
+.chat-menu .fa-ellipsis-h {
+    opacity: 0;
+}
+
+.list-group-item:hover .chat-menu .fa-ellipsis-h,
+.list-group-item.active-chat .chat-menu .fa-ellipsis-h {
+    opacity: 0.7;
+}
+
+.chat-menu:hover .fa-ellipsis-h {
+    opacity: 1;
+}
+
+/* Locked conversations: hidden by default, only reveal on hover */
+.list-group-item.conversation-locked .chat-menu .fa-ellipsis-h {
+    opacity: 0 !important;
+}
+.list-group-item.conversation-locked:hover .chat-menu .fa-ellipsis-h {
+    opacity: 0.7 !important;
+}
+
+/* =============================================
+   Chat Menu Portal Styles
+   ============================================= */
+/* When the chat-menu-content is portaled to <body> to escape overflow,
+   the parent .chat-menu selector no longer matches. These standalone
+   rules use CSS variables from the active theme for correct theming. */
+body > .chat-menu-content {
+    background-color: var(--bg-secondary, #2f3136);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    border-radius: 5px;
+    padding: 10px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    min-width: 160px;
+}
+
+body > .chat-menu-content a {
+    display: block;
+    color: var(--text-primary, #dcddde);
+    padding: 8px;
+    text-decoration: none;
+    white-space: nowrap;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+body > .chat-menu-content a:hover {
+    background-color: var(--bg-tertiary, #36393f);
+}
+
+body > .chat-menu-content a i {
+    margin-right: 10px;
+    width: 16px;
+    text-align: center;
+}
+
+body > .chat-menu-content .text-danger {
+    color: var(--danger, #ff4d4d) !important;
+}
+
+body > .chat-menu-content .menu-separator {
+    height: 1px;
+    background-color: var(--border-color, rgba(255, 255, 255, 0.1));
+    margin: 5px 0;
+}
+
+/* =============================================
+   Folder Actions - Show on Hover
+   ============================================= */
+/* Hidden by default; visible when folder row is hovered. */
+.folder-actions {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.folder-item:hover .folder-actions {
+    opacity: 1;
+}
+
+/* Hide Bootstrap dropdown caret on folder actions button */
+.folder-actions .dropdown-toggle::after {
+    display: none;
+}
+
+/* =============================================
+   Scroll Navigation Buttons
+   ============================================= */
+#window-chat {
+    position: relative;
+}
+
+.scroll-nav-btn {
+    position: absolute;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 50%;
+    background: var(--bg-tertiary, #2f3136);
+    color: var(--text-secondary, #b9bbbe);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    transition: opacity 0.25s ease, transform 0.2s ease, background-color 0.2s ease;
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.scroll-nav-btn.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.scroll-nav-btn:hover {
+    background: var(--accent, #5865F2);
+    color: var(--text-primary, #ffffff);
+}
+
+/* Scroll to top - centered below title bar */
+.scroll-top-btn {
+    top: calc(var(--chat-header-h, 70px) + 20px);
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.scroll-top-btn:hover {
+    transform: translateX(-50%) scale(1.1);
+}
+
+/* Scroll to bottom - centered above input bar */
+.scroll-bottom-btn {
+    bottom: calc(var(--chat-input-h, 80px) + 20px);
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.scroll-bottom-btn:hover {
+    transform: translateX(-50%) scale(1.1);
+}
+
+/* =============================================
+   Collapsible Long User Messages
+   ============================================= */
+.user-msg-collapsed {
+    max-height: var(--collapsed-height, 15.4em);
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+    mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+}
+
+.user-msg-toggle {
+    background: none;
+    border: none;
+    color: var(--accent, #5865F2);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 4px 0;
+    opacity: 0.85;
+}
+
+.user-msg-toggle:hover {
+    opacity: 1;
+    text-decoration: underline;
+}
+
+/* =============================================
+   Collapsible Long Code Blocks
+   ============================================= */
+pre.code-block-collapsed {
+    max-height: var(--collapsed-height, 16.5em);
+    overflow-y: hidden;
+    -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+    mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+}
+
+.code-block-toggle {
+    background: none;
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--accent, #5865F2);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 6px 12px;
+    width: 100%;
+    text-align: left;
+    opacity: 0.85;
+}
+
+.code-block-toggle:hover {
+    opacity: 1;
+    text-decoration: underline;
+}
+
+/* =============================================
+   Message Search (sidebar)
+   ============================================= */
+.search-section {
+    padding: 0 12px 8px;
+    flex-shrink: 0;
+}
+
+.search-input-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg-tertiary, #2f3136);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+    border-radius: 8px;
+    padding: 6px 10px;
+    transition: border-color 0.2s ease;
+}
+
+.search-input-container:focus-within {
+    border-color: var(--accent, #5865F2);
+}
+
+.search-input-icon {
+    color: var(--text-muted, #9ea3b0);
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+.search-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-primary, #e0e0e8);
+    font-size: 13px;
+    min-width: 0;
+}
+
+.search-input::placeholder {
+    color: var(--text-muted, #9ea3b0);
+}
+
+.search-clear-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted, #9ea3b0);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    line-height: 1;
+    display: none;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.search-clear-btn.visible {
+    display: block;
+}
+
+.search-clear-btn:hover {
+    color: var(--text-primary, #e0e0e8);
+    background: rgba(128, 128, 128, 0.2);
+}
+
+/* Search results section */
+#search-results-section {
+    display: none;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+#search-results-section.active {
+    display: flex;
+}
+
+.search-results-header {
+    padding: 6px 16px;
+    font-size: 12px;
+    color: var(--text-muted, #9ea3b0);
+    flex-shrink: 0;
+}
+
+.search-results-list {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.search-result-item {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.06));
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.search-result-item:hover {
+    background-color: rgba(128, 128, 128, 0.12);
+}
+
+.search-result-item.active-result {
+    border-left: 3px solid var(--accent, #5865F2);
+    background-color: rgba(var(--accent-rgb, 88, 101, 242), 0.1);
+}
+
+.search-result-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+
+.search-result-chat-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary, #e0e0e8);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 60%;
+}
+
+.search-result-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-muted, #9ea3b0);
+    flex-shrink: 0;
+}
+
+.search-result-type {
+    text-transform: uppercase;
+    font-weight: 500;
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(128, 128, 128, 0.15);
+}
+
+.search-result-snippet {
+    font-size: 13px;
+    color: var(--text-secondary, #b9bbbe);
+    line-height: 1.4;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.search-result-snippet mark {
+    background: rgba(var(--warning-rgb, 255, 193, 7), 0.3);
+    color: var(--text-primary, #e0e0e8);
+    padding: 0 2px;
+    border-radius: 2px;
+}
+
+.search-load-more {
+    display: block;
+    width: 100%;
+    padding: 8px;
+    background: transparent;
+    border: none;
+    border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.06));
+    color: var(--accent, #5865F2);
+    font-size: 13px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background-color 0.15s ease;
+}
+
+.search-load-more:hover {
+    background-color: rgba(128, 128, 128, 0.1);
+}
+
+.search-empty-state {
+    padding: 32px 16px;
+    text-align: center;
+    color: var(--text-muted, #9ea3b0);
+    font-style: italic;
+    font-size: 13px;
+}
+
+/* =============================================
+   Message Highlight (scroll-to target)
+   ============================================= */
+.message.highlight,
+.message.highlight-persistent {
+    position: relative;
+    z-index: 2;
+}
+
+.message.highlight-persistent {
+    overflow: visible;
+}
+
+.message.highlight::after,
+.message.highlight-persistent::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: inherit;
+    border: 2px solid var(--accent, #5865F2);
+    box-shadow: 0 0 0 2px rgba(var(--accent-rgb, 88, 101, 242), 0.22),
+                0 0 18px rgba(var(--accent-rgb, 88, 101, 242), 0.55);
+    pointer-events: none;
+}
+
+.message.highlight::after {
+    animation: messageHighlightFlash 2.2s ease-out forwards;
+}
+
+.message.highlight-persistent::after {
+    animation: messageHighlightPulse 1.6s ease-in-out infinite;
+}
+
+.message-highlight-dismiss {
+    position: absolute;
+    left: -13px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid var(--accent, #5865F2);
+    background: var(--bg-primary, #202225);
+    color: var(--accent, #5865F2);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(var(--accent-rgb, 88, 101, 242), 0.45);
+    z-index: 3;
+    padding: 0;
+}
+
+.message-highlight-dismiss:hover {
+    background: var(--accent, #5865F2);
+    color: var(--text-primary, #ffffff);
+}
+
+@keyframes messageHighlightFlash {
+    0% {
+        opacity: 1;
+        box-shadow: 0 0 0 3px rgba(var(--accent-rgb, 88, 101, 242), 0.3),
+                    0 0 24px rgba(var(--accent-rgb, 88, 101, 242), 0.7);
+    }
+    70% {
+        opacity: 0.9;
+        box-shadow: 0 0 0 2px rgba(var(--accent-rgb, 88, 101, 242), 0.2),
+                    0 0 14px rgba(var(--accent-rgb, 88, 101, 242), 0.45);
+    }
+    100% {
+        opacity: 0;
+        box-shadow: none;
+    }
+}
+
+@keyframes messageHighlightPulse {
+    0%, 100% {
+        opacity: 0.95;
+        box-shadow: 0 0 0 2px rgba(var(--accent-rgb, 88, 101, 242), 0.18),
+                    0 0 12px rgba(var(--accent-rgb, 88, 101, 242), 0.42);
+    }
+    50% {
+        opacity: 1;
+        box-shadow: 0 0 0 3px rgba(var(--accent-rgb, 88, 101, 242), 0.3),
+                    0 0 22px rgba(var(--accent-rgb, 88, 101, 242), 0.72);
+    }
+}
+
+/* =============================================
+   Plus Menu Dropdown (Input Bar)
+   ============================================= */
+
+/* Override theme overflow:hidden on form so dropdown can escape */
+#form-message {
+    overflow: visible !important;
+}
+
+/* Fix Bootstrap .input-group stripping right border-radius from .input-container
+   (it's not :last-child because hidden elements follow it in the form) */
+#form-message.input-group > .input-container {
+    border-top-right-radius: var(--input-container-radius, 8px);
+    border-bottom-right-radius: var(--input-container-radius, 8px);
+}
+
+.plus-menu-wrapper {
+    position: relative;
+    align-self: flex-end;
+    padding-bottom: 6px;
+    flex-shrink: 0;
+}
+
+.plus-menu-btn {
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--text-muted, #72767d);
+    background: transparent;
+    color: var(--text-primary, #dcddde);
+    font-size: 20px;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+    padding: 0;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.plus-menu-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Force the + icon to inherit from button, not from theme .input-container i */
+.plus-menu-btn i {
+    color: inherit !important;
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    transform: none !important;
+    font-size: inherit !important;
+}
+
+.plus-menu-btn:not(:disabled):hover {
+    border-color: var(--accent, #5865F2);
+    color: var(--accent, #5865F2);
+    background: rgba(128, 128, 128, 0.1);
+}
+
+.plus-menu-btn.open {
+    border-color: var(--accent, #5865F2);
+    color: #ffffff !important;
+    background: var(--accent, #5865F2);
+    transform: rotate(45deg);
+}
+
+/* Active features indicator dot */
+.plus-menu-btn.has-active::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--success, #43b581);
+    border: 2px solid var(--bg-secondary, #2f3136);
+}
+
+.plus-menu-dropdown {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    background: var(--bg-secondary, #2f3136);
+    border: 1px solid var(--border-color, #40444b);
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.2);
+    min-width: 220px;
+    padding: 4px 0;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(6px) scale(0.97);
+    transition: opacity 0.15s ease, visibility 0.15s ease, transform 0.15s ease;
+    z-index: 9999;
+}
+
+.plus-menu-dropdown.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+}
+
+.plus-menu-section {
+    padding: 4px 0;
+}
+
+.plus-menu-section + .plus-menu-section {
+    border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+}
+
+/* Hide section if all children are hidden */
+.plus-menu-section:empty,
+.plus-menu-section.hidden-section {
+    display: none;
+    padding: 0;
+    border: none;
+}
+
+.plus-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 14px;
+    width: 100%;
+    border: none;
+    background: none;
+    color: var(--text-primary, #dcddde);
+    font-family: inherit;
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: background-color 0.12s ease;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.plus-menu-item:hover {
+    background: rgba(128, 128, 128, 0.12);
+}
+
+/* Reset theme .input-container i overrides (transform, position, left, top) */
+.plus-menu-item i,
+.plus-menu-item .voice-wave-icon {
+    width: 18px;
+    height: 18px;
+    text-align: center;
+    font-size: 14px;
+    color: var(--text-muted, #72767d);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    transform: none !important;
+}
+
+.plus-menu-label {
+    flex: 1;
+}
+
+/* Badge for thinking tokens status */
+.plus-menu-badge {
+    font-size: 0.72rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+    background: rgba(128, 128, 128, 0.15);
+    color: var(--text-muted, #72767d);
+    flex-shrink: 0;
+}
+
+.plus-menu-badge.active {
+    background: rgba(67, 181, 129, 0.15);
+    color: var(--success, #43b581);
+}
+
+/* Toggle switch for web search */
+.plus-menu-toggle-switch {
+    width: 32px;
+    height: 18px;
+    border-radius: 9px;
+    background: rgba(128, 128, 128, 0.35);
+    position: relative;
+    transition: background 0.2s ease;
+    flex-shrink: 0;
+}
+
+.plus-menu-toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #ffffff;
+    transition: transform 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.plus-menu-toggle-switch.active {
+    background: var(--success, #43b581);
+}
+
+.plus-menu-toggle-switch.active::after {
+    transform: translateX(14px);
+}
+
+/* =============================================
+   Message Search - Mobile Adjustments
+   ============================================= */
+@media (max-width: 768px) {
+    .search-section {
+        padding: 0 8px 6px;
+    }
+
+    .search-result-item {
+        padding: 8px 12px;
+    }
+
+    .search-result-snippet {
+        -webkit-line-clamp: 1;
+    }
+
+    .message-highlight-dismiss {
+        left: -10px;
+        width: 20px;
+        height: 20px;
+        font-size: 12px;
     }
 }

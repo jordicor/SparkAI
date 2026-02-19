@@ -25,6 +25,8 @@ Think of it as **Poe + Shopify for AI prompts + white-label** -- all in one code
 
 Each mode has its own billing logic, user relationships, and access controls -- all running on the same instance.
 
+> **Note**: These modes are architectural configurations, not user-facing labels. The platform adapts automatically based on how each creator configures their prompts and billing.
+
 ---
 
 ## Core Features
@@ -109,6 +111,19 @@ Every prompt in SPARK is a product with its own identity:
 - **Categories**: 10 categories with age-restriction support and per-user access controls
 - **Landing Page Analytics**: Anonymized visitor tracking (hashed IPs), referrer analysis, return visitor detection, conversion funnels (visit &#8594; signup)
 - **Discount Codes**: Configurable coupons with usage limits, expiration dates, and percentage discounts
+- **LLM Restrictions**: Creators control which AI models work with their prompt -- any model, a restricted list, a single forced model, or forced with the model name hidden in the UI
+
+---
+
+### Creator Storefronts
+
+Creators get their own public storefront page within SPARK:
+
+- **Creator Profiles**: Public bio, avatar, social links, and verified status (`/store/{slug}`)
+- **Contextual Branding**: Navbar and theme adapt when viewing a creator's storefront -- creator's logo and brand appear naturally, reverting to SPARK when navigating away
+- **Individual Prompt Purchase**: Buy single prompts via Stripe Checkout or claim free prompts directly from the Explore page
+- **Explore Ranking**: Algorithmic scoring based on engagement signals (access count, purchases, chatters, favorites) with configurable weights and admin dashboard. Prompts with landing pages receive a ranking boost
+- **Landing Preview**: Fullscreen iframe overlay in `/explore` with keyboard navigation between landings -- browse creator pitches without leaving the page
 
 ---
 
@@ -182,6 +197,7 @@ AI chat via WhatsApp through Twilio:
 - Text and voice mode switching per user
 - Automatic voice note transcription (dual-engine with fallback)
 - Configurable response format (text or audio)
+- Async httpx-based Twilio client (lightweight, no SDK dependency)
 
 ---
 
@@ -203,7 +219,9 @@ Full white-label infrastructure for Curator Mode:
 - **Alter Egos**: Multiple personas per user with custom avatar, name, and description -- injected into system prompts automatically
 - **BYOK (Bring Your Own Keys)**: Users supply their own API keys with 3 modes (own only, system only, prefer own). Keys encrypted with AES-128 Fernet (PBKDF2, 100K iterations) and masked in UI
 - **Chat Folders**: Nested folder organization with drag-and-drop, color coding, and custom sort order
-- **13 UI Themes**: All WCAG AA compliant for contrast. Includes Default, Light, Coder (VS Code), Terminal, Writer, Neumorphism, Frutiger Aero, Memphis, E-ink, Katari Shoji, Halloween, Christmas, Valentine's. Template included for creating new themes
+- **Message Search**: FTS5 full-text search across all conversations with WhatsApp-style sidebar UI, result highlighting, and per-conversation scoping
+- **Unified Settings**: Single `/settings` page combining profile, usage & billing, and API key management
+- **13 UI Themes**: All WCAG AA compliant for contrast. Includes Default, Light, Coder (VS Code), Terminal, Writer, Neko Glass, Frutiger Aero, Memphis, E-ink, Katari Shoji, Halloween, Christmas, Valentine's. Template included for creating new themes
 - **Usage Dashboard**: Personal usage stats at `/my-usage` with daily aggregation charts
 
 ---
@@ -236,6 +254,8 @@ Multi-modal authentication system:
 - **Audit Log**: Complete record of every admin action (who, what, when, IP)
 - **LLM Configuration**: Per-model pricing, token limits, and feature flags
 - **ElevenLabs Agent Config**: Map voices and agents to specific prompts
+- **Ranking Dashboard**: Configure explore ranking weights and trigger recalculation at `/admin/ranking`
+- **WhatsApp Admin**: Twilio configuration and phone number management at `/admin/whatsapp`
 
 ---
 
@@ -291,6 +311,12 @@ SPARK/
 ├── ai_calls.py             # Unified AI provider interface + streaming
 ├── common.py               # Configuration, constants, cost calculations
 ├── prompts.py              # Marketplace logic & file management
+├── clients.py              # Shared API clients (Stripe, Twilio, Deepgram)
+├── ranking.py              # Explore ranking algorithm & scheduling
+├── message_search.py       # FTS5 full-text message search
+├── storefront_service.py   # Creator profiles & storefront logic
+├── twilio_async.py         # Async Twilio client (httpx, no SDK)
+├── welcome_service.py      # Welcome page resolution & serving
 ├── security_guard_llm.py   # LLM-based content moderation
 ├── elevenlabs_service.py   # Voice calls, transcripts, agent management
 ├── whatsapp.py             # Twilio WhatsApp integration
@@ -312,7 +338,7 @@ SPARK/
 │   ├── static/             # CSS themes, JS modules, media
 │   │   ├── css/themes/     # 13 unified themes (WCAG AA)
 │   │   ├── css/chat/       # Chat-specific theme variants
-│   │   └── js/chat/        # Frontend modules (chat, folders, voice, audio)
+│   │   └── js/chat/        # Frontend modules (chat, folders, voice, search, audio)
 │   ├── seed/               # Seed data (bot images, landing pages, prompts)
 │   └── users/              # Hash-based user directories (prompts, profiles)
 ├── templates/              # Jinja2 templates (chat, admin, marketplace)
@@ -417,7 +443,7 @@ Without Redis, SPARK falls back to in-memory stores (single-process only).
 
 ### Themes
 
-All 13 themes use standardized CSS variables and are **WCAG AA compliant**. To create a new theme, copy `data/static/css/themes/_template.css` and define your color palette.
+All 13 themes (including Neko Glass with glassmorphism effects and custom wallpaper support) use standardized CSS variables and are **WCAG AA compliant**. To create a new theme, copy `data/static/css/themes/_template.css` and define your color palette.
 
 ### Watchdog
 

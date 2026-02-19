@@ -5,10 +5,13 @@ Handles configuration, verification, and activation of custom domains
 for prompt landing pages.
 """
 
+import logging
 import os
 import re
 import socket
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 import dns.resolver
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -22,7 +25,7 @@ from common import deduct_balance, get_balance, record_daily_usage
 from middleware.custom_domains import invalidate_domain_cache
 
 # Configuration from environment
-CNAME_TARGET = os.getenv("CLOUDFLARE_CNAME_TARGET", "spark.yourdomain.com")
+CNAME_TARGET = os.getenv("CLOUDFLARE_CNAME_TARGET", "sparkai.jordicor.com")
 SLOT_PRICE = float(os.getenv("CUSTOM_DOMAIN_SLOT_PRICE", "25.00"))
 # Keep DOMAIN_PRICE for backwards compatibility
 DOMAIN_PRICE = SLOT_PRICE
@@ -98,6 +101,66 @@ async def add_slots_to_user(user_id: int, quantity: int = 1) -> bool:
         """, (quantity, user_id))
         await conn.commit()
     return True
+
+
+async def revert_captive_users_if_needed(prompt_id: int, domain_id: int) -> list[int]:
+    """
+    When a domain is deactivated/deleted, check if captive users should be freed.
+    Returns list of user IDs that were freed. Safe to call before migration runs.
+    """
+    try:
+        async with get_db_connection() as conn:
+            # Find users captive under this domain
+            cursor = await conn.execute(
+                "SELECT user_id FROM USER_CAPTIVE_DOMAINS WHERE domain_id = ?",
+                (domain_id,)
+            )
+            captive_users = [row[0] for row in await cursor.fetchall()]
+
+            if not captive_users:
+                return []
+
+            # Remove records for this domain
+            await conn.execute(
+                "DELETE FROM USER_CAPTIVE_DOMAINS WHERE domain_id = ?",
+                (domain_id,)
+            )
+
+            # Free users who have no remaining active domain justifying captivity
+            # Single set-based query instead of per-user loop
+            placeholders = ",".join("?" for _ in captive_users)
+            cursor = await conn.execute(f"""
+                UPDATE USER_DETAILS SET public_prompts_access = 1
+                WHERE user_id IN ({placeholders})
+                  AND public_prompts_access = 0
+                  AND NOT EXISTS (
+                    SELECT 1 FROM USER_CAPTIVE_DOMAINS ucd
+                    JOIN PROMPT_CUSTOM_DOMAINS pcd ON ucd.domain_id = pcd.id
+                    WHERE ucd.user_id = USER_DETAILS.user_id AND pcd.is_active = 1
+                  )
+            """, captive_users)
+            freed_count = cursor.rowcount
+
+            # Identify which users were actually freed (for logging)
+            freed_users = []
+            if freed_count > 0:
+                cursor = await conn.execute(f"""
+                    SELECT user_id FROM USER_DETAILS
+                    WHERE user_id IN ({placeholders}) AND public_prompts_access = 1
+                """, captive_users)
+                freed_users = [row[0] for row in await cursor.fetchall()]
+
+            await conn.commit()
+
+            if freed_users:
+                logger.info(f"Domain {domain_id} (prompt {prompt_id}) deactivated: freed {len(freed_users)} captive users: {freed_users}")
+
+            return freed_users
+    except Exception as e:
+        if "no such table" in str(e).lower():
+            logger.warning(f"USER_CAPTIVE_DOMAINS table not found (migration pending?): {e}")
+            return []
+        raise
 
 
 class DomainConfigRequest(BaseModel):
@@ -198,30 +261,52 @@ async def purchase_slot(
     if not is_manager:
         raise HTTPException(403, "Only managers can purchase domain slots")
 
-    # Check balance
-    balance = await get_balance(current_user.id)
-    if balance < SLOT_PRICE:
-        raise HTTPException(
-            402,
-            f"Insufficient balance. Required: ${SLOT_PRICE:.2f}, Available: ${balance:.2f}"
-        )
+    # Atomic: deduct balance + add slot in single transaction
+    async with get_db_connection() as conn:
+        await conn.execute('BEGIN IMMEDIATE')
+        try:
+            # Deduct balance (only if sufficient)
+            result = await conn.execute('''
+                UPDATE USER_DETAILS
+                SET balance = balance - ?
+                WHERE user_id = ? AND balance >= ?
+                RETURNING balance
+            ''', (SLOT_PRICE, current_user.id, SLOT_PRICE))
+            new_balance = await result.fetchone()
 
-    # Deduct payment
-    if not await deduct_balance(current_user.id, SLOT_PRICE):
-        raise HTTPException(500, "Payment processing failed")
+            if new_balance is None:
+                await conn.execute('ROLLBACK')
+                balance = await get_balance(current_user.id)
+                raise HTTPException(
+                    402,
+                    f"Insufficient balance. Required: ${SLOT_PRICE:.2f}, Available: ${balance:.2f}"
+                )
 
-    # Record daily usage
-    await record_daily_usage(
-        user_id=current_user.id,
-        usage_type='domain',
-        cost=SLOT_PRICE,
-        units=1
-    )
+            # Add slot
+            await conn.execute("""
+                UPDATE USER_DETAILS
+                SET domain_slots_purchased = COALESCE(domain_slots_purchased, 0) + 1
+                WHERE user_id = ?
+            """, (current_user.id,))
 
-    # Add slot
-    await add_slots_to_user(current_user.id, 1)
+            # Record daily usage (reuse connection)
+            await record_daily_usage(
+                user_id=current_user.id,
+                usage_type='domain',
+                cost=SLOT_PRICE,
+                units=1,
+                conn=conn
+            )
 
-    # Get updated slots info
+            await conn.commit()
+        except HTTPException:
+            raise
+        except Exception as e:
+            await conn.rollback()
+            logger.error(f"Error purchasing domain slot: {e}")
+            raise HTTPException(500, "Payment processing failed")
+
+    # Get updated slots info (outside transaction)
     slots = await get_user_slots_info(current_user.id)
 
     return JSONResponse({
@@ -379,19 +464,36 @@ async def activate_domain(
     if status != VSTATUS_VERIFIED:
         raise HTTPException(400, f"Domain not verified. Current status: {VSTATUS_NAMES.get(status, 'unknown')}")
 
-    # Check if user has available slots
-    slots = await get_user_slots_info(current_user.id)
-
-    if slots["available"] <= 0:
-        # No slots available - need to purchase one
-        raise HTTPException(
-            402,
-            f"No domain slots available. You have {slots['used']}/{slots['purchased']} slots in use. "
-            f"Purchase a slot for ${SLOT_PRICE:.2f} to activate this domain."
-        )
-
-    # User has available slot - activate domain (slot gets "used" by having is_active=1)
+    # Atomic: check slot availability + activate in single transaction
     async with get_db_connection() as conn:
+        await conn.execute('BEGIN IMMEDIATE')
+
+        # Check purchased slots
+        cursor = await conn.execute(
+            "SELECT domain_slots_purchased FROM USER_DETAILS WHERE user_id = ?",
+            (current_user.id,)
+        )
+        row = await cursor.fetchone()
+        purchased = row[0] if row and row[0] else 0
+
+        # Count used slots (active domains owned by this user)
+        cursor = await conn.execute("""
+            SELECT COUNT(*) FROM PROMPT_CUSTOM_DOMAINS pcd
+            JOIN PROMPTS p ON pcd.prompt_id = p.id
+            WHERE p.created_by_user_id = ? AND pcd.is_active = 1
+        """, (current_user.id,))
+        row = await cursor.fetchone()
+        used = row[0] if row else 0
+
+        if purchased - used <= 0:
+            await conn.execute('ROLLBACK')
+            raise HTTPException(
+                402,
+                f"No domain slots available. You have {used}/{purchased} slots in use. "
+                f"Purchase a slot for ${SLOT_PRICE:.2f} to activate this domain."
+            )
+
+        # Activate domain
         await conn.execute("""
             UPDATE PROMPT_CUSTOM_DOMAINS
             SET is_active = TRUE,
@@ -434,7 +536,7 @@ async def deactivate_domain(
     # Get current domain state
     async with get_db_connection(readonly=True) as conn:
         cursor = await conn.execute("""
-            SELECT custom_domain, is_active
+            SELECT id, custom_domain, is_active
             FROM PROMPT_CUSTOM_DOMAINS WHERE prompt_id = ?
         """, (prompt_id,))
         result = await cursor.fetchone()
@@ -442,7 +544,7 @@ async def deactivate_domain(
     if not result:
         raise HTTPException(404, "No domain configured")
 
-    domain, is_active = result
+    domain_id, domain, is_active = result
 
     if not is_active:
         raise HTTPException(400, "Domain is already inactive")
@@ -458,6 +560,11 @@ async def deactivate_domain(
         await conn.commit()
 
     invalidate_domain_cache(domain)
+
+    # Revert captive users if needed
+    freed = await revert_captive_users_if_needed(prompt_id, domain_id)
+    if freed:
+        logger.info(f"Freed {len(freed)} captive users after domain deactivation for prompt {prompt_id}")
 
     # Get updated slots info
     slots = await get_user_slots_info(current_user.id)
@@ -480,16 +587,23 @@ async def remove_domain(
 
     await _verify_prompt_access(prompt_id, current_user)
 
-    # Get domain for cache invalidation
+    # Get domain for cache invalidation and captive user revert
     async with get_db_connection(readonly=True) as conn:
         cursor = await conn.execute(
-            "SELECT custom_domain FROM PROMPT_CUSTOM_DOMAINS WHERE prompt_id = ?",
+            "SELECT id, custom_domain FROM PROMPT_CUSTOM_DOMAINS WHERE prompt_id = ?",
             (prompt_id,)
         )
         result = await cursor.fetchone()
 
     if result:
-        domain = result[0]
+        domain_id, domain = result
+
+        # Revert captive users BEFORE deleting the domain row
+        # (revert function joins PROMPT_CUSTOM_DOMAINS to check other active domains)
+        freed = await revert_captive_users_if_needed(prompt_id, domain_id)
+        if freed:
+            logger.info(f"Freed {len(freed)} captive users after domain deletion for prompt {prompt_id}")
+
         async with get_db_connection() as conn:
             await conn.execute(
                 "DELETE FROM PROMPT_CUSTOM_DOMAINS WHERE prompt_id = ?",
@@ -599,15 +713,16 @@ async def admin_deactivate(
     if not current_user or not await current_user.is_admin:
         raise HTTPException(403, "Admin only")
 
+    domain_id = None
     async with get_db_connection() as conn:
         cursor = await conn.execute(
-            "SELECT custom_domain FROM PROMPT_CUSTOM_DOMAINS WHERE prompt_id = ?",
+            "SELECT id, custom_domain FROM PROMPT_CUSTOM_DOMAINS WHERE prompt_id = ?",
             (prompt_id,)
         )
         result = await cursor.fetchone()
 
         if result:
-            domain = result[0]
+            domain_id, domain = result
             await conn.execute("""
                 UPDATE PROMPT_CUSTOM_DOMAINS
                 SET is_active = FALSE,
@@ -616,6 +731,12 @@ async def admin_deactivate(
             """, (prompt_id,))
             await conn.commit()
             invalidate_domain_cache(domain)
+
+    # Revert captive users if needed (outside connection block)
+    if domain_id:
+        freed = await revert_captive_users_if_needed(prompt_id, domain_id)
+        if freed:
+            logger.info(f"Freed {len(freed)} captive users after admin domain deactivation for prompt {prompt_id}")
 
     return JSONResponse({"success": True, "message": "Domain deactivated"})
 

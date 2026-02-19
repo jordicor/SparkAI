@@ -40,9 +40,10 @@ from common import (
 )
 from save_images import resize_image_cover
 from security_guard_llm import check_security, is_security_guard_enabled
-from landing_wizard import is_claude_available, list_prompt_files, delete_all_landing_files
-from landing_jobs import start_job, get_job, get_active_job_for_pack
+from landing_wizard import is_claude_available, list_prompt_files, list_welcome_files, delete_all_landing_files, delete_all_welcome_files
+from landing_jobs import start_job, get_job, get_active_job_for_pack, get_active_welcome_job_for_pack
 from prompts import create_pack_directory, get_pack_path, get_pack_components_dir, sanitize_landing_reg_config
+from ranking import maybe_trigger_recalculation
 
 logger = logging.getLogger(__name__)
 
@@ -1562,6 +1563,384 @@ async def pack_ai_wizard_active_job(
     return JSONResponse({"success": True, "has_active_job": False})
 
 
+# ============= Welcome Page Wizard Endpoints (Packs) =============
+
+# ---- Welcome Wizard: Generate ----
+
+@router.post("/api/welcome/pack/{pack_id}/ai/generate")
+async def pack_welcome_wizard_generate(
+    request: Request,
+    pack_id: int,
+    current_user: User = Depends(get_current_user),
+):
+    """Start a background job to generate a welcome page for a pack via AI Wizard."""
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    await _require_admin_or_manager(current_user)
+
+    # Verify Claude CLI is available
+    claude_available, _ = is_claude_available()
+    if not claude_available:
+        raise HTTPException(
+            status_code=503,
+            detail="AI Wizard requires Claude Code CLI. Install: irm https://claude.ai/install.ps1 | iex",
+        )
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+    description = (body.get("description") or "").strip()
+    if not description or len(description) < 20:
+        raise HTTPException(status_code=400, detail="Description must be at least 20 characters")
+
+    style = body.get("style", "modern")
+    if style not in ("modern", "minimalist", "corporate", "creative"):
+        style = "modern"
+    primary_color = body.get("primary_color", "#3B82F6")
+    secondary_color = body.get("secondary_color", "#10B981")
+    language = body.get("language", "es")
+    if language not in ("es", "en"):
+        language = "es"
+
+    try:
+        timeout_minutes = int(body.get("timeout_minutes", 5))
+    except (ValueError, TypeError):
+        timeout_minutes = 5
+    timeout_minutes = max(1, min(60, timeout_minutes))
+    timeout_seconds = timeout_minutes * 60
+
+    # Security guard check on user description
+    try:
+        security_result = await check_security(description)
+        if security_result["checked"] and not security_result["allowed"]:
+            logger.warning(
+                "Security Guard BLOCKED pack welcome wizard for pack %s: %s",
+                pack_id, security_result["reason"],
+            )
+            raise HTTPException(status_code=403, detail={
+                "message": "Your request was blocked by security check",
+                "reason": security_result["reason"],
+            })
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Security Guard check error (allowing request): %s", e)
+
+    async with get_db_connection(readonly=True) as conn:
+        pack_row = await get_pack(conn, pack_id)
+        await _require_pack_owner(pack_row, current_user)
+
+    # Check for active welcome job
+    existing_job = get_active_welcome_job_for_pack(pack_id)
+    if existing_job:
+        raise HTTPException(status_code=409, detail={
+            "message": "A welcome job is already running for this pack",
+            "existing_task_id": existing_job["task_id"],
+        })
+
+    pack_dir, username = await _get_pack_dir_and_info(pack_id, pack_row)
+
+    # Create directory if it doesn't exist
+    if not pack_dir.exists():
+        create_pack_directory(username, pack_id, pack_row["name"])
+
+    # Build product context
+    product_description = await _build_pack_product_description(pack_row, pack_id)
+
+    params = {
+        "description": description,
+        "style": style,
+        "primary_color": primary_color,
+        "secondary_color": secondary_color,
+        "language": language,
+        "timeout": timeout_seconds,
+        "product_name": pack_row["name"],
+        "ai_system_prompt": "",
+        "product_description": product_description,
+        "chat_url": "/chat",
+        "avatar_path": "",
+    }
+
+    logger.info("Starting welcome wizard job for pack %s, user %s, timeout=%ss", pack_id, current_user.id, timeout_seconds)
+    result = start_job(
+        prompt_id=0,
+        job_type="generate",
+        prompt_dir=str(pack_dir),
+        params=params,
+        timeout_seconds=timeout_seconds,
+        pack_id=pack_id,
+        target="welcome",
+    )
+
+    if result.get("success"):
+        logger.info("Welcome wizard job started for pack %s: task_id=%s", pack_id, result["task_id"])
+        return JSONResponse({
+            "success": True,
+            "message": "Job started",
+            "task_id": result["task_id"],
+            "status": result["status"],
+        })
+
+    logger.error("Failed to start welcome wizard job for pack %s: %s", pack_id, result.get("error"))
+    raise HTTPException(status_code=500, detail=result.get("error", "Failed to start job"))
+
+
+# ---- Welcome Wizard: Modify ----
+
+@router.post("/api/welcome/pack/{pack_id}/ai/modify")
+async def pack_welcome_wizard_modify(
+    request: Request,
+    pack_id: int,
+    current_user: User = Depends(get_current_user),
+):
+    """Start a background job to modify an existing pack welcome page via AI Wizard."""
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    await _require_admin_or_manager(current_user)
+
+    claude_available, _ = is_claude_available()
+    if not claude_available:
+        raise HTTPException(
+            status_code=503,
+            detail="AI Wizard requires Claude Code CLI. Install: irm https://claude.ai/install.ps1 | iex",
+        )
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+    instructions = (body.get("instructions") or "").strip()
+    if not instructions or len(instructions) < 10:
+        raise HTTPException(status_code=400, detail="Instructions must be at least 10 characters")
+
+    try:
+        timeout_minutes = int(body.get("timeout_minutes", 5))
+    except (ValueError, TypeError):
+        timeout_minutes = 5
+    timeout_minutes = max(1, min(60, timeout_minutes))
+    timeout_seconds = timeout_minutes * 60
+
+    # Security guard check
+    try:
+        security_result = await check_security(instructions)
+        if security_result["checked"] and not security_result["allowed"]:
+            logger.warning(
+                "Security Guard BLOCKED pack welcome modify for pack %s: %s",
+                pack_id, security_result["reason"],
+            )
+            raise HTTPException(status_code=403, detail={
+                "message": "Your request was blocked by security check",
+                "reason": security_result["reason"],
+            })
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Security Guard check error (allowing request): %s", e)
+
+    async with get_db_connection(readonly=True) as conn:
+        pack_row = await get_pack(conn, pack_id)
+        await _require_pack_owner(pack_row, current_user)
+
+    existing_job = get_active_welcome_job_for_pack(pack_id)
+    if existing_job:
+        raise HTTPException(status_code=409, detail={
+            "message": "A welcome job is already running for this pack",
+            "existing_task_id": existing_job["task_id"],
+        })
+
+    pack_dir, username = await _get_pack_dir_and_info(pack_id, pack_row)
+
+    if not pack_dir.exists():
+        raise HTTPException(status_code=404, detail="Pack directory not found")
+
+    # Check if there are welcome files to modify
+    files = list_welcome_files(str(pack_dir))
+    if files["total_count"] == 0:
+        raise HTTPException(status_code=400, detail="No welcome files to modify. Use 'Create new' instead.")
+
+    product_description = await _build_pack_product_description(pack_row, pack_id)
+
+    params = {
+        "instructions": instructions,
+        "timeout": timeout_seconds,
+        "product_name": pack_row["name"],
+        "ai_system_prompt": "",
+        "product_description": product_description,
+        "chat_url": "/chat",
+        "avatar_path": "",
+    }
+
+    logger.info("Starting welcome modify wizard job for pack %s, user %s, timeout=%ss", pack_id, current_user.id, timeout_seconds)
+    result = start_job(
+        prompt_id=0,
+        job_type="modify",
+        prompt_dir=str(pack_dir),
+        params=params,
+        timeout_seconds=timeout_seconds,
+        pack_id=pack_id,
+        target="welcome",
+    )
+
+    if result.get("success"):
+        logger.info("Welcome modify wizard job started for pack %s: task_id=%s", pack_id, result["task_id"])
+        return JSONResponse({
+            "success": True,
+            "message": "Job started",
+            "task_id": result["task_id"],
+            "status": result["status"],
+        })
+
+    logger.error("Failed to start welcome modify wizard job for pack %s: %s", pack_id, result.get("error"))
+    raise HTTPException(status_code=500, detail=result.get("error", "Failed to start job"))
+
+
+# ---- Welcome Wizard: Status ----
+
+@router.get("/api/welcome/pack/{pack_id}/ai/status/{task_id}")
+async def pack_welcome_wizard_status(
+    pack_id: int,
+    task_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Get the status of a pack welcome page generation/modification job."""
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    await _require_admin_or_manager(current_user)
+
+    async with get_db_connection(readonly=True) as conn:
+        pack_row = await get_pack(conn, pack_id)
+        await _require_pack_owner(pack_row, current_user)
+
+    job = get_job(task_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job.get("pack_id") != pack_id:
+        raise HTTPException(status_code=403, detail="Job does not belong to this pack")
+
+    response = {
+        "success": True,
+        "task_id": job["task_id"],
+        "status": job["status"],
+        "type": job.get("type"),
+        "started_at": job.get("started_at"),
+        "updated_at": job.get("updated_at"),
+        "completed_at": job.get("completed_at"),
+    }
+
+    if job["status"] == "completed":
+        response["files_created"] = job.get("files_created", [])
+        # Update has_welcome_page flag in PACKS table
+        try:
+            async with get_db_connection() as db:
+                await db.execute("UPDATE PACKS SET has_welcome_page = 1 WHERE id = ?", (pack_id,))
+                await db.commit()
+        except Exception as e:
+            # Column may not exist yet until migration runs
+            logger.warning("Could not update has_welcome_page for pack %s: %s", pack_id, e)
+    elif job["status"] in ("failed", "timeout"):
+        response["error"] = job.get("error")
+
+    return JSONResponse(response)
+
+
+# ---- Welcome Wizard: Active Job ----
+
+@router.get("/api/welcome/pack/{pack_id}/ai/active-job")
+async def pack_welcome_wizard_active_job(
+    pack_id: int,
+    current_user: User = Depends(get_current_user),
+):
+    """Check if there's an active (pending/running) welcome job for this pack."""
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    await _require_admin_or_manager(current_user)
+
+    async with get_db_connection(readonly=True) as conn:
+        pack_row = await get_pack(conn, pack_id)
+        await _require_pack_owner(pack_row, current_user)
+
+    job = get_active_welcome_job_for_pack(pack_id)
+    if job:
+        return JSONResponse({
+            "success": True,
+            "has_active_job": True,
+            "task_id": job["task_id"],
+            "status": job["status"],
+            "type": job.get("type"),
+        })
+    return JSONResponse({"success": True, "has_active_job": False})
+
+
+# ---- Welcome Files: List ----
+
+@router.get("/api/welcome/pack/{pack_id}/files")
+async def pack_welcome_list_files(
+    pack_id: int,
+    current_user: User = Depends(get_current_user),
+):
+    """List all files in the pack's welcome page directory."""
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    await _require_admin_or_manager(current_user)
+
+    async with get_db_connection(readonly=True) as conn:
+        pack_row = await get_pack(conn, pack_id)
+        await _require_pack_owner(pack_row, current_user)
+
+    pack_dir, _ = await _get_pack_dir_and_info(pack_id, pack_row)
+
+    if not pack_dir.exists():
+        return JSONResponse({
+            "success": True,
+            "files": {"pages": [], "css": [], "js": [], "images": [], "other": [], "total_count": 0},
+        })
+
+    files = list_welcome_files(str(pack_dir))
+    return JSONResponse({"success": True, "files": files})
+
+
+# ---- Welcome Files: Delete All ----
+
+@router.delete("/api/welcome/pack/{pack_id}/files")
+async def pack_welcome_delete_all_files(
+    pack_id: int,
+    current_user: User = Depends(get_current_user),
+):
+    """Delete all welcome page files for a pack (preserves images)."""
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    await _require_admin_or_manager(current_user)
+
+    async with get_db_connection(readonly=True) as conn:
+        pack_row = await get_pack(conn, pack_id)
+        await _require_pack_owner(pack_row, current_user)
+
+    pack_dir, _ = await _get_pack_dir_and_info(pack_id, pack_row)
+
+    if not pack_dir.exists():
+        return JSONResponse({"success": True, "message": "No files to delete", "deleted_count": 0})
+
+    logger.info("Deleting welcome files for pack %s, user %s", pack_id, current_user.id)
+    result = delete_all_welcome_files(str(pack_dir), keep_images=True)
+
+    if result["success"]:
+        try:
+            async with get_db_connection() as db:
+                await db.execute("UPDATE PACKS SET has_welcome_page = 0 WHERE id = ?", (pack_id,))
+                await db.commit()
+        except Exception as e:
+            logger.warning("Could not update has_welcome_page for pack %s: %s", pack_id, e)
+        return JSONResponse({
+            "success": True,
+            "message": result.get("message", "Files deleted"),
+            "deleted_count": result.get("deleted_count", 0),
+        })
+
+    raise HTTPException(status_code=500, detail=result.get("error", "Failed to delete files"))
+
+
 # ---- Files: List ----
 
 @router.get("/api/landing/pack/{pack_id}/files")
@@ -2272,6 +2651,17 @@ async def api_grant_pack_access(user_id: int, pack_id: int, current_user: User =
 
         await grant_pack_access(conn, pack_id, user_id, granted_via="admin_grant")
 
+        # Record creator relationship
+        creator_id = pack_row["created_by_user_id"] if pack_row else None
+        if creator_id:
+            try:
+                from common import upsert_creator_relationship
+                ucr_cursor = await conn.cursor()
+                await upsert_creator_relationship(ucr_cursor, user_id, creator_id, 'assigned_by', 'pack', pack_id)
+                await conn.commit()
+            except Exception as ucr_err:
+                logger.warning(f"Could not record creator relationship for grant: {ucr_err}")
+
     return JSONResponse({"message": "Access granted"})
 
 
@@ -2293,17 +2683,21 @@ async def api_revoke_pack_access(user_id: int, pack_id: int, current_user: User 
 # ---------------------------------------------------------------------------
 
 @router.get("/api/explore/packs")
-async def api_explore_packs(search: str = "", page: int = 1, limit: int = 24):
+async def api_explore_packs(search: str = "", page: int = 1, limit: int = 24, mine: int = 0, current_user: User = Depends(get_current_user)):
     if page < 1:
         page = 1
     if limit < 1 or limit > 48:
         limit = 24
 
+    # Piggyback ranking recalculation trigger
+    await maybe_trigger_recalculation()
+
+    user_id = current_user.id if current_user else None
     async with get_db_connection(readonly=True) as conn:
-        packs, total = await get_public_packs(conn, search=search, page=page, limit=limit)
+        packs, total = await get_public_packs(conn, search=search, page=page, limit=limit, user_id=user_id, mine_only=bool(mine))
 
     return JSONResponse({
-        "packs": [dict(p) for p in packs],
+        "packs": [{**dict(p), "has_landing_page": bool(p["has_custom_landing"])} for p in packs],
         "total": total,
         "page": page,
         "pages": (total + limit - 1) // limit if total > 0 else 1,
@@ -2350,6 +2744,17 @@ async def api_claim_free_pack(pack_id: int, current_user: User = Depends(get_cur
             raise HTTPException(status_code=400, detail="This pack is currently unavailable")
 
         await grant_pack_access(conn, pack_id, current_user.id, granted_via="claim_free")
+
+        # Record creator relationship
+        creator_id = pack["created_by_user_id"] if pack else None
+        if creator_id:
+            try:
+                from common import upsert_creator_relationship
+                ucr_cursor = await conn.cursor()
+                await upsert_creator_relationship(ucr_cursor, current_user.id, creator_id, 'purchased_from', 'pack', pack_id)
+                await conn.commit()
+            except Exception as ucr_err:
+                logger.warning(f"Could not record creator relationship for free claim: {ucr_err}")
 
     return JSONResponse({"message": "Pack claimed successfully", "redirect": "/chat"})
 
@@ -2483,6 +2888,27 @@ async def api_purchase_pack(pack_id: int, request: Request, current_user: User =
                         (first_prompt_row[0], current_user.id)
                     )
 
+                # Record transaction for audit trail (pack purchased at $0)
+                bal_cur = await conn.execute(
+                    "SELECT balance FROM USER_DETAILS WHERE user_id = ?",
+                    (current_user.id,)
+                )
+                bal_row = await bal_cur.fetchone()
+                cur_balance = bal_row[0] if bal_row else 0
+                await conn.execute('''
+                    INSERT INTO TRANSACTIONS
+                    (user_id, type, amount, balance_before, balance_after,
+                     description, reference_id, discount_code)
+                    VALUES (?, 'pack_purchase', 0, ?, ?, ?, ?, ?)
+                ''', (
+                    current_user.id,
+                    cur_balance,
+                    cur_balance,
+                    f'Free pack purchase (100% discount): pack_id={pack_id}',
+                    f'discount_{discount_code}_user_{current_user.id}',
+                    discount_code if discount_code else None
+                ))
+
                 # Decrement discount usage
                 if discount_code:
                     await conn.execute("""
@@ -2491,6 +2917,15 @@ async def api_purchase_pack(pack_id: int, request: Request, current_user: User =
                             ELSE MAX(0, COALESCE(usage_count, 1) - 1)
                         END WHERE code = ?
                     """, (discount_code,))
+
+                # Record creator relationship
+                pack_creator_id = pack["created_by_user_id"] if pack else None
+                if pack_creator_id:
+                    try:
+                        from common import upsert_creator_relationship
+                        await upsert_creator_relationship(conn, current_user.id, pack_creator_id, 'purchased_from', 'pack', pack_id)
+                    except Exception as ucr_err:
+                        logger.warning(f"Could not record creator relationship for 100% discount purchase: {ucr_err}")
 
                 await conn.commit()
             except Exception:
@@ -2587,6 +3022,19 @@ async def _apply_pack_config_to_user(conn, pack, user_id, discount_pct=0):
     except Exception:
         return
 
+    # Read current values to enforce "only expand, never restrict"
+    ud_cursor = await conn.execute(
+        """SELECT public_prompts_access, billing_account_id,
+                  allow_file_upload, allow_image_generation
+           FROM USER_DETAILS WHERE user_id = ?""",
+        (user_id,)
+    )
+    ud_row = await ud_cursor.fetchone()
+    cur_public = ud_row[0] if ud_row else 0
+    cur_billing = ud_row[1] if ud_row else None
+    cur_file = ud_row[2] if ud_row else 0
+    cur_imggen = ud_row[3] if ud_row else 0
+
     updates = []
     params = []
 
@@ -2605,20 +3053,34 @@ async def _apply_pack_config_to_user(conn, pack, user_id, discount_pct=0):
                 status_code=503,
                 detail="This pack is temporarily unavailable"
             )
-        updates.append("billing_account_id = ?")
-        params.append(pack["created_by_user_id"])
+        # Only set billing_account_id if not already managed by someone else
+        if cur_billing is None:
+            updates.append("billing_account_id = ?")
+            params.append(pack["created_by_user_id"])
+        else:
+            logger.warning(
+                "Pack config: billing_account_id not overwritten for user %s (already set to %s)",
+                user_id, cur_billing
+            )
 
+    # Only expand boolean permissions, never restrict
     if "public_prompts_access" in lrc:
-        updates.append("public_prompts_access = ?")
-        params.append(1 if lrc["public_prompts_access"] else 0)
+        if lrc["public_prompts_access"] and not cur_public:
+            updates.append("public_prompts_access = 1")
+        elif not lrc["public_prompts_access"] and cur_public:
+            logger.warning("Pack config: skipping public_prompts_access downgrade for user %s", user_id)
 
     if "allow_file_upload" in lrc:
-        updates.append("allow_file_upload = ?")
-        params.append(1 if lrc["allow_file_upload"] else 0)
+        if lrc["allow_file_upload"] and not cur_file:
+            updates.append("allow_file_upload = 1")
+        elif not lrc["allow_file_upload"] and cur_file:
+            logger.warning("Pack config: skipping allow_file_upload downgrade for user %s", user_id)
 
     if "allow_image_generation" in lrc:
-        updates.append("allow_image_generation = ?")
-        params.append(1 if lrc["allow_image_generation"] else 0)
+        if lrc["allow_image_generation"] and not cur_imggen:
+            updates.append("allow_image_generation = 1")
+        elif not lrc["allow_image_generation"] and cur_imggen:
+            logger.warning("Pack config: skipping allow_image_generation downgrade for user %s", user_id)
 
     if updates:
         params.append(user_id)
@@ -2767,13 +3229,15 @@ async def pack_landing_page(request: Request, public_id: str, slug: str):
             return _landing_404()
 
         pack_id = cached["pack_id"]
+        is_preview = request.query_params.get("preview") == "1"
 
         # Check for custom landing page first
         if cached["has_custom_landing"]:
             html_path = cached["path"] / "home.html"
             if html_path.is_file():
                 html_content = html_path.read_text(encoding="utf-8")
-                html_content = _inject_pack_analytics(html_content, pack_id)
+                if not is_preview:
+                    html_content = _inject_pack_analytics(html_content, pack_id)
                 return HTMLResponse(content=html_content)
 
         # Default: render Jinja2 template (pack_items still queried fresh)
@@ -2817,7 +3281,8 @@ async def pack_landing_page(request: Request, public_id: str, slug: str):
         # Render template, inject analytics, and return as HTMLResponse
         template_response = templates.TemplateResponse("pack_landing_default.html", context)
         template_html = template_response.body.decode("utf-8")
-        template_html = _inject_pack_analytics(template_html, pack_id)
+        if not is_preview:
+            template_html = _inject_pack_analytics(template_html, pack_id)
         return HTMLResponse(content=template_html)
 
     except HTTPException:

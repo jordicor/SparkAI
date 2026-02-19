@@ -13,7 +13,9 @@
 </style>
 {% endblock %}
 
-{# Auth pages don't need navbar or header #}
+{# Auth pages don't need navbar, skeleton or header #}
+{% block skeleton %}{% endblock %}
+{% block navbar %}{% endblock %}
 {% block header %}{% endblock %}
 {% block toolbar %}{% endblock %}
 {% block alerts %}{% endblock %}

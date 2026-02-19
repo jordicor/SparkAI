@@ -1,9 +1,10 @@
 /* chat.js */
 
-let offset = 0;
-let limit = 10;
+let oldestLoadedMessageId = null;
+let limit = 25;
 let initialLoad = true;
 let isLoading = false;
+let isLoadingConversations = false;
 let allMessagesLoaded = false;
 let allConversationsLoaded = false;
 let lowestLoadedId = Infinity;
@@ -111,6 +112,67 @@ const ApiKeyManager = {
     }
 };
 
+const COLLAPSIBLE_LINE_THRESHOLD = 11;
+
+function applyCollapsibleUserMsg(divText, messageContent) {
+    requestAnimationFrame(() => {
+        const lineHeight = parseFloat(getComputedStyle(divText).lineHeight);
+        const maxCollapsedHeight = lineHeight * COLLAPSIBLE_LINE_THRESHOLD;
+        if (divText.scrollHeight > maxCollapsedHeight + lineHeight) {
+            divText.classList.add('user-msg-collapsed');
+            divText.style.setProperty('--collapsed-height', maxCollapsedHeight + 'px');
+
+            const toggleBtn = document.createElement('button');
+            toggleBtn.className = 'user-msg-toggle';
+            toggleBtn.textContent = 'Show more';
+            toggleBtn.addEventListener('click', () => {
+                const isCollapsed = divText.classList.toggle('user-msg-collapsed');
+                toggleBtn.textContent = isCollapsed ? 'Show more' : 'Show less';
+                if (isCollapsed) {
+                    const msg = divText.closest('.message');
+                    if (msg.getBoundingClientRect().top < 0) {
+                        msg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }
+            });
+            messageContent.insertBefore(toggleBtn, divText.nextSibling);
+        }
+    });
+}
+
+function applyCollapsibleCodeBlocks(container) {
+    requestAnimationFrame(() => {
+        container.querySelectorAll('.code-block').forEach(block => {
+            if (block.querySelector('.code-block-toggle')) return;
+            const pre = block.querySelector('pre');
+            if (!pre) return;
+            const code = pre.querySelector('code');
+            if (!code) return;
+            const lineHeight = parseFloat(getComputedStyle(code).lineHeight);
+            const maxCollapsedHeight = lineHeight * COLLAPSIBLE_LINE_THRESHOLD;
+            if (pre.scrollHeight > maxCollapsedHeight + lineHeight) {
+                pre.classList.add('code-block-collapsed');
+                pre.style.setProperty('--collapsed-height', maxCollapsedHeight + 'px');
+
+                const toggleBtn = document.createElement('button');
+                toggleBtn.className = 'code-block-toggle';
+                toggleBtn.textContent = 'Show more';
+                toggleBtn.addEventListener('click', () => {
+                    const isCollapsed = pre.classList.toggle('code-block-collapsed');
+                    toggleBtn.textContent = isCollapsed ? 'Show more' : 'Show less';
+                    if (isCollapsed) {
+                        const msg = block.closest('.message');
+                        if (msg && msg.getBoundingClientRect().top < 0) {
+                            msg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                    }
+                });
+                block.appendChild(toggleBtn);
+            }
+        });
+    });
+}
+
 function addMessage(author, message, timestampInfo = null, isTemporary = false, messageObj = null, prepend = false, container = null, messageId = null) {
     var divMessage = document.createElement('div');
     divMessage.classList.add('message', 'text-white', author === 'user' ? 'user' : 'bot');
@@ -152,6 +214,8 @@ function addMessage(author, message, timestampInfo = null, isTemporary = false, 
                 });
             }
             messageContent.appendChild(divText);
+            if (author === 'user') applyCollapsibleUserMsg(divText, messageContent);
+            else applyCollapsibleCodeBlocks(divText);
         } else if (messageObj.type === 'image_url') {
             var imgElement = document.createElement('img');
             imgElement.src = messageObj.url;
@@ -207,7 +271,9 @@ function addMessage(author, message, timestampInfo = null, isTemporary = false, 
             });
         }
         messageContent.appendChild(divText);
-    }   
+        if (author === 'user') applyCollapsibleUserMsg(divText, messageContent);
+        else applyCollapsibleCodeBlocks(divText);
+    }
 
     if (timestampInfo) {
     
@@ -421,7 +487,13 @@ function rollbackConversation(messageId, conversationId) {
                         for (let i = messages.length - 1; i > foundIndex; i--) {
                             messages[i].remove();
                         }
-                        offset = foundIndex + 1;
+                        // Point cursor to the oldest message still in DOM (index 0),
+                        // not the rollback target, to avoid re-fetching messages above it
+                        const oldestRendered = messages[0];
+                        const msgId = oldestRendered?.dataset?.messageId || oldestRendered?.querySelector('[data-message-id]')?.dataset?.messageId;
+                        if (msgId) {
+                            oldestLoadedMessageId = parseInt(msgId);
+                        }
                         allMessagesLoaded = false;
                         isCurrentConversationEmpty = false;
                     } else {
@@ -509,6 +581,7 @@ function sendMessage(messageText) {
 
     // Reset auto-scroll state when user sends a message
     isUserScrolledUp = false;
+    updateScrollBottomBtn();
 
     // Send the compressed message with pako
     const messageText_raw = messageText;
@@ -796,6 +869,10 @@ function sendMessage(messageText) {
                                 }
 							}
 
+                            // Handle extension level change from server
+                            if (parsedData.extension_changed && window.extensionSelector) {
+                                window.extensionSelector.updateFromSSE(parsedData.extension_changed);
+                            }
 
                         } catch (error) {
                             console.error('Error parsing JSON:', error);
@@ -850,6 +927,8 @@ function sendMessage(messageText) {
             if (newUserMessageId && userMessageElement) {
                 updateMessageId(newUserMessageId, userMessageElement);
             }
+
+            applyCollapsibleCodeBlocks(botMessageElement);
 
             // Add event listeners to show/hide icons
             botMessageElement.addEventListener('mouseover', function() {
@@ -1083,6 +1162,29 @@ function addConversationElement(conversation, chatName, currentConversationId, i
     setupConversationElementListeners(conversationElement);
 }
 
+// Close all open chat context menus and return portaled menus to their original parents
+function closeAllChatMenus() {
+    document.querySelectorAll('.chat-menu-content').forEach(menu => {
+        if (menu.style.display !== 'block' && !menu._originParent) return;
+        menu.style.display = 'none';
+        menu.classList.remove('menu-above');
+        if (menu._originParent) {
+            const parentItem = menu._originParent.closest('.list-group-item');
+            if (parentItem) parentItem.style.zIndex = '';
+            menu._originParent.appendChild(menu);
+            menu.style.position = '';
+            menu.style.top = '';
+            menu.style.right = '';
+            menu.style.left = '';
+            menu.style.zIndex = '';
+            menu._originParent = null;
+        } else {
+            const parentItem = menu.closest('.list-group-item');
+            if (parentItem) parentItem.style.zIndex = '';
+        }
+    });
+}
+
 function createChatMenu(conversation) {
     const chatMenu = document.createElement('div');
     chatMenu.classList.add('chat-menu');
@@ -1135,38 +1237,54 @@ function createChatMenu(conversation) {
 
         const isCurrentlyOpen = chatMenuContent.style.display === 'block';
 
-        // Close all open menus first
-        document.querySelectorAll('.chat-menu-content').forEach(menu => {
-            menu.style.display = 'none';
-            menu.classList.remove('menu-above');
-        });
+        closeAllChatMenus();
 
-        // Toggle current menu
         if (!isCurrentlyOpen) {
+            const buttonRect = chatMenu.getBoundingClientRect();
+
+            // Portal to body to escape all overflow clipping containers
+            chatMenuContent._originParent = chatMenu;
+            document.body.appendChild(chatMenuContent);
+
+            chatMenuContent.style.position = 'fixed';
+            chatMenuContent.style.right = (window.innerWidth - buttonRect.right) + 'px';
+            chatMenuContent.style.left = 'auto';
+            chatMenuContent.style.top = (buttonRect.bottom + 2) + 'px';
+            chatMenuContent.style.zIndex = '9999';
             chatMenuContent.style.display = 'block';
+
+            const parentItem = chatMenu.closest('.list-group-item');
+            if (parentItem) parentItem.style.zIndex = '10';
 
             // Check if menu overflows viewport bottom
             const menuRect = chatMenuContent.getBoundingClientRect();
-            const viewportHeight = window.innerHeight;
-
-            if (menuRect.bottom > viewportHeight) {
+            if (menuRect.bottom > window.innerHeight) {
+                chatMenuContent.style.top = (buttonRect.top - menuRect.height - 2) + 'px';
                 chatMenuContent.classList.add('menu-above');
             } else {
                 chatMenuContent.classList.remove('menu-above');
             }
+
+            // Close on sidebar scroll so the menu doesn't float detached
+            const listGroup = chatMenu.closest('.list-group');
+            if (listGroup) {
+                listGroup.addEventListener('scroll', closeAllChatMenus, { once: true });
+            }
         }
     });
 
-    // Handler to close menu when clicking outside
+    // Close menu when clicking outside
     document.addEventListener('click', (e) => {
-        if (!chatMenu.contains(e.target) && chatMenuContent.style.display === 'block') {
-            chatMenuContent.style.display = 'none';
-            chatMenuContent.classList.remove('menu-above');
+        if (!chatMenu.contains(e.target) && !chatMenuContent.contains(e.target) && chatMenuContent.style.display === 'block') {
+            closeAllChatMenus();
         }
     });
 
-    // Prevent menu from closing when clicking inside
+    // Close menu when clicking a menu item; stop propagation to prevent parent handlers
     chatMenuContent.addEventListener('click', (e) => {
+        if (e.target.closest('a')) {
+            closeAllChatMenus();
+        }
         e.stopPropagation();
     });
 
@@ -1175,13 +1293,7 @@ function createChatMenu(conversation) {
 
 const renameConversation = withSession(function(conversationId) {
     // Close menu immediately
-    const chatMenu = document.querySelector(`[data-conversation-id="${conversationId}"] .chat-menu`);
-    if (chatMenu) {
-        const chatMenuContent = chatMenu.querySelector('.chat-menu-content');
-        if (chatMenuContent) {
-            chatMenuContent.style.display = 'none';
-        }
-    }
+    closeAllChatMenus();
 
     const conversationElement = document.querySelector(`[data-conversation-id="${conversationId}"]`);
     const nameSpan = conversationElement.querySelector('.chat-name');
@@ -1553,12 +1665,15 @@ function removeConversationElement(conversationId) {
 
 function loadConversations(loadMore = false, isInit = false) {
     if (allConversationsLoaded && !isInit) return Promise.resolve();
+    if (isLoadingConversations && !isInit) return Promise.resolve();
+    isLoadingConversations = true;
 
     // Use embedded data on initial load (avoids HTTP request)
     if (isInit && !loadMore && typeof embeddedInitialConversations !== 'undefined' && embeddedInitialConversations !== null) {
         const conversations = embeddedInitialConversations;
         embeddedInitialConversations = null; // Clear to avoid reuse
-        return processConversations(conversations, loadMore, isInit);
+        return processConversations(conversations, loadMore, isInit)
+            .finally(() => { isLoadingConversations = false; });
     }
 
     var url = `/api/conversations?user_id=${user_id}&limit=${limit}`;
@@ -1577,7 +1692,8 @@ function loadConversations(loadMore = false, isInit = false) {
             console.error('Error loading conversations:', error);
             enableInputControls();
             document.getElementById('loading-indicator').style.display = 'none';
-        });
+        })
+        .finally(() => { isLoadingConversations = false; });
 }
 
 function processConversations(conversations, loadMore, isInit) {
@@ -1592,7 +1708,11 @@ function processConversations(conversations, loadMore, isInit) {
 
     conversations.forEach(conversation => {
         addConversationElement(conversation, conversation.chat_name, currentConversationId);
-        lowestLoadedId = Math.min(lowestLoadedId, conversation.id);
+        // Exclude external platform conversations (WhatsApp, Telegram, etc.) from
+        // pagination cursor — their low IDs would skip normal conversations
+        if (!conversation.external_platform) {
+            lowestLoadedId = Math.min(lowestLoadedId, conversation.id);
+        }
     });
 
     if (conversations.length < limit) {
@@ -1637,15 +1757,39 @@ function continueConversation(conversationId, chatName, machine, isInit = false,
     // Check if this conversation is already loaded (compare with current conversation ID)
     if (currentConversationId &&
         currentConversationId.toString() === conversationId.toString() &&
-        !isInit) {
+        !isInit && !targetMessageId) {
         return Promise.resolve();
+    }
+
+    // Same conversation but jumping to a specific message: reset state and reload
+    if (currentConversationId &&
+        currentConversationId.toString() === conversationId.toString() &&
+        targetMessageId) {
+        oldestLoadedMessageId = null;
+        allMessagesLoaded = false;
+        if (currentAbortController) {
+            currentAbortController.abort();
+            currentAbortController = null;
+        }
+        isLoading = false;
+        processedMessageIds.clear();
+        document.getElementById('chat-messages-container').innerHTML = '';
+        return loadMessages(conversationId, false, targetMessageId, 0);
     }
 
     const selectedChat = document.querySelector(`[data-conversation-id="${conversationId}"]`);   
 
-    offset = 0;
+    hideScrollNavButtons();
+    oldestLoadedMessageId = null;
     allMessagesLoaded = false;
+    // Abort any in-flight request before resetting the loading flag
+    // to prevent the old request's finally block from racing with us
+    if (currentAbortController) {
+        currentAbortController.abort();
+        currentAbortController = null;
+    }
     isLoading = false;
+    processedMessageIds.clear();
     localStorage.setItem('activeConversationId', conversationId);
     currentConversationId = conversationId;
     const dateOptions = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
@@ -1715,6 +1859,17 @@ function continueConversation(conversationId, chatName, machine, isInit = false,
                 );
             }
 
+            // Initialize extension selector from conversation data
+            if (conversationData && conversationData.extensions_enabled && window.extensionSelector) {
+                window.extensionSelector.init(
+                    conversationData.extensions,
+                    conversationData.active_extension,
+                    conversationData.extensions_free_selection
+                );
+            } else if (window.extensionSelector) {
+                window.extensionSelector.hide();
+            }
+
             // Check if conversation is locked (from DOM element or passed data)
             isCurrentConversationLocked = selectedChat?.dataset?.locked === 'true' || conversationData?.locked === true;
             const lockedBanner = document.getElementById('locked-conversation-banner');
@@ -1734,7 +1889,6 @@ function continueConversation(conversationId, chatName, machine, isInit = false,
                 messageText.disabled = false;
             }
             
-            initializeCurrentMessageIndex();
             showPromptInfo();
 
             // Initialize web search toggle control with data from conversation element or passed data
@@ -1766,55 +1920,51 @@ function updateChatHeader(conversationId, chatName, llmModel = null) {
     const botAvatar = createAvatar('bot');
     chatTitleAvatar.appendChild(botAvatar);
 
-    // Check if we are in "My Bookmarks"
-    if (chatName === "My Bookmarks") {
-        chatTitle.textContent = chatName;
-        chatTitle.title = ''; // No hover
-        chatModel.textContent = ''; // No model
-        chatTitleAvatar.style.display = 'none';
-    } else {
-        chatTitleAvatar.style.display = 'block';
+    chatTitleAvatar.style.display = 'block';
 
-        // Set clean title (without date or prompt)
-        chatTitle.textContent = chatName;
-        chatTitle.title = `Created: ${formattedStartDate}`; // Show date on hover
+    // Restore model selector visibility (hidden in bookmarks view)
+    const modelSelectorContainer = document.querySelector('.model-selector-container');
+    if (modelSelectorContainer) modelSelectorContainer.style.display = '';
 
-        // Use provided model or fetch from API as fallback
-        if (llmModel) {
-            chatModel.textContent = (window.modelSelector && window.modelSelector.hideLlmName) ? 'AI' : llmModel;
-            if (window.modelSelector) {
-                window.modelSelector.updateCurrentModel(llmModel);
-            }
-        } else {
-            // Fallback: fetch from API (for new conversations without cached data)
-            fetch(`/api/conversations/${conversationId}/details`)
-                .then(response => response.json())
-                .then(data => {
-                    const modelInfo = data.model || 'Unknown Model';
-                    chatModel.textContent = modelInfo;
+    // Set clean title (without date or prompt)
+    chatTitle.textContent = chatName;
+    chatTitle.title = `Created: ${formattedStartDate}`; // Show date on hover
 
-                    // Update model selector state if it exists
-                    if (window.modelSelector) {
-                        window.modelSelector.updateCurrentModel(modelInfo);
-                    }
-
-                    // Apply restrictions from conversation details
-                    if (window.modelSelector) {
-                        window.modelSelector.applyRestrictions(
-                            data.forced_llm_id || null,
-                            data.hide_llm_name || false,
-                            data.allowed_llms || null
-                        );
-                        if (window.modelSelector.hideLlmName) {
-                            chatModel.textContent = 'AI';
-                        }
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching conversation details:', error);
-                    chatModel.textContent = '';
-                });
+    // Use provided model or fetch from API as fallback
+    if (llmModel) {
+        chatModel.textContent = (window.modelSelector && window.modelSelector.hideLlmName) ? 'AI' : llmModel;
+        if (window.modelSelector) {
+            window.modelSelector.updateCurrentModel(llmModel);
         }
+    } else {
+        // Fallback: fetch from API (for new conversations without cached data)
+        fetch(`/api/conversations/${conversationId}/details`)
+            .then(response => response.json())
+            .then(data => {
+                const modelInfo = data.model || 'Unknown Model';
+                chatModel.textContent = modelInfo;
+
+                // Update model selector state if it exists
+                if (window.modelSelector) {
+                    window.modelSelector.updateCurrentModel(modelInfo);
+                }
+
+                // Apply restrictions from conversation details
+                if (window.modelSelector) {
+                    window.modelSelector.applyRestrictions(
+                        data.forced_llm_id || null,
+                        data.hide_llm_name || false,
+                        data.allowed_llms || null
+                    );
+                    if (window.modelSelector.hideLlmName) {
+                        chatModel.textContent = 'AI';
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching conversation details:', error);
+                chatModel.textContent = '';
+            });
     }
 }
 
@@ -1843,6 +1993,7 @@ function convertToLocalTime(utcTimestamp) {
 }
 
 function processMessage(message, container, prepend = false) {
+    if (processedMessageIds.has(message.id)) return;
     const timestamps = convertToLocalTime(message.date);
     let messageObj;
 
@@ -1937,27 +2088,28 @@ function processMessage(message, container, prepend = false) {
 }
 
 async function loadMessages(conversationId, prepend = false, targetMessageId = null, attempt = 0) {
+    if (isLoading || allMessagesLoaded) return Promise.resolve();
     if (currentAbortController) {
         currentAbortController.abort();
     }
 
     currentAbortController = new AbortController();
     const signal = currentAbortController.signal;
-    
-    if (isLoading || allMessagesLoaded) return Promise.resolve();
     isLoading = true;
 
     disableInputControls();
-    
+
     const chatWindow = document.getElementById('chat-window');
     const chatMessagesContainer = document.getElementById('chat-messages-container');
-    const scrollHeight = chatWindow.scrollHeight;
-    const scrollTop = chatWindow.scrollTop;
-    
+
+    let didRecurse = false;
     try {
-        const response = await secureFetch(`/api/conversations/${conversationId}/messages?limit=${limitMessage}&offset=${offset}`, { signal });
+        let url = `/api/conversations/${conversationId}/messages?limit=${limitMessage}`;
+        if (oldestLoadedMessageId !== null && prepend) {
+            url += `&before_id=${oldestLoadedMessageId}`;
+        }
+        const response = await secureFetch(url, { signal });
         if (!response) {
-            // secureFetch returned null (session expired, modal already shown)
             isLoading = false;
             enableInputControls();
             return null;
@@ -1969,17 +2121,15 @@ async function loadMessages(conversationId, prepend = false, targetMessageId = n
         const data = await response.json();
         const messages = data.messages;
         const conversationInfo = data.conversation_info;
-        
-        if (messages.length < limitMessage) {
-            allMessagesLoaded = true;
-        }
-        
+
+        allMessagesLoaded = !data.has_more;
+
         if (!prepend) {
             chatMessagesContainer.innerHTML = '';
         }
-        
+
         const tempDiv = document.createElement('div');
-        
+
 		// name of the prompt (bot)
         botname = conversationInfo.prompt_name;
 
@@ -1989,6 +2139,17 @@ async function loadMessages(conversationId, prepend = false, targetMessageId = n
         // Update the bot's profile picture
         botProfilePicture = conversationInfo.bot_profile_picture;
 
+        // Initialize extension selector from message endpoint data
+        if (conversationInfo.extensions_enabled && window.extensionSelector) {
+            window.extensionSelector.init(
+                conversationInfo.extensions,
+                conversationInfo.active_extension,
+                conversationInfo.extensions_free_selection
+            );
+        } else if (window.extensionSelector) {
+            window.extensionSelector.hide();
+        }
+
         let targetMessageFound = false;
 
         messages.forEach(message => {
@@ -1997,22 +2158,33 @@ async function loadMessages(conversationId, prepend = false, targetMessageId = n
                 targetMessageFound = true;
             }
         });
-        
+
         if (prepend) {
+            // Anchor to the first currently visible message to prevent scroll jump
+            const anchor = chatMessagesContainer.firstElementChild;
+            const anchorTop = anchor ? anchor.getBoundingClientRect().top : 0;
+
             chatMessagesContainer.insertBefore(tempDiv, chatMessagesContainer.firstChild);
-            const newScrollHeight = chatWindow.scrollHeight;
-            chatWindow.scrollTop = newScrollHeight - scrollHeight + scrollTop;
+
+            // Restore: keep the anchor element at the same visual position
+            if (anchor) {
+                const newAnchorTop = anchor.getBoundingClientRect().top;
+                chatWindow.scrollTop += (newAnchorTop - anchorTop);
+            }
         } else {
             chatMessagesContainer.appendChild(tempDiv);
             chatWindow.scrollTop = chatWindow.scrollHeight;
         }
-        
-        offset += messages.length;
-        isCurrentConversationEmpty = messages.length === 0 && offset === 0;
 
-        if (targetMessageId && !targetMessageFound && !allMessagesLoaded) {
-            // Try to load more messages
-            return loadMessages(conversationId, prepend, targetMessageId, attempt + 1);
+        if (messages.length > 0) {
+            oldestLoadedMessageId = messages[0].id;
+        }
+        isCurrentConversationEmpty = messages.length === 0 && oldestLoadedMessageId === null;
+
+        if (targetMessageId && !targetMessageFound && !allMessagesLoaded && attempt < 200) {
+            didRecurse = true;
+            isLoading = false;
+            return loadMessages(conversationId, true, targetMessageId, attempt + 1);
         } else if (targetMessageId && targetMessageFound) {
             setTimeout(() => {
                 highlightAndScrollToMessage(targetMessageId);
@@ -2023,13 +2195,14 @@ async function loadMessages(conversationId, prepend = false, targetMessageId = n
     } catch (error) {
         if (error.name === 'AbortError') {
         } else if (error.message === 'Session expired') {
-            // Session validation was already handled by secureFetch, no need to log as error
         } else {
             console.error('Error loading messages:', error);
         }
     } finally {
-        isLoading = false;
-        enableInputControls();
+        if (!didRecurse) {
+            isLoading = false;
+            enableInputControls();
+        }
     }
 }
 
@@ -2039,7 +2212,7 @@ function refreshActiveConversation() {
     }
 
     // Reset pagination so the next fetch pulls fresh messages.
-    offset = 0;
+    oldestLoadedMessageId = null;
     allMessagesLoaded = false;
     isLoading = false;
 
@@ -2055,14 +2228,28 @@ function refreshActiveConversation() {
 
 window.refreshActiveConversation = refreshActiveConversation;
 
+function getChatMessageElementById(messageId) {
+    const chatMessagesContainer = document.getElementById('chat-messages-container');
+    if (!chatMessagesContainer) return null;
+    return chatMessagesContainer.querySelector(`.message[data-message-id="${messageId}"]`);
+}
+
 function highlightAndScrollToMessage(messageId) {
-    const targetMessage = document.querySelector(`[data-message-id="${messageId}"]`);
+    const targetMessage = getChatMessageElementById(messageId);
     if (targetMessage) {
         targetMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        targetMessage.classList.add('highlight');
-        setTimeout(() => {
-            targetMessage.classList.remove('highlight');
-        }, 2000);
+        // In search mode, use persistent highlight (removed when search clears)
+        if (typeof messageSearchState !== 'undefined' && messageSearchState.active) {
+            targetMessage.classList.add('highlight-persistent');
+            if (typeof window.ensureSearchHighlightDismissButton === 'function') {
+                window.ensureSearchHighlightDismissButton(targetMessage);
+            }
+        } else {
+            targetMessage.classList.add('highlight');
+            setTimeout(() => {
+                targetMessage.classList.remove('highlight');
+            }, 2000);
+        }
     } else {
         console.error('Message with specified ID not found:', messageId);
     }
@@ -2078,12 +2265,8 @@ function enableInputControls() {
     document.getElementById('message-text').disabled = false;
     document.querySelector('#form-message button[type="submit"]').disabled = false;
     document.getElementById('image-files').disabled = false;
-    if (document.querySelector('.attach-icon')) {
-        document.querySelector('.attach-icon').style.pointerEvents = 'auto';
-    }
-    if (document.getElementById('audio-button')) {
-        document.getElementById('audio-button').style.pointerEvents = 'auto';
-    }
+    const plusBtn = document.getElementById('plus-menu-btn');
+    if (plusBtn) plusBtn.disabled = false;
     document.getElementById('loading-indicator').style.display = 'none';
 }
 
@@ -2091,12 +2274,9 @@ function disableInputControls() {
     document.getElementById('message-text').disabled = true;
     document.querySelector('#form-message button[type="submit"]').disabled = true;
     document.getElementById('image-files').disabled = true;
-    if (document.querySelector('.attach-icon')) {
-        document.querySelector('.attach-icon').style.pointerEvents = 'none';
-    }
-    if (document.getElementById('audio-button')) {
-        document.getElementById('audio-button').style.pointerEvents = 'none';
-    }
+    const plusBtn = document.getElementById('plus-menu-btn');
+    if (plusBtn) plusBtn.disabled = true;
+    closePlusMenu();
     document.getElementById('loading-indicator').style.display = 'block';
 }
 
@@ -2105,7 +2285,7 @@ function setupInfiniteScroll(conversationId) {
     const chatWindow = document.getElementById('chat-window');
     chatWindow.onscroll = function() {
         // Infinite scroll: load older messages when at top
-        if (chatWindow.scrollTop === 0 && !isLoading && !allMessagesLoaded) {
+        if (chatWindow.scrollTop <= 1 && !isLoading && !allMessagesLoaded) {
             loadMessages(conversationId, true);
         }
 
@@ -2115,6 +2295,8 @@ function setupInfiniteScroll(conversationId) {
         } else {
             isUserScrolledUp = true;
         }
+
+        updateScrollBottomBtn();
     };
 }
 
@@ -2130,7 +2312,8 @@ function startNewConversation(promptId = null) {
         return Promise.resolve();
     }
 
-    
+    hideScrollNavButtons();
+
     // If promptId is not passed, get it from the dropdown
     if (promptId === null) {
         const promptDropdown = document.getElementById('promptDropdown');
@@ -2252,6 +2435,10 @@ function loadBookmarkedMessages() {
         return;
     }
 
+    // Clear dedup set so messages already loaded in the conversation view
+    // can be rendered again in the bookmarks view
+    processedMessageIds.clear();
+
     fetch(`/api/bookmarks`)
     .then(response => response.json())
     .then(messages => {
@@ -2261,10 +2448,37 @@ function loadBookmarkedMessages() {
         const chatTitle = document.querySelector('.chatbot-info h4');
         const chatModel = document.getElementById('chat-model');
         chatTitle.textContent = "My Bookmarks";
-        chatTitle.title = ''; // No hover for bookmarks
-        chatModel.textContent = ''; // No model for bookmarks
+        chatTitle.title = '';
+        chatModel.textContent = '';
+
+        // Replace avatar with bookmark icon
+        const chatTitleAvatar = document.getElementById('chat-title-avatar');
+        chatTitleAvatar.innerHTML = '<i class="fas fa-bookmark" style="font-size:1.4rem;opacity:0.7"></i>';
+
+        // Hide model selector and extension selector (not applicable)
+        const modelSelectorContainer = document.querySelector('.model-selector-container');
+        if (modelSelectorContainer) modelSelectorContainer.style.display = 'none';
+        const extensionSelector = document.getElementById('extension-selector-container');
+        if (extensionSelector) extensionSelector.style.display = 'none';
         
+        // Clear global conversation state so the guard in continueConversation()
+        // won't block reloading the same conversation after leaving bookmarks
+        currentConversationId = null;
+
+        // Group messages by conversation (local variable)
+        let localConversationId = null;
         messages.forEach(message => {
+            if (message.conversation_id !== localConversationId) {
+                localConversationId = message.conversation_id;
+                const header = document.createElement('div');
+                header.className = 'bookmark-conversation-header';
+                header.title = 'Click to go to conversation';
+                header.innerHTML = `<span class="bookmark-conversation-name">${message.chat_name || 'Chat ' + message.conversation_id}</span>`;
+                header.addEventListener('click', () => {
+                    continueConversation(message.conversation_id, message.chat_name);
+                });
+                chatMessagesContainer.appendChild(header);
+            }
             processMessage(message, chatMessagesContainer);
         });
 
@@ -2272,6 +2486,8 @@ function loadBookmarkedMessages() {
         document.querySelectorAll('.rollback-icon').forEach(icon => icon.remove());
 
         document.getElementById('message-input-container').style.display = 'none';
+        const lockedBanner = document.getElementById('locked-conversation-banner');
+        if (lockedBanner) lockedBanner.style.display = 'none';
 
         // Change the active chat to previously-active-chat
         const activeChat = document.querySelector('.list-group-item-action.active-chat');
@@ -2318,199 +2534,72 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// Call this function when page loads or messages are updated
-//document.addEventListener('DOMContentLoaded', initializeCurrentMessageIndex);
+/* Scroll navigation buttons */
 
-/* Vertical navigation of messages */
-
-let currentMessageIndex = -1;
-let isAtBottomOfMessage = false;
-
-
-function getMessages() {
-    return Array.from(document.getElementById('chat-messages-container').getElementsByClassName('message'));
-}
-
-function isMessageLong(message) {
+function navScrollToTop() {
     const chatWindow = document.getElementById('chat-window');
-    return message.offsetHeight > chatWindow.clientHeight;
+    chatWindow.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function createNumberBubble(button, number) {
-    const bubble = document.createElement('div');
-    bubble.className = 'number-bubble';
-    bubble.textContent = number;
-
-    const rect = button.getBoundingClientRect();
-    
-    // Calculate initial position
-    let leftPosition = rect.left - 40;
-    
-    // Make sure the bubble does not leave the screen on the left
-    if (leftPosition < 10) {
-        leftPosition = 10;
-    }
-    
-    bubble.style.left = `${leftPosition}px`;
-    bubble.style.top = `${rect.top + rect.height / 2}px`;
-
-    document.body.appendChild(bubble);
-
-    setTimeout(() => {
-        document.body.removeChild(bubble);
-    }, 900);
-}
-
-function scrollToTop() {
-    const messages = getMessages();
-    //console.log('scrollToTop - Total messages:', messages.length);
-    if (messages.length > 0) {
-        if (currentMessageIndex === 0 && document.getElementById('chat-window').scrollTop === 0) {
-            shakeMessage(messages[0]);
-        } else {
-            currentMessageIndex = 0;
-            isAtBottomOfMessage = false;
-            scrollToMessage(currentMessageIndex);
-            createNumberBubble(document.querySelector('.nav-button[title="Go to the very top"]'), 1);
-        }
-    } else {
-    }
-}
-
-function scrollToBottom() {
-    const messages = getMessages();
-    //console.log('scrollToBottom - Total messages:', messages.length);
-    if (messages.length > 0) {
-        const lastIndex = messages.length - 1;
-        const lastMessage = messages[lastIndex];
-        if (currentMessageIndex === lastIndex && isAtBottomOfMessage) {
-            shakeMessage(lastMessage);
-        } else {
-            currentMessageIndex = lastIndex;
-            isAtBottomOfMessage = isMessageLong(lastMessage);
-            scrollToMessage(currentMessageIndex);
-            createNumberBubble(document.querySelector('.nav-button[title="Go to the very bottom"]'), messages.length);
-        }
-    } else {
-    }
-}
-
-function scrollUp() {
-    const messages = getMessages();
-    if (currentMessageIndex >= 0 && currentMessageIndex < messages.length) {
-        const currentMessage = messages[currentMessageIndex];
-        const chatWindow = document.getElementById('chat-window');
-        const messageTop = currentMessage.offsetTop - chatWindow.offsetTop;
-        
-        if (chatWindow.scrollTop > messageTop) {
-            // If we are not at the beginning of the current message, scroll up
-            chatWindow.scrollTo({top: messageTop, behavior: 'smooth'});
-            createNumberBubble(document.querySelector('.nav-button[title="Go one message up"]'), currentMessageIndex + 1);
-        } else if (currentMessageIndex > 0) {
-            // If we are at the beginning of the current message, go to the previous message
-            currentMessageIndex--;
-            scrollToMessage(currentMessageIndex);
-            createNumberBubble(document.querySelector('.nav-button[title="Go one message up"]'), currentMessageIndex + 1);
-        } else {
-            // If we are on the first message and at the beginning, shake the message
-            shakeMessage(currentMessage);
-        }
-    } else {
-        initializeCurrentMessageIndex();
-        if (currentMessageIndex > 0) {
-            scrollUp();
-        }
-    }
-}
-
-function scrollDown() {
-    const messages = getMessages();
-    //console.log('scrollDown - Current index:', currentMessageIndex, 'Total messages:', messages.length);
-    if (currentMessageIndex < messages.length - 1) {
-        currentMessageIndex++;
-        isAtBottomOfMessage = false;
-        scrollToMessage(currentMessageIndex);
-        createNumberBubble(document.querySelector('.nav-button[title="Go one message down"]'), currentMessageIndex + 1);
-    } else if (currentMessageIndex === messages.length - 1) {
-        const lastMessage = messages[messages.length - 1];
-        if (isMessageLong(lastMessage) && !isAtBottomOfMessage) {
-            isAtBottomOfMessage = true;
-            scrollToMessage(currentMessageIndex);
-        } else {
-            shakeMessage(lastMessage);
-        }
-    } else {
-        initializeCurrentMessageIndex();
-        if (currentMessageIndex < messages.length - 1) {
-            scrollDown();
-        }
-    }
-}
-
-function scrollToMessage(index) {
-    const messages = getMessages();
-    //console.log('scrollToMessage - Scrolling to index:', index);
-    if (index >= 0 && index < messages.length) {
-        const message = messages[index];
-        if (isAtBottomOfMessage && isMessageLong(message)) {
-            message.scrollIntoView({behavior: 'smooth', block: 'end'});
-        } else {
-            message.scrollIntoView({behavior: 'smooth', block: 'start'});
-        }
-        highlightMessage(message);
-    } else {
-    }
-}
-
-function highlightMessage(message) {
-    message.classList.add('highlight');
-    setTimeout(() => {
-        message.classList.remove('highlight');
-    }, 1000);
-}
-
-function shakeMessage(message) {
-    if (message) {
-        message.classList.add('shake');
-        setTimeout(() => {
-            message.classList.remove('shake');
-        }, 500);
-    } else {
-    }
-}
-
-function initializeCurrentMessageIndex() {
+function navScrollToBottom() {
     const chatWindow = document.getElementById('chat-window');
-    const messages = getMessages();
-    //console.log('initializeCurrentMessageIndex - Total messages:', messages.length);
-    
-    if (messages.length > 0) {
-        const scrollTop = chatWindow.scrollTop;
-        const containerHeight = chatWindow.clientHeight;
+    chatWindow.scrollTo({ top: chatWindow.scrollHeight, behavior: 'smooth' });
+}
 
-        for (let i = 0; i < messages.length; i++) {
-            const messageTop = messages[i].offsetTop - chatWindow.offsetTop;
-            const messageBottom = messageTop + messages[i].offsetHeight;
+function updateScrollBottomBtn() {
+    const btn = document.getElementById('scroll-bottom-btn');
+    if (!btn) return;
+    btn.classList.toggle('visible', isUserScrolledUp);
+}
 
-            if (messageBottom > scrollTop) {
-                currentMessageIndex = i;
-                isAtBottomOfMessage = (i === messages.length - 1) && 
-                                      (messageBottom <= scrollTop + containerHeight) && 
-                                      isMessageLong(messages[i]);
-                //console.log('Current message index set to:', currentMessageIndex, 'isAtBottomOfMessage:', isAtBottomOfMessage);
-                return;
+function hideScrollNavButtons() {
+    document.getElementById('scroll-top-btn')?.classList.remove('visible');
+    document.getElementById('scroll-bottom-btn')?.classList.remove('visible');
+}
+
+// Scroll-to-top: show on mouse hover in upper zone of chat area
+(function initScrollTopHover() {
+    const windowChat = document.getElementById('window-chat');
+    const btn = document.getElementById('scroll-top-btn');
+    if (!windowChat || !btn) return;
+
+    const HOVER_ZONE_HEIGHT = 120;
+
+    windowChat.addEventListener('mousemove', function(e) {
+        const rect = windowChat.getBoundingClientRect();
+        const relativeY = e.clientY - rect.top;
+        btn.classList.toggle('visible', relativeY <= HOVER_ZONE_HEIGHT);
+    });
+
+    windowChat.addEventListener('mouseleave', function() {
+        btn.classList.remove('visible');
+    });
+})();
+
+document.getElementById('scroll-top-btn')?.addEventListener('click', navScrollToTop);
+document.getElementById('scroll-bottom-btn')?.addEventListener('click', navScrollToBottom);
+
+// Dynamic layout positioning via CSS custom properties on :root
+// Used by scroll-nav buttons and sidebar-user alignment
+(function initScrollNavPositioning() {
+    const header = document.querySelector('.chatbot-info');
+    const inputBar = document.getElementById('message-input-container');
+    if (!header || !inputBar) return;
+
+    const root = document.documentElement;
+    const observer = new ResizeObserver(entries => {
+        for (const entry of entries) {
+            if (entry.target === header) {
+                root.style.setProperty('--chat-header-h', entry.target.offsetHeight + 'px');
+            } else if (entry.target === inputBar) {
+                root.style.setProperty('--chat-input-h', entry.target.offsetHeight + 'px');
             }
         }
+    });
 
-        currentMessageIndex = messages.length - 1;
-        isAtBottomOfMessage = true;
-        //console.log('Scroll at bottom, setting to last message:', currentMessageIndex);
-    } else {
-        currentMessageIndex = -1;
-        isAtBottomOfMessage = false;
-        //console.log('No messages found, setting index to -1');
-    }
-}
+    observer.observe(header);
+    observer.observe(inputBar);
+})();
 
 async function handleResponse(response) {
     removeLoadingIndicator();
@@ -2595,6 +2684,17 @@ function showPromptInfo() {
 	description.textContent = promptDescription;
 	textSection.appendChild(description);
 
+    // Add extension level pills if available
+    if (window.extensionSelector && window.extensionSelector.extensions.length > 0) {
+        const pillsDiv = document.createElement('div');
+        pillsDiv.className = 'extension-pills-row mt-2';
+        pillsDiv.innerHTML = window.extensionSelector.extensions.map(ext => {
+            const isActive = ext.id === window.extensionSelector.currentExtensionId;
+            return `<span class="extension-pill${isActive ? ' active' : ''}">${ext.name}</span>`;
+        }).join('');
+        textSection.appendChild(pillsDiv);
+    }
+
     infoContainer.appendChild(imageSection);
     infoContainer.appendChild(textSection);
     promptInfo.appendChild(infoContainer);
@@ -2605,12 +2705,6 @@ function showPromptInfo() {
         chatMessagesContainer.appendChild(promptInfo);
     }
 }
-
-// Call this function when page loads or messages are updated
-//document.addEventListener('DOMContentLoaded', initializeCurrentMessageIndex);
-
-// Add listener to update index when scrolling
-document.getElementById('chat-window').addEventListener('scroll', initializeCurrentMessageIndex);
 
 // Model Selector functionality
 class ModelSelector {
@@ -2923,9 +3017,154 @@ class ModelSelector {
     }
 }
 
-// Initialize model selector when DOM is loaded
+// Escape HTML to prevent XSS in dynamic content
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Extension Level Selector functionality
+class ExtensionSelector {
+    constructor() {
+        this.container = document.getElementById('extension-selector-container');
+        this.currentName = document.getElementById('extension-current-name');
+        this.dropdownMenu = document.getElementById('extension-dropdown-menu');
+        this.dropdownContent = document.getElementById('extension-dropdown-content');
+        this.dropdownIcon = document.getElementById('extension-dropdown-icon');
+        this.extensions = [];
+        this.currentExtensionId = null;
+        this.freeSelection = true;
+        this.isOpen = false;
+
+        if (this.dropdownIcon) {
+            this.dropdownIcon.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleDropdown();
+            });
+            if (this.currentName) {
+                this.currentName.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.toggleDropdown();
+                });
+            }
+        }
+        document.addEventListener('click', () => this.closeDropdown());
+    }
+
+    init(extensions, activeExtension, freeSelection) {
+        this.extensions = extensions || [];
+        this.currentExtensionId = activeExtension ? activeExtension.id : null;
+        this.freeSelection = freeSelection !== false;
+
+        if (!this.extensions.length) {
+            this.hide();
+            return;
+        }
+
+        this.renderDropdown();
+        this.updateCurrentDisplay();
+        this.show();
+    }
+
+    show() {
+        if (this.container) this.container.style.display = '';
+    }
+
+    hide() {
+        if (this.container) this.container.style.display = 'none';
+        this.extensions = [];
+        this.currentExtensionId = null;
+    }
+
+    toggleDropdown() {
+        if (this.isOpen) {
+            this.closeDropdown();
+        } else {
+            this.openDropdown();
+        }
+    }
+
+    openDropdown() {
+        if (this.dropdownMenu) {
+            this.dropdownMenu.classList.add('show');
+            this.isOpen = true;
+        }
+    }
+
+    closeDropdown() {
+        if (this.dropdownMenu) {
+            this.dropdownMenu.classList.remove('show');
+            this.isOpen = false;
+        }
+    }
+
+    renderDropdown() {
+        if (!this.dropdownContent) return;
+        this.dropdownContent.innerHTML = this.extensions.map(ext => {
+            const isActive = ext.id === this.currentExtensionId;
+            const isDisabled = !this.freeSelection && !isActive && !this._isAdjacentLevel(ext.id);
+            return `<div class="extension-dropdown-item${isActive ? ' active' : ''}${isDisabled ? ' disabled' : ''}"
+                         data-extension-id="${ext.id}"
+                         ${isDisabled ? '' : `onclick="window.extensionSelector.selectExtension(${ext.id})"`}>
+                        <span class="extension-item-name">${escapeHtml(ext.name)}</span>
+                        ${ext.description ? `<span class="extension-item-desc">${escapeHtml(ext.description)}</span>` : ''}
+                    </div>`;
+        }).join('');
+    }
+
+    _isAdjacentLevel(extId) {
+        if (!this.currentExtensionId) return true;
+        const currentIdx = this.extensions.findIndex(e => e.id === this.currentExtensionId);
+        const targetIdx = this.extensions.findIndex(e => e.id === extId);
+        return Math.abs(currentIdx - targetIdx) <= 1;
+    }
+
+    updateCurrentDisplay() {
+        if (!this.currentName) return;
+        const current = this.extensions.find(e => e.id === this.currentExtensionId);
+        this.currentName.textContent = current ? current.name : 'No level';
+    }
+
+    async selectExtension(extensionId) {
+        if (extensionId === this.currentExtensionId) {
+            this.closeDropdown();
+            return;
+        }
+        try {
+            const resp = await fetch(`/api/conversations/${currentConversationId}/extension`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ extension_id: extensionId })
+            });
+            if (!resp.ok) {
+                const err = await resp.json();
+                console.error('Extension switch failed:', err.detail);
+                return;
+            }
+            this.currentExtensionId = extensionId;
+            this.renderDropdown();
+            this.updateCurrentDisplay();
+            this.closeDropdown();
+        } catch (e) {
+            console.error('Extension switch error:', e);
+        }
+    }
+
+    updateFromSSE(data) {
+        if (data && data.id) {
+            this.currentExtensionId = data.id;
+            this.renderDropdown();
+            this.updateCurrentDisplay();
+        }
+    }
+}
+
+// Initialize model selector and extension selector when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     window.modelSelector = new ModelSelector();
+    window.extensionSelector = new ExtensionSelector();
 });
 
 // WhatsApp Mode Management Functions
@@ -3033,188 +3272,240 @@ function updateWhatsAppModeInAllMenus(conversationId, newMode) {
     });
 }
 
-// Initialize thinking tokens control
+// =============================================
+// Plus Menu Dropdown
+// =============================================
+
+function initPlusMenu() {
+    const btn = document.getElementById('plus-menu-btn');
+    const dropdown = document.getElementById('plus-menu-dropdown');
+    const wrapper = document.getElementById('plus-menu-wrapper');
+    if (!btn || !dropdown) return;
+
+    // Toggle dropdown
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (btn.disabled) return;
+        dropdown.classList.contains('show') ? closePlusMenu() : openPlusMenu();
+    });
+
+    // Close on outside click
+    document.addEventListener('click', (e) => {
+        if (wrapper && !wrapper.contains(e.target)) {
+            closePlusMenu();
+        }
+    });
+
+    // Attach files
+    const attachBtn = document.getElementById('plus-attach-files');
+    if (attachBtn) {
+        attachBtn.addEventListener('click', () => {
+            closePlusMenu();
+            document.getElementById('image-files').click();
+        });
+    }
+
+    // Record audio (delegates to hidden #audio-button for audio.js compatibility)
+    const recordBtn = document.getElementById('plus-record-audio');
+    if (recordBtn) {
+        recordBtn.addEventListener('click', () => {
+            closePlusMenu();
+            const audioBtn = document.getElementById('audio-button');
+            if (audioBtn) audioBtn.click();
+        });
+    }
+
+    // Voice call - close dropdown (voice-call.js handles the rest via #plus-voice-call)
+    const voiceBtn = document.getElementById('plus-voice-call');
+    if (voiceBtn) {
+        voiceBtn.addEventListener('click', () => {
+            closePlusMenu();
+        });
+    }
+}
+
+function openPlusMenu() {
+    const btn = document.getElementById('plus-menu-btn');
+    const dropdown = document.getElementById('plus-menu-dropdown');
+    if (btn) btn.classList.add('open');
+    if (dropdown) dropdown.classList.add('show');
+}
+
+function closePlusMenu() {
+    const btn = document.getElementById('plus-menu-btn');
+    const dropdown = document.getElementById('plus-menu-dropdown');
+    if (btn) btn.classList.remove('open');
+    if (dropdown) dropdown.classList.remove('show');
+}
+
+// Hide AI features section if all items inside are hidden
+function updateAiSectionVisibility() {
+    const section = document.getElementById('plus-ai-section');
+    if (!section) return;
+    const thinkingItem = document.getElementById('plus-thinking-tokens');
+    const webSearchItem = document.getElementById('plus-web-search');
+    const allHidden =
+        (!thinkingItem || thinkingItem.style.display === 'none') &&
+        (!webSearchItem || webSearchItem.style.display === 'none');
+    section.classList.toggle('hidden-section', allHidden);
+}
+
+// Show indicator dot on + button when features are active
+function updatePlusMenuIndicator() {
+    const btn = document.getElementById('plus-menu-btn');
+    if (!btn) return;
+    const hasActive = currentThinkingBudget > 0 || webSearchEnabled;
+    btn.classList.toggle('has-active', hasActive);
+}
+
+// =============================================
+// Thinking Tokens Control (Plus Menu Item)
+// =============================================
+
 function initializeThinkingTokensControl() {
-    const control = document.getElementById('thinking-tokens-control');
-    if (!control) return;
-    
-    const icon = control.querySelector('.thinking-tokens-icon');
+    const menuItem = document.getElementById('plus-thinking-tokens');
     const popup = document.getElementById('thinking-tokens-popup');
+    if (!menuItem || !popup) return;
+
     const slider = document.getElementById('thinking-tokens-slider');
     const input = document.getElementById('thinking-tokens-input');
     const display = document.getElementById('thinking-tokens-display');
     const applyBtn = document.getElementById('thinking-tokens-apply');
     const presetBtns = document.querySelectorAll('.preset-btn');
-    
-    // Check if current model supports thinking tokens
+    const badge = document.getElementById('thinking-tokens-badge');
+
     function updateThinkingTokensVisibility() {
         const currentModel = document.getElementById('chat-model')?.textContent || '';
-        // Support Claude 3.5+ Sonnet, Claude 4 Opus, and any Claude 3.7 or 4.x models
         const modelLower = currentModel.toLowerCase();
-        const isSupported = 
-            modelLower.includes('claude-sonnet-4') ||     // Claude 3.5 Sonnet (4-20250514)
-            modelLower.includes('claude-opus-4') ||       // Claude 4 Opus
-            modelLower.includes('claude-3.7') ||          // Any Claude 3.7 model
-            modelLower.includes('claude-3-7') ||          // Alternative format
-            modelLower.includes('claude-4') ||            // Any Claude 4.x model
-            (modelLower.includes('claude') && modelLower.includes('sonnet') && modelLower.includes('4')); // Catch variations
+        const isSupported =
+            modelLower.includes('claude-sonnet-4') ||
+            modelLower.includes('claude-opus-4') ||
+            modelLower.includes('claude-3.7') ||
+            modelLower.includes('claude-3-7') ||
+            modelLower.includes('claude-4') ||
+            (modelLower.includes('claude') && modelLower.includes('sonnet') && modelLower.includes('4'));
 
-        if (isSupported) {
-            control.style.display = 'flex';
-        } else {
-            control.style.display = 'none';
-            currentThinkingBudget = 0;
-        }
+        menuItem.style.display = isSupported ? '' : 'none';
+        if (!isSupported) currentThinkingBudget = 0;
+        updateAiSectionVisibility();
+        updatePlusMenuIndicator();
     }
-    
-    // Toggle popup
-    icon.addEventListener('click', (e) => {
+
+    // Open popup from dropdown item
+    menuItem.addEventListener('click', (e) => {
         e.stopPropagation();
-        
+        closePlusMenu();
         if (popup.style.display === 'none' || window.getComputedStyle(popup).display === 'none') {
             popup.style.display = 'block';
         } else {
             popup.style.display = 'none';
         }
-        
     });
-    
+
     // Close popup when clicking outside
     document.addEventListener('click', (e) => {
-        if (!control.contains(e.target)) {
+        const control = document.getElementById('thinking-tokens-control');
+        if (control && !control.contains(e.target) && !menuItem.contains(e.target)) {
             popup.style.display = 'none';
         }
     });
-    
-    // Update value display
+
     function updateDisplay(value) {
         value = parseInt(value);
-        if (value === 0) {
-            display.textContent = 'Off';
-            icon.classList.remove('active');
-        } else {
-            display.textContent = value.toLocaleString();
-            icon.classList.add('active');
+        const label = value === 0 ? 'Off' : value.toLocaleString();
+        if (display) display.textContent = label;
+        if (badge) {
+            badge.textContent = label;
+            badge.classList.toggle('active', value > 0);
         }
-        
-        // Update active preset button
         presetBtns.forEach(btn => {
-            if (parseInt(btn.dataset.value) === value) {
-                btn.classList.add('active');
-            } else {
-                btn.classList.remove('active');
-            }
+            btn.classList.toggle('active', parseInt(btn.dataset.value) === value);
         });
+        updatePlusMenuIndicator();
     }
-    
-    // Slider change
+
     slider.addEventListener('input', (e) => {
-        const value = e.target.value;
-        input.value = value;
-        updateDisplay(value);
+        input.value = e.target.value;
+        updateDisplay(e.target.value);
     });
-    
-    // Input change
+
     input.addEventListener('input', (e) => {
         let value = parseInt(e.target.value) || 0;
         value = Math.max(0, Math.min(128000, value));
         e.target.value = value;
-        
-        // Update slider if within range
-        if (value <= 20000) {
-            slider.value = value;
-        }
+        if (value <= 20000) slider.value = value;
         updateDisplay(value);
     });
-    
-    // Preset buttons
+
     presetBtns.forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.preventDefault();
             const value = btn.dataset.value;
             input.value = value;
-            if (value <= 20000) {
-                slider.value = value;
-            }
+            if (value <= 20000) slider.value = value;
             updateDisplay(value);
         });
     });
-    
-    // Apply button
+
     applyBtn.addEventListener('click', (e) => {
         e.preventDefault();
         currentThinkingBudget = parseInt(input.value) || 0;
         popup.style.display = 'none';
-        
-        // Show confirmation
+        updateDisplay(currentThinkingBudget);
         const originalText = applyBtn.textContent;
         applyBtn.textContent = 'Applied!';
-        setTimeout(() => {
-            applyBtn.textContent = originalText;
-        }, 1000);
+        setTimeout(() => { applyBtn.textContent = originalText; }, 1000);
     });
-    
-    // Listen for model changes
+
     const modelDropdown = document.getElementById('model-dropdown-content');
     if (modelDropdown) {
         modelDropdown.addEventListener('click', () => {
             setTimeout(updateThinkingTokensVisibility, 100);
         });
     }
-    
-    // Make function globally accessible
-    window.updateThinkingTokensVisibility = updateThinkingTokensVisibility;
 
-    // Initial check
+    window.updateThinkingTokensVisibility = updateThinkingTokensVisibility;
     updateThinkingTokensVisibility();
 }
 
 // =============================================
-// Web Search Toggle Control
+// Web Search Toggle (Plus Menu Item)
 // =============================================
 
 function initWebSearchControl(conversationId, webSearchAllowedByPrompt = null) {
-    const control = document.getElementById('web-search-control');
-    const button = document.getElementById('web-search-button');
-
-    if (!control || !button) return;
+    const menuItem = document.getElementById('plus-web-search');
+    if (!menuItem) return;
 
     if (!conversationId) {
-        control.classList.remove('visible');
+        menuItem.style.display = 'none';
+        updateAiSectionVisibility();
+        updatePlusMenuIndicator();
         return;
     }
 
-    // Use passed data or fall back to default (true = allowed)
     webSearchAllowed = webSearchAllowedByPrompt !== null ? webSearchAllowedByPrompt : true;
-    // Use global user preference from template
     webSearchEnabled = typeof webSearchUserEnabled !== 'undefined' ? webSearchUserEnabled : true;
 
     if (webSearchAllowed) {
-        // Prompt allows web search - show the toggle
-        control.classList.add('visible');
+        menuItem.style.display = '';
         updateWebSearchButtonState();
     } else {
-        // Prompt disables web search - hide the toggle completely
-        control.classList.remove('visible');
+        menuItem.style.display = 'none';
     }
+    updateAiSectionVisibility();
+    updatePlusMenuIndicator();
 }
 
 function updateWebSearchButtonState() {
-    const button = document.getElementById('web-search-button');
-    if (!button) return;
-
-    if (webSearchEnabled) {
-        button.classList.add('active');
-        button.title = 'Web Search: ON (click to disable)';
-    } else {
-        button.classList.remove('active');
-        button.title = 'Web Search: OFF (click to enable)';
+    const toggleSwitch = document.getElementById('web-search-toggle-switch');
+    if (toggleSwitch) {
+        toggleSwitch.classList.toggle('active', webSearchEnabled);
     }
+    updatePlusMenuIndicator();
 }
 
 async function toggleWebSearch() {
     if (!webSearchAllowed) return;
-
     try {
         const response = await secureFetch('/api/user/web-search-toggle', {
             method: 'POST'
@@ -3222,7 +3513,6 @@ async function toggleWebSearch() {
         if (!response.ok) return;
         const data = await response.json();
         webSearchEnabled = data.web_search_enabled;
-        // Update global so it persists when switching conversations
         webSearchUserEnabled = webSearchEnabled;
         updateWebSearchButtonState();
     } catch (error) {
@@ -3231,17 +3521,20 @@ async function toggleWebSearch() {
 }
 
 function initWebSearchEventListeners() {
-    const button = document.getElementById('web-search-button');
-    if (button) {
-        button.addEventListener('click', toggleWebSearch);
+    const menuItem = document.getElementById('plus-web-search');
+    if (menuItem) {
+        menuItem.addEventListener('click', (e) => {
+            e.stopPropagation(); // Keep dropdown open for toggle
+            toggleWebSearch();
+        });
     }
 }
 
 // Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', function() {
+    initPlusMenu();
     initializeThinkingTokensControl();
     initWebSearchEventListeners();
-    // Check again after a short delay to ensure model info is loaded
     setTimeout(() => {
         if (window.updateThinkingTokensVisibility) {
             window.updateThinkingTokensVisibility();
@@ -3251,4 +3544,3 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Make loadMessages globally accessible for voice-call.js
 window.loadMessages = loadMessages;
-

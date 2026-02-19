@@ -2,6 +2,7 @@ import io
 import os
 import re
 import sys
+import json
 import math
 import uuid
 import html
@@ -28,7 +29,6 @@ import logging
 import uvicorn
 import requests
 import aiosqlite
-import anthropic
 import stripe
 import traceback
 import markdown2
@@ -39,14 +39,12 @@ import aiofiles.os
 import urllib.parse
 from io import BytesIO
 from pathlib import Path
-from openai import OpenAI
 from functools import wraps
 from dotenv import load_dotenv
 from pydub import AudioSegment
 from bs4 import BeautifulSoup
 from zoneinfo import ZoneInfo
-from twilio.rest import Client
-from twilio.request_validator import RequestValidator
+from twilio_async import TwilioAPIError
 import jwt
 from jwt import PyJWTError as JWTError
 from pydantic import BaseModel
@@ -55,7 +53,6 @@ from reportlab.lib import colors
 from html import escape, unescape
 from unicodedata import normalize
 from fastapi import Query, Header, BackgroundTasks
-import google.generativeai as genai
 from google_auth_oauthlib.flow import Flow
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
@@ -75,7 +72,6 @@ from starlette.status import HTTP_401_UNAUTHORIZED
 from fastapi.middleware.cors import CORSMiddleware
 from urllib.parse import urljoin, urlparse, urlencode, quote
 from fastapi import WebSocket, WebSocketDisconnect
-from twilio.base.exceptions import TwilioRestException
 from datetime import date, datetime, timezone, timedelta
 from PIL import Image as PilImage, UnidentifiedImageError
 from starlette.middleware.sessions import SessionMiddleware
@@ -83,7 +79,7 @@ from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from fastapi.exceptions import HTTPException as FastAPIHTTPException
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from deepgram import DeepgramClient, DeepgramClientOptions, PrerecordedOptions, FileSource
+
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, HRFlowable, PageBreak
 from fastapi import FastAPI, Response, HTTPException, Depends, Request, Form, status, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse, FileResponse
@@ -108,28 +104,32 @@ from email_service import email_service
 from email_validation import validate_email_robust
 from common import Cost, generate_user_hash, has_sufficient_balance, cost_tts, cache_directory, users_directory, tts_engine, get_balance, deduct_balance, record_daily_usage, load_service_costs, estimate_message_tokens, custom_unescape, sanitize_name, templates, validate_path_within_directory, slugify, is_internal_ip, generate_public_id, get_template_context
 from common import SCRIPT_DIR, DATA_DIR, CLOUDFLARE_API_KEY, CLOUDFLARE_EMAIL, CLOUDFLARE_ZONE_ID, CLOUDFLARE_API_URL, CLOUDFLARE_FOR_IMAGES, CLOUDFLARE_SECRET, CLOUDFLARE_IMAGE_SUBDOMAIN, CLOUDFLARE_BASE_URL, generate_cloudflare_signature, generate_signed_url_cloudflare, CLOUDFLARE_DOMAIN, CLOUDFLARE_CNAME_TARGET
-from common import ALGORITHM, MAX_TOKENS, TOKEN_LIMIT, MAX_MESSAGE_SIZE, MAX_IMAGE_UPLOAD_SIZE, MAX_IMAGE_PIXELS, PERPLEXITY_API_KEY, elevenlabs_key, openai_key, claude_key, gemini_key, openrouter_key, service_sid, twilio_sid, twilio_auth, decode_jwt_cached, validate_twilio_media_url, AVATAR_TOKEN_EXPIRE_HOURS, MEDIA_TOKEN_EXPIRE_HOURS
+from common import ALGORITHM, MAX_TOKENS, MAX_MESSAGE_SIZE, MAX_IMAGE_UPLOAD_SIZE, MAX_IMAGE_PIXELS, PERPLEXITY_API_KEY, elevenlabs_key, openai_key, claude_key, gemini_key, openrouter_key, service_sid, twilio_sid, twilio_auth, twilio_messaging_service_sid, decode_jwt_cached, validate_twilio_media_url, AVATAR_TOKEN_EXPIRE_HOURS, MEDIA_TOKEN_EXPIRE_HOURS
 from common import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
 from common import STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET
 from common import encrypt_api_key, decrypt_api_key, mask_api_key
 from common import CDN_FILES_URL, ENABLE_CDN
+import nh3
 from elevenlabs_service import service as elevenlabs_service
+from message_search import build_fts_query, execute_search
 from elevenlabs_sdk_proxy import ElevenLabsSDKProxy
+from welcome_service import build_world, user_has_pack_access, user_has_prompt_access, serve_welcome_world
 from tools.tts import process_plain_text, insert_tts_break, process_text_for_tts, get_voice_code_from_prompt, get_voice_code_from_conversation, get_tts_generator, send_cached_audio, get_file_path, handle_tts_request, elevenlabs_generator, handle_openai_tts_request
 from tools.tts_load_balancer import get_elevenlabs_key
 
 from ai_calls import router as ai_router
-from ai_calls import save_message, process_save_message, get_ai_response, handle_function_call, call_o1_api, call_gpt_api, call_claude_api, call_gemini_api, stop_signals, get_last_message_id
+from ai_calls import save_message, process_save_message, get_ai_response, handle_function_call, call_o1_api, call_gpt_api, call_claude_api, call_gemini_api, stop_signals, get_last_message_id, conversation_write_lock
 
 from prompts import router as prompts_router
 from packs_router import router as packs_router
 from packs_router import warmup_pack_landing_cache, _pack_landing_cache_stats, _pack_landing_cache, PACK_LANDING_CACHE_SIZE
-from prompts import get_manager_accessible_prompts, get_manager_owned_prompts, create_prompt_directory, get_prompt_info, get_prompt_path, get_prompt_templates_dir, get_prompt_components_dir, can_manage_prompt, get_manageable_prompts
+from prompts import get_manager_accessible_prompts, get_manager_owned_prompts, create_prompt_directory, get_prompt_info, get_prompt_path, get_pack_path, get_prompt_templates_dir, get_prompt_components_dir, can_manage_prompt, get_manageable_prompts
 from prompts import get_user_directory, get_user_prompts_directory, list_prompts, process_prompt_image_upload, create_prompt, create_prompt_post, edit_prompt, update_prompt, delete_prompt, delete_prompt_image
 from prompts import get_landing_registration_config, set_landing_registration_config, get_prompt_owner_id, DEFAULT_LANDING_REGISTRATION_CONFIG
-from landing_wizard import is_claude_available, list_prompt_files, delete_all_landing_files
-from landing_jobs import start_job, get_job, get_active_job_for_prompt, cleanup_old_jobs
+from landing_wizard import is_claude_available, list_prompt_files, delete_all_landing_files, list_welcome_files, delete_all_welcome_files
+from landing_jobs import start_job, get_job, get_active_job_for_prompt, get_active_welcome_job_for_prompt, cleanup_old_jobs
 from security_guard_llm import check_security, is_security_guard_enabled
+from ranking import maybe_trigger_recalculation, get_ranking_config, start_scheduled_ranking_loop, recalculate_ranking_scores, invalidate_ranking_config_cache
 from rate_limiter import (
     check_rate_limits, check_failure_limit, record_failure,
     RateLimitConfig as RLC, get_client_ip
@@ -188,13 +188,85 @@ async def lifespan(app: FastAPI):
             logger.warning("Continuing without memory DB initialization...")
             # Don't raise - continue startup
 
+    # Set WAL journal mode once (persistent across connections)
+    from database import ensure_wal_mode
+    await ensure_wal_mode()
+
+    # Create WhatsApp and system tables if not exists
+    async with get_db_connection() as conn:
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS WHATSAPP_PROCESSED_MESSAGES (
+                message_sid TEXT PRIMARY KEY,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS WHATSAPP_LOG (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                user_id INTEGER,
+                phone_number TEXT,
+                direction TEXT CHECK(direction IN ('in', 'out')),
+                message_type TEXT CHECK(message_type IN ('text', 'audio', 'image', 'error', 'system')),
+                response_mode TEXT CHECK(response_mode IN ('text', 'voice')),
+                FOREIGN KEY (user_id) REFERENCES USERS(id)
+            )
+        """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS SYSTEM_CONFIG (
+                key TEXT PRIMARY KEY,
+                value TEXT,
+                description TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        await conn.commit()
+
     # Warm up landing page cache with most visited prompts
     await warmup_landing_cache()
 
     # Warm up pack landing page cache with most visited packs
     await warmup_pack_landing_cache()
 
+    # Ranking system startup — elect ONE worker as leader via atomic file lock.
+    # Without this, all N workers redundantly recalculate rankings at startup
+    # and run parallel scheduled loops, wasting DB writes.
+    import tempfile as _tempfile
+    _ranking_lock = os.path.join(
+        _tempfile.gettempdir(), f"spark_ranking_{os.getppid()}.lock"
+    )
+    _is_ranking_leader = False
+
+    # Clean stale lock from a previous crashed run (handles OS PID reuse)
+    try:
+        if os.path.exists(_ranking_lock):
+            if time.time() - os.path.getmtime(_ranking_lock) > 300:
+                os.unlink(_ranking_lock)
+    except OSError:
+        pass
+
+    try:
+        fd = os.open(_ranking_lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.close(fd)
+        _is_ranking_leader = True
+    except FileExistsError:
+        pass
+
+    if _is_ranking_leader:
+        ranking_config = await get_ranking_config()
+        if ranking_config['mode'] == 'scheduled':
+            asyncio.create_task(start_scheduled_ranking_loop())
+        # Initial recalculation at startup
+        asyncio.create_task(recalculate_ranking_scores())
+
     yield
+
+    # Cleanup ranking leader lock file
+    if _is_ranking_leader:
+        try:
+            os.unlink(_ranking_lock)
+        except OSError:
+            pass
 
     # Cleanup on shutdown
     if use_redis:
@@ -252,27 +324,14 @@ manager = ConnectionManager()
 
 default_lang = "es"
 
-openai.api_key = openai_key
-client = OpenAI(api_key=os.environ.get("OPENAI_KEY"))
-
-anthropic.api_key = claude_key
-clientClaude = anthropic.Anthropic(api_key=claude_key)
-
-genai.configure(api_key=gemini_key)
-
-# Stripe configuration
-if STRIPE_SECRET_KEY:
-    stripe.api_key = STRIPE_SECRET_KEY
-
-twilio_client = Client(twilio_sid, twilio_auth)
-twilio_validator = RequestValidator(twilio_auth) if twilio_auth else None
-
-deepgram_key = os.getenv('DEEPGRAM_KEY')
-config: DeepgramClientOptions = DeepgramClientOptions(verbose=logging.SPAM)
-deepgram: DeepgramClient = DeepgramClient(deepgram_key, config)
-
-stt_engine = os.getenv('STT_ENGINE', 'deepgram')
-stt_fallback_enabled = os.getenv('STT_FALLBACK_ENABLED', '0') == '1'
+# External service clients — in a separate module so Python's sys.modules
+# caching prevents double-execution per worker on Windows (multiprocessing
+# spawn + uvicorn import string causes app.py to run 2x per worker process).
+# NOTE: OpenAI/Anthropic/Gemini clients are initialized in ai_calls.py.
+from clients import (
+    async_twilio, twilio_validator,
+    deepgram, stt_engine, stt_fallback_enabled,
+)
 
 user_costs_cache = TTLCache(maxsize=1024, ttl=3600)
 
@@ -291,7 +350,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 app.add_middleware(SessionMiddleware, secret_key=os.urandom(24))
 
 # Custom Domain Middleware - configure primary domains that skip DB lookup
-PRIMARY_APP_DOMAIN = os.getenv("PRIMARY_APP_DOMAIN", "localhost")
+PRIMARY_APP_DOMAIN = os.getenv("PRIMARY_APP_DOMAIN", "sparkai.jordicor.com")
 set_primary_domains([
     PRIMARY_APP_DOMAIN,
     CLOUDFLARE_DOMAIN,
@@ -585,23 +644,39 @@ async def get_user_accessible_prompts(user: User, cursor, all_prompts_access: bo
         await cursor.execute('''
             SELECT p.id, p.name, u.username as created_by_username, p.public_id,
                    CASE WHEN pcd.is_active = 1 AND pcd.verification_status = 1
-                        THEN pcd.custom_domain ELSE NULL END as custom_domain
+                        THEN pcd.custom_domain ELSE NULL END as custom_domain,
+                   CASE WHEN fp.prompt_id IS NOT NULL THEN 1 ELSE 0 END as is_favorite,
+                   CASE WHEN opp.permission_level = 'owner' THEN 1
+                        WHEN p.created_by_user_id = ?
+                             AND NOT EXISTS (SELECT 1 FROM PROMPT_PERMISSIONS
+                                             WHERE prompt_id = p.id AND permission_level = 'owner')
+                        THEN 1 ELSE 0 END as is_mine
             FROM PROMPTS p
             JOIN USERS u ON p.created_by_user_id = u.id
             LEFT JOIN PROMPT_CUSTOM_DOMAINS pcd ON p.id = pcd.prompt_id
+            LEFT JOIN FAVORITE_PROMPTS fp ON fp.prompt_id = p.id AND fp.user_id = ?
+            LEFT JOIN PROMPT_PERMISSIONS opp ON opp.prompt_id = p.id AND opp.user_id = ? AND opp.permission_level = 'owner'
             ORDER BY p.name COLLATE NOCASE
-        ''')
+        ''', (user.id, user.id, user.id))
     elif await user.is_manager:
         query = '''
             SELECT DISTINCT p.id, p.name, u.username as created_by_username, p.public_id,
                    CASE WHEN pcd.is_active = 1 AND pcd.verification_status = 1
-                        THEN pcd.custom_domain ELSE NULL END as custom_domain
+                        THEN pcd.custom_domain ELSE NULL END as custom_domain,
+                   CASE WHEN fp.prompt_id IS NOT NULL THEN 1 ELSE 0 END as is_favorite,
+                   CASE WHEN opp.permission_level = 'owner' THEN 1
+                        WHEN p.created_by_user_id = ?
+                             AND NOT EXISTS (SELECT 1 FROM PROMPT_PERMISSIONS
+                                             WHERE prompt_id = p.id AND permission_level = 'owner')
+                        THEN 1 ELSE 0 END as is_mine
             FROM PROMPTS p
             JOIN USERS u ON p.created_by_user_id = u.id
-            LEFT JOIN PROMPT_PERMISSIONS pp ON p.id = pp.prompt_id
+            LEFT JOIN PROMPT_PERMISSIONS pp ON p.id = pp.prompt_id AND pp.user_id = ?
             LEFT JOIN PROMPT_CUSTOM_DOMAINS pcd ON p.id = pcd.prompt_id
+            LEFT JOIN FAVORITE_PROMPTS fp ON fp.prompt_id = p.id AND fp.user_id = ?
+            LEFT JOIN PROMPT_PERMISSIONS opp ON opp.prompt_id = p.id AND opp.user_id = ? AND opp.permission_level = 'owner'
             WHERE p.created_by_user_id = ?
-                OR (pp.user_id = ? AND pp.permission_level IN ('edit', 'owner'))
+                OR (pp.permission_level IN ('edit', 'owner', 'access'))
                 OR p.id IN (
                     SELECT pi.prompt_id FROM PACK_ITEMS pi
                     JOIN PACK_ACCESS pa ON pi.pack_id = pa.pack_id
@@ -611,7 +686,7 @@ async def get_user_accessible_prompts(user: User, cursor, all_prompts_access: bo
                       AND (pa.expires_at IS NULL OR pa.expires_at > datetime('now'))
                 )
         '''
-        params = [user.id, user.id, user.id]
+        params = [user.id, user.id, user.id, user.id, user.id, user.id]
 
         if public_prompts_access:
             if category_access is None:
@@ -632,13 +707,21 @@ async def get_user_accessible_prompts(user: User, cursor, all_prompts_access: bo
         query = '''
             SELECT DISTINCT p.id, p.name, u.username as created_by_username, p.public_id,
                    CASE WHEN pcd.is_active = 1 AND pcd.verification_status = 1
-                        THEN pcd.custom_domain ELSE NULL END as custom_domain
+                        THEN pcd.custom_domain ELSE NULL END as custom_domain,
+                   CASE WHEN fp.prompt_id IS NOT NULL THEN 1 ELSE 0 END as is_favorite,
+                   CASE WHEN opp.permission_level = 'owner' THEN 1
+                        WHEN p.created_by_user_id = ?
+                             AND NOT EXISTS (SELECT 1 FROM PROMPT_PERMISSIONS
+                                             WHERE prompt_id = p.id AND permission_level = 'owner')
+                        THEN 1 ELSE 0 END as is_mine
             FROM PROMPTS p
             JOIN USERS u ON p.created_by_user_id = u.id
-            LEFT JOIN PROMPT_PERMISSIONS pp ON p.id = pp.prompt_id
+            LEFT JOIN PROMPT_PERMISSIONS pp ON p.id = pp.prompt_id AND pp.user_id = ?
             LEFT JOIN PROMPT_CUSTOM_DOMAINS pcd ON p.id = pcd.prompt_id
+            LEFT JOIN FAVORITE_PROMPTS fp ON fp.prompt_id = p.id AND fp.user_id = ?
+            LEFT JOIN PROMPT_PERMISSIONS opp ON opp.prompt_id = p.id AND opp.user_id = ? AND opp.permission_level = 'owner'
             WHERE p.created_by_user_id = ?
-                OR (pp.user_id = ? AND pp.permission_level IN ('edit', 'owner'))
+                OR (pp.permission_level IN ('edit', 'owner', 'access'))
                 OR p.id IN (
                     SELECT pi.prompt_id FROM PACK_ITEMS pi
                     JOIN PACK_ACCESS pa ON pi.pack_id = pa.pack_id
@@ -648,7 +731,7 @@ async def get_user_accessible_prompts(user: User, cursor, all_prompts_access: bo
                       AND (pa.expires_at IS NULL OR pa.expires_at > datetime('now'))
                 )
         '''
-        params = [user.id, user.id, user.id]
+        params = [user.id, user.id, user.id, user.id, user.id, user.id]
 
         if public_prompts_access:
             if category_access is None:
@@ -668,7 +751,7 @@ async def get_user_accessible_prompts(user: User, cursor, all_prompts_access: bo
         await cursor.execute(query, params)
 
     prompts = await cursor.fetchall()
-    return [{"id": p[0], "text": p[1], "created_by_username": p[2], "public_id": p[3], "name": p[1], "custom_domain": p[4]} for p in prompts]
+    return [{"id": p[0], "text": p[1], "created_by_username": p[2], "public_id": p[3], "name": p[1], "custom_domain": p[4], "is_favorite": bool(p[5]), "is_mine": bool(p[6])} for p in prompts]
 
 
 async def can_user_access_prompt(user: User, prompt_id: int, cursor) -> bool:
@@ -685,7 +768,7 @@ async def can_user_access_prompt(user: User, prompt_id: int, cursor) -> bool:
         (prompt_id, user.id)
     )
     perm = await cursor.fetchone()
-    if perm and perm[0] in ('owner', 'edit'):
+    if perm and perm[0] in ('owner', 'edit', 'access'):
         return True
 
     # Check pack-granted access (user has PACK_ACCESS to a pack containing this prompt)
@@ -864,12 +947,13 @@ async def show_edit_profile_form(request: Request, current_user: User = Depends(
         cursor = await conn.cursor()
         await cursor.execute("SELECT username, phone_number, email, user_info, profile_picture FROM USERS WHERE id = ?", (current_user.id,))
         user_data = await cursor.fetchone()
-        await cursor.execute("SELECT balance, voice_id, current_alter_ego_id FROM USER_DETAILS WHERE user_id = ?", (current_user.id,))
+        await cursor.execute("SELECT balance, voice_id, current_alter_ego_id, home_preferences FROM USER_DETAILS WHERE user_id = ?", (current_user.id,))
         user_details = await cursor.fetchone()
         formatted_balance = f"{user_details[0]:.3f}" if user_details else "0.000"
-        
+
         voice_id = user_details[1]
         current_alter_ego_id = user_details[2]  # Get the current_alter_ego_id
+        raw_home_prefs = user_details[3] if user_details else None
         voice_code = None
         if voice_id:
             await cursor.execute("SELECT voice_code FROM VOICES WHERE id = ?", (voice_id,))
@@ -917,6 +1001,14 @@ async def show_edit_profile_form(request: Request, current_user: User = Depends(
         
         alter_ego_list.append(alter_ego_dict)
     
+    # Parse home_preferences JSON
+    home_preferences = {}
+    if raw_home_prefs:
+        try:
+            home_preferences = json.loads(raw_home_prefs)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     context = await get_template_context(request, current_user)
     context.update({
         "user_data": user_data_dict,
@@ -924,9 +1016,103 @@ async def show_edit_profile_form(request: Request, current_user: User = Depends(
         "current_user_voice_id": voice_code,
         "current_user_id": current_user.id,
         "alter_egos": alter_ego_list,
-        "current_alter_ego_id": current_alter_ego_id
+        "current_alter_ego_id": current_alter_ego_id,
+        "home_preferences": home_preferences
     })
     return templates.TemplateResponse("profile/edit_profile.html", context)
+
+
+@app.get("/settings", response_class=HTMLResponse)
+async def settings_page(request: Request, current_user: User = Depends(get_current_user)):
+    """Unified settings page with Profile, Usage & Billing, and API Keys tabs."""
+    if current_user is None:
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x})
+
+    from common import get_user_api_key_mode, user_requires_own_keys
+
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.cursor()
+
+        # Profile data
+        await cursor.execute("SELECT username, phone_number, email, user_info, profile_picture FROM USERS WHERE id = ?", (current_user.id,))
+        user_data = await cursor.fetchone()
+        await cursor.execute("SELECT balance, voice_id, current_alter_ego_id, home_preferences FROM USER_DETAILS WHERE user_id = ?", (current_user.id,))
+        user_details = await cursor.fetchone()
+        formatted_balance = f"{user_details[0]:.3f}" if user_details else "0.000"
+
+        voice_id = user_details[1]
+        current_alter_ego_id = user_details[2]
+        raw_home_prefs = user_details[3] if user_details else None
+        voice_code = None
+        if voice_id:
+            await cursor.execute("SELECT voice_code FROM VOICES WHERE id = ?", (voice_id,))
+            voice_row = await cursor.fetchone()
+            voice_code = voice_row[0] if voice_row else None
+
+        await cursor.execute("SELECT id, name, description, profile_picture FROM USER_ALTER_EGOS WHERE user_id = ?", (current_user.id,))
+        alter_egos = await cursor.fetchall()
+
+    user_data_dict = {
+        "username": user_data[0],
+        "phone_number": user_data[1] if user_data[1] not in (None, "None", "null") else "",
+        "email": user_data[2] if user_data[2] not in (None, "None", "null") else "",
+        "user_info": user_data[3] if user_data[3] else "",
+        "profile_picture": user_data[4] if user_data[4] else "",
+        "current_alter_ego_id": current_alter_ego_id
+    }
+
+    if user_data_dict["profile_picture"]:
+        current_time = datetime.utcnow()
+        new_expiration = current_time + timedelta(hours=AVATAR_TOKEN_EXPIRE_HOURS)
+        profile_picture_url = f"{user_data_dict['profile_picture']}_128.webp"
+        token = generate_img_token(profile_picture_url, new_expiration, current_user)
+        user_data_dict["profile_picture"] = f"{CLOUDFLARE_BASE_URL}{profile_picture_url}?token={token}"
+
+    alter_ego_list = []
+    for alter_ego in alter_egos:
+        alter_ego_dict = {
+            "id": alter_ego[0],
+            "name": alter_ego[1],
+            "description": alter_ego[2],
+            "profile_picture": alter_ego[3] if alter_ego[3] else ""
+        }
+        if alter_ego_dict["profile_picture"]:
+            current_time = datetime.utcnow()
+            new_expiration = current_time + timedelta(hours=AVATAR_TOKEN_EXPIRE_HOURS)
+            profile_picture_url = f"{alter_ego_dict['profile_picture']}_128.webp"
+            token = generate_img_token(profile_picture_url, new_expiration, current_user)
+            alter_ego_dict["profile_picture"] = f"{CLOUDFLARE_BASE_URL}{profile_picture_url}?token={token}"
+        alter_ego_list.append(alter_ego_dict)
+
+    home_preferences = {}
+    if raw_home_prefs:
+        try:
+            home_preferences = json.loads(raw_home_prefs)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # API credentials data
+    api_key_mode = await get_user_api_key_mode(current_user.id)
+    requires_own_keys = await user_requires_own_keys(current_user.id)
+
+    # Balance
+    user_balance = await get_balance(current_user.id)
+
+    context = await get_template_context(request, current_user)
+    context.update({
+        "user_data": user_data_dict,
+        "user_details": {"balance": formatted_balance},
+        "current_user_voice_id": voice_code,
+        "current_user_id": current_user.id,
+        "alter_egos": alter_ego_list,
+        "current_alter_ego_id": current_alter_ego_id,
+        "home_preferences": home_preferences,
+        "can_change_password": current_user.should_show_change_password(),
+        "api_key_mode": api_key_mode,
+        "requires_own_keys": requires_own_keys,
+        "user_balance": user_balance
+    })
+    return templates.TemplateResponse("settings.html", context)
 
 
 # ============================================================================
@@ -1314,7 +1500,7 @@ async def delete_all_user_credentials(request: Request, current_user: User = Dep
 
 
 # ============================================================================
-# CURATION SETTINGS ENDPOINTS (formerly Reseller Settings)
+# CURATION SETTINGS ENDPOINTS
 # ============================================================================
 
 @app.get("/api/user/curation-settings")
@@ -1331,7 +1517,7 @@ async def get_curation_settings(request: Request, current_user: User = Depends(g
         async with get_db_connection(readonly=True) as conn:
             cursor = await conn.cursor()
             await cursor.execute(
-                "SELECT reseller_markup_per_mtokens, pending_earnings FROM USER_DETAILS WHERE user_id = ?",
+                "SELECT referral_markup_per_mtokens, pending_earnings FROM USER_DETAILS WHERE user_id = ?",
                 (current_user.id,)
             )
             result = await cursor.fetchone()
@@ -1339,13 +1525,13 @@ async def get_curation_settings(request: Request, current_user: User = Depends(g
             if result:
                 return JSONResponse(content={
                     "success": True,
-                    "reseller_markup_per_mtokens": float(result[0] or 0),
+                    "referral_markup_per_mtokens": float(result[0] or 0),
                     "pending_earnings": float(result[1] or 0)
                 })
             else:
                 return JSONResponse(content={
                     "success": True,
-                    "reseller_markup_per_mtokens": 0,
+                    "referral_markup_per_mtokens": 0,
                     "pending_earnings": 0
                 })
 
@@ -1369,7 +1555,7 @@ async def update_curation_settings(
 
     try:
         data = await request.json()
-        markup = float(data.get("reseller_markup_per_mtokens", 0))
+        markup = float(data.get("referral_markup_per_mtokens", 0))
 
         # Validate markup (must be non-negative)
         if markup < 0:
@@ -1382,12 +1568,12 @@ async def update_curation_settings(
         async with get_db_connection() as conn:
             cursor = await conn.cursor()
             await cursor.execute(
-                "UPDATE USER_DETAILS SET reseller_markup_per_mtokens = ? WHERE user_id = ?",
+                "UPDATE USER_DETAILS SET referral_markup_per_mtokens = ? WHERE user_id = ?",
                 (markup, current_user.id)
             )
             await conn.commit()
 
-        return JSONResponse(content={"success": True, "message": "Curation settings updated", "reseller_markup_per_mtokens": markup})
+        return JSONResponse(content={"success": True, "message": "Curation settings updated", "referral_markup_per_mtokens": markup})
 
     except ValueError:
         return JSONResponse(status_code=400, content={"success": False, "message": "Invalid markup value"})
@@ -1409,23 +1595,23 @@ async def curation_settings_page(request: Request, current_user: User = Depends(
     async with get_db_connection(readonly=True) as conn:
         cursor = await conn.cursor()
         await cursor.execute(
-            "SELECT reseller_markup_per_mtokens, pending_earnings FROM USER_DETAILS WHERE user_id = ?",
+            "SELECT referral_markup_per_mtokens, pending_earnings FROM USER_DETAILS WHERE user_id = ?",
             (current_user.id,)
         )
         result = await cursor.fetchone()
 
-        reseller_data = {
-            "reseller_markup_per_mtokens": float(result[0] or 0) if result else 0,
+        curation_data = {
+            "referral_markup_per_mtokens": float(result[0] or 0) if result else 0,
             "pending_earnings": float(result[1] or 0) if result else 0
         }
 
     context = await get_template_context(request, current_user)
-    context["curation_data"] = reseller_data
+    context["curation_data"] = curation_data
     return templates.TemplateResponse("curation_settings.html", context)
 
 
 # ============================================================================
-# Manager Team Billing Endpoints (Enterprise Mode)
+# Manager Team Billing Endpoints
 # ============================================================================
 
 @app.get("/manager/team-billing")
@@ -1452,12 +1638,18 @@ async def get_manager_team_billing(request: Request, current_user: User = Depend
 
     try:
         from datetime import datetime
-        current_month = datetime.now().strftime('%Y-%m')
-        last_month_date = datetime.now().replace(day=1)
-        if last_month_date.month == 1:
-            last_month = f"{last_month_date.year - 1}-12"
+        now = datetime.now()
+        current_month_start = now.replace(day=1).strftime('%Y-%m-%d')
+        if now.month == 12:
+            next_month_start = f"{now.year + 1}-01-01"
         else:
-            last_month = f"{last_month_date.year}-{last_month_date.month - 1:02d}"
+            next_month_start = f"{now.year}-{now.month + 1:02d}-01"
+        last_month_first = now.replace(day=1)
+        if last_month_first.month == 1:
+            last_month_start = f"{last_month_first.year - 1}-12-01"
+        else:
+            last_month_start = f"{last_month_first.year}-{last_month_first.month - 1:02d}-01"
+        last_month_end = current_month_start
 
         async with get_db_connection(readonly=True) as conn:
             cursor = await conn.cursor()
@@ -1515,8 +1707,8 @@ async def get_manager_team_billing(request: Request, current_user: User = Depend
                 JOIN USER_DETAILS ud ON t.user_id = ud.user_id
                 WHERE ud.billing_account_id = ?
                 AND t.type = 'payment'
-                AND strftime('%Y-%m', t.created_at) = ?
-            ''', (current_user.id, last_month))
+                AND t.created_at >= ? AND t.created_at < ?
+            ''', (current_user.id, last_month_start, last_month_end))
             last_month_row = await cursor.fetchone()
             team_spending_last_month = float(last_month_row[0]) if last_month_row else 0.0
 
@@ -1531,12 +1723,12 @@ async def get_manager_team_billing(request: Request, current_user: User = Depend
                 JOIN PROMPTS p ON c.role_id = p.id
                 JOIN USER_DETAILS ud ON m.user_id = ud.user_id
                 WHERE ud.billing_account_id = ?
-                AND strftime('%Y-%m', m.date) = ?
+                AND m.date >= ? AND m.date < ?
                 AND m.type = 'bot'
                 GROUP BY p.id, p.name
                 ORDER BY tokens DESC
                 LIMIT 20
-            ''', (current_user.id, current_month))
+            ''', (current_user.id, current_month_start, next_month_start))
             prompts_rows = await cursor.fetchall()
 
             by_prompt = []
@@ -1663,7 +1855,7 @@ async def update_my_branding(request: Request, current_user: User = Depends(get_
     valid_themes = [
         'default', 'dark', 'light', 'writer', 'terminal', 'coder',
         'katarishoji', 'halloween', 'xmas', 'valentinesday', 'memphis',
-        'neumorphism', 'frutigeraero', 'eink'
+        'nekoglass', 'frutigeraero', 'eink'
     ]
     forced_theme = data.get('forced_theme')
     if forced_theme and forced_theme not in valid_themes:
@@ -1728,8 +1920,200 @@ async def update_my_branding(request: Request, current_user: User = Depends(get_
     return JSONResponse(content={"success": True, "message": "Branding settings saved successfully"})
 
 
+# ============================================================================
+# Phase 04: Creator Profile & Storefront Management
+# ============================================================================
+
+@app.get("/my-storefront")
+async def my_storefront_page(request: Request, current_user: User = Depends(get_current_user)):
+    """Render the creator storefront management page."""
+    if current_user is None:
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x})
+    if not await current_user.is_manager and not await current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only managers can manage storefronts")
+
+    context = await get_template_context(request, current_user)
+    return templates.TemplateResponse("my_storefront.html", context)
+
+
+@app.get("/api/creator-profile")
+async def get_creator_profile_api(request: Request, current_user: User = Depends(get_current_user)):
+    """Get current user's creator profile data."""
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if not await current_user.is_manager and not await current_user.is_admin:
+        return JSONResponse(content={"error": "Only managers can access creator profiles"}, status_code=403)
+
+    from storefront_service import get_own_creator_profile
+    profile = await get_own_creator_profile(current_user.id)
+
+    return JSONResponse(content={"profile": profile})
+
+
+@app.put("/api/creator-profile")
+async def update_creator_profile(request: Request, current_user: User = Depends(get_current_user)):
+    """Update current user's creator profile. UPSERT pattern."""
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if not await current_user.is_manager and not await current_user.is_admin:
+        return JSONResponse(content={"error": "Only managers can update creator profiles"}, status_code=403)
+
+    data = await request.json()
+
+    from storefront_service import (
+        generate_unique_creator_slug, validate_social_links
+    )
+
+    display_name = data.get('display_name', '').strip()
+    if not display_name or len(display_name) > 200:
+        return JSONResponse(content={"error": "Display name is required (max 200 characters)"}, status_code=400)
+
+    bio = data.get('bio', '').strip()
+    if len(bio) > 2000:
+        return JSONResponse(content={"error": "Bio must be 2000 characters or less"}, status_code=400)
+
+    # Slug handling
+    slug = data.get('slug', '').strip().lower()
+    if slug:
+        # Validate slug format (only a-z, 0-9, hyphens)
+        if not re.match(r'^[a-z0-9][a-z0-9-]*[a-z0-9]$', slug) and len(slug) > 1:
+            return JSONResponse(content={"error": "Invalid slug format. Use only lowercase letters, numbers, and hyphens."}, status_code=400)
+        if len(slug) > 64:
+            return JSONResponse(content={"error": "Slug must be 64 characters or less"}, status_code=400)
+
+        from security_config import is_forbidden_prompt_name
+        if is_forbidden_prompt_name(slug):
+            return JSONResponse(content={"error": "This slug is reserved"}, status_code=400)
+
+        # Check uniqueness (excluding current user)
+        async with get_db_connection(readonly=True) as conn:
+            cursor = await conn.execute(
+                "SELECT 1 FROM CREATOR_PROFILES WHERE slug = ? AND user_id != ?",
+                (slug, current_user.id)
+            )
+            if await cursor.fetchone():
+                return JSONResponse(content={"error": "This slug is already taken"}, status_code=409)
+    else:
+        slug = await generate_unique_creator_slug(display_name, exclude_user_id=current_user.id)
+
+    # Social links validation
+    social_links_raw = data.get('social_links', {})
+    social_links = validate_social_links(social_links_raw) if social_links_raw else {}
+
+    social_links_json = orjson.dumps(social_links).decode() if social_links else None
+
+    is_public = bool(data.get('is_public', False))
+
+    # UPSERT
+    async with get_db_connection() as conn:
+        cursor = await conn.execute(
+            "SELECT 1 FROM CREATOR_PROFILES WHERE user_id = ?", (current_user.id,)
+        )
+        exists = await cursor.fetchone()
+
+        if exists:
+            await conn.execute("""
+                UPDATE CREATOR_PROFILES
+                SET display_name = ?, slug = ?, bio = ?, social_links = ?,
+                    is_public = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = ?
+            """, (display_name, slug, bio or None, social_links_json, is_public, current_user.id))
+        else:
+            await conn.execute("""
+                INSERT INTO CREATOR_PROFILES (user_id, slug, display_name, bio, social_links, is_public)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (current_user.id, slug, display_name, bio or None, social_links_json, is_public))
+
+        await conn.commit()
+
+    return JSONResponse(content={"success": True, "slug": slug})
+
+
+@app.post("/api/creator-profile/avatar")
+async def upload_creator_avatar(
+    file: UploadFile,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    """Upload creator profile avatar. Saves 4 sizes like profile pictures."""
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if not await current_user.is_manager and not await current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only managers can upload creator avatars")
+
+    hash_prefix1, hash_prefix2, user_hash = generate_user_hash(current_user.username)
+    profile_dir = os.path.join(users_directory, hash_prefix1, hash_prefix2, user_hash, "profile")
+
+    if not os.path.exists(profile_dir):
+        os.makedirs(profile_dir)
+
+    content = await file.read()
+
+    if len(content) > MAX_IMAGE_UPLOAD_SIZE:
+        raise HTTPException(status_code=400, detail=f"Image too large. Maximum size is {MAX_IMAGE_UPLOAD_SIZE // (1024*1024)}MB")
+
+    try:
+        image = PilImage.open(io.BytesIO(content))
+        width, height = image.size
+        if width * height > MAX_IMAGE_PIXELS:
+            raise HTTPException(status_code=400, detail=f"Image dimensions too large. Maximum is {MAX_IMAGE_PIXELS:,} pixels")
+    except UnidentifiedImageError:
+        raise HTTPException(status_code=400, detail="Invalid image file")
+
+    sizes = [32, 64, 128, 'fullsize']
+    ext = 'webp'
+    suffix = "_creator"
+
+    base_url = f"users/{hash_prefix1}/{hash_prefix2}/{user_hash}/profile/{user_hash}{suffix}"
+
+    try:
+        for size in sizes:
+            if size == 'fullsize':
+                resized = image
+                filename = f"{user_hash}{suffix}_fullsize.{ext}"
+            else:
+                resized = resize_image(image, size)
+                filename = f"{user_hash}{suffix}_{size}.{ext}"
+
+            file_path = os.path.join(profile_dir, filename)
+            resized.save(file_path, ext.upper())
+    except Exception as e:
+        logger.error(f"Error saving creator avatar: {e}")
+        raise HTTPException(status_code=500, detail="Error processing image")
+
+    # Update CREATOR_PROFILES.avatar_url
+    async with get_db_connection() as conn:
+        await conn.execute(
+            "UPDATE CREATOR_PROFILES SET avatar_url = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?",
+            (base_url, current_user.id)
+        )
+        await conn.commit()
+
+    return JSONResponse(content={"avatar_url": base_url})
+
+
+@app.get("/api/creator-profile/check-slug")
+async def check_creator_slug(slug: str, current_user: User = Depends(get_current_user)):
+    """Check if a slug is available."""
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    from security_config import is_forbidden_prompt_name
+    if is_forbidden_prompt_name(slug):
+        return JSONResponse(content={"available": False, "reason": "reserved"})
+
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.execute(
+            "SELECT 1 FROM CREATOR_PROFILES WHERE slug = ? AND user_id != ?",
+            (slug, current_user.id)
+        )
+        taken = await cursor.fetchone()
+
+    return JSONResponse(content={"available": not taken})
+
+
 @app.get("/api/user/init")
-async def get_user_init(request: Request, current_user: User = Depends(get_current_user)):
+async def get_user_init(request: Request, current_user: User = Depends(get_current_user), context_type: str = None, context_id: str = None):
     """
     Combined endpoint returning session status and theme configuration.
     Reduces HTTP requests by combining /api/check-session and /api/user/theme-config.
@@ -1881,9 +2265,12 @@ async def get_user_init(request: Request, current_user: User = Depends(get_curre
             "brand_color_secondary": '#10B981'
         }
     else:
-        # Regular users - check manager's theme enforcement
-        from common import get_branding_for_user
-        branding = await get_branding_for_user(current_user.id)
+        # Regular users - check context-specific or user-level branding
+        from common import get_branding_for_user, get_branding_for_context
+        if context_type == "storefront" and context_id:
+            branding = await get_branding_for_context({"storefront_slug": context_id})
+        else:
+            branding = await get_branding_for_user(current_user.id)
         theme_data = {
             "forced_theme": branding.get('forced_theme'),
             "disable_theme_selector": branding.get('disable_theme_selector', False),
@@ -1898,7 +2285,7 @@ async def get_user_init(request: Request, current_user: User = Depends(get_curre
 
 
 @app.get("/api/user/theme-config")
-async def get_user_theme_config(request: Request, current_user: User = Depends(get_current_user)):
+async def get_user_theme_config(request: Request, current_user: User = Depends(get_current_user), context_type: str = None, context_id: str = None):
     """Get theme configuration for a user, respecting manager's forced theme if applicable."""
     if current_user is None:
         # Return defaults for unauthenticated users (login/register pages)
@@ -1923,9 +2310,12 @@ async def get_user_theme_config(request: Request, current_user: User = Depends(g
             "brand_color_secondary": '#10B981'
         })
 
-    # For regular users, check if their creator has set theme enforcement
-    from common import get_branding_for_user
-    branding = await get_branding_for_user(current_user.id)
+    # For regular users, check context-specific or user-level branding
+    from common import get_branding_for_user, get_branding_for_context
+    if context_type == "storefront" and context_id:
+        branding = await get_branding_for_context({"storefront_slug": context_id})
+    else:
+        branding = await get_branding_for_user(current_user.id)
 
     return JSONResponse(content={
         "forced_theme": branding.get('forced_theme'),
@@ -2108,6 +2498,7 @@ async def get_landing_analytics(request: Request, current_user: User = Depends(g
     from datetime import datetime, timedelta
 
     today = datetime.now().strftime('%Y-%m-%d')
+    tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
     week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
     month_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
 
@@ -2115,21 +2506,22 @@ async def get_landing_analytics(request: Request, current_user: User = Depends(g
         cursor = await conn.cursor()
 
         # Get all prompts owned by this manager with analytics
+        # Use direct timestamp comparisons instead of date() to leverage indexes
         await cursor.execute('''
             SELECT
                 p.id,
                 p.name,
-                COUNT(DISTINCT CASE WHEN date(a.visit_timestamp) = ? THEN a.visitor_id END) as today_visitors,
-                COUNT(DISTINCT CASE WHEN date(a.visit_timestamp) >= ? THEN a.visitor_id END) as week_visitors,
-                COUNT(DISTINCT CASE WHEN date(a.visit_timestamp) >= ? THEN a.visitor_id END) as month_visitors,
-                COUNT(CASE WHEN date(a.visit_timestamp) >= ? THEN 1 END) as month_visits,
-                COUNT(CASE WHEN a.converted = 1 AND date(a.visit_timestamp) >= ? THEN 1 END) as month_conversions
+                COUNT(DISTINCT CASE WHEN a.visit_timestamp >= ? AND a.visit_timestamp < ? THEN a.visitor_id END) as today_visitors,
+                COUNT(DISTINCT CASE WHEN a.visit_timestamp >= ? THEN a.visitor_id END) as week_visitors,
+                COUNT(DISTINCT CASE WHEN a.visit_timestamp >= ? THEN a.visitor_id END) as month_visitors,
+                COUNT(CASE WHEN a.visit_timestamp >= ? THEN 1 END) as month_visits,
+                COUNT(CASE WHEN a.converted = 1 AND a.visit_timestamp >= ? THEN 1 END) as month_conversions
             FROM PROMPTS p
             LEFT JOIN LANDING_PAGE_ANALYTICS a ON p.id = a.prompt_id
             WHERE p.created_by_user_id = ?
             GROUP BY p.id, p.name
             ORDER BY month_visitors DESC
-        ''', (today, week_ago, month_ago, month_ago, month_ago, current_user.id))
+        ''', (today, tomorrow, week_ago, month_ago, month_ago, month_ago, current_user.id))
 
         prompts_data = []
         total_today = 0
@@ -2163,7 +2555,7 @@ async def get_landing_analytics(request: Request, current_user: User = Depends(g
             FROM LANDING_PAGE_ANALYTICS a
             JOIN PROMPTS p ON a.prompt_id = p.id
             WHERE p.created_by_user_id = ?
-            AND date(a.visit_timestamp) >= ?
+            AND a.visit_timestamp >= ?
             AND a.referrer IS NOT NULL AND a.referrer != ''
             GROUP BY a.referrer
             ORDER BY count DESC
@@ -2183,11 +2575,11 @@ async def get_landing_analytics(request: Request, current_user: User = Depends(g
 
         # Get daily visits for chart (last 14 days)
         await cursor.execute('''
-            SELECT date(a.visit_timestamp) as day, COUNT(*) as visits
+            SELECT substr(a.visit_timestamp, 1, 10) as day, COUNT(*) as visits
             FROM LANDING_PAGE_ANALYTICS a
             JOIN PROMPTS p ON a.prompt_id = p.id
             WHERE p.created_by_user_id = ?
-            AND date(a.visit_timestamp) >= date('now', '-14 days')
+            AND a.visit_timestamp >= date('now', '-14 days')
             GROUP BY day
             ORDER BY day ASC
         ''', (current_user.id,))
@@ -3314,6 +3706,92 @@ async def upload_profile_picture(
 
     return base_url
 
+
+# ── Neko Glass Custom Wallpaper Endpoints ────────────────────────────────────
+
+@app.post("/api/nekoglass/wallpaper")
+async def upload_nekoglass_wallpaper(
+    file: UploadFile,
+    current_user: User = Depends(get_current_user)
+):
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    content = await file.read()
+
+    # Size check: 5MB max for wallpapers
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Wallpaper image too large. Maximum size is 5MB")
+
+    try:
+        image = PilImage.open(io.BytesIO(content))
+        # Decompression bomb check
+        width, height = image.size
+        if width * height > MAX_IMAGE_PIXELS:
+            raise HTTPException(status_code=400, detail=f"Image dimensions too large. Maximum is {MAX_IMAGE_PIXELS:,} pixels")
+        # Format whitelist
+        ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP", "GIF"}
+        if image.format not in ALLOWED_FORMATS:
+            raise HTTPException(status_code=400, detail=f"Unsupported image format: {image.format}. Allowed: JPEG, PNG, WEBP, GIF")
+    except UnidentifiedImageError:
+        raise HTTPException(status_code=400, detail="Invalid image file")
+
+    hash_prefix1, hash_prefix2, user_hash = generate_user_hash(current_user.username)
+    profile_dir = os.path.join(users_directory, hash_prefix1, hash_prefix2, user_hash, "profile")
+    os.makedirs(profile_dir, exist_ok=True)
+
+    # Convert to RGB for consistent WebP output (handles RGBA, P, LA, L, I, F, etc.)
+    if image.mode != 'RGB':
+        image = image.convert('RGB')
+
+    wallpaper_path = os.path.join(profile_dir, "nekoglass-wallpaper.webp")
+    image.save(wallpaper_path, 'WEBP', quality=85)
+
+    return JSONResponse(content={"status": "ok"})
+
+
+@app.get("/api/nekoglass/wallpaper")
+async def get_nekoglass_wallpaper(
+    current_user: User = Depends(get_current_user)
+):
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    hash_prefix1, hash_prefix2, user_hash = generate_user_hash(current_user.username)
+    wallpaper_path = os.path.join(
+        users_directory, hash_prefix1, hash_prefix2, user_hash,
+        "profile", "nekoglass-wallpaper.webp"
+    )
+
+    if not os.path.isfile(wallpaper_path):
+        raise HTTPException(status_code=404, detail="No custom wallpaper")
+
+    return FileResponse(
+        wallpaper_path,
+        media_type="image/webp",
+        headers={"Cache-Control": "private, max-age=86400"}
+    )
+
+
+@app.delete("/api/nekoglass/wallpaper")
+async def delete_nekoglass_wallpaper(
+    current_user: User = Depends(get_current_user)
+):
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    hash_prefix1, hash_prefix2, user_hash = generate_user_hash(current_user.username)
+    wallpaper_path = os.path.join(
+        users_directory, hash_prefix1, hash_prefix2, user_hash,
+        "profile", "nekoglass-wallpaper.webp"
+    )
+
+    if os.path.isfile(wallpaper_path):
+        os.remove(wallpaper_path)
+
+    return JSONResponse(content={"status": "ok"})
+
+
 @app.post("/api/edit-profile")
 async def edit_profile(
     request: Request,
@@ -4093,40 +4571,38 @@ async def home(request: Request, current_user: User = Depends(get_current_user))
 
     if current_user is None:
         return RedirectResponse(url="/login", status_code=302)
-    
+
+    return RedirectResponse(url="/home", status_code=302)
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard(request: Request, current_user: User = Depends(get_current_user)):
+    if current_user is None:
+        return RedirectResponse(url="/login", status_code=302)
+
+    base_ctx = await get_template_context(request, current_user)
+
+    if not base_ctx["is_admin"] and not base_ctx["is_manager"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+
     async with get_db_connection(readonly=True) as conn:
         cursor = await conn.cursor()
-        await cursor.execute('SELECT username FROM USERS WHERE id = ?', (current_user.id,))
-        row = await cursor.fetchone()
-        username = row[0] if row else 'Unknown User'
-        
-        is_admin = await current_user.is_admin
-        is_manager = await current_user.is_manager
-        uses_magic_link = current_user.uses_magic_link
-        can_change_password = current_user.should_show_change_password()
-        authentication_mode = current_user.authentication_mode
 
         prompts = await get_user_accessible_prompts(current_user, cursor)
         user_balance = await get_balance(current_user.id)
 
-        # Get prompts the user can manage (for Public Profile configuration)
-        # This excludes public prompts from other users that the user can view but not edit
-        manageable_prompts = await get_manageable_prompts(current_user.id, is_admin) if is_manager or is_admin else []
+        manageable_prompts = await get_manageable_prompts(current_user.id, base_ctx["is_admin"]) if base_ctx["is_manager"] or base_ctx["is_admin"] else []
 
-        context = {
-            "request": request,
-            "username": username,
-            "is_admin": is_admin,
-            "is_manager": is_manager,
-            "uses_magic_link": uses_magic_link,
-            "can_change_password": can_change_password,
-            "authentication_mode": authentication_mode,
+        base_ctx.update({
+            "uses_magic_link": current_user.uses_magic_link,
+            "can_change_password": current_user.should_show_change_password(),
+            "authentication_mode": current_user.authentication_mode,
             "prompts": prompts,
             "manageable_prompts": manageable_prompts,
             "user_balance": user_balance,
             "captcha_enabled": get_captcha_runtime_status()
-        }
-        return templates.TemplateResponse("index.html", context)
+        })
+        return templates.TemplateResponse("index.html", base_ctx)
 
 
 @app.get("/api/get-ip-info")
@@ -4137,6 +4613,25 @@ async def get_ip_info(current_user: User = Depends(get_current_user)):
     async with httpx.AsyncClient() as client:
         response = await client.get("https://ipinfo.io/json")
         return JSONResponse(content=response.json())
+
+async def _get_after_login_redirect(user_id: int) -> str:
+    """Get user's preferred after-login redirect from home_preferences."""
+    try:
+        async with get_db_connection(readonly=True) as conn:
+            cursor = await conn.cursor()
+            await cursor.execute(
+                "SELECT home_preferences FROM USER_DETAILS WHERE user_id = ?",
+                (user_id,)
+            )
+            row = await cursor.fetchone()
+            if row and row["home_preferences"]:
+                prefs = json.loads(row["home_preferences"])
+                after_login = prefs.get("after_login")
+                if after_login in ("/home", "/chat", "/explore", "/dashboard"):
+                    return after_login
+    except Exception:
+        pass
+    return "/home"
 
 async def _handle_login_request(
     request: Request,
@@ -4210,7 +4705,8 @@ async def _handle_login_request(
             # Only try to verify password if it exists and user can use password
             if verify_password(user_result.password, password):
                 user_info = await create_user_info(user_result, False)  # False for login with username and password
-                return create_login_response(user_info, redirect_url=next_url)
+                default_redirect = await _get_after_login_redirect(user_result.id)
+                return create_login_response(user_info, redirect_url=next_url, default_redirect=default_redirect)
         else:
             # If user doesn't have a password, return to login screen
             record_failure(request, "login", username)
@@ -4259,7 +4755,8 @@ async def _handle_login_request(
                     user_obj = await get_user_by_id(magic_link["user_id"])
                     if user_obj and user_obj.can_use_magic_link():
                         user_info = await create_user_info(user_obj, True)  # True for magic link login
-                        return create_login_response(user_info, redirect_url=next_url)
+                        default_redirect = await _get_after_login_redirect(user_obj.id)
+                        return create_login_response(user_info, redirect_url=next_url, default_redirect=default_redirect)
                 else:
                     # Magic link is expired - redirect to recovery page
                     return RedirectResponse(url="/magic-link-recovery", status_code=status.HTTP_302_FOUND)
@@ -4538,7 +5035,7 @@ async def create_user_post(
         if is_forbidden_username(username):
             raise HTTPException(status_code=400, detail="This username is not available. Please choose a different username.")
 
-    # Process category_access for reseller mode
+    # Process category_access for curation mode
     # If public_prompts_access is enabled and specific categories were selected, store them
     # category_ids is None when "All Categories" is checked
     category_access = None
@@ -4589,6 +5086,37 @@ async def create_user_post(
     if not user_id:
         raise HTTPException(status_code=500, detail="Failed to create user.")
 
+    # Record creator relationship
+    try:
+        async with get_db_connection() as ucr_conn:
+            ucr_cursor = await ucr_conn.cursor()
+            from common import upsert_creator_relationship
+            await upsert_creator_relationship(ucr_cursor, user_id, current_user.id, 'assigned_by', 'manual')
+            await ucr_conn.commit()
+    except Exception as ucr_err:
+        logger.warning(f"Could not record creator relationship for user {user_id}: {ucr_err}")
+
+    # Record initial balance as TRANSACTION for audit trail
+    if balance > 0:
+        try:
+            nonce = secrets.token_hex(4)
+            async with get_db_connection() as txn_conn:
+                await txn_conn.execute('''
+                    INSERT INTO TRANSACTIONS
+                    (user_id, type, amount, balance_before, balance_after,
+                     description, reference_id)
+                    VALUES (?, 'balance_credit', ?, 0, ?, ?, ?)
+                ''', (
+                    user_id,
+                    balance,
+                    balance,
+                    'Welcome credit from admin',
+                    f'admin_welcome_{user_id}_{nonce}'
+                ))
+                await txn_conn.commit()
+        except Exception as txn_err:
+            logger.warning(f"Could not record admin welcome transaction for user {user_id}: {txn_err}")
+
     # Generate magic link only for modes that support it
     magic_link = None
     if authentication_mode in ["magic_link_only", "magic_link_password"]:
@@ -4634,7 +5162,7 @@ async def edit_user_form(
         await cursor.execute("SELECT id, machine, model, vision FROM LLM ORDER BY machine DESC")
         llm_models = await cursor.fetchall()
 
-        # Get all categories for reseller mode
+        # Get all categories for curation mode
         await cursor.execute("SELECT id, name, icon, is_age_restricted FROM CATEGORIES ORDER BY display_order")
         categories = [{'id': row[0], 'name': row[1], 'icon': row[2], 'is_age_restricted': row[3]} for row in await cursor.fetchall()]
 
@@ -4835,7 +5363,7 @@ async def update_user(
             update_details_query += ", api_key_mode = ?"
             update_details_params.append(api_key_mode)
 
-        # Process category_access for reseller mode
+        # Process category_access for curation mode
         if public_prompts_access:
             if allow_all_categories:
                 # NULL means all categories
@@ -4905,10 +5433,14 @@ async def users_list(request: Request, current_user: User = Depends(get_current_
                 ur.role_name
             FROM USERS u
             JOIN USER_DETAILS ud ON u.id = ud.user_id
-            JOIN MAGIC_LINKS m ON u.id = m.user_id
+            LEFT JOIN (
+                SELECT user_id, token, expires_at
+                FROM MAGIC_LINKS
+                WHERE id IN (SELECT MAX(id) FROM MAGIC_LINKS GROUP BY user_id)
+            ) m ON u.id = m.user_id
             LEFT JOIN CONVERSATIONS c ON u.id = c.user_id
-            JOIN PROMPTS p ON ud.current_prompt_id = p.id
-            JOIN LLM ll ON ud.llm_id = ll.id
+            LEFT JOIN PROMPTS p ON ud.current_prompt_id = p.id
+            LEFT JOIN LLM ll ON ud.llm_id = ll.id
             JOIN USER_ROLES ur ON u.role_id = ur.id
             GROUP BY u.id, u.username, ud.tokens_spent, ud.total_cost, m.token, m.expires_at, p.name, ll.model, ur.role_name
             ''')
@@ -4929,12 +5461,18 @@ async def users_list(request: Request, current_user: User = Depends(get_current_
                 ur.role_name
             FROM USERS u
             JOIN USER_DETAILS ud ON u.id = ud.user_id
-            JOIN MAGIC_LINKS m ON u.id = m.user_id
+            LEFT JOIN (
+                SELECT user_id, token, expires_at
+                FROM MAGIC_LINKS
+                WHERE id IN (SELECT MAX(id) FROM MAGIC_LINKS GROUP BY user_id)
+            ) m ON u.id = m.user_id
             LEFT JOIN CONVERSATIONS c ON u.id = c.user_id
-            JOIN PROMPTS p ON ud.current_prompt_id = p.id
-            JOIN LLM ll ON ud.llm_id = ll.id
+            LEFT JOIN PROMPTS p ON ud.current_prompt_id = p.id
+            LEFT JOIN LLM ll ON ud.llm_id = ll.id
             JOIN USER_ROLES ur ON u.role_id = ur.id
-            WHERE ud.created_by = ?
+            JOIN USER_CREATOR_RELATIONSHIPS ucr ON u.id = ucr.user_id
+            WHERE ucr.creator_id = ?
+              AND ucr.relationship_type = 'assigned_by'
             GROUP BY u.id, u.username, ud.tokens_spent, ud.total_cost, m.token, m.expires_at, p.name, ll.model, ur.role_name
             ''', (current_user.id,))
         
@@ -4947,9 +5485,14 @@ async def users_list(request: Request, current_user: User = Depends(get_current_
             username = row[1]
             tokens = row[2]
             total_cost = row[3]  
-            magic_link = f'{scheme}://{host}/{url_path}{row[4]}'
-            expires_at = datetime.strptime(row[5], '%Y-%m-%d %H:%M:%S.%f')
-            is_expired = 'Expired' if expires_at < datetime.now() else 'Active'
+            if row[4] and row[5]:
+                magic_link = f'{scheme}://{host}/{url_path}{row[4]}'
+                expires_at = datetime.strptime(row[5], '%Y-%m-%d %H:%M:%S.%f')
+                is_expired = 'Expired' if expires_at < datetime.now() else 'Active'
+            else:
+                magic_link = None
+                expires_at = None
+                is_expired = 'N/A'
             conversation_count = row[6]
             balance = row[9]
             total_cost_formatted = f"${total_cost:.2f}"
@@ -4989,14 +5532,18 @@ async def renew_token(request: Request, username: str, current_user: User = Depe
     async with get_db_connection() as conn:
         cursor = await conn.cursor()
 
-        await cursor.execute("SELECT id, created_by FROM users JOIN user_details ON users.id = user_details.user_id WHERE username = ?", (username,))
+        await cursor.execute("SELECT id FROM USERS WHERE username = ?", (username,))
         user = await cursor.fetchone()
         if user:
             user_id = user[0]
-            created_by = user[1]
-            
-            if not await current_user.is_admin and created_by != current_user.id:
-                return JSONResponse(content={"error": "You do not have permission to renew the token for this user."}, status_code=403)
+
+            if not await current_user.is_admin:
+                ucr_check = await cursor.execute(
+                    "SELECT 1 FROM USER_CREATOR_RELATIONSHIPS WHERE user_id = ? AND creator_id = ? AND relationship_type = 'assigned_by'",
+                    (user_id, current_user.id)
+                )
+                if not await ucr_check.fetchone():
+                    return JSONResponse(content={"error": "You do not have permission to renew the token for this user."}, status_code=403)
 
             new_token = secrets.token_urlsafe(20)
             new_expires_at = datetime.now() + timedelta(days=1)
@@ -5065,7 +5612,7 @@ async def delete_user(username, current_user):
         
         # First verify if the user to delete exists
         await cursor.execute("""
-            SELECT u.id, u.username, u.role_id, ud.created_by 
+            SELECT u.id, u.username, u.role_id
             FROM users u
             JOIN user_details ud ON u.id = ud.user_id
             WHERE u.username = ?
@@ -5547,7 +6094,7 @@ async def handle_get_request(request, user_id, current_user, conn, admin_view=Fa
             LEFT JOIN prompts p ON c.role_id = p.id
             WHERE c.user_id = ? AND (c.folder_id IS NULL OR c.folder_id = 0)
             ORDER BY c.id DESC
-            LIMIT 10
+            LIMIT 25
         ''', (effective_user_id,))
         conversations_rows = await cursor.fetchall()
         initial_conversations = [
@@ -5855,6 +6402,266 @@ async def update_elevenlabs_mapping(
     return RedirectResponse(url=f"/admin/elevenlabs-agents?{query}", status_code=303)
 
 
+LLM_FALLBACK_MODEL = "gpt-5-mini"
+
+
+def _normalize_provider_name(provider: str) -> str:
+    provider_key = (provider or "").strip().lower()
+    aliases = {
+        "gpt": "openai",
+        "openai": "openai",
+        "claude": "anthropic",
+        "anthropic": "anthropic",
+        "gemini": "google",
+        "google": "google",
+        "xai": "x-ai",
+        "x-ai": "x-ai",
+        "openrouter": "openrouter",
+    }
+    return aliases.get(provider_key, provider_key)
+
+
+def _llm_provider_key(machine: str, model: str) -> str:
+    machine_name = (machine or "").strip()
+    model_name = (model or "").strip()
+    if machine_name.lower() == "openrouter":
+        provider = model_name.split("/", 1)[0] if "/" in model_name else "openrouter"
+        return _normalize_provider_name(provider)
+    return _normalize_provider_name(machine_name)
+
+
+def _to_cost(value) -> float:
+    try:
+        if value is None:
+            return 0.0
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _has_same_price(source_llm: Dict, candidate_llm: Dict) -> bool:
+    return (
+        math.isclose(_to_cost(source_llm["input_token_cost"]), _to_cost(candidate_llm["input_token_cost"]), rel_tol=0.0, abs_tol=1e-12)
+        and math.isclose(_to_cost(source_llm["output_token_cost"]), _to_cost(candidate_llm["output_token_cost"]), rel_tol=0.0, abs_tol=1e-12)
+    )
+
+
+def _price_distance(source_llm: Dict, candidate_llm: Dict) -> float:
+    return (
+        abs(_to_cost(source_llm["input_token_cost"]) - _to_cost(candidate_llm["input_token_cost"]))
+        + abs(_to_cost(source_llm["output_token_cost"]) - _to_cost(candidate_llm["output_token_cost"]))
+    )
+
+
+def _select_replacement_llm(source_llm: Dict, llm_catalog: List[Dict], blocked_llm_ids: set[int]) -> Optional[Dict]:
+    candidates = [llm for llm in llm_catalog if int(llm["id"]) not in blocked_llm_ids]
+    if not candidates:
+        return None
+
+    source_provider = _llm_provider_key(source_llm["machine"], source_llm["model"])
+    same_provider = [
+        llm for llm in candidates
+        if _llm_provider_key(llm["machine"], llm["model"]) == source_provider
+    ]
+
+    same_provider_same_price = [llm for llm in same_provider if _has_same_price(source_llm, llm)]
+    if same_provider_same_price:
+        return max(same_provider_same_price, key=lambda llm: int(llm["id"]))
+
+    if same_provider:
+        return min(
+            same_provider,
+            key=lambda llm: (_price_distance(source_llm, llm), -int(llm["id"]))
+        )
+
+    return min(
+        candidates,
+        key=lambda llm: (_price_distance(source_llm, llm), -int(llm["id"]))
+    )
+
+
+def _replace_allowed_llm_ids(allowed_llms_raw: str, old_llm_id: int, new_llm_id: int) -> Optional[str]:
+    if not allowed_llms_raw:
+        return None
+
+    try:
+        allowed_ids = orjson.loads(allowed_llms_raw)
+    except Exception:
+        return None
+
+    if not isinstance(allowed_ids, list):
+        return None
+
+    changed = False
+    normalized_ids = []
+    for value in allowed_ids:
+        try:
+            parsed_id = int(value)
+        except (TypeError, ValueError):
+            continue
+
+        if parsed_id == old_llm_id:
+            parsed_id = new_llm_id
+            changed = True
+        normalized_ids.append(parsed_id)
+
+    if not changed:
+        return None
+
+    deduped_ids = []
+    seen_ids = set()
+    for llm_id in normalized_ids:
+        if llm_id in seen_ids:
+            continue
+        seen_ids.add(llm_id)
+        deduped_ids.append(llm_id)
+
+    return orjson.dumps(deduped_ids).decode("utf-8")
+
+
+async def _apply_llm_reassignment(conn: aiosqlite.Connection, old_llm_id: int, new_llm_id: int) -> Dict[str, int]:
+    metrics = {
+        "conversations": 0,
+        "user_details": 0,
+        "forced_prompts": 0,
+        "allowed_prompts": 0,
+    }
+
+    if old_llm_id == new_llm_id:
+        return metrics
+
+    cursor = await conn.execute(
+        "UPDATE CONVERSATIONS SET llm_id = ? WHERE llm_id = ?",
+        (new_llm_id, old_llm_id),
+    )
+    metrics["conversations"] = cursor.rowcount or 0
+
+    cursor = await conn.execute(
+        "UPDATE USER_DETAILS SET llm_id = ? WHERE llm_id = ?",
+        (new_llm_id, old_llm_id),
+    )
+    metrics["user_details"] = cursor.rowcount or 0
+
+    cursor = await conn.execute(
+        "UPDATE PROMPTS SET forced_llm_id = ? WHERE forced_llm_id = ?",
+        (new_llm_id, old_llm_id),
+    )
+    metrics["forced_prompts"] = cursor.rowcount or 0
+
+    async with conn.execute(
+        "SELECT id, allowed_llms FROM PROMPTS WHERE allowed_llms IS NOT NULL AND TRIM(allowed_llms) != ''"
+    ) as cursor:
+        prompt_rows = await cursor.fetchall()
+
+    for row in prompt_rows:
+        updated_allowed_llms = _replace_allowed_llm_ids(row["allowed_llms"], old_llm_id, new_llm_id)
+        if updated_allowed_llms is None:
+            continue
+        await conn.execute(
+            "UPDATE PROMPTS SET allowed_llms = ? WHERE id = ?",
+            (updated_allowed_llms, row["id"]),
+        )
+        metrics["allowed_prompts"] += 1
+
+    return metrics
+
+
+async def _reassign_and_delete_llm(
+    conn: aiosqlite.Connection,
+    llm_id: int,
+    blocked_llm_ids: set[int],
+) -> Dict:
+    async with conn.execute(
+        "SELECT id, machine, model, input_token_cost, output_token_cost, vision FROM LLM WHERE id = ?",
+        (llm_id,),
+    ) as cursor:
+        source_row = await cursor.fetchone()
+
+    if not source_row:
+        raise HTTPException(status_code=404, detail=f"LLM {llm_id} not found")
+
+    source_llm = dict(source_row)
+
+    async with conn.execute(
+        "SELECT id, machine, model, input_token_cost, output_token_cost, vision FROM LLM"
+    ) as cursor:
+        llm_catalog = [dict(row) for row in await cursor.fetchall()]
+
+    replacement = _select_replacement_llm(source_llm, llm_catalog, blocked_llm_ids)
+    if replacement is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete LLM '{source_llm['model']}' because no replacement model is available."
+        )
+
+    reassignment_metrics = await _apply_llm_reassignment(conn, llm_id, int(replacement["id"]))
+    await conn.execute("DELETE FROM LLM WHERE id = ?", (llm_id,))
+
+    return {
+        "deleted_llm_id": llm_id,
+        "deleted_model": source_llm["model"],
+        "replacement_llm_id": int(replacement["id"]),
+        "replacement_model": replacement["model"],
+        "reassigned": reassignment_metrics,
+    }
+
+
+async def _repair_orphan_llm_references(conn: aiosqlite.Connection, fallback_model: str = LLM_FALLBACK_MODEL) -> Dict[str, int]:
+    async with conn.execute(
+        "SELECT id FROM LLM WHERE model = ? ORDER BY id DESC LIMIT 1",
+        (fallback_model,),
+    ) as cursor:
+        fallback_row = await cursor.fetchone()
+
+    if not fallback_row:
+        async with conn.execute("SELECT id FROM LLM ORDER BY id DESC LIMIT 1") as cursor:
+            fallback_row = await cursor.fetchone()
+        if not fallback_row:
+            raise HTTPException(status_code=500, detail="No LLMs available for orphan reassignment")
+
+    fallback_llm_id = int(fallback_row["id"])
+
+    metrics = {
+        "fallback_llm_id": fallback_llm_id,
+        "conversations": 0,
+        "user_details": 0,
+        "forced_prompts": 0,
+    }
+
+    cursor = await conn.execute(
+        """
+        UPDATE CONVERSATIONS
+        SET llm_id = ?
+        WHERE llm_id IS NULL OR llm_id NOT IN (SELECT id FROM LLM)
+        """,
+        (fallback_llm_id,),
+    )
+    metrics["conversations"] = cursor.rowcount or 0
+
+    cursor = await conn.execute(
+        """
+        UPDATE USER_DETAILS
+        SET llm_id = ?
+        WHERE llm_id IS NULL OR llm_id NOT IN (SELECT id FROM LLM)
+        """,
+        (fallback_llm_id,),
+    )
+    metrics["user_details"] = cursor.rowcount or 0
+
+    cursor = await conn.execute(
+        """
+        UPDATE PROMPTS
+        SET forced_llm_id = ?
+        WHERE forced_llm_id IS NOT NULL
+          AND forced_llm_id NOT IN (SELECT id FROM LLM)
+        """,
+        (fallback_llm_id,),
+    )
+    metrics["forced_prompts"] = cursor.rowcount or 0
+
+    return metrics
+
+
 @app.get("/admin/llms", response_class=HTMLResponse)
 async def llm_list(request: Request, current_user: User = Depends(get_current_user)):
     if current_user is None:
@@ -5971,13 +6778,17 @@ async def delete_llm(llm_id: int, current_user: User = Depends(get_current_user)
     
     async with get_db_connection() as conn:
         try:
-            await conn.execute('DELETE FROM LLM WHERE id = ?', (llm_id,))
+            await conn.execute("BEGIN IMMEDIATE")
+            result = await _reassign_and_delete_llm(conn, llm_id, blocked_llm_ids={llm_id})
+            orphan_fix_metrics = await _repair_orphan_llm_references(conn, fallback_model=LLM_FALLBACK_MODEL)
             await conn.commit()
+            return JSONResponse(content={"success": True, **result, "orphan_fix": orphan_fix_metrics}, status_code=200)
+        except HTTPException:
+            await conn.rollback()
+            raise
         except Exception as e:
             await conn.rollback()
             raise HTTPException(status_code=500, detail=str(e))
-    
-    return JSONResponse(content={"success": True}, status_code=200)
 
 
 @app.post("/admin/llm/bulk-delete")
@@ -5994,20 +6805,67 @@ async def bulk_delete_llms(request: Request, current_user: User = Depends(get_cu
     if not llm_ids or not isinstance(llm_ids, list):
         raise HTTPException(status_code=400, detail="No LLM IDs provided")
 
-    placeholders = ",".join("?" for _ in llm_ids)
+    sanitized_ids = []
+    for llm_id in llm_ids:
+        try:
+            sanitized_ids.append(int(llm_id))
+        except (TypeError, ValueError):
+            continue
+
+    sanitized_ids = list(dict.fromkeys(sanitized_ids))
+    if not sanitized_ids:
+        raise HTTPException(status_code=400, detail="No valid LLM IDs provided")
+
+    placeholders = ",".join("?" for _ in sanitized_ids)
     async with get_db_connection() as conn:
         try:
-            cursor = await conn.execute(
-                f"DELETE FROM LLM WHERE id IN ({placeholders}) AND machine != 'OpenRouter'",
-                llm_ids
-            )
+            await conn.execute("BEGIN IMMEDIATE")
+            async with conn.execute(
+                f"SELECT id FROM LLM WHERE id IN ({placeholders}) AND machine != 'OpenRouter'",
+                sanitized_ids
+            ) as cursor:
+                target_rows = await cursor.fetchall()
+
+            target_ids = [int(row["id"]) for row in target_rows]
+            blocked_ids = set(target_ids)
+            results = []
+
+            for target_id in target_ids:
+                result = await _reassign_and_delete_llm(conn, target_id, blocked_llm_ids=blocked_ids)
+                results.append(result)
+
+            deleted = len(results)
+            reassigned_conversations = sum(item["reassigned"]["conversations"] for item in results)
+            reassigned_user_details = sum(item["reassigned"]["user_details"] for item in results)
+
+            if target_ids and deleted != len(target_ids):
+                raise HTTPException(status_code=500, detail="Some LLMs could not be deleted")
+
+            if target_ids:
+                logger.info(
+                    "Bulk LLM delete: deleted=%s, reassigned_conversations=%s, reassigned_user_details=%s",
+                    deleted,
+                    reassigned_conversations,
+                    reassigned_user_details,
+                )
+
+            orphan_fix_metrics = await _repair_orphan_llm_references(conn, fallback_model=LLM_FALLBACK_MODEL)
             await conn.commit()
-            deleted = cursor.rowcount
+            return JSONResponse(
+                content={
+                    "success": True,
+                    "deleted": deleted,
+                    "details": results,
+                    "orphan_fix": orphan_fix_metrics,
+                },
+                status_code=200,
+            )
+        except HTTPException:
+            await conn.rollback()
+            raise
         except Exception as e:
             await conn.rollback()
             raise HTTPException(status_code=500, detail=str(e))
-
-    return JSONResponse(content={"success": True, "deleted": deleted}, status_code=200)
 
 
 # ============================================================
@@ -6246,52 +7104,72 @@ async def sync_openrouter_models(request: Request, current_user: User = Depends(
         models_to_save = body.get("models", [])
 
         async with get_db_connection() as conn:
-            # Get current OpenRouter models
-            async with conn.execute(
-                "SELECT id, model FROM LLM WHERE machine = 'OpenRouter'"
-            ) as cursor:
-                existing = {row[1]: row[0] for row in await cursor.fetchall()}
+            try:
+                await conn.execute("BEGIN IMMEDIATE")
+                # Get current OpenRouter models
+                async with conn.execute(
+                    "SELECT id, model FROM LLM WHERE machine = 'OpenRouter'"
+                ) as cursor:
+                    existing = {row[1]: row[0] for row in await cursor.fetchall()}
 
-            # Models to add/update
-            new_model_ids = {m["id"] for m in models_to_save}
+                # Models to add/update
+                new_model_ids = {m["id"] for m in models_to_save}
 
-            # Delete models that are no longer selected
-            models_to_delete = [model_id for model_id in existing.keys() if model_id not in new_model_ids]
-            if models_to_delete:
-                placeholders = ",".join("?" * len(models_to_delete))
-                await conn.execute(
-                    f"DELETE FROM LLM WHERE machine = 'OpenRouter' AND model IN ({placeholders})",
-                    models_to_delete
-                )
+                # Add/update models
+                for model in models_to_save:
+                    model_id = model["id"]
+                    if model_id in existing:
+                        # Update existing
+                        await conn.execute(
+                            """UPDATE LLM
+                               SET input_token_cost = ?, output_token_cost = ?, vision = ?
+                               WHERE id = ?""",
+                            (model["input_price"], model["output_price"], model["vision"], existing[model_id])
+                        )
+                    else:
+                        # Insert new
+                        await conn.execute(
+                            """INSERT INTO LLM (machine, model, input_token_cost, output_token_cost, vision)
+                               VALUES ('OpenRouter', ?, ?, ?, ?)""",
+                            (model_id, model["input_price"], model["output_price"], model["vision"])
+                        )
 
-            # Add/update models
-            for model in models_to_save:
-                model_id = model["id"]
-                if model_id in existing:
-                    # Update existing
-                    await conn.execute(
-                        """UPDATE LLM
-                           SET input_token_cost = ?, output_token_cost = ?, vision = ?
-                           WHERE id = ?""",
-                        (model["input_price"], model["output_price"], model["vision"], existing[model_id])
-                    )
-                else:
-                    # Insert new
-                    await conn.execute(
-                        """INSERT INTO LLM (machine, model, input_token_cost, output_token_cost, vision)
-                           VALUES ('OpenRouter', ?, ?, ?, ?)""",
-                        (model_id, model["input_price"], model["output_price"], model["vision"])
-                    )
+                # Delete models that are no longer selected, but reassign first
+                models_to_delete = [model_id for model_id in existing.keys() if model_id not in new_model_ids]
+                deleted_details = []
+                if models_to_delete:
+                    async with conn.execute(
+                        f"SELECT id FROM LLM WHERE machine = 'OpenRouter' AND model IN ({','.join('?' for _ in models_to_delete)})",
+                        models_to_delete,
+                    ) as cursor:
+                        rows_to_delete = await cursor.fetchall()
 
-            await conn.commit()
+                    delete_ids = [int(row["id"]) for row in rows_to_delete]
+                    blocked_ids = set(delete_ids)
+                    for delete_id in delete_ids:
+                        result = await _reassign_and_delete_llm(conn, delete_id, blocked_llm_ids=blocked_ids)
+                        deleted_details.append(result)
+
+                orphan_fix_metrics = await _repair_orphan_llm_references(conn, fallback_model=LLM_FALLBACK_MODEL)
+                await conn.commit()
+            except HTTPException:
+                await conn.rollback()
+                raise
+            except Exception:
+                await conn.rollback()
+                raise
 
         return JSONResponse(content={
             "success": True,
             "added": len(new_model_ids - set(existing.keys())),
             "updated": len(new_model_ids & set(existing.keys())),
-            "removed": len(models_to_delete)
+            "removed": len(deleted_details),
+            "deleted_details": deleted_details,
+            "orphan_fix": orphan_fix_metrics,
         })
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("Error syncing OpenRouter models")
         return JSONResponse(content={"error": str(e)}, status_code=500)
@@ -6807,7 +7685,7 @@ async def get_conversations(
     current_user: User = Depends(get_current_user),
     user_id: Optional[int] = None,
     max_id: Optional[int] = None,
-    limit: int = 10,
+    limit: int = Query(25, ge=1, le=50),
     folder_id: Optional[int] = None
 ):
     if current_user is None:
@@ -6830,22 +7708,45 @@ async def get_conversations(
                 # Get conversations not in any folder (loose conversations)
                 folder_condition = " AND (c.folder_id IS NULL OR c.folder_id = 0)"
             
-            # First, get WhatsApp conversation (if exists)
-            whatsapp_query = f'''
-                SELECT c.id, c.user_id, c.start_date, c.chat_name, 'whatsapp' as external_platform,
-                       c.locked, l.model as llm_model, COALESCE(p.disable_web_search, 0) as web_search_disabled,
-                       p.forced_llm_id, p.hide_llm_name, p.allowed_llms
-                FROM conversations c
-                JOIN user_details u ON c.user_id = u.user_id
-                JOIN llm l ON c.llm_id = l.id
-                LEFT JOIN prompts p ON c.role_id = p.id
-                WHERE c.user_id = ? AND json_extract(u.external_platforms, '$.whatsapp.conversation_id') = c.id{folder_condition}
-            '''
-            whatsapp_params = [user_id] + folder_params
-            await cursor.execute(whatsapp_query, whatsapp_params)
-            whatsapp_conversation = await cursor.fetchone()
+            # Always look up the WhatsApp conversation ID so we can exclude
+            # it from the normal query on ALL pages (first and load-more).
+            # Only prepend the full WhatsApp conversation data on the first page.
+            whatsapp_conversation = None
+            whatsapp_exclude = ""
+            whatsapp_exclude_params = []
 
-            # Then, get the normal conversations
+            whatsapp_id_query = '''
+                SELECT json_extract(u.external_platforms, '$.whatsapp.conversation_id') as whatsapp_conv_id
+                FROM user_details u
+                WHERE u.user_id = ? AND json_extract(u.external_platforms, '$.whatsapp.conversation_id') IS NOT NULL
+            '''
+            await cursor.execute(whatsapp_id_query, [user_id])
+            whatsapp_id_row = await cursor.fetchone()
+
+            if whatsapp_id_row:
+                whatsapp_id = whatsapp_id_row['whatsapp_conv_id']
+                whatsapp_exclude = " AND c.id != ?"
+                whatsapp_exclude_params = [whatsapp_id]
+
+                # On first page, fetch full WhatsApp conversation data to prepend
+                if max_id is None:
+                    whatsapp_query = f'''
+                        SELECT c.id, c.user_id, c.start_date, c.chat_name, 'whatsapp' as external_platform,
+                               c.locked, l.model as llm_model, COALESCE(p.disable_web_search, 0) as web_search_disabled,
+                               p.forced_llm_id, p.hide_llm_name, p.allowed_llms
+                        FROM conversations c
+                        JOIN llm l ON c.llm_id = l.id
+                        LEFT JOIN prompts p ON c.role_id = p.id
+                        WHERE c.id = ?{folder_condition}
+                    '''
+                    whatsapp_params = [whatsapp_id] + folder_params
+                    await cursor.execute(whatsapp_query, whatsapp_params)
+                    whatsapp_conversation = await cursor.fetchone()
+
+            # Adjust limit: reserve one slot for WhatsApp on first page
+            normal_limit = limit - 1 if whatsapp_conversation else limit
+
+            # Get normal conversations
             query = f'''
                 SELECT c.id, c.user_id, c.start_date, c.chat_name,
                        CASE
@@ -6858,28 +7759,25 @@ async def get_conversations(
                 JOIN user_details u ON c.user_id = u.user_id
                 JOIN llm l ON c.llm_id = l.id
                 LEFT JOIN prompts p ON c.role_id = p.id
-                WHERE c.user_id = ?{folder_condition}
+                WHERE c.user_id = ?{folder_condition}{whatsapp_exclude}
             '''
-            params = [user_id] + folder_params
-            
-            if max_id:
+            params = [user_id] + folder_params + whatsapp_exclude_params
+
+            if max_id is not None:
                 query += ' AND c.id <= ?'
                 params.append(max_id)
-            
+
             query += ' ORDER BY c.id DESC LIMIT ?'
-            params.append(limit)
-            
+            params.append(normal_limit)
+
             await cursor.execute(query, params)
             conversations = await cursor.fetchall()
 
-            # Combine the results
+            # Combine: WhatsApp first (only on first page), then normal
             all_conversations = []
             if whatsapp_conversation:
                 all_conversations.append(whatsapp_conversation)
             all_conversations.extend(conversations)
-
-            # Ensure there are no more than 'limit' total conversations
-            all_conversations = all_conversations[:limit]
 
             return JSONResponse(content=[
                 {
@@ -7055,7 +7953,7 @@ async def get_messages(
     request: Request,
     current_user: User = Depends(get_current_user),
     limit: int = Query(25, ge=1, le=100),
-    offset: int = Query(0, ge=0)
+    before_id: Optional[int] = Query(None)
 ):
     if current_user is None:
         return unauthenticated_response()
@@ -7089,44 +7987,93 @@ async def get_messages(
         if not conversation:
             return JSONResponse(content={'error': 'Conversation not found or access denied'}, status_code=404)
 
+        # Fetch conversation info independently of messages
         await cursor.execute('''
-            WITH conversation_info AS (
-                SELECT c.id, p.name AS prompt_name, l.machine, l.model, p.image AS bot_picture, p.description AS prompt_description
-                FROM CONVERSATIONS c
-                LEFT JOIN PROMPTS p ON c.role_id = p.id
-                LEFT JOIN LLM l ON c.llm_id = l.id
-                WHERE c.id = ?
-            )
-            SELECT 
-                ci.id AS conversation_id, 
-                ci.prompt_name, 
-                ci.machine, 
-                ci.model,
-                ci.bot_picture,
-                ci.prompt_description,
-                m.id AS message_id, 
-                m.user_id, 
-                u.username, 
-                m.message, 
-                m.type, 
-                strftime('%Y-%m-%d %H:%M:%S', m.date) as date_utc, 
-                m.is_bookmarked
-            FROM conversation_info ci
-            LEFT JOIN MESSAGES m ON ci.id = m.conversation_id
-            LEFT JOIN USERS u ON m.user_id = u.id
-            WHERE m.id IS NULL OR m.conversation_id = ?
-            ORDER BY m.id DESC, m.date DESC 
-            LIMIT ? OFFSET ?
-        ''', (conversation_id, conversation_id, limit, offset))
-        
+            SELECT c.id, c.role_id, c.active_extension_id,
+                   p.name AS prompt_name, p.image AS bot_picture, p.description AS prompt_description,
+                   p.extensions_enabled, p.extensions_free_selection,
+                   l.machine, l.model
+            FROM CONVERSATIONS c
+            LEFT JOIN PROMPTS p ON c.role_id = p.id
+            LEFT JOIN LLM l ON c.llm_id = l.id
+            WHERE c.id = ?
+        ''', (conversation_id,))
+        conv_row = await cursor.fetchone()
+
+        # Fetch messages with cursor pagination (request limit+1 to determine has_more)
+        fetch_limit = limit + 1
+        if before_id is not None:
+            await cursor.execute('''
+                SELECT m.id AS message_id, m.conversation_id, m.user_id, u.username,
+                       m.message, m.type, strftime('%Y-%m-%d %H:%M:%S', m.date) as date_utc,
+                       m.is_bookmarked
+                FROM MESSAGES m
+                LEFT JOIN USERS u ON m.user_id = u.id
+                WHERE m.conversation_id = ? AND m.id < ?
+                ORDER BY m.id DESC
+                LIMIT ?
+            ''', (conversation_id, before_id, fetch_limit))
+        else:
+            await cursor.execute('''
+                SELECT m.id AS message_id, m.conversation_id, m.user_id, u.username,
+                       m.message, m.type, strftime('%Y-%m-%d %H:%M:%S', m.date) as date_utc,
+                       m.is_bookmarked
+                FROM MESSAGES m
+                LEFT JOIN USERS u ON m.user_id = u.id
+                WHERE m.conversation_id = ?
+                ORDER BY m.id DESC
+                LIMIT ?
+            ''', (conversation_id, fetch_limit))
+
         rows = await cursor.fetchall()
+
+        # Determine if there are more messages beyond this page
+        has_more = len(rows) > limit
+        if has_more:
+            rows = rows[:limit]
+
+        # Fetch extension data if extensions enabled
+        extensions_data = {}
+        if conv_row and conv_row['extensions_enabled']:
+            prompt_role_id = conv_row['role_id']
+            active_ext_id = conv_row['active_extension_id']
+
+            # Get active extension info
+            active_ext_data = None
+            if active_ext_id:
+                await cursor.execute(
+                    "SELECT id, name, slug, description FROM PROMPT_EXTENSIONS WHERE id = ?",
+                    (active_ext_id,)
+                )
+                ext_row = await cursor.fetchone()
+                if ext_row:
+                    active_ext_data = {
+                        "id": ext_row["id"], "name": ext_row["name"],
+                        "slug": ext_row["slug"], "description": ext_row["description"] or ""
+                    }
+
+            # Get all extensions for this prompt
+            await cursor.execute(
+                "SELECT id, name, slug, description FROM PROMPT_EXTENSIONS WHERE prompt_id = ? ORDER BY display_order",
+                (prompt_role_id,)
+            )
+            ext_rows = await cursor.fetchall()
+            all_extensions = [
+                {"id": r["id"], "name": r["name"], "slug": r["slug"], "description": r["description"] or ""}
+                for r in ext_rows
+            ]
+
+            extensions_data = {
+                "extensions_enabled": True,
+                "active_extension": active_ext_data,
+                "extensions": all_extensions,
+                "extensions_free_selection": bool(conv_row['extensions_free_selection'])
+            }
+
         await conn.close()
 
-    if not rows:
-        return JSONResponse(content={'error': 'No messages found'}, status_code=404)
-
-    # Process the bot image
-    bot_profile_picture = rows[0]['bot_picture']
+    # Build conversation_info from the dedicated query
+    bot_profile_picture = conv_row['bot_picture'] if conv_row else None
     if bot_profile_picture:
         current_time = datetime.utcnow()
         new_expiration = current_time + timedelta(hours=AVATAR_TOKEN_EXPIRE_HOURS)
@@ -7135,13 +8082,21 @@ async def get_messages(
         bot_profile_picture = f"{CLOUDFLARE_BASE_URL}{bot_picture_url}?token={token}"
 
     conversation_info = {
-        "id": rows[0]['conversation_id'],
-        "prompt_name": rows[0]['prompt_name'],
-        "machine": rows[0]['machine'],
-        "model": rows[0]['model'],
+        "id": conv_row['id'],
+        "prompt_name": conv_row['prompt_name'],
+        "machine": conv_row['machine'],
+        "model": conv_row['model'],
         "bot_profile_picture": bot_profile_picture,
-        "prompt_description": rows[0]['prompt_description']
+        "prompt_description": conv_row['prompt_description'],
+        **extensions_data
     }
+
+    if not rows:
+        return JSONResponse(content={
+            'conversation_info': conversation_info,
+            'messages': [],
+            'has_more': False
+        })
 
     messages_list = []
     for row in rows:
@@ -7149,7 +8104,7 @@ async def get_messages(
             processed_message = await process_message(custom_unescape(row['message']), request, current_user)
             messages_list.append({
                 "id": row['message_id'],
-                "conversation_id": row['conversation_id'],
+                "conversation_id": conversation_id,
                 "user_id": row['user_id'],
                 "username": row['username'],
                 "message": processed_message,
@@ -7161,7 +8116,8 @@ async def get_messages(
     messages_list.reverse()
     return JSONResponse(content={
         "conversation_info": conversation_info,
-        "messages": messages_list
+        "messages": messages_list,
+        "has_more": has_more
     })
 
 
@@ -7440,7 +8396,7 @@ async def update_external_platform(
             WHERE c.user_id = ?
             ORDER BY c.id DESC
             LIMIT ?
-        ''', (current_user.id, data.get('visible_count', 10)))
+        ''', (current_user.id, min(max(1, int(data.get('visible_count', 10))), 50)))
         visible_conversations = await cursor.fetchall()
 
         # Get WhatsApp conversation if not in visible ones
@@ -7588,15 +8544,17 @@ async def start_new_conversation(
         if prompt_id and not await can_user_access_prompt(current_user, prompt_id, cursor):
             raise HTTPException(status_code=403, detail="Access denied to this prompt")
 
-        # Check if prompt has forced_llm_id - if so, use that instead of user's default
+        # Check if prompt has forced_llm_id or extensions - load prompt config
+        extensions_enabled_value = False
         if prompt_id:
             await cursor.execute('''
-                SELECT forced_llm_id, allowed_llms, hide_llm_name FROM PROMPTS WHERE id = ?
+                SELECT forced_llm_id, allowed_llms, hide_llm_name, extensions_enabled FROM PROMPTS WHERE id = ?
             ''', (prompt_id,))
             prompt_llm = await cursor.fetchone()
             forced_llm_id_value = prompt_llm[0] if prompt_llm else None
             allowed_llms_value = prompt_llm[1] if prompt_llm else None
             hide_llm_name_value = prompt_llm[2] if prompt_llm else None
+            extensions_enabled_value = bool(prompt_llm[3]) if prompt_llm else False
             if forced_llm_id_value:
                 llm_id = forced_llm_id_value
                 logger.info(f"[FORCED_LLM] Prompt {prompt_id} has forced_llm_id={llm_id}, overriding user default")
@@ -7615,18 +8573,39 @@ async def start_new_conversation(
             if not await cursor.fetchone():
                 raise HTTPException(status_code=400, detail="Invalid folder_id or folder does not belong to user")
         
+        # If extensions enabled, find the default extension
+        default_extension_id = None
+        if extensions_enabled_value and prompt_id:
+            await cursor.execute('''
+                SELECT id FROM PROMPT_EXTENSIONS
+                WHERE prompt_id = ? AND is_default = 1
+                LIMIT 1
+            ''', (prompt_id,))
+            default_ext = await cursor.fetchone()
+            if not default_ext:
+                # No explicit default, use first by display_order
+                await cursor.execute('''
+                    SELECT id FROM PROMPT_EXTENSIONS
+                    WHERE prompt_id = ?
+                    ORDER BY display_order
+                    LIMIT 1
+                ''', (prompt_id,))
+                default_ext = await cursor.fetchone()
+            if default_ext:
+                default_extension_id = default_ext[0]
+
         # Insert new conversation
         await cursor.execute('''
-            INSERT INTO CONVERSATIONS (user_id, llm_id, role_id, folder_id)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO CONVERSATIONS (user_id, llm_id, role_id, folder_id, active_extension_id)
+            VALUES (?, ?, ?, ?, ?)
             RETURNING id
-        ''', (current_user.id, llm_id, prompt_id, request.folder_id))
-        
+        ''', (current_user.id, llm_id, prompt_id, request.folder_id, default_extension_id))
+
         conversation_id = await cursor.fetchone()
-        
+
         if not conversation_id:
             raise HTTPException(status_code=500, detail='Failed to create conversation')
-        
+
         conversation_id = conversation_id[0]
         logger.info(f"[SUCCESS] NEW CONVERSATION CREATED - ID: {conversation_id}, folder_id: {request.folder_id}")
         
@@ -7640,9 +8619,41 @@ async def start_new_conversation(
 
         machine, llm_model, prompt_name = await cursor.fetchone()
 
+        # Fetch extension data if extensions enabled
+        active_extension_data = None
+        extensions_list = []
+        extensions_free_selection = True
+        if extensions_enabled_value and prompt_id:
+            if default_extension_id:
+                await cursor.execute('''
+                    SELECT id, name, slug, description FROM PROMPT_EXTENSIONS WHERE id = ?
+                ''', (default_extension_id,))
+                ext_row = await cursor.fetchone()
+                if ext_row:
+                    active_extension_data = {
+                        "id": ext_row[0], "name": ext_row[1],
+                        "slug": ext_row[2], "description": ext_row[3] or ""
+                    }
+
+            await cursor.execute('''
+                SELECT id, name, slug, description FROM PROMPT_EXTENSIONS
+                WHERE prompt_id = ? ORDER BY display_order
+            ''', (prompt_id,))
+            ext_rows = await cursor.fetchall()
+            extensions_list = [
+                {"id": r[0], "name": r[1], "slug": r[2], "description": r[3] or ""}
+                for r in ext_rows
+            ]
+
+            await cursor.execute(
+                "SELECT extensions_free_selection FROM PROMPTS WHERE id = ?", (prompt_id,)
+            )
+            fs_row = await cursor.fetchone()
+            extensions_free_selection = bool(fs_row[0]) if fs_row else True
+
         await conn.commit()
 
-        return JSONResponse(content={
+        response_data = {
             'id': conversation_id,
             'name': "New Chat",
             'machine': machine,
@@ -7651,8 +8662,97 @@ async def start_new_conversation(
             'llm_model': llm_model,
             'forced_llm_id': forced_llm_id_value,
             'hide_llm_name': bool(hide_llm_name_value) if hide_llm_name_value else False,
-            'allowed_llms': orjson.loads(allowed_llms_value) if allowed_llms_value else None
-        }, status_code=201)
+            'allowed_llms': orjson.loads(allowed_llms_value) if allowed_llms_value else None,
+            'extensions_enabled': extensions_enabled_value,
+        }
+        if extensions_enabled_value:
+            response_data['active_extension'] = active_extension_data
+            response_data['extensions'] = extensions_list
+            response_data['extensions_free_selection'] = extensions_free_selection
+
+        return JSONResponse(content=response_data, status_code=201)
+
+@app.patch("/api/conversations/{conversation_id}/extension")
+async def update_conversation_extension(
+    conversation_id: int,
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """Switch the active extension for a conversation."""
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    data = await request.json()
+    extension_id = data.get("extension_id")  # int or null
+
+    async with conversation_write_lock(conversation_id):
+        async with get_db_connection() as conn:
+            cursor = await conn.cursor()
+
+            # Verify conversation belongs to user and get prompt info
+            await cursor.execute('''
+                SELECT c.id, c.role_id, c.active_extension_id,
+                       p.extensions_enabled, p.extensions_free_selection
+                FROM CONVERSATIONS c
+                LEFT JOIN PROMPTS p ON c.role_id = p.id
+                WHERE c.id = ? AND c.user_id = ?
+            ''', (conversation_id, current_user.id))
+            conv = await cursor.fetchone()
+            if not conv:
+                raise HTTPException(status_code=404, detail="Conversation not found")
+
+            if not conv["extensions_enabled"]:
+                raise HTTPException(status_code=400, detail="Extensions are not enabled for this prompt")
+
+            prompt_id = conv["role_id"]
+
+            # If extension_id is null, clear the active extension
+            if extension_id is None:
+                await cursor.execute(
+                    "UPDATE CONVERSATIONS SET active_extension_id = NULL WHERE id = ?",
+                    (conversation_id,)
+                )
+                await conn.commit()
+                return JSONResponse(content={"success": True, "extension": None})
+
+            # Validate extension belongs to the prompt
+            await cursor.execute(
+                "SELECT id, name, slug, description, display_order FROM PROMPT_EXTENSIONS WHERE id = ? AND prompt_id = ?",
+                (extension_id, prompt_id)
+            )
+            target_ext = await cursor.fetchone()
+            if not target_ext:
+                raise HTTPException(status_code=404, detail="Extension not found for this prompt")
+
+            # If free_selection is disabled, validate sequential order
+            if not conv["extensions_free_selection"] and conv["active_extension_id"] is not None:
+                await cursor.execute(
+                    "SELECT display_order FROM PROMPT_EXTENSIONS WHERE id = ?",
+                    (conv["active_extension_id"],)
+                )
+                current_ext = await cursor.fetchone()
+                if current_ext:
+                    current_order = current_ext["display_order"]
+                    target_order = target_ext["display_order"]
+                    if abs(target_order - current_order) > 1:
+                        raise HTTPException(status_code=400, detail="Sequential mode: can only move one level at a time")
+
+            await cursor.execute(
+                "UPDATE CONVERSATIONS SET active_extension_id = ? WHERE id = ?",
+                (extension_id, conversation_id)
+            )
+            await conn.commit()
+
+            return JSONResponse(content={
+                "success": True,
+                "extension": {
+                    "id": target_ext["id"],
+                    "name": target_ext["name"],
+                    "slug": target_ext["slug"],
+                    "description": target_ext["description"] or ""
+                }
+            })
+
 
 @app.post("/api/conversations/{conversation_id}/stop")
 async def stop_message(conversation_id: int):
@@ -7695,11 +8795,14 @@ async def get_bookmarked_messages(
     async with get_db_connection(readonly=True) as conn:
         cursor = await conn.cursor()
         await cursor.execute('''
-            SELECT m.id, m.conversation_id, m.user_id, u.username, m.message, m.type, strftime('%Y-%m-%d %H:%M:%S', m.date) as date_utc
+            SELECT m.id, m.conversation_id, m.user_id, u.username, m.message, m.type,
+                   strftime('%Y-%m-%d %H:%M:%S', m.date) as date_utc,
+                   COALESCE(c.chat_name, 'Chat ' || m.conversation_id) as chat_name
             FROM MESSAGES m
             JOIN USERS u ON m.user_id = u.id
+            LEFT JOIN CONVERSATIONS c ON m.conversation_id = c.id
             WHERE m.user_id = ? AND m.is_bookmarked = 1
-            ORDER BY m.date DESC
+            ORDER BY m.conversation_id DESC, m.date ASC
         ''', (current_user.id,))
         messages = await cursor.fetchall()
         
@@ -7714,10 +8817,41 @@ async def get_bookmarked_messages(
                 "message": processed_message,
                 "type": msg['type'],
                 "date": msg['date_utc'],
-                "is_bookmarked": True  # Always True for bookmarks
+                "is_bookmarked": True,
+                "chat_name": msg['chat_name']
             })
         
     return JSONResponse(content=messages_list)
+
+@app.get("/api/messages/search")
+async def search_messages(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    q: str = Query(..., min_length=3),
+    limit: int = Query(30, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    conversation_id: int = Query(None)
+):
+    if current_user is None:
+        return unauthenticated_response()
+
+    fts_query = build_fts_query(q)
+    if not fts_query:
+        return JSONResponse(content={"query": q, "has_more": False, "next_offset": 0, "items": []})
+
+    async with get_db_connection(readonly=True) as conn:
+        items = await execute_search(conn, current_user.id, fts_query, limit + 1, offset, conversation_id)
+
+    has_more = len(items) > limit
+    if has_more:
+        items = items[:limit]
+
+    return JSONResponse(content={
+        "query": q,
+        "has_more": has_more,
+        "next_offset": offset + limit if has_more else offset + len(items),
+        "items": items
+    })
 
 @app.delete("/api/conversations/{conversation_id}")
 async def delete_conversation(conversation_id: int, current_user: User = Depends(get_current_user)):
@@ -7735,7 +8869,9 @@ async def delete_conversation(conversation_id: int, current_user: User = Depends
         
         user_id = result[0]
         
-        # Delete messages
+        # Delete child records before conversation
+        await cursor.execute('DELETE FROM WATCHDOG_STATE WHERE conversation_id = ?', (conversation_id,))
+        await cursor.execute('DELETE FROM WATCHDOG_EVENTS WHERE conversation_id = ?', (conversation_id,))
         await cursor.execute('DELETE FROM messages WHERE conversation_id = ?', (conversation_id,))
 
         # Delete the conversation
@@ -7824,6 +8960,8 @@ async def delete_conversation_recursively(conversation_id):
         result = await cursor.fetchone()
         if result:
             user_id = result[0]
+            await cursor.execute("DELETE FROM WATCHDOG_STATE WHERE conversation_id = ?", (conversation_id,))
+            await cursor.execute("DELETE FROM WATCHDOG_EVENTS WHERE conversation_id = ?", (conversation_id,))
             await cursor.execute("DELETE FROM messages WHERE conversation_id = ?", (conversation_id,))
             await conn.commit()
             await cursor.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))
@@ -8769,7 +9907,7 @@ async def transcribe(request: Request, audio: UploadFile = File(None), user_id: 
 
         if media_url:
             # Download audio file from URL
-            response = requests.get(media_url, timeout=(5, 30))  # 5s connect, 30s read
+            response = await asyncio.to_thread(requests.get, media_url, timeout=(5, 30))  # 5s connect, 30s read
             if response.status_code != 200:
                 raise HTTPException(status_code=400, detail="Error downloading audio file")
             
@@ -9129,6 +10267,75 @@ async def create_stripe_checkout_session(
 
     # If 100% discount, process without Stripe
     if final_amount == 0:
+        nonce = secrets.token_hex(8)
+        ref_id = f'free_topup_{current_user.id}_{nonce}'
+        async with get_db_connection() as conn:
+            cursor = await conn.cursor()
+            try:
+                await conn.execute('BEGIN IMMEDIATE')
+
+                # Re-validate discount inside transaction to prevent double-use
+                if discount_code:
+                    await cursor.execute(
+                        "SELECT usage_count, unlimited_usage FROM DISCOUNTS WHERE code = ? AND active = 1",
+                        (discount_code,)
+                    )
+                    disc_row = await cursor.fetchone()
+                    if not disc_row:
+                        await conn.execute('ROLLBACK')
+                        raise HTTPException(status_code=400, detail="Discount code no longer valid")
+                    if not disc_row[1] and disc_row[0] is not None and disc_row[0] <= 0:
+                        await conn.execute('ROLLBACK')
+                        raise HTTPException(status_code=400, detail="Discount code usage limit reached")
+
+                # Get current balance
+                await cursor.execute(
+                    'SELECT balance FROM USER_DETAILS WHERE user_id = ?',
+                    (current_user.id,)
+                )
+                result = await cursor.fetchone()
+                balance_before = result[0] if result else 0
+                balance_after = balance_before + original_amount
+
+                # Credit the full original amount to user balance
+                await cursor.execute(
+                    'UPDATE USER_DETAILS SET balance = ? WHERE user_id = ?',
+                    (balance_after, current_user.id)
+                )
+
+                # Record transaction
+                await cursor.execute('''
+                    INSERT INTO TRANSACTIONS
+                    (user_id, type, amount, balance_before, balance_after,
+                     description, reference_id, discount_code)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    current_user.id,
+                    'payment',
+                    original_amount,
+                    balance_before,
+                    balance_after,
+                    f'100% discount top-up - ${original_amount:.2f} balance credited',
+                    ref_id,
+                    discount_code if discount_code else None
+                ))
+
+                # Decrement discount usage
+                if discount_code:
+                    await cursor.execute('''
+                        UPDATE DISCOUNTS SET usage_count = CASE
+                            WHEN unlimited_usage = 1 THEN usage_count
+                            ELSE MAX(0, COALESCE(usage_count, 1) - 1)
+                        END WHERE code = ?
+                    ''', (discount_code,))
+
+                await conn.commit()
+                logger.info(f"Free top-up (100% discount): user={current_user.id}, amount=${original_amount:.2f}, code={discount_code}")
+
+            except Exception:
+                await conn.rollback()
+                raise
+
         return JSONResponse(content={
             "free_purchase": True,
             "message": "100% discount applied"
@@ -9268,6 +10475,14 @@ async def stripe_webhook(request: Request):
                     pack_data = await pack_row.fetchone()
                     creator_id = pack_data[0] if pack_data else None
 
+                    # Record creator relationship
+                    if creator_id:
+                        try:
+                            from common import upsert_creator_relationship
+                            await upsert_creator_relationship(cursor, buyer_user_id, creator_id, 'purchased_from', 'pack', pack_id)
+                        except Exception as ucr_err:
+                            logger.warning(f"Could not record creator relationship for pack purchase: {ucr_err}")
+
                     # Read buyer's balance BEFORE applying initial_balance (for TRANSACTIONS record)
                     bal_cursor = await cursor.execute(
                         "SELECT balance FROM USER_DETAILS WHERE user_id = ?",
@@ -9300,26 +10515,51 @@ async def stripe_webhook(request: Request):
                                         "UPDATE USER_DETAILS SET balance = balance + ? WHERE user_id = ?",
                                         (scaled_ib, buyer_user_id)
                                     )
+                            # Read current values: only expand permissions, never restrict
+                            ud_cur = await cursor.execute(
+                                """SELECT public_prompts_access, billing_account_id,
+                                          allow_file_upload, allow_image_generation
+                                   FROM USER_DETAILS WHERE user_id = ?""",
+                                (buyer_user_id,)
+                            )
+                            ud_row = await ud_cur.fetchone()
+                            cur_public = ud_row[0] if ud_row else 0
+                            cur_billing = ud_row[1] if ud_row else None
+                            cur_file = ud_row[2] if ud_row else 0
+                            cur_imggen = ud_row[3] if ud_row else 0
+
                             if lrc.get("billing_mode") == "manager_pays" and creator_id:
-                                await cursor.execute(
-                                    "UPDATE USER_DETAILS SET billing_account_id = ? WHERE user_id = ?",
-                                    (creator_id, buyer_user_id)
-                                )
+                                if cur_billing is None:
+                                    await cursor.execute(
+                                        "UPDATE USER_DETAILS SET billing_account_id = ? WHERE user_id = ?",
+                                        (creator_id, buyer_user_id)
+                                    )
+                                else:
+                                    logger.warning("Webhook: billing_account_id not overwritten for user %s (already %s)", buyer_user_id, cur_billing)
                             if "public_prompts_access" in lrc:
-                                await cursor.execute(
-                                    "UPDATE USER_DETAILS SET public_prompts_access = ? WHERE user_id = ?",
-                                    (1 if lrc["public_prompts_access"] else 0, buyer_user_id)
-                                )
+                                if lrc["public_prompts_access"] and not cur_public:
+                                    await cursor.execute(
+                                        "UPDATE USER_DETAILS SET public_prompts_access = 1 WHERE user_id = ?",
+                                        (buyer_user_id,)
+                                    )
+                                elif not lrc["public_prompts_access"] and cur_public:
+                                    logger.warning("Webhook: skipping public_prompts_access downgrade for user %s", buyer_user_id)
                             if "allow_file_upload" in lrc:
-                                await cursor.execute(
-                                    "UPDATE USER_DETAILS SET allow_file_upload = ? WHERE user_id = ?",
-                                    (1 if lrc["allow_file_upload"] else 0, buyer_user_id)
-                                )
+                                if lrc["allow_file_upload"] and not cur_file:
+                                    await cursor.execute(
+                                        "UPDATE USER_DETAILS SET allow_file_upload = 1 WHERE user_id = ?",
+                                        (buyer_user_id,)
+                                    )
+                                elif not lrc["allow_file_upload"] and cur_file:
+                                    logger.warning("Webhook: skipping allow_file_upload downgrade for user %s", buyer_user_id)
                             if "allow_image_generation" in lrc:
-                                await cursor.execute(
-                                    "UPDATE USER_DETAILS SET allow_image_generation = ? WHERE user_id = ?",
-                                    (1 if lrc["allow_image_generation"] else 0, buyer_user_id)
-                                )
+                                if lrc["allow_image_generation"] and not cur_imggen:
+                                    await cursor.execute(
+                                        "UPDATE USER_DETAILS SET allow_image_generation = 1 WHERE user_id = ?",
+                                        (buyer_user_id,)
+                                    )
+                                elif not lrc["allow_image_generation"] and cur_imggen:
+                                    logger.warning("Webhook: skipping allow_image_generation downgrade for user %s", buyer_user_id)
                         except Exception as lrc_err:
                             logger.warning(f"Failed to apply pack landing config: {lrc_err}")
 
@@ -9337,8 +10577,7 @@ async def stripe_webhook(request: Request):
                             (creator_net, creator_id)
                         )
 
-                    # Record transaction for audit (use actual balance values)
-                    buyer_balance_after = buyer_balance_before + initial_balance_cost
+                    # Record pack_purchase transaction (balance unchanged by the purchase itself)
                     await cursor.execute("""
                         INSERT INTO TRANSACTIONS
                         (user_id, type, amount, balance_before, balance_after,
@@ -9348,11 +10587,27 @@ async def stripe_webhook(request: Request):
                         buyer_user_id,
                         final_amount,
                         buyer_balance_before,
-                        buyer_balance_after,
+                        buyer_balance_before,  # Option A: pack_purchase doesn't include balance credit
                         f"Pack purchase: pack_id={pack_id}, paid=${final_amount:.2f}",
                         session['id'],
                         discount_code if discount_code else None
                     ))
+
+                    # Separate balance_credit record for initial_balance (correct chain)
+                    if initial_balance_cost > 0:
+                        await cursor.execute("""
+                            INSERT INTO TRANSACTIONS
+                            (user_id, type, amount, balance_before, balance_after,
+                             description, reference_id)
+                            VALUES (?, 'balance_credit', ?, ?, ?, ?, ?)
+                        """, (
+                            buyer_user_id,
+                            initial_balance_cost,
+                            buyer_balance_before,
+                            buyer_balance_before + initial_balance_cost,
+                            f"Balance credit from pack purchase: pack_id={pack_id}",
+                            session['id']
+                        ))
 
                     # Decrement discount usage
                     if discount_code:
@@ -9371,6 +10626,212 @@ async def stripe_webhook(request: Request):
                     logger.error(f"Error processing pack purchase webhook: {e}")
                     raise HTTPException(status_code=500, detail="Error processing pack purchase")
 
+        # ---- Individual prompt purchase flow ----
+        elif metadata.get('type') == 'prompt_purchase':
+            prompt_id = int(metadata['prompt_id'])
+            buyer_user_id = int(metadata['buyer_user_id'])
+            original_price = float(metadata.get('original_price', 0))
+            final_amount = float(metadata.get('final_amount', 0))
+            discount_code = metadata.get('discount_code', '')
+            discount_value = float(metadata.get('discount_value', 0))
+
+            logger.info(f"Prompt purchase completed: buyer={buyer_user_id}, prompt={prompt_id}, amount=${final_amount}")
+
+            async with get_db_connection() as conn:
+                cursor = await conn.cursor()
+                try:
+                    await conn.execute('BEGIN IMMEDIATE')
+
+                    # Idempotency check
+                    existing = await cursor.execute(
+                        "SELECT id FROM PROMPT_PURCHASES WHERE payment_reference = ?",
+                        (session['id'],)
+                    )
+                    if await existing.fetchone():
+                        await conn.execute('ROLLBACK')
+                        logger.info(f"Prompt purchase already processed: session={session['id']}")
+                        return JSONResponse(content={"status": "success"})
+
+                    # Record purchase
+                    await cursor.execute(
+                        """INSERT INTO PROMPT_PURCHASES
+                           (buyer_user_id, prompt_id, amount, currency, payment_method, payment_reference, status)
+                           VALUES (?, ?, ?, 'USD', 'stripe', ?, 'completed')""",
+                        (buyer_user_id, prompt_id, final_amount, session['id'])
+                    )
+
+                    # Grant access
+                    await cursor.execute(
+                        "INSERT OR IGNORE INTO PROMPT_PERMISSIONS (prompt_id, user_id, permission_level) VALUES (?, ?, 'access')",
+                        (prompt_id, buyer_user_id)
+                    )
+
+                    # Set current_prompt_id
+                    await cursor.execute(
+                        "UPDATE USER_DETAILS SET current_prompt_id = ? WHERE user_id = ?",
+                        (prompt_id, buyer_user_id)
+                    )
+
+                    # Revenue split
+                    from common import get_pricing_config
+                    pricing = await get_pricing_config()
+                    commission_rate = pricing.get("commission", 0.30)
+                    creator_share = final_amount * (1 - commission_rate)
+
+                    # Get prompt creator and landing config
+                    prompt_row = await cursor.execute(
+                        "SELECT created_by_user_id, landing_registration_config FROM PROMPTS WHERE id = ?",
+                        (prompt_id,)
+                    )
+                    prompt_data = await prompt_row.fetchone()
+                    creator_id = prompt_data[0] if prompt_data else None
+
+                    # Record creator relationship
+                    if creator_id:
+                        try:
+                            from common import upsert_creator_relationship
+                            await upsert_creator_relationship(cursor, buyer_user_id, creator_id, 'purchased_from', 'prompt', prompt_id)
+                        except Exception as ucr_err:
+                            logger.warning(f"Could not record creator relationship for prompt purchase: {ucr_err}")
+
+                    # Read buyer's balance BEFORE changes
+                    bal_cursor = await cursor.execute(
+                        "SELECT balance FROM USER_DETAILS WHERE user_id = ?",
+                        (buyer_user_id,)
+                    )
+                    bal_row = await bal_cursor.fetchone()
+                    buyer_balance_before = bal_row[0] if bal_row else 0
+
+                    # Apply landing_registration_config to buyer
+                    initial_balance_cost = 0
+                    if prompt_data and prompt_data[1]:
+                        import json as _json
+                        try:
+                            lrc = _json.loads(prompt_data[1]) if isinstance(prompt_data[1], str) else prompt_data[1]
+                            ib = float(lrc.get("initial_balance", 0))
+                            if ib > 0:
+                                scale = (1 - discount_value / 100) if discount_value > 0 else 1
+                                scaled_ib = ib * scale
+                                if scaled_ib > creator_share:
+                                    logger.warning(
+                                        "Prompt %s: initial_balance %.2f exceeds creator_share %.2f, clamping",
+                                        prompt_id, scaled_ib, creator_share
+                                    )
+                                    scaled_ib = creator_share
+                                if scaled_ib > 0:
+                                    initial_balance_cost = scaled_ib
+                                    await cursor.execute(
+                                        "UPDATE USER_DETAILS SET balance = balance + ? WHERE user_id = ?",
+                                        (scaled_ib, buyer_user_id)
+                                    )
+                            # Expand permissions (never restrict) - same pattern as pack webhook
+                            ud_cur = await cursor.execute(
+                                """SELECT public_prompts_access, billing_account_id,
+                                          allow_file_upload, allow_image_generation
+                                   FROM USER_DETAILS WHERE user_id = ?""",
+                                (buyer_user_id,)
+                            )
+                            ud_row = await ud_cur.fetchone()
+                            cur_public = ud_row[0] if ud_row else 0
+                            cur_billing = ud_row[1] if ud_row else None
+                            cur_file = ud_row[2] if ud_row else 0
+                            cur_imggen = ud_row[3] if ud_row else 0
+
+                            if lrc.get("billing_mode") == "manager_pays" and creator_id:
+                                if cur_billing is None:
+                                    await cursor.execute(
+                                        "UPDATE USER_DETAILS SET billing_account_id = ? WHERE user_id = ?",
+                                        (creator_id, buyer_user_id)
+                                    )
+                                else:
+                                    logger.warning("Webhook: billing_account_id not overwritten for user %s (already %s)", buyer_user_id, cur_billing)
+                            if "public_prompts_access" in lrc:
+                                if lrc["public_prompts_access"] and not cur_public:
+                                    await cursor.execute(
+                                        "UPDATE USER_DETAILS SET public_prompts_access = 1 WHERE user_id = ?",
+                                        (buyer_user_id,)
+                                    )
+                                elif not lrc["public_prompts_access"] and cur_public:
+                                    logger.warning("Webhook: skipping public_prompts_access downgrade for user %s", buyer_user_id)
+                            if "allow_file_upload" in lrc:
+                                if lrc["allow_file_upload"] and not cur_file:
+                                    await cursor.execute(
+                                        "UPDATE USER_DETAILS SET allow_file_upload = 1 WHERE user_id = ?",
+                                        (buyer_user_id,)
+                                    )
+                                elif not lrc["allow_file_upload"] and cur_file:
+                                    logger.warning("Webhook: skipping allow_file_upload downgrade for user %s", buyer_user_id)
+                            if "allow_image_generation" in lrc:
+                                if lrc["allow_image_generation"] and not cur_imggen:
+                                    await cursor.execute(
+                                        "UPDATE USER_DETAILS SET allow_image_generation = 1 WHERE user_id = ?",
+                                        (buyer_user_id,)
+                                    )
+                                elif not lrc["allow_image_generation"] and cur_imggen:
+                                    logger.warning("Webhook: skipping allow_image_generation downgrade for user %s", buyer_user_id)
+                        except Exception as lrc_err:
+                            logger.warning(f"Failed to apply prompt landing config: {lrc_err}")
+
+                    # Creator net earnings
+                    creator_net = creator_share - initial_balance_cost
+                    if creator_net < 0:
+                        logger.warning("Prompt %s: creator_net negative (%.2f), clamping to 0", prompt_id, creator_net)
+                        creator_net = 0
+                    if creator_id and creator_net > 0:
+                        await cursor.execute(
+                            "UPDATE USER_DETAILS SET pending_earnings = COALESCE(pending_earnings, 0) + ? WHERE user_id = ?",
+                            (creator_net, creator_id)
+                        )
+
+                    # Record prompt_purchase transaction
+                    await cursor.execute("""
+                        INSERT INTO TRANSACTIONS
+                        (user_id, type, amount, balance_before, balance_after,
+                         description, reference_id, discount_code)
+                        VALUES (?, 'prompt_purchase', ?, ?, ?, ?, ?, ?)
+                    """, (
+                        buyer_user_id,
+                        final_amount,
+                        buyer_balance_before,
+                        buyer_balance_before,
+                        f"Prompt purchase: prompt_id={prompt_id}, paid=${final_amount:.2f}",
+                        session['id'],
+                        discount_code if discount_code else None
+                    ))
+
+                    # Separate balance_credit record for initial_balance
+                    if initial_balance_cost > 0:
+                        await cursor.execute("""
+                            INSERT INTO TRANSACTIONS
+                            (user_id, type, amount, balance_before, balance_after,
+                             description, reference_id)
+                            VALUES (?, 'balance_credit', ?, ?, ?, ?, ?)
+                        """, (
+                            buyer_user_id,
+                            initial_balance_cost,
+                            buyer_balance_before,
+                            buyer_balance_before + initial_balance_cost,
+                            f"Balance credit from prompt purchase: prompt_id={prompt_id}",
+                            session['id']
+                        ))
+
+                    # Decrement discount usage
+                    if discount_code:
+                        await cursor.execute("""
+                            UPDATE DISCOUNTS SET usage_count = CASE
+                                WHEN unlimited_usage = 1 THEN usage_count
+                                ELSE MAX(0, COALESCE(usage_count, 1) - 1)
+                            END WHERE code = ?
+                        """, (discount_code,))
+
+                    await conn.commit()
+                    logger.info(f"Prompt purchase processed: buyer={buyer_user_id}, prompt={prompt_id}, creator_net=${creator_net:.2f}")
+
+                except Exception as e:
+                    await conn.rollback()
+                    logger.error(f"Error processing prompt purchase webhook: {e}")
+                    raise HTTPException(status_code=500, detail="Error processing prompt purchase")
+
         # ---- Balance top-up flow (existing) ----
         else:
             user_id = int(session['metadata']['user_id'])
@@ -9384,6 +10845,16 @@ async def stripe_webhook(request: Request):
                 cursor = await conn.cursor()
                 try:
                     await conn.execute('BEGIN IMMEDIATE')
+
+                    # Idempotency check: skip if this session was already processed
+                    existing = await cursor.execute(
+                        "SELECT id FROM TRANSACTIONS WHERE reference_id = ?",
+                        (session['id'],)
+                    )
+                    if await existing.fetchone():
+                        await conn.execute('ROLLBACK')
+                        logger.info(f"Balance top-up already processed: session={session['id']}")
+                        return JSONResponse(content={"status": "success"})
 
                     # Get current balance
                     await cursor.execute(
@@ -9694,6 +11165,280 @@ async def pack_purchase_success_page(
     return templates.TemplateResponse("pack_purchase_success.html", context)
 
 
+# ---- Individual prompt purchase endpoint ----
+@app.post("/api/prompts/{prompt_id}/purchase")
+async def api_purchase_prompt(prompt_id: int, request: Request, current_user: User = Depends(get_current_user)):
+    """Create a Stripe Checkout Session to purchase an individual prompt."""
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    discount_code = str(body.get("discount_code", "")).strip() if body.get("discount_code") else ""
+
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.cursor()
+        # Fetch prompt details
+        await cursor.execute(
+            "SELECT name, public, purchase_price, created_by_user_id, public_id, description, landing_registration_config FROM PROMPTS WHERE id = ?",
+            (prompt_id,)
+        )
+        prompt_row = await cursor.fetchone()
+        if not prompt_row:
+            raise HTTPException(status_code=404, detail="Prompt not found")
+
+        prompt_name, is_public, purchase_price, creator_user_id, public_id, prompt_description, landing_reg_config = prompt_row
+
+        if not is_public:
+            raise HTTPException(status_code=404, detail="Prompt not found")
+
+        if purchase_price is None:
+            raise HTTPException(status_code=400, detail="This prompt is not available for individual purchase")
+
+        # Self-purchase prevention
+        if creator_user_id == current_user.id:
+            raise HTTPException(status_code=400, detail="You cannot purchase your own prompt")
+
+        # Check existing access via PROMPT_PERMISSIONS
+        await cursor.execute(
+            "SELECT permission_level FROM PROMPT_PERMISSIONS WHERE prompt_id = ? AND user_id = ?",
+            (prompt_id, current_user.id)
+        )
+        existing_perm = await cursor.fetchone()
+        if existing_perm:
+            return JSONResponse({"message": "You already have access to this prompt", "redirect": "/chat"})
+
+        # Check existing access via PACK_ACCESS
+        await cursor.execute(
+            """SELECT 1 FROM PACK_ACCESS pa
+               JOIN PACK_ITEMS pi ON pa.pack_id = pi.pack_id
+               WHERE pa.user_id = ? AND pi.prompt_id = ?
+               AND pi.is_active = 1
+               AND (pi.disable_at IS NULL OR pi.disable_at > datetime('now'))
+               AND (pa.expires_at IS NULL OR pa.expires_at > datetime('now'))""",
+            (current_user.id, prompt_id)
+        )
+        if await cursor.fetchone():
+            return JSONResponse({"message": "You already have access to this prompt", "redirect": "/chat"})
+
+    original_price = float(purchase_price)
+    final_amount = original_price
+    discount_value = 0
+
+    # Validate and apply discount code
+    if discount_code:
+        async with get_db_connection(readonly=True) as conn:
+            disc_cursor = await conn.execute(
+                "SELECT discount_value, active, usage_count, validity_date, unlimited_usage, unlimited_validity FROM DISCOUNTS WHERE code = ?",
+                (discount_code,)
+            )
+            discount = await disc_cursor.fetchone()
+
+            if not discount or not discount[1]:  # not active
+                raise HTTPException(status_code=400, detail="Invalid or inactive discount code")
+
+            if not discount[5] and discount[3]:  # not unlimited_validity and has validity_date
+                validity = datetime.strptime(discount[3], '%Y-%m-%d').date()
+                if date.today() > validity:
+                    raise HTTPException(status_code=400, detail="Discount code has expired")
+
+            if not discount[4] and discount[2] is not None:  # not unlimited_usage
+                if discount[2] <= 0:
+                    raise HTTPException(status_code=400, detail="Discount code usage limit reached")
+
+            discount_value = float(discount[0])
+            if discount_value < 0 or discount_value > 100:
+                raise HTTPException(status_code=400, detail="Invalid discount value")
+            final_amount = max(0, original_price * (1 - discount_value / 100))
+
+    # Reject amounts between $0.01-$0.49 (below Stripe minimum)
+    if 0 < final_amount < 0.50:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Final price after discount (${final_amount:.2f}) is below the minimum processing amount ($0.50). The discount must either cover the full price or leave at least $0.50."
+        )
+
+    # Generate slug for cancel URL
+    prompt_slug = slugify(prompt_name) if prompt_name else ""
+
+    # 100% discount: immediate grant without Stripe
+    if final_amount == 0:
+        async with get_db_connection() as conn:
+            await conn.execute("BEGIN IMMEDIATE")
+            try:
+                # Record purchase
+                await conn.execute(
+                    """INSERT INTO PROMPT_PURCHASES
+                       (buyer_user_id, prompt_id, amount, currency, payment_method, payment_reference, status)
+                       VALUES (?, ?, 0.0, 'USD', 'free', ?, 'completed')""",
+                    (current_user.id, prompt_id, f"discount_{discount_code}_user_{current_user.id}")
+                )
+
+                # Grant access
+                await conn.execute(
+                    "INSERT OR IGNORE INTO PROMPT_PERMISSIONS (prompt_id, user_id, permission_level) VALUES (?, ?, 'access')",
+                    (prompt_id, current_user.id)
+                )
+
+                # Set current_prompt_id
+                await conn.execute(
+                    "UPDATE USER_DETAILS SET current_prompt_id = ? WHERE user_id = ?",
+                    (prompt_id, current_user.id)
+                )
+
+                # Record transaction
+                bal_cur = await conn.execute(
+                    "SELECT balance FROM USER_DETAILS WHERE user_id = ?",
+                    (current_user.id,)
+                )
+                bal_row = await bal_cur.fetchone()
+                cur_balance = bal_row[0] if bal_row else 0
+                await conn.execute('''
+                    INSERT INTO TRANSACTIONS
+                    (user_id, type, amount, balance_before, balance_after,
+                     description, reference_id, discount_code)
+                    VALUES (?, 'prompt_purchase', 0, ?, ?, ?, ?, ?)
+                ''', (
+                    current_user.id,
+                    cur_balance,
+                    cur_balance,
+                    f'Free prompt purchase (100% discount): prompt_id={prompt_id}',
+                    f'discount_{discount_code}_user_{current_user.id}',
+                    discount_code if discount_code else None
+                ))
+
+                # Decrement discount usage
+                if discount_code:
+                    await conn.execute("""
+                        UPDATE DISCOUNTS SET usage_count = CASE
+                            WHEN unlimited_usage = 1 THEN usage_count
+                            ELSE MAX(0, COALESCE(usage_count, 1) - 1)
+                        END WHERE code = ?
+                    """, (discount_code,))
+
+                # Record creator relationship
+                if creator_user_id:
+                    try:
+                        from common import upsert_creator_relationship
+                        await upsert_creator_relationship(conn, current_user.id, creator_user_id, 'purchased_from', 'prompt', prompt_id)
+                    except Exception as ucr_err:
+                        logger.warning(f"Could not record creator relationship for free prompt purchase: {ucr_err}")
+
+                await conn.commit()
+            except Exception:
+                await conn.execute("ROLLBACK")
+                raise
+
+        logger.info(f"Free prompt purchase (100% discount): user={current_user.id}, prompt={prompt_id}, code={discount_code}")
+        return JSONResponse({
+            "message": "Prompt access granted with discount",
+            "redirect": "/chat",
+            "free_purchase": True
+        })
+
+    # Stripe checkout for paid purchases
+    if not STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=503, detail="Payment service is not configured")
+
+    base_url = str(request.base_url).rstrip('/')
+    try:
+        session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                'price_data': {
+                    'currency': 'usd',
+                    'unit_amount': int(final_amount * 100),
+                    'product_data': {
+                        'name': prompt_name or "AI Prompt",
+                        'description': ((prompt_description or "AI prompt")[:500]),
+                    },
+                },
+                'quantity': 1,
+            }],
+            mode='payment',
+            success_url=f"{base_url}/prompt-purchase-success?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{base_url}/p/{public_id}/{prompt_slug}/?cancelled=true",
+            metadata={
+                'type': 'prompt_purchase',
+                'prompt_id': str(prompt_id),
+                'buyer_user_id': str(current_user.id),
+                'original_price': str(original_price),
+                'final_amount': str(final_amount),
+                'discount_code': discount_code,
+                'discount_value': str(discount_value),
+            }
+        )
+        return JSONResponse({"checkout_url": session.url})
+    except Exception as e:
+        logger.error(f"Stripe session creation failed for prompt purchase: {e}")
+        raise HTTPException(status_code=500, detail="Payment processing error")
+
+
+@app.get("/prompt-purchase-success", response_class=HTMLResponse)
+async def prompt_purchase_success_page(
+    request: Request,
+    session_id: str = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Success page shown after completing a prompt purchase via Stripe."""
+    if not current_user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    prompt_name = "Prompt"
+    prompt_id = None
+    prompt_image_url = None
+    prompt_creator = None
+    prompt_landing_url = None
+    payment_amount = None
+
+    if session_id and STRIPE_SECRET_KEY:
+        try:
+            session = stripe.checkout.Session.retrieve(session_id)
+            if session and session.metadata.get('buyer_user_id') == str(current_user.id):
+                payment_amount = float(session.metadata.get('final_amount', 0))
+                pid = session.metadata.get('prompt_id')
+                if pid:
+                    prompt_id = int(pid)
+                    async with get_db_connection(readonly=True) as conn:
+                        cursor = await conn.cursor()
+                        await cursor.execute(
+                            """SELECT p.name, p.public_id, p.image,
+                                      u.username
+                               FROM PROMPTS p
+                               JOIN USERS u ON p.created_by_user_id = u.id
+                               WHERE p.id = ?""",
+                            (prompt_id,)
+                        )
+                        row = await cursor.fetchone()
+                        if row:
+                            prompt_name = row[0]
+                            prompt_creator = row[3]
+                            slug = slugify(row[0]) if row[0] else ""
+                            prompt_landing_url = f"/p/{row[1]}/{slug}/" if row[1] else None
+                            if row[2]:  # image
+                                current_time = datetime.utcnow()
+                                new_expiration = current_time + timedelta(hours=AVATAR_TOKEN_EXPIRE_HOURS)
+                                img_base = f"{row[2]}_128.webp"
+                                token = generate_img_token(img_base, new_expiration, current_user)
+                                prompt_image_url = f"{CLOUDFLARE_BASE_URL}{img_base}?token={token}"
+        except Exception as e:
+            logger.error(f"Error retrieving prompt purchase session: {e}")
+
+    context = await get_template_context(request, current_user)
+    context.update({
+        "prompt_name": prompt_name,
+        "prompt_id": prompt_id,
+        "prompt_image_url": prompt_image_url,
+        "prompt_creator": prompt_creator,
+        "prompt_landing_url": prompt_landing_url,
+        "payment_amount": payment_amount,
+    })
+    return templates.TemplateResponse("prompt_purchase_success.html", context)
+
+
 # Simulated payment for development/testing (100% discounts)
 @app.post("/payment-success-simulated")
 async def payment_success_simulated(request: Request, current_user: dict = Depends(get_current_user)):
@@ -9701,31 +11446,60 @@ async def payment_success_simulated(request: Request, current_user: dict = Depen
     try:
         data = await request.json()
         original_amount = float(data['originalAmount'])
+        discount_code = data.get('discount_code', '').strip() or None
     except KeyError as e:
         raise HTTPException(status_code=422, detail=f"Missing field in request data: {e}")
 
     async with get_db_connection() as conn:
         cursor = await conn.cursor()
         try:
-            await cursor.execute("SELECT balance FROM user_details WHERE user_id = ?", (user_id,))
+            await conn.execute('BEGIN IMMEDIATE')
+
+            await cursor.execute("SELECT balance FROM USER_DETAILS WHERE user_id = ?", (user_id,))
             user_details = await cursor.fetchone()
 
-            if user_details:
-                new_balance = user_details[0] + original_amount
-                await cursor.execute("UPDATE user_details SET balance = ? WHERE user_id = ?", (new_balance, user_id))
-                await conn.commit()
-                return JSONResponse(content=jsonable_encoder({
-                    "message": "Payment simulated successfully",
-                    "new_balance": new_balance,
-                    "redirectUrl": "/"
-                }))
-            else:
+            if not user_details:
+                await conn.execute('ROLLBACK')
                 raise HTTPException(status_code=404, detail="User not found")
+
+            balance_before = user_details[0]
+            balance_after = balance_before + original_amount
+            await cursor.execute(
+                "UPDATE USER_DETAILS SET balance = ? WHERE user_id = ?",
+                (balance_after, user_id)
+            )
+
+            # Record transaction for audit trail
+            await cursor.execute('''
+                INSERT INTO TRANSACTIONS
+                (user_id, type, amount, balance_before, balance_after,
+                 description, reference_id, discount_code)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                user_id,
+                'payment',
+                original_amount,
+                balance_before,
+                balance_after,
+                f'Simulated payment - ${original_amount:.2f} balance credited',
+                f'simulated_{user_id}_{secrets.token_hex(8)}',
+                discount_code
+            ))
+
+            await conn.commit()
+            logger.info(f"Simulated payment: user={user_id}, amount=${original_amount:.2f}")
+
+            return JSONResponse(content=jsonable_encoder({
+                "message": "Payment simulated successfully",
+                "new_balance": balance_after,
+                "redirectUrl": "/"
+            }))
+        except HTTPException:
+            raise
         except Exception as e:
-            logger.error(f"Error executing query: {e}")
+            await conn.rollback()
+            logger.error(f"Error in simulated payment: {e}")
             raise HTTPException(status_code=500, detail="Database query error")
-        finally:
-            await conn.close()
 
 @app.get("/admin/create-discount", response_class=HTMLResponse)
 async def create_discount(request: Request, current_user: User = Depends(get_current_user)):
@@ -9794,11 +11568,6 @@ async def apply_discount(
 
             if not discount['unlimited_usage'] and discount['usage_count'] <= 0:
                 return JSONResponse({'success': False, 'message': "Discount code depleted"}, status_code=400)
-
-            if not discount['unlimited_usage']:
-                new_uses = discount['usage_count'] - 1
-                await cursor.execute("UPDATE discounts SET usage_count = ? WHERE code = ?", (new_uses, code))
-                await conn.commit()
 
             discount_percent = discount['discount_value'] / 100.0
             apply_discount = amount * discount_percent
@@ -10388,19 +12157,216 @@ async def admin_watchdog_events(request: Request, current_user: User = Depends(g
     )
 
 
+# ============================================================================
+# WhatsApp Admin Dashboard
+# ============================================================================
+
+@app.get("/admin/whatsapp", response_class=HTMLResponse)
+async def admin_whatsapp(request: Request, current_user: User = Depends(get_current_user)):
+    if current_user is None:
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x})
+    if not await current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    message = request.query_params.get("message")
+    error = request.query_params.get("error")
+
+    # Check Twilio configuration status
+    twilio_configured = async_twilio is not None
+
+    # Check Twilio webhook configuration
+    webhook_status = None  # None = not checkable, dict otherwise
+    if async_twilio and twilio_messaging_service_sid:
+        expected_webhook_url = f"https://{PRIMARY_APP_DOMAIN}/whatsapp"
+        try:
+            ms_data = await async_twilio.get_messaging_service(twilio_messaging_service_sid)
+            current_webhook_url = ms_data.get("inbound_request_url", "")
+            webhook_status = {
+                "current_url": current_webhook_url,
+                "expected_url": expected_webhook_url,
+                "match": current_webhook_url == expected_webhook_url,
+                "service_name": ms_data.get("friendly_name", "Unknown"),
+            }
+        except Exception as e:
+            logger.error(f"Failed to fetch Twilio Messaging Service config: {e}")
+            webhook_status = {"error": str(e)}
+
+    # Get configurable messages from SYSTEM_CONFIG
+    unknown_user_message = phone_user_not_found
+    welcome_message = ""
+    require_phone_verification = False
+    try:
+        async with get_db_connection(readonly=True) as conn:
+            cursor = await conn.execute("SELECT key, value FROM SYSTEM_CONFIG WHERE key IN ('whatsapp_unknown_user_message', 'whatsapp_welcome_message', 'whatsapp_require_phone_verification')")
+            rows = await cursor.fetchall()
+            for row in rows:
+                if row[0] == 'whatsapp_unknown_user_message':
+                    unknown_user_message = row[1] or phone_user_not_found
+                elif row[0] == 'whatsapp_welcome_message':
+                    welcome_message = row[1] or ""
+                elif row[0] == 'whatsapp_require_phone_verification':
+                    require_phone_verification = row[1] == '1'
+    except Exception:
+        pass  # Table might not exist yet
+
+    # Get users with WhatsApp active
+    whatsapp_users = []
+    try:
+        async with get_db_connection(readonly=True) as conn:
+            cursor = await conn.execute("""
+                SELECT u.username, u.phone_number, ud.external_platforms
+                FROM USERS u
+                JOIN USER_DETAILS ud ON u.id = ud.user_id
+                WHERE ud.external_platforms IS NOT NULL AND ud.external_platforms != ''
+            """)
+            rows = await cursor.fetchall()
+            for row in rows:
+                try:
+                    platforms = orjson.loads(row[2])
+                    wa = platforms.get('whatsapp')
+                    if wa:
+                        phone = row[1] or ""
+                        # Mask phone for privacy: show first 4 and last 4 chars
+                        if len(phone) > 8:
+                            phone_display = phone[:4] + "***" + phone[-4:]
+                        else:
+                            phone_display = phone
+
+                        # Get last message timestamp
+                        last_msg_cursor = await conn.execute(
+                            "SELECT MAX(timestamp) FROM WHATSAPP_LOG WHERE phone_number = ?",
+                            (row[1],)
+                        )
+                        last_msg_row = await last_msg_cursor.fetchone()
+                        last_message = last_msg_row[0] if last_msg_row and last_msg_row[0] else None
+
+                        whatsapp_users.append({
+                            "username": row[0],
+                            "phone_display": phone_display,
+                            "conversation_id": wa.get("conversation_id", "N/A"),
+                            "answer_mode": wa.get("answer", "text"),
+                            "last_message": last_message
+                        })
+                except (orjson.JSONDecodeError, TypeError):
+                    continue
+    except Exception:
+        pass  # WHATSAPP_LOG table might not exist yet
+
+    # Get today's stats
+    stats = {"messages_today": 0, "active_users_today": 0, "text_count": 0, "voice_count": 0}
+    try:
+        async with get_db_connection(readonly=True) as conn:
+            cursor = await conn.execute(
+                "SELECT COUNT(*) FROM WHATSAPP_LOG WHERE timestamp >= date('now')"
+            )
+            row = await cursor.fetchone()
+            stats["messages_today"] = row[0] if row else 0
+
+            cursor = await conn.execute(
+                "SELECT COUNT(DISTINCT user_id) FROM WHATSAPP_LOG WHERE timestamp >= date('now')"
+            )
+            row = await cursor.fetchone()
+            stats["active_users_today"] = row[0] if row else 0
+
+            cursor = await conn.execute(
+                "SELECT response_mode, COUNT(*) FROM WHATSAPP_LOG WHERE timestamp >= date('now') AND direction = 'in' GROUP BY response_mode"
+            )
+            rows = await cursor.fetchall()
+            for row in rows:
+                if row[0] == 'text':
+                    stats["text_count"] = row[1]
+                elif row[0] == 'voice':
+                    stats["voice_count"] = row[1]
+    except Exception:
+        pass  # WHATSAPP_LOG table might not exist
+
+    context = await get_template_context(request, current_user)
+    context.update({
+        "message": message,
+        "error": error,
+        "twilio_configured": twilio_configured,
+        "whatsapp_users": whatsapp_users,
+        "unknown_user_message": unknown_user_message,
+        "welcome_message": welcome_message,
+        "require_phone_verification": require_phone_verification,
+        "stats": stats,
+        "webhook_status": webhook_status,
+    })
+    return templates.TemplateResponse("admin_whatsapp.html", context)
+
+
+@app.post("/admin/whatsapp", response_class=HTMLResponse)
+async def admin_whatsapp_save(request: Request, current_user: User = Depends(get_current_user)):
+    if current_user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not await current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    form = await request.form()
+    action = form.get("action")
+
+    if action == "save_config":
+        unknown_msg = form.get("unknown_user_message", "").strip()
+        welcome_msg = form.get("welcome_message", "").strip()
+        require_verification = "1" if form.get("require_phone_verification") else "0"
+
+        try:
+            async with get_db_connection() as conn:
+                await conn.execute("""
+                    INSERT INTO SYSTEM_CONFIG (key, value, description, updated_at)
+                    VALUES ('whatsapp_unknown_user_message', ?, 'Message sent to unregistered WhatsApp users', CURRENT_TIMESTAMP)
+                    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+                """, (unknown_msg,))
+                await conn.execute("""
+                    INSERT INTO SYSTEM_CONFIG (key, value, description, updated_at)
+                    VALUES ('whatsapp_welcome_message', ?, 'Welcome message for new WhatsApp conversations', CURRENT_TIMESTAMP)
+                    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+                """, (welcome_msg,))
+                await conn.execute("""
+                    INSERT INTO SYSTEM_CONFIG (key, value, description, updated_at)
+                    VALUES ('whatsapp_require_phone_verification', ?, 'Require phone verification for WhatsApp', CURRENT_TIMESTAMP)
+                    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+                """, (require_verification,))
+                await conn.commit()
+
+            # Update the in-memory variable for unknown user message
+            global phone_user_not_found
+            if unknown_msg:
+                phone_user_not_found = unknown_msg
+
+            return RedirectResponse(url="/admin/whatsapp?message=Configuration saved successfully", status_code=303)
+        except Exception as e:
+            logger.error(f"Error saving WhatsApp config: {e}")
+            return RedirectResponse(url="/admin/whatsapp?error=Failed to save configuration", status_code=303)
+
+    if action == "fix_webhook":
+        if not async_twilio or not twilio_messaging_service_sid:
+            return RedirectResponse(url="/admin/whatsapp?error=Twilio not configured", status_code=303)
+        expected_url = f"https://{PRIMARY_APP_DOMAIN}/whatsapp"
+        try:
+            await async_twilio.update_messaging_service(
+                twilio_messaging_service_sid, inbound_request_url=expected_url
+            )
+            return RedirectResponse(
+                url=f"/admin/whatsapp?message=Webhook URL updated to {expected_url}",
+                status_code=303
+            )
+        except Exception as e:
+            logger.error(f"Failed to update Twilio webhook URL: {e}")
+            return RedirectResponse(
+                url=f"/admin/whatsapp?error=Failed to update webhook: {e}",
+                status_code=303
+            )
+
+    return RedirectResponse(url="/admin/whatsapp", status_code=303)
+
+
 # Whatsapp
 
-phone_user_not_found = """Hello! 👋 Did you know you can increase your chances of success in your visa interview? 🚀 With our innovative AI training service, you'll have a virtual immigration officer who will prepare you for the big day. 💼
-
-Choose your difficulty level and your preferred language. Practice in *American English* for an authentic experience or in your own language for greater comfort! 🌍
-
-Face your interview with complete confidence thanks to our AI, available 24/7. ✅
-
-Ready to get started? Register now by clicking on the following link: *link* 🔗
-
-Join our community of future successful travelers and let us be part of your success story! 🎉
-
-We're waiting for you on this incredible adventure! 🤗"""
+phone_user_not_found = os.getenv(
+    "WHATSAPP_UNKNOWN_USER_MESSAGE",
+    "This phone number is not registered on the platform. Please contact the administrator or sign up to get started."
+)
 
 async def change_response_mode(user_id, new_mode, conn):
     async with conn.cursor() as cursor:
@@ -10419,26 +12385,36 @@ async def change_response_mode(user_id, new_mode, conn):
     return f"Changed to {'voice' if new_mode == 'voice' else 'text'} mode"
 
 
+# WhatsApp rate limiting (in-memory)
+_whatsapp_rate_limits = {}  # {phone_number: [timestamp, ...]}
+_whatsapp_rate_limit_notices = {}  # {phone_number: last_notice_timestamp}
+WHATSAPP_RATE_LIMIT_PER_USER = int(os.getenv("WHATSAPP_RATE_LIMIT_PER_USER", "20"))  # messages per minute
+WHATSAPP_RATE_LIMIT_GLOBAL = int(os.getenv("WHATSAPP_RATE_LIMIT_GLOBAL", "200"))  # messages per minute
+_whatsapp_global_timestamps = []
+
+
 @app.post("/whatsapp")
 async def whatsapp_webhook(request: Request):
+    if async_twilio is None:
+        logger.warning("WhatsApp webhook called but Twilio is not configured")
+        return Response(content="<Response></Response>", media_type="application/xml", status_code=200)
+
     # Security: Validate Twilio signature to prevent spoofed requests
     if twilio_validator:
         signature = request.headers.get("X-Twilio-Signature", "")
-        # Reconstruct the full URL that Twilio signed
-        url = str(request.url)
-        # For behind-proxy setups, use X-Forwarded headers if present
-        forwarded_proto = request.headers.get("X-Forwarded-Proto")
-        forwarded_host = request.headers.get("X-Forwarded-Host")
-        if forwarded_proto and forwarded_host:
-            url = f"{forwarded_proto}://{forwarded_host}{request.url.path}"
-            if request.url.query:
-                url += f"?{request.url.query}"
+        # Reconstruct the full URL that Twilio signed.
+        # Use PRIMARY_APP_DOMAIN to build the canonical URL, avoiding proxy header
+        # fragility (works with nginx, Cloudflare Tunnel, or any other reverse proxy).
+        url = f"https://{PRIMARY_APP_DOMAIN}{request.url.path}"
+        if request.url.query:
+            url += f"?{request.url.query}"
 
         form_data = await request.form()
         # Convert form data to dict for validation
         params = {key: form_data[key] for key in form_data}
 
-        if not twilio_validator.validate(url, params, signature):
+        is_valid = twilio_validator.validate(url, params, signature)
+        if not is_valid:
             logger.warning(f"Invalid Twilio signature from {request.client.host}")
             raise HTTPException(status_code=403, detail="Invalid Twilio signature")
 
@@ -10447,29 +12423,117 @@ async def whatsapp_webhook(request: Request):
         logger.warning("Twilio validator not configured - signature validation skipped")
         data = await request.form()
 
-    message_body = data.get("Body")
+    message_body = (data.get("Body") or "").strip()
     from_number = data.get("From")
     to_number = data.get("To")
-    media_url = data.get("MediaUrl0")
-    media_type = data.get("MediaContentType0")
+    # Collect all media from Twilio (supports up to 10 items)
+    media_items = []
+    for i in range(10):
+        m_url = data.get(f"MediaUrl{i}")
+        m_type = data.get(f"MediaContentType{i}")
+        if m_url:
+            media_items.append({"url": m_url, "type": m_type or ""})
+        else:
+            break
+    media_url = media_items[0]["url"] if media_items else None
+    media_type = media_items[0]["type"] if media_items else None
 
-    # Security: Validate media URL to prevent SSRF attacks
-    if media_url and not validate_twilio_media_url(media_url):
-        logger.warning(f"Rejected invalid media URL in WhatsApp webhook: {media_url[:100] if media_url else 'None'}")
-        media_url = None
-        media_type = None
+    # Idempotency: deduplicate Twilio retries by MessageSid
+    message_sid = data.get("MessageSid")
+    if message_sid:
+        async with get_db_connection() as conn:
+            # Cleanup old entries (older than 24h)
+            await conn.execute("DELETE FROM WHATSAPP_PROCESSED_MESSAGES WHERE created_at < datetime('now', '-1 day')")
+            # Attempt insert - if already exists, skip processing
+            cursor = await conn.execute("INSERT OR IGNORE INTO WHATSAPP_PROCESSED_MESSAGES (message_sid) VALUES (?)", (message_sid,))
+            await conn.commit()
+            if cursor.rowcount == 0:
+                logger.info(f"Duplicate WhatsApp message detected, skipping: {message_sid}")
+                return Response(content="<Response></Response>", media_type="application/xml", status_code=200)
+
+    # Rate limiting per phone number and global
+    now = time.time()
+
+    # Global rate limit
+    _whatsapp_global_timestamps[:] = [t for t in _whatsapp_global_timestamps if now - t < 60]
+    if len(_whatsapp_global_timestamps) >= WHATSAPP_RATE_LIMIT_GLOBAL:
+        logger.warning("WhatsApp global rate limit exceeded")
+        return Response(content="<Response></Response>", media_type="application/xml", status_code=200)
+    _whatsapp_global_timestamps.append(now)
+
+    # Per-user rate limit
+    from_number_rl = data.get("From", "")
+    if from_number_rl:
+        user_timestamps = _whatsapp_rate_limits.get(from_number_rl, [])
+        user_timestamps = [t for t in user_timestamps if now - t < 60]
+        _whatsapp_rate_limits[from_number_rl] = user_timestamps
+
+        if len(user_timestamps) >= WHATSAPP_RATE_LIMIT_PER_USER:
+            # Send cooldown notice max once per 5 minutes
+            last_notice = _whatsapp_rate_limit_notices.get(from_number_rl, 0)
+            if now - last_notice > 300:
+                _whatsapp_rate_limit_notices[from_number_rl] = now
+                to_number_rl = data.get("To", "")
+                try:
+                    await async_twilio.send_message(
+                        body="You're sending too many messages. Please wait a moment before sending more.",
+                        from_=to_number_rl,
+                        to=from_number_rl
+                    )
+                except Exception:
+                    pass
+            return Response(content="<Response></Response>", media_type="application/xml", status_code=200)
+
+        user_timestamps.append(now)
+        _whatsapp_rate_limits[from_number_rl] = user_timestamps
+
+    # Security: Validate all media URLs to prevent SSRF attacks
+    valid_media_items = []
+    for item in media_items:
+        if validate_twilio_media_url(item["url"]):
+            valid_media_items.append(item)
+        else:
+            logger.warning(f"Rejected invalid media URL in WhatsApp webhook: {item['url'][:100]}")
+    media_items = valid_media_items
+    media_url = media_items[0]["url"] if media_items else None
+    media_type = media_items[0]["type"] if media_items else None
 
     try:
         current_user = await get_user_from_phone_number(from_number)
         if current_user is None:
             response_text = phone_user_not_found
-            message = twilio_client.messages.create(
+            message = await async_twilio.send_message(
                 body=response_text,
                 from_=to_number,
                 to=from_number
             )
             return {"status": "success", "message": "User not found"}
-        print(f"enters whatsapp user: {current_user.username}")
+        logger.debug(f"WhatsApp message from user: {current_user.username}")
+
+        # Check if phone verification is required for WhatsApp
+        try:
+            async with get_db_connection(readonly=True) as config_conn:
+                cfg_cursor = await config_conn.execute(
+                    "SELECT value FROM SYSTEM_CONFIG WHERE key = 'whatsapp_require_phone_verification'"
+                )
+                cfg_row = await cfg_cursor.fetchone()
+            if cfg_row and cfg_row[0] == '1':
+                # Check if user's phone is verified
+                async with get_db_connection(readonly=True) as verify_conn:
+                    v_cursor = await verify_conn.execute(
+                        "SELECT phone_verified FROM USERS WHERE id = ?",
+                        (current_user.id,)
+                    )
+                    v_row = await v_cursor.fetchone()
+                if not v_row or not v_row[0]:
+                    await async_twilio.send_message(
+                        body="Your phone number must be verified before using WhatsApp. Please verify it in your account settings.",
+                        from_=to_number,
+                        to=from_number
+                    )
+                    return {"status": "success", "message": "Phone not verified"}
+        except Exception:
+            pass  # If check fails, allow through (fail open for backward compatibility)
 
         async with get_db_connection() as conn:
             cursor = await conn.cursor()
@@ -10484,7 +12548,7 @@ async def whatsapp_webhook(request: Request):
                 whatsapp_data = {}
 
             if not whatsapp_data:
-                print("whatsapp_data does not exist, creating it")
+                logger.info("Creating new WhatsApp conversation for user")
                 conversation_response = await start_new_conversation(NewConversationRequest(),current_user=current_user)
                 
                 conversation_content = orjson.loads(conversation_response.body.decode('utf-8'))
@@ -10493,157 +12557,330 @@ async def whatsapp_webhook(request: Request):
                     "answer": "text"
                 }
                 platforms['whatsapp'] = whatsapp_data
-                await cursor.execute('UPDATE USER_DETAILS SET external_platforms = ? WHERE user_id = ?', 
+                await cursor.execute('UPDATE USER_DETAILS SET external_platforms = ? WHERE user_id = ?',
                                      (orjson.dumps(platforms).decode('utf-8'), current_user.id))
                 await conn.commit()
+
+                # Send welcome message for new WhatsApp conversations
+                try:
+                    async with get_db_connection(readonly=True) as config_conn:
+                        config_cursor = await config_conn.execute(
+                            "SELECT value FROM SYSTEM_CONFIG WHERE key = 'whatsapp_welcome_message'"
+                        )
+                        row = await config_cursor.fetchone()
+                    welcome_template = row[0] if row else None
+                    if not welcome_template:
+                        welcome_template = os.getenv("WHATSAPP_WELCOME_MESSAGE", "")
+                    if welcome_template:
+                        welcome_msg = welcome_template.replace("{username}", current_user.username)
+                        await async_twilio.send_message(
+                            body=welcome_msg,
+                            from_=to_number,
+                            to=from_number
+                        )
+                except Exception as welcome_err:
+                    logger.error(f"Failed to send WhatsApp welcome message: {welcome_err}")
 
             conversation_id = whatsapp_data["conversation_id"]
             answer_mode = whatsapp_data.get("answer","text")
 
-            print(f"response mode: {answer_mode}")
-            print(f"message_body: {message_body}")
+            logger.debug(f"WhatsApp response mode: {answer_mode}")
+            logger.debug("WhatsApp message body received")
 
-            if message_body.strip().lower() in ["text_mode", "text mode"]:
+            # --- WhatsApp command handling ---
+
+            if message_body.lower() == "!help":
+                help_text = (
+                    "*Available commands:*\n\n"
+                    "!help - Show this help message\n"
+                    "!text - Switch to text response mode\n"
+                    "!voice - Switch to voice response mode\n"
+                    "!prompt list - List available prompts\n"
+                    "!prompt <name or id> - Switch to a different prompt\n"
+                    "!new - Start a new conversation\n"
+                )
+                await async_twilio.send_message(body=help_text, from_=to_number, to=from_number)
+                return {"status": "success", "message": "Help sent"}
+
+            if message_body.lower() in ["text_mode", "text mode", "!text"]:
                 confirmation_message = await change_response_mode(current_user.id, "text", conn)
-                message = twilio_client.messages.create(
+                message = await async_twilio.send_message(
                     body=confirmation_message,
                     from_=to_number,
                     to=from_number
                 )
                 return {"status": "success", "message": confirmation_message}
 
-            if message_body.strip().lower() in ["voice_mode", "voice mode"]:
+            if message_body.lower() in ["voice_mode", "voice mode", "!voice"]:
                 confirmation_message = await change_response_mode(current_user.id, "voice", conn)
-                message = twilio_client.messages.create(
+                message = await async_twilio.send_message(
                     body=confirmation_message,
                     from_=to_number,
                     to=from_number
                 )
                 return {"status": "success", "message": confirmation_message}
+
+            # !prompt list - Show available prompts
+            if message_body.lower() == "!prompt list":
+                ud_cursor = await conn.execute(
+                    "SELECT all_prompts_access, public_prompts_access, category_access FROM USER_DETAILS WHERE user_id = ?",
+                    (current_user.id,)
+                )
+                ud_row = await ud_cursor.fetchone()
+                prompts_list = await get_user_accessible_prompts(
+                    current_user, cursor,
+                    all_prompts_access=ud_row[0] if ud_row else False,
+                    public_prompts_access=ud_row[1] if ud_row else False,
+                    category_access=ud_row[2] if ud_row else None
+                )
+
+                if not prompts_list:
+                    await async_twilio.send_message(body="No prompts available.", from_=to_number, to=from_number)
+                    return {"status": "success"}
+
+                # Build prompt list message (max 20 to fit WhatsApp message limit)
+                prompt_lines = []
+                for p in prompts_list[:20]:
+                    prompt_lines.append(f"*{p['id']}* - {p['name']}")
+
+                msg = "*Available prompts:*\n\n" + "\n".join(prompt_lines)
+                if len(prompts_list) > 20:
+                    msg += f"\n\n_...and {len(prompts_list) - 20} more_"
+                msg += "\n\nUse *!prompt <id or name>* to switch."
+
+                await async_twilio.send_message(body=msg, from_=to_number, to=from_number)
+                return {"status": "success"}
+
+            # !prompt <name or id> - Switch to a different prompt
+            if message_body.lower().startswith("!prompt ") and message_body.lower() != "!prompt list":
+                prompt_query = message_body[8:].strip()
+
+                target_prompt = None
+                # Try by ID first
+                if prompt_query.isdigit():
+                    p_cursor = await conn.execute("SELECT id, name FROM PROMPTS WHERE id = ?", (int(prompt_query),))
+                    target_prompt = await p_cursor.fetchone()
+
+                # Try by exact name (case-insensitive)
+                if not target_prompt:
+                    p_cursor = await conn.execute("SELECT id, name FROM PROMPTS WHERE LOWER(name) = LOWER(?)", (prompt_query,))
+                    target_prompt = await p_cursor.fetchone()
+
+                # Try partial name match
+                if not target_prompt:
+                    p_cursor = await conn.execute("SELECT id, name FROM PROMPTS WHERE LOWER(name) LIKE LOWER(?)", (f"%{prompt_query}%",))
+                    target_prompt = await p_cursor.fetchone()
+
+                if not target_prompt:
+                    await async_twilio.send_message(
+                        body=f"Prompt not found: '{prompt_query}'. Use *!prompt list* to see available prompts.",
+                        from_=to_number, to=from_number
+                    )
+                    return {"status": "success"}
+
+                # Verify user has access to this prompt
+                if not await can_user_access_prompt(current_user, target_prompt[0], cursor):
+                    await async_twilio.send_message(
+                        body="You don't have access to this prompt.",
+                        from_=to_number, to=from_number
+                    )
+                    return {"status": "success"}
+
+                # Update conversation's prompt (role_id)
+                await cursor.execute(
+                    "UPDATE CONVERSATIONS SET role_id = ? WHERE id = ?",
+                    (target_prompt[0], conversation_id)
+                )
+                await conn.commit()
+
+                await async_twilio.send_message(
+                    body=f"Switched to prompt: *{target_prompt[1]}*",
+                    from_=to_number, to=from_number
+                )
+                return {"status": "success"}
+
+            # !new - Start a new conversation
+            if message_body.lower() == "!new":
+                conversation_response = await start_new_conversation(NewConversationRequest(), current_user=current_user)
+                conversation_content = orjson.loads(conversation_response.body.decode('utf-8'))
+
+                whatsapp_data["conversation_id"] = conversation_content['id']
+                platforms['whatsapp'] = whatsapp_data
+                await cursor.execute(
+                    'UPDATE USER_DETAILS SET external_platforms = ? WHERE user_id = ?',
+                    (orjson.dumps(platforms).decode('utf-8'), current_user.id)
+                )
+                await conn.commit()
+
+                await async_twilio.send_message(
+                    body="New conversation started. Previous conversation saved and accessible from the web.",
+                    from_=to_number, to=from_number
+                )
+                return {"status": "success"}
 
             transcribed_text = ""
-            file_dict = None  # Changed to dict format for process_save_message
-            if media_type:
-                if "audio" in media_type:
-                    try:
-                        transcribed_text = await transcribe(request=request, audio=None, user_id=current_user.id, media_url=media_url)
-                    except Exception as e:
-                        error_message = "Sorry, there was a problem processing the audio. Please try sending your message as text."
-                        message = twilio_client.messages.create(
-                            body=error_message,
+            file_dict = None
+            files_list = []  # Support for multiple files
+
+            if media_items:
+                for media_item in media_items:
+                    m_url = media_item["url"]
+                    m_type = media_item["type"]
+
+                    if "audio" in m_type:
+                        try:
+                            transcribed_text = await transcribe(request=request, audio=None, user_id=current_user.id, media_url=m_url)
+                        except Exception as e:
+                            logger.error(f"Error transcribing audio: {e}")
+                            await async_twilio.send_message(
+                                body="Sorry, there was a problem processing the audio. Please try sending your message as text.",
+                                from_=to_number,
+                                to=from_number
+                            )
+                            return {"status": "error", "message": "Error transcribing audio"}
+                    elif "image" in m_type:
+                        try:
+                            async with aiohttp.ClientSession() as session:
+                                async with session.get(m_url) as resp:
+                                    if resp.status == 200:
+                                        img_data = await resp.read()
+                                        files_list.append({
+                                            'data': img_data,
+                                            'content_type': m_type,
+                                            'filename': f"image_{len(files_list)}.jpg"
+                                        })
+                        except Exception as e:
+                            logger.error(f"Error downloading image: {e}")
+                    elif "pdf" in m_type or "document" in m_type:
+                        # Notify user about unsupported document types
+                        await async_twilio.send_message(
+                            body="Sorry, document attachments are not supported yet. Please send text or images.",
                             from_=to_number,
                             to=from_number
                         )
-                        logging.error(f"Error transcribing audio: {str(e)}")
-                        return {"status": "error", "message": "Error transcribing audio"}
-                elif "image" in media_type:
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get(media_url) as resp:
-                            if resp.status == 200:
-                                img_data = await resp.read()
-                                # Create dict format directly for process_save_message
-                                file_dict = {
-                                    'data': img_data,
-                                    'content_type': media_type,
-                                    'filename': "image.jpg"
-                                }
+                        return {"status": "success", "message": "Unsupported media type"}
+                    else:
+                        logger.warning(f"Unsupported WhatsApp media type: {m_type}")
+                        await async_twilio.send_message(
+                            body=f"Sorry, this media type ({m_type}) is not supported. Please send text, images, or audio.",
+                            from_=to_number,
+                            to=from_number
+                        )
+                        return {"status": "success", "message": "Unsupported media type"}
+
+                # Use first image as file_dict for backward compatibility
+                file_dict = files_list[0] if files_list else None
 
             user_message = transcribed_text if transcribed_text else message_body
+            if not user_message and not file_dict:
+                return {"status": "success", "message": "Empty message ignored"}
+
+            # Log incoming WhatsApp message
+            msg_type = "audio" if transcribed_text else ("image" if file_dict else "text")
+            async with get_db_connection() as log_conn:
+                await log_conn.execute(
+                    "INSERT INTO WHATSAPP_LOG (user_id, phone_number, direction, message_type, response_mode) VALUES (?, ?, 'in', ?, ?)",
+                    (current_user.id, from_number, msg_type, answer_mode)
+                )
+                await log_conn.commit()
 
         async def send_chunks(chunks):
             for chunk in chunks:
                 try:
-                    json_content = orjson.loads(chunk)
+                    if isinstance(chunk, (list, dict)):
+                        json_content = chunk
+                    else:
+                        json_content = orjson.loads(chunk)
                     
                     if isinstance(json_content, list) and len(json_content) > 0:
                         if json_content[0].get('type') == 'image_url':
-                            print("enters image_url from whatsapp / enters image_url in whatsapp")
+                            logger.debug("Processing image URL for WhatsApp delivery")
                             image_url = json_content[0]['image_url']['url']
                             alt_text = json_content[0]['image_url']['alt']
-                            print(f"---------------> image_url para twilio: {image_url}")
+                            logger.debug("Sending image via Twilio")
                             
-                            message = twilio_client.messages.create(
+                            message = await async_twilio.send_message(
                                 body=f"Image: {alt_text}",
                                 media_url=[image_url],
                                 from_=to_number,
                                 to=from_number
                             )
                         elif json_content[0].get('type') == 'audio_url':
-                            print("enters audio_url from whatsapp / enters audio_url in whatsapp")
+                            logger.debug("Processing audio URL for WhatsApp delivery")
                             audio_url = json_content[0]['audio_url']['url']
-                            print(f"---------------> audio_url para twilio: {audio_url}")
+                            logger.debug("Sending audio via Twilio")
                             
-                            message = twilio_client.messages.create(
+                            message = await async_twilio.send_message(
                                 media_url=[audio_url],
                                 from_=to_number,
                                 to=from_number
                             )
                     else:
                         if answer_mode == "voice":
-                            print("enters voice response mode")
-                            print(f"conversation id en whatsapp_webhook: {conversation_id}")
+                            logger.debug("WhatsApp voice response mode")
+                            logger.debug(f"WhatsApp conversation id: {conversation_id}")
                             audio_path, error = await handle_tts_request(None, {"text": chunk, "author": "bot", "conversationId": conversation_id}, current_user, is_whatsapp=True)                        
                             
                             if error:
                                 error_message = "Sorry, there was a problem generating the voice message. I will send you the message as text."
-                                message = twilio_client.messages.create(
+                                message = await async_twilio.send_message(
                                     body=f"{error_message}\n\n{chunk}",
                                     from_=to_number,
                                     to=from_number
                                 )
-                                logging.error(f"Error generating voice message: {error}")
+                                logger.error(f"Error generating voice message: {error}")
                             else:
                                 token = await get_or_generate_img_token(current_user)
                                 relative_path = audio_path[len(str(cache_directory)):]
-                                media_url = f"{request.url.scheme}://{request.url.hostname}/get_audio{relative_path}?token={token}"
+                                media_url = f"{request.url.scheme}://{request.url.hostname}/get-audio{relative_path}?token={token}"
                                 media_url = media_url.replace('\\', '/')
-                                print(f"media_url: {media_url}")
-                                message = twilio_client.messages.create(
+                                logger.debug("Generated TTS media URL for WhatsApp")
+                                message = await async_twilio.send_message(
                                     media_url=[media_url],
                                     from_=to_number,
                                     to=from_number
                                 )
                         else:
-                            print("enters text response mode")
-                            message = twilio_client.messages.create(
+                            logger.debug("WhatsApp text response mode")
+                            message = await async_twilio.send_message(
                                 body=chunk,
                                 from_=to_number,
                                 to=from_number
                             )
                 except orjson.JSONDecodeError:
                     if answer_mode == "voice":
-                        print("enters voice response mode after AI has responded with plain text (not JSON)")
+                        logger.debug("WhatsApp voice mode - processing plain text response")
                         audio_path, error = await handle_tts_request(None, {"text": chunk, "author": "bot", "conversationId": conversation_id}, current_user, is_whatsapp=True)                        
                         
                         if error:
                             error_message = "Sorry, there was a problem generating the voice message. I will send you the message as text."
-                            message = twilio_client.messages.create(
+                            message = await async_twilio.send_message(
                                 body=f"{error_message}\n\n{chunk}",
                                 from_=to_number,
                                 to=from_number
                             )
-                            logging.error(f"Error generating voice message: {error}")
+                            logger.error(f"Error generating voice message: {error}")
                         else:
                             token = await get_or_generate_img_token(current_user)
                             relative_path = audio_path[len(str(cache_directory)):]
-                            media_url = f"{request.url.scheme}://{request.url.hostname}/get_audio{relative_path}?token={token}"
+                            media_url = f"{request.url.scheme}://{request.url.hostname}/get-audio{relative_path}?token={token}"
                             media_url = media_url.replace('\\', '/')
-                            print(f"media_url: {media_url}")
-                            message = twilio_client.messages.create(
+                            logger.debug("Generated TTS media URL for WhatsApp")
+                            message = await async_twilio.send_message(
                                 media_url=[media_url],
                                 from_=to_number,
                                 to=from_number
                             )
                     else:
-                        print("enters text response mode after AI has responded with plain text (not JSON)")
-                        message = twilio_client.messages.create(
+                        logger.debug("WhatsApp text mode - processing plain text response")
+                        message = await async_twilio.send_message(
                             body=chunk,
                             from_=to_number,
                             to=from_number
                         )
 
-        # Prepare files list if there's an image
-        files = [file_dict] if file_dict else None
+        # Prepare files list with all downloaded images
+        files = files_list if files_list else None
 
         # Use process_save_message directly to avoid Form() object issues
         response = await process_save_message(
@@ -10683,23 +12920,50 @@ async def whatsapp_webhook(request: Request):
                             if content:
                                 last_full_content = accumulated_text
                         except orjson.JSONDecodeError:
-                            logging.error(f"Error decoding JSON: {line}")
+                            logger.error(f"Error decoding JSON: {line}")
 
             if len(accumulated_text) >= 900:
                 chunks = await insert_tts_break(accumulated_text, min_length=700, max_length=900, look_ahead=100)
                 await send_chunks(chunks)
             else:
-                await send_chunks([accumulated_text])
+                if accumulated_text.strip():
+                    await send_chunks([accumulated_text])
+
+        else:
+            # Handle non-streaming responses (rate limit, insufficient balance, etc.)
+            status_code = response.status_code if hasattr(response, 'status_code') else 500
+            error_messages = {
+                429: "You've sent too many messages. Please wait a moment.",
+                402: "Insufficient balance. Please top up your account.",
+                403: "This conversation is not available.",
+            }
+            user_msg = error_messages.get(status_code, "Sorry, your message could not be processed. Please try again.")
+            await async_twilio.send_message(
+                body=user_msg,
+                from_=to_number,
+                to=from_number
+            )
+
+        # Log outgoing WhatsApp response
+        async with get_db_connection() as log_conn:
+            await log_conn.execute(
+                "INSERT INTO WHATSAPP_LOG (user_id, phone_number, direction, message_type, response_mode) VALUES (?, ?, 'out', 'text', ?)",
+                (current_user.id, from_number, answer_mode)
+            )
+            await log_conn.commit()
 
     except Exception as e:
-        error_message = "Sorry, an error occurred while processing your message. Please try again later or contact support if the problem persists."
-        message = twilio_client.messages.create(
-            body=error_message,
-            from_=to_number,
-            to=from_number
-        )
-        logging.error(f"Error in whatsapp_webhook: {str(e)}")
-        return JSONResponse(content={"error": "Internal server error"}, status_code=500)
+        logger.error(f"!!! Error in whatsapp_webhook: {e}")
+        try:
+            error_message = "Sorry, an error occurred while processing your message. Please try again later."
+            await async_twilio.send_message(
+                body=error_message,
+                from_=to_number,
+                to=from_number
+            )
+        except Exception as send_err:
+            logger.error(f"Failed to send WhatsApp error message: {send_err}")
+        return JSONResponse(content={"status": "error"}, status_code=200)
 
     return {"status": "success"}
 
@@ -10774,6 +13038,8 @@ async def get_audio(path: str, token: str):
 
 @app.post("/api/send-verification-code")
 async def send_verification_code(request: PhoneNumberRequest):
+    if async_twilio is None or service_sid is None:
+        raise HTTPException(status_code=503, detail="SMS verification service is not configured")
     try:
         phone_number = request.phone
         logger.debug(f"Attempting to send verification code to: {phone_number}")
@@ -10785,14 +13051,11 @@ async def send_verification_code(request: PhoneNumberRequest):
         logger.debug(f"Formatted phone number: {phone_number}")
         logger.debug(f"Using Twilio SID: {twilio_sid}")
         
-        verification = twilio_client.verify.v2.services(service_sid).verifications.create(
-            to=phone_number, 
-            channel='sms'
-        )
-        logger.debug(f"Verification status: {verification.status}")
-        return {"status": verification.status}
-    except TwilioRestException as e:
-        logger.error(f"Twilio Error: {str(e)}")
+        result = await async_twilio.send_verification(service_sid, phone_number)
+        logger.debug(f"Verification status: {result['status']}")
+        return {"status": result["status"]}
+    except TwilioAPIError as e:
+        logger.error(f"Twilio Error: {e}")
         logger.error(f"Error Code: {e.code}")
         logger.error(f"Error Message: {e.msg}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -10802,16 +13065,29 @@ async def send_verification_code(request: PhoneNumberRequest):
 
 @app.post("/api/verify-code")
 async def verify_code(request: Request):
+    if async_twilio is None or service_sid is None:
+        raise HTTPException(status_code=503, detail="SMS verification service is not configured")
     data = await request.json()
     verification_request = VerificationCodeRequest(phone=data['phone'], code=data['code'])
     try:
-        verification_check = twilio_client.verify.v2.services(service_sid).verification_checks.create(
-            to=verification_request.phone,
-            code=verification_request.code
+        result = await async_twilio.check_verification(
+            service_sid, verification_request.phone, verification_request.code
         )
-        if verification_check.status != "approved":
-            raise HTTPException(status_code=400, detail=f"Verification failed with status: {verification_check.status}")
-        return JSONResponse(content={"status": verification_check.status}, status_code=200)
+        if result["status"] != "approved":
+            raise HTTPException(status_code=400, detail=f"Verification failed with status: {result['status']}")
+
+        # Mark phone as verified
+        phone = verification_request.phone
+        if phone[:1] != '+':
+            phone = '+' + phone
+        async with get_db_connection() as conn:
+            await conn.execute(
+                "UPDATE USERS SET phone_verified = TRUE WHERE phone_number = ?",
+                (phone,)
+            )
+            await conn.commit()
+
+        return JSONResponse(content={"status": result["status"]}, status_code=200)
     except Exception as e:
         return JSONResponse(content={"success": False, "message": str(e)}, status_code=400)
 
@@ -11306,15 +13582,19 @@ async def public_landing_page(
         if slug != canonical_slug:
             raise HTTPException(status_code=404, detail="Page not found")
 
+        # preview=1 means iframe preview from /explore — skip custom domain redirect
+        is_preview = request.query_params.get("preview") == "1"
+
         # Check for active custom domain - 301 redirect for SEO
-        custom_domain = await _get_active_custom_domain(landing_data["prompt_id"])
-        if custom_domain:
-            # Build redirect URL with same page
-            redirect_path = "/" if page == "home" else f"/{page}"
-            return RedirectResponse(
-                url=f"https://{custom_domain}{redirect_path}",
-                status_code=301
-            )
+        if not is_preview:
+            custom_domain = await _get_active_custom_domain(landing_data["prompt_id"])
+            if custom_domain:
+                # Build redirect URL with same page
+                redirect_path = "/" if page == "home" else f"/{page}"
+                return RedirectResponse(
+                    url=f"https://{custom_domain}{redirect_path}",
+                    status_code=301
+                )
 
         # Build path to HTML file (path is pre-computed in cache)
         html_path = landing_data["path"] / f"{page}.html"
@@ -11326,8 +13606,8 @@ async def public_landing_page(
         html_content = html_path.read_text(encoding='utf-8')
 
         # Phase 5: Inject analytics tracking script before </body>
-        # Only inject if not already present
-        if '_spark_analytics_loaded' not in html_content:
+        # Skip in preview mode (iframe from /explore) — no tracking, no CORS issues
+        if not is_preview and '_spark_analytics_loaded' not in html_content:
             tracking_script = f'''
 <!-- Spark Analytics Tracking -->
 <script>
@@ -11345,6 +13625,20 @@ async def public_landing_page(
         credentials: 'include'
     }}).catch(function(e) {{ console.log('Analytics:', e); }});
 }})();
+window.SparkPurchase = function(promptId) {{
+    if (!promptId) promptId = {landing_data["prompt_id"]};
+    fetch('/api/prompts/' + promptId + '/purchase', {{
+        method: 'POST',
+        headers: {{'Content-Type': 'application/json'}},
+        credentials: 'include'
+    }}).then(function(r) {{ return r.json(); }}).then(function(data) {{
+        if (data.checkout_url) window.location = data.checkout_url;
+        else if (data.free_purchase) window.location = '/chat';
+        else if (data.redirect) window.location = data.redirect;
+        else if (data.message) alert(data.message);
+        else if (data.detail) alert(data.detail);
+    }}).catch(function(e) {{ console.error('Purchase error:', e); }});
+}};
 </script>
 '''
             # Inject before </body> or at end if no </body>
@@ -11693,6 +13987,18 @@ async def _handle_pack_for_existing_user(pack_id, user_id):
         async with get_db_connection() as conn:
             await grant_pack_access(conn, pack_id, user_id, "google_oauth")
         logger.info(f"Granted pack access via Google OAuth for existing user: user_id={user_id}, pack_id={pack_id}")
+        # Record creator relationship
+        try:
+            async with get_db_connection() as ucr_conn:
+                ucr_cursor = await ucr_conn.cursor()
+                pack_cr = await ucr_cursor.execute("SELECT created_by_user_id FROM PACKS WHERE id = ?", (pack_id,))
+                pack_cr_row = await pack_cr.fetchone()
+                if pack_cr_row and pack_cr_row[0]:
+                    from common import upsert_creator_relationship
+                    await upsert_creator_relationship(ucr_cursor, user_id, pack_cr_row[0], 'purchased_from', 'pack', pack_id)
+                    await ucr_conn.commit()
+        except Exception as ucr_err:
+            logger.warning(f"Could not record creator relationship for pack {pack_id}, user {user_id}: {ucr_err}")
     except Exception as pack_err:
         logger.error(f"Failed to grant pack access via Google OAuth for existing user: {pack_err}")
 
@@ -11795,7 +14101,8 @@ async def auth_google_callback(request: Request, code: str = None, state: str = 
             # Direct login
             logger.info(f"Google OAuth login for existing user {user.id}")
             user_info = await create_user_info(user, used_magic_link=False)
-            return create_login_response(user_info, redirect_url=redirect_url)
+            default_redirect = await _get_after_login_redirect(user.id)
+            return create_login_response(user_info, redirect_url=redirect_url, default_redirect=default_redirect)
 
         # === CASE 2: No user with google_id, check by email ===
         user = await get_user_by_email(email)
@@ -11823,7 +14130,8 @@ async def auth_google_callback(request: Request, code: str = None, state: str = 
                 redirect_url = await _handle_pack_for_existing_user(pack_id, user.id)
 
             user_info = await create_user_info(user, used_magic_link=False)
-            return create_login_response(user_info, redirect_url=redirect_url)
+            default_redirect = await _get_after_login_redirect(user.id)
+            return create_login_response(user_info, redirect_url=redirect_url, default_redirect=default_redirect)
 
         # === CASE 3: New user - create account ===
         # Generate unique username
@@ -11831,7 +14139,7 @@ async def auth_google_callback(request: Request, code: str = None, state: str = 
 
         # Get default LLM ID
         async with get_db_connection(readonly=True) as conn:
-            cursor = await conn.execute("SELECT id FROM LLMS ORDER BY id LIMIT 1")
+            cursor = await conn.execute("SELECT id FROM LLM ORDER BY id LIMIT 1")
             llm_row = await cursor.fetchone()
             default_llm_id = llm_row[0] if llm_row else 1
 
@@ -11839,6 +14147,7 @@ async def auth_google_callback(request: Request, code: str = None, state: str = 
         landing_config = None
         prompt_owner_id = None
         paid_pack_landing_url = None
+        ucr_creator_id = None
         analytics_pack_id = pack_id  # Preserve for analytics even if pack_id is cleared
 
         if pack_id:
@@ -11858,6 +14167,17 @@ async def auth_google_callback(request: Request, code: str = None, state: str = 
                 prompt_id = r_prompt_id
                 landing_config = r_config
                 prompt_owner_id = r_owner_id
+                # Get pack creator for UCR (independent of billing mode)
+                async with get_db_connection(readonly=True) as ucr_rd_conn:
+                    ucr_cr = await ucr_rd_conn.execute("SELECT created_by_user_id FROM PACKS WHERE id = ?", (pack_id,))
+                    ucr_row = await ucr_cr.fetchone()
+                    ucr_creator_id = ucr_row[0] if ucr_row else None
+
+        if not ucr_creator_id and prompt_id:
+            try:
+                ucr_creator_id = await get_prompt_owner_id(prompt_id)
+            except Exception:
+                pass
 
         # Create user with pack config if available, otherwise with defaults
         if landing_config:
@@ -11921,6 +14241,79 @@ async def auth_google_callback(request: Request, code: str = None, state: str = 
         # Set Google ID and auth_provider
         await update_user_google_id(user_id, google_id, "google")
 
+        # Record creator relationship
+        if ucr_creator_id:
+            try:
+                async with get_db_connection() as ucr_conn:
+                    ucr_cursor = await ucr_conn.cursor()
+                    from common import upsert_creator_relationship
+                    source = ('pack', pack_id) if pack_id else ('prompt', prompt_id)
+                    await upsert_creator_relationship(ucr_cursor, user_id, ucr_creator_id, 'registered_via', source[0], source[1])
+                    await ucr_conn.commit()
+            except Exception as ucr_err:
+                logger.warning(f"Could not record creator relationship for user {user_id}: {ucr_err}")
+
+        # Record captive domain relationship if user is captive
+        oauth_public_access = landing_config.get("public_prompts_access", True) if landing_config else True
+        if not oauth_public_access and prompt_id:
+            try:
+                async with get_db_connection() as cd_conn:
+                    cursor = await cd_conn.execute(
+                        "SELECT id FROM PROMPT_CUSTOM_DOMAINS WHERE prompt_id = ? AND is_active = 1",
+                        (prompt_id,)
+                    )
+                    domain_row = await cursor.fetchone()
+                    if domain_row:
+                        await cd_conn.execute(
+                            "INSERT OR IGNORE INTO USER_CAPTIVE_DOMAINS (user_id, domain_id, prompt_id) VALUES (?, ?, ?)",
+                            (user_id, domain_row[0], prompt_id)
+                        )
+                        await cd_conn.commit()
+                        logger.info(f"Recorded captive domain {domain_row[0]} for OAuth user {user_id} (prompt {prompt_id})")
+            except Exception as cd_err:
+                # Compensate: if we can't track captivity, don't make user captive
+                logger.error(f"Failed to record captive domain for OAuth user {user_id}, reverting to public access: {cd_err}")
+                try:
+                    async with get_db_connection() as revert_conn:
+                        await revert_conn.execute(
+                            "UPDATE USER_DETAILS SET public_prompts_access = 1 WHERE user_id = ?",
+                            (user_id,)
+                        )
+                        await revert_conn.commit()
+                except Exception as revert_err:
+                    logger.error(f"Failed to revert captive status for OAuth user {user_id}: {revert_err}")
+
+        # Record initial_balance as TRANSACTION for audit trail
+        oauth_initial_balance = landing_config.get("initial_balance", 0.0) if landing_config else 0.0
+        if oauth_initial_balance > 0:
+            try:
+                async with get_db_connection() as conn:
+                    desc = "Welcome credit"
+                    if pack_id:
+                        name_cur = await conn.execute("SELECT name FROM PACKS WHERE id = ?", (pack_id,))
+                        name_row = await name_cur.fetchone()
+                        desc = f"Welcome credit from pack: {name_row[0]}" if name_row else f"Welcome credit from pack {pack_id}"
+                    elif prompt_id:
+                        name_cur = await conn.execute("SELECT name FROM PROMPTS WHERE id = ?", (prompt_id,))
+                        name_row = await name_cur.fetchone()
+                        desc = f"Welcome credit from {name_row[0]}" if name_row else f"Welcome credit from prompt {prompt_id}"
+
+                    await conn.execute('''
+                        INSERT INTO TRANSACTIONS
+                        (user_id, type, amount, balance_before, balance_after,
+                         description, reference_id)
+                        VALUES (?, 'balance_credit', ?, 0, ?, ?, ?)
+                    ''', (
+                        user_id,
+                        oauth_initial_balance,
+                        oauth_initial_balance,
+                        desc,
+                        f'registration_{user_id}'
+                    ))
+                    await conn.commit()
+            except Exception as txn_err:
+                logger.warning(f"Could not record OAuth registration bonus transaction: {txn_err}")
+
         # Grant pack access for free pack registration
         if pack_id:
             try:
@@ -11954,7 +14347,8 @@ async def auth_google_callback(request: Request, code: str = None, state: str = 
 
         redirect_url = paid_pack_landing_url  # None for free packs, URL for paid packs
         user_info = await create_user_info(user, used_magic_link=False)
-        return create_login_response(user_info, redirect_url=redirect_url)
+        default_redirect = await _get_after_login_redirect(user.id)
+        return create_login_response(user_info, redirect_url=redirect_url, default_redirect=default_redirect)
 
     except Exception as e:
         logger.error(f"Google OAuth callback error: {e}", exc_info=True)
@@ -12044,6 +14438,7 @@ async def verify_email(request: Request, token: str):
         # Default values (used if no config or not a landing registration)
         landing_config = DEFAULT_LANDING_REGISTRATION_CONFIG.copy()
         prompt_owner_id = None
+        ucr_creator_id = None
         analytics_pack_id = pack_id  # Preserve for analytics even if pack_id is cleared
         paid_pack_landing_url = None
 
@@ -12092,6 +14487,7 @@ async def verify_email(request: Request, token: str):
                             if pack_config_row[0]:
                                 stored_config = orjson.loads(pack_config_row[0])
                                 landing_config.update(stored_config)
+                            ucr_creator_id = pack_config_row[1]
                             if landing_config.get("billing_mode") == "manager_pays":
                                 prompt_owner_id = pack_config_row[1]
             except Exception as config_err:
@@ -12102,9 +14498,10 @@ async def verify_email(request: Request, token: str):
         elif prompt_id and not is_manager:
             try:
                 landing_config = await get_landing_registration_config(prompt_id)
-                # If manager_pays mode, get the prompt owner ID for billing
+                ucr_creator_id = await get_prompt_owner_id(prompt_id)
+                # If manager_pays mode, reuse the same owner ID for billing
                 if landing_config.get("billing_mode") == "manager_pays":
-                    prompt_owner_id = await get_prompt_owner_id(prompt_id)
+                    prompt_owner_id = ucr_creator_id
             except Exception as config_err:
                 logger.warning(f"Could not get landing config for prompt {prompt_id}: {config_err}")
                 # Continue with defaults
@@ -12150,6 +14547,48 @@ async def verify_email(request: Request, token: str):
         if not user_id:
             raise Exception("add_user returned None")
 
+        # Record creator relationship
+        if ucr_creator_id:
+            try:
+                async with get_db_connection() as ucr_conn:
+                    ucr_cursor = await ucr_conn.cursor()
+                    from common import upsert_creator_relationship
+                    source = ('pack', pack_id) if pack_id else ('prompt', prompt_id)
+                    await upsert_creator_relationship(ucr_cursor, user_id, ucr_creator_id, 'registered_via', source[0], source[1])
+                    await ucr_conn.commit()
+            except Exception as ucr_err:
+                logger.warning(f"Could not record creator relationship for user {user_id}: {ucr_err}")
+
+        # Record captive domain relationship if user is captive
+        effective_public = landing_config.get("public_prompts_access", True) if not is_manager else True
+        if not effective_public and prompt_id:
+            try:
+                async with get_db_connection() as cd_conn:
+                    cursor = await cd_conn.execute(
+                        "SELECT id FROM PROMPT_CUSTOM_DOMAINS WHERE prompt_id = ? AND is_active = 1",
+                        (prompt_id,)
+                    )
+                    domain_row = await cursor.fetchone()
+                    if domain_row:
+                        await cd_conn.execute(
+                            "INSERT OR IGNORE INTO USER_CAPTIVE_DOMAINS (user_id, domain_id, prompt_id) VALUES (?, ?, ?)",
+                            (user_id, domain_row[0], prompt_id)
+                        )
+                        await cd_conn.commit()
+                        logger.info(f"Recorded captive domain {domain_row[0]} for user {user_id} (prompt {prompt_id})")
+            except Exception as cd_err:
+                # Compensate: if we can't track captivity, don't make user captive
+                logger.error(f"Failed to record captive domain for user {user_id}, reverting to public access: {cd_err}")
+                try:
+                    async with get_db_connection() as revert_conn:
+                        await revert_conn.execute(
+                            "UPDATE USER_DETAILS SET public_prompts_access = 1 WHERE user_id = ?",
+                            (user_id,)
+                        )
+                        await revert_conn.commit()
+                except Exception as revert_err:
+                    logger.error(f"Failed to revert captive status for user {user_id}: {revert_err}")
+
         # Update password hash directly (since add_user might not handle pre-hashed passwords)
         async with get_db_connection() as conn:
             await conn.execute(
@@ -12157,6 +14596,38 @@ async def verify_email(request: Request, token: str):
                 (pending["password_hash"], user_id)
             )
             await conn.commit()
+
+        # Record initial_balance as TRANSACTION for audit trail
+        reg_initial_balance = landing_config.get("initial_balance", 0.0) if not is_manager else 0.0
+        if reg_initial_balance > 0:
+            try:
+                async with get_db_connection() as conn:
+                    # Build description with source name
+                    desc = "Welcome credit"
+                    if pack_id:
+                        name_cur = await conn.execute("SELECT name FROM PACKS WHERE id = ?", (pack_id,))
+                        name_row = await name_cur.fetchone()
+                        desc = f"Welcome credit from pack: {name_row[0]}" if name_row else f"Welcome credit from pack {pack_id}"
+                    elif prompt_id:
+                        name_cur = await conn.execute("SELECT name FROM PROMPTS WHERE id = ?", (prompt_id,))
+                        name_row = await name_cur.fetchone()
+                        desc = f"Welcome credit from {name_row[0]}" if name_row else f"Welcome credit from prompt {prompt_id}"
+
+                    await conn.execute('''
+                        INSERT INTO TRANSACTIONS
+                        (user_id, type, amount, balance_before, balance_after,
+                         description, reference_id)
+                        VALUES (?, 'balance_credit', ?, 0, ?, ?, ?)
+                    ''', (
+                        user_id,
+                        reg_initial_balance,
+                        reg_initial_balance,
+                        desc,
+                        f'registration_{user_id}'
+                    ))
+                    await conn.commit()
+            except Exception as txn_err:
+                logger.warning(f"Could not record registration bonus transaction: {txn_err}")
 
         # Grant pack access if this was a pack registration
         if pack_id:
@@ -12784,6 +15255,15 @@ async def set_landing_config_endpoint(
                     "message": "You need a positive balance to enable 'manager pays' mode"
                 }, status_code=400)
 
+        # Validate: public_prompts_access=false requires an active custom domain
+        if data.get("public_prompts_access") is False or data.get("public_prompts_access") == 0:
+            active_domain = await _get_active_custom_domain(prompt_id)
+            if not active_domain:
+                return JSONResponse({
+                    "success": False,
+                    "message": "Restricting marketplace access requires an active custom domain. Configure and activate a domain first."
+                }, status_code=400)
+
         # Save the configuration
         success = await set_landing_registration_config(prompt_id, data)
 
@@ -13288,6 +15768,15 @@ async def delete_landing_files(
 
         if result["success"]:
             logger.info(f"Deleted {result.get('deleted_count', 0)} files for prompt {prompt_id}")
+
+            # Update has_landing_page flag after deletion
+            async with get_db_connection() as conn:
+                await conn.execute(
+                    "UPDATE PROMPTS SET has_landing_page = 0 WHERE id = ?",
+                    (prompt_id,)
+                )
+                await conn.commit()
+
             return JSONResponse({
                 "success": True,
                 "message": result.get("message", "Files deleted"),
@@ -13303,6 +15792,553 @@ async def delete_landing_files(
 
     except Exception as e:
         logger.error(f"Error in delete_landing_files: {e}")
+        return JSONResponse({"success": False, "message": "Internal server error"}, status_code=500)
+
+
+# ============= Welcome Page Wizard Endpoints (Prompts) =============
+
+@app.post("/api/welcome/{prompt_id}/ai/generate", response_class=JSONResponse)
+async def generate_welcome_with_wizard(
+    request: Request,
+    prompt_id: int,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    AI Wizard: Starts a background job to generate a welcome page using Claude Code.
+
+    Returns immediately with a task_id. Use GET /api/welcome/{prompt_id}/ai/status/{task_id}
+    to poll for job completion.
+    """
+    if current_user is None:
+        return unauthenticated_response()
+
+    # Verify Claude CLI is available before processing
+    claude_available, _ = is_claude_available()
+    if not claude_available:
+        return JSONResponse({
+            "success": False,
+            "message": "AI Wizard requires Claude Code CLI. Install: irm https://claude.ai/install.ps1 | iex (PowerShell). Docs: https://code.claude.com/docs/en/setup",
+            "error_code": "CLAUDE_NOT_FOUND"
+        }, status_code=503)
+
+    try:
+        data = await request.json()
+    except Exception:
+        return JSONResponse({"success": False, "message": "Invalid JSON"}, status_code=400)
+
+    description = data.get("description", "").strip()
+    if not description:
+        return JSONResponse({"success": False, "message": "Description is required"}, status_code=400)
+
+    if len(description) < 20:
+        return JSONResponse({"success": False, "message": "Description must be at least 20 characters"}, status_code=400)
+
+    style = data.get("style", "modern")
+    if style not in ["modern", "minimalist", "corporate", "creative"]:
+        style = "modern"
+
+    primary_color = data.get("primary_color", "#3B82F6")
+    secondary_color = data.get("secondary_color", "#10B981")
+    language = data.get("language", "es")
+    if language not in ["es", "en"]:
+        language = "es"
+
+    # Get and validate timeout (1-60 minutes, default 5)
+    try:
+        timeout_minutes = int(data.get("timeout_minutes", 5))
+    except (ValueError, TypeError):
+        timeout_minutes = 5
+    timeout_minutes = max(1, min(60, timeout_minutes))
+    timeout_seconds = timeout_minutes * 60
+
+    # Security Guard LLM check (if configured)
+    try:
+        security_result = await check_security(description)
+        if security_result["checked"] and not security_result["allowed"]:
+            logger.warning(
+                f"Security Guard BLOCKED welcome wizard for prompt {prompt_id}: "
+                f"Threat level: {security_result['threat_level']}, "
+                f"Threats: {security_result['threats']}, "
+                f"Reason: {security_result['reason']}"
+            )
+            return JSONResponse({
+                "success": False,
+                "message": "Your request was blocked by security check",
+                "security_block": True,
+                "threat_level": security_result["threat_level"],
+                "reason": security_result["reason"]
+            }, status_code=403)
+    except Exception as e:
+        # Log but don't block on security check errors
+        logger.error(f"Security Guard check error (allowing request): {e}")
+
+    try:
+        # Verify user can manage this prompt
+        is_admin = await current_user.is_admin
+        if not await can_manage_prompt(current_user.id, prompt_id, is_admin):
+            return JSONResponse({"success": False, "message": "Access denied"}, status_code=403)
+
+        # Check if there's already an active welcome job for this prompt
+        existing_job = get_active_welcome_job_for_prompt(prompt_id)
+        if existing_job:
+            return JSONResponse({
+                "success": False,
+                "message": "A job is already running for this prompt",
+                "existing_task_id": existing_job["task_id"],
+                "existing_status": existing_job["status"]
+            }, status_code=409)
+
+        # Get prompt info
+        prompt_info = await get_prompt_info(prompt_id)
+
+        # Get the prompt directory path
+        prompt_dir = get_prompt_path(prompt_id, prompt_info)
+
+        if not prompt_dir or not os.path.exists(prompt_dir):
+            return JSONResponse({"success": False, "message": "Prompt directory not found"}, status_code=404)
+
+        # Get additional prompt details (system prompt and description) for context
+        ai_system_prompt = ""
+        product_description = ""
+        async with get_db_connection(readonly=True) as conn:
+            cursor = await conn.execute(
+                "SELECT prompt, description FROM PROMPTS WHERE id = ?",
+                (prompt_id,)
+            )
+            row = await cursor.fetchone()
+            if row:
+                ai_system_prompt = row[0] or ""
+                product_description = row[1] or ""
+
+        # Look up the prompt's avatar image
+        avatar_path = ""
+        img_dir = os.path.join(str(prompt_dir), "static", "img")
+        if os.path.isdir(img_dir):
+            for fname in os.listdir(img_dir):
+                if fname.lower().endswith((".webp", ".png", ".jpg", ".jpeg", ".gif", ".svg")):
+                    avatar_path = f"static/img/{fname}"
+                    break
+
+        chat_url = f"/chat?prompt={prompt_id}"
+
+        # Prepare job parameters
+        params = {
+            "description": description,
+            "style": style,
+            "primary_color": primary_color,
+            "secondary_color": secondary_color,
+            "language": language,
+            "timeout": timeout_seconds,
+            "product_name": prompt_info['name'],
+            "ai_system_prompt": ai_system_prompt,
+            "product_description": product_description,
+            "avatar_path": avatar_path,
+            "chat_url": chat_url
+        }
+
+        # Start background job
+        logger.info(f"Starting welcome wizard job for prompt {prompt_id}, user {current_user.id}, timeout={timeout_seconds}s")
+        result = start_job(
+            prompt_id=prompt_id,
+            job_type="generate",
+            prompt_dir=str(prompt_dir),
+            params=params,
+            timeout_seconds=timeout_seconds,
+            target="welcome"
+        )
+
+        if result.get("success"):
+            logger.info(f"Welcome wizard job started for prompt {prompt_id}: task_id={result['task_id']}")
+            return JSONResponse({
+                "success": True,
+                "message": "Job started",
+                "task_id": result["task_id"],
+                "status": result["status"]
+            })
+        else:
+            logger.error(f"Failed to start welcome wizard job for prompt {prompt_id}: {result.get('error')}")
+            return JSONResponse({
+                "success": False,
+                "message": result.get("error", "Failed to start job"),
+                "existing_task_id": result.get("existing_task_id")
+            }, status_code=500)
+
+    except Exception as e:
+        logger.error(f"Error in generate_welcome_with_wizard: {e}")
+        return JSONResponse({"success": False, "message": "Internal server error"}, status_code=500)
+
+
+@app.post("/api/welcome/{prompt_id}/ai/modify", response_class=JSONResponse)
+async def modify_welcome_with_wizard(
+    request: Request,
+    prompt_id: int,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Starts a background job to modify an existing welcome page using Claude Code.
+
+    Returns immediately with a task_id. Use GET /api/welcome/{prompt_id}/ai/status/{task_id}
+    to poll for job completion.
+    """
+    if current_user is None:
+        return unauthenticated_response()
+
+    # Verify Claude CLI is available
+    claude_available, _ = is_claude_available()
+    if not claude_available:
+        return JSONResponse({
+            "success": False,
+            "message": "AI Wizard requires Claude Code CLI. Install: irm https://claude.ai/install.ps1 | iex (PowerShell). Docs: https://code.claude.com/docs/en/setup",
+            "error_code": "CLAUDE_NOT_FOUND"
+        }, status_code=503)
+
+    try:
+        data = await request.json()
+    except Exception:
+        return JSONResponse({"success": False, "message": "Invalid JSON"}, status_code=400)
+
+    instructions = data.get("instructions", "").strip()
+    if not instructions:
+        return JSONResponse({"success": False, "message": "Instructions are required"}, status_code=400)
+
+    if len(instructions) < 10:
+        return JSONResponse({"success": False, "message": "Instructions must be at least 10 characters"}, status_code=400)
+
+    # Get and validate timeout (1-60 minutes, default 5)
+    try:
+        timeout_minutes = int(data.get("timeout_minutes", 5))
+    except (ValueError, TypeError):
+        timeout_minutes = 5
+    timeout_minutes = max(1, min(60, timeout_minutes))
+    timeout_seconds = timeout_minutes * 60
+
+    # Security Guard LLM check (if configured)
+    try:
+        security_result = await check_security(instructions)
+        if security_result["checked"] and not security_result["allowed"]:
+            logger.warning(
+                f"Security Guard BLOCKED welcome modify for prompt {prompt_id}: "
+                f"Threat level: {security_result['threat_level']}, "
+                f"Threats: {security_result['threats']}, "
+                f"Reason: {security_result['reason']}"
+            )
+            return JSONResponse({
+                "success": False,
+                "message": "Your request was blocked by security check",
+                "security_block": True,
+                "threat_level": security_result["threat_level"],
+                "reason": security_result["reason"]
+            }, status_code=403)
+    except Exception as e:
+        # Log but don't block on security check errors
+        logger.error(f"Security Guard check error (allowing request): {e}")
+
+    try:
+        # Verify user can manage this prompt
+        is_admin = await current_user.is_admin
+        if not await can_manage_prompt(current_user.id, prompt_id, is_admin):
+            return JSONResponse({"success": False, "message": "Access denied"}, status_code=403)
+
+        # Check if there's already an active welcome job for this prompt
+        existing_job = get_active_welcome_job_for_prompt(prompt_id)
+        if existing_job:
+            return JSONResponse({
+                "success": False,
+                "message": "A job is already running for this prompt",
+                "existing_task_id": existing_job["task_id"],
+                "existing_status": existing_job["status"]
+            }, status_code=409)
+
+        prompt_info = await get_prompt_info(prompt_id)
+        prompt_dir = get_prompt_path(prompt_id, prompt_info)
+
+        if not prompt_dir or not os.path.exists(prompt_dir):
+            return JSONResponse({"success": False, "message": "Prompt directory not found"}, status_code=404)
+
+        # Check if there are welcome files to modify
+        files = list_welcome_files(str(prompt_dir))
+        if files["total_count"] == 0:
+            return JSONResponse({
+                "success": False,
+                "message": "No files to modify. Use 'Create new' instead."
+            }, status_code=400)
+
+        # Get additional prompt details (system prompt and description) for context
+        ai_system_prompt = ""
+        product_description = ""
+        async with get_db_connection(readonly=True) as conn:
+            cursor = await conn.execute(
+                "SELECT prompt, description FROM PROMPTS WHERE id = ?",
+                (prompt_id,)
+            )
+            row = await cursor.fetchone()
+            if row:
+                ai_system_prompt = row[0] or ""
+                product_description = row[1] or ""
+
+        # Look up the prompt's avatar image
+        avatar_path = ""
+        img_dir = os.path.join(str(prompt_dir), "static", "img")
+        if os.path.isdir(img_dir):
+            for fname in os.listdir(img_dir):
+                if fname.lower().endswith((".webp", ".png", ".jpg", ".jpeg", ".gif", ".svg")):
+                    avatar_path = f"static/img/{fname}"
+                    break
+
+        chat_url = f"/chat?prompt={prompt_id}"
+
+        # Prepare job parameters
+        params = {
+            "instructions": instructions,
+            "timeout": timeout_seconds,
+            "product_name": prompt_info['name'],
+            "ai_system_prompt": ai_system_prompt,
+            "product_description": product_description,
+            "avatar_path": avatar_path,
+            "chat_url": chat_url
+        }
+
+        # Start background job
+        logger.info(f"Starting welcome modify wizard job for prompt {prompt_id}, user {current_user.id}, timeout={timeout_seconds}s")
+        result = start_job(
+            prompt_id=prompt_id,
+            job_type="modify",
+            prompt_dir=str(prompt_dir),
+            params=params,
+            timeout_seconds=timeout_seconds,
+            target="welcome"
+        )
+
+        if result.get("success"):
+            logger.info(f"Welcome modify wizard job started for prompt {prompt_id}: task_id={result['task_id']}")
+            return JSONResponse({
+                "success": True,
+                "message": "Job started",
+                "task_id": result["task_id"],
+                "status": result["status"]
+            })
+        else:
+            logger.error(f"Failed to start welcome modify wizard job for prompt {prompt_id}: {result.get('error')}")
+            return JSONResponse({
+                "success": False,
+                "message": result.get("error", "Failed to start job"),
+                "existing_task_id": result.get("existing_task_id")
+            }, status_code=500)
+
+    except Exception as e:
+        logger.error(f"Error in modify_welcome_with_wizard: {e}")
+        return JSONResponse({"success": False, "message": "Internal server error"}, status_code=500)
+
+
+@app.get("/api/welcome/{prompt_id}/ai/status/{task_id}", response_class=JSONResponse)
+async def get_welcome_job_status(
+    prompt_id: int,
+    task_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get the status of a welcome page generation/modification job.
+
+    Poll this endpoint to check job progress. Status values:
+    - pending: Job created, waiting to start
+    - running: Claude is working
+    - completed: Finished successfully
+    - failed: Finished with error
+    - timeout: Job exceeded timeout and process died
+    """
+    if current_user is None:
+        return unauthenticated_response()
+
+    try:
+        # Verify user can manage this prompt
+        is_admin = await current_user.is_admin
+        if not await can_manage_prompt(current_user.id, prompt_id, is_admin):
+            return JSONResponse({"success": False, "message": "Access denied"}, status_code=403)
+
+        # Get job status
+        job = get_job(task_id)
+
+        if not job:
+            return JSONResponse({
+                "success": False,
+                "message": "Job not found"
+            }, status_code=404)
+
+        # Verify the job belongs to this prompt
+        if job.get("prompt_id") != prompt_id:
+            return JSONResponse({
+                "success": False,
+                "message": "Job does not belong to this prompt"
+            }, status_code=403)
+
+        # Return job status
+        response = {
+            "success": True,
+            "task_id": job["task_id"],
+            "status": job["status"],
+            "type": job.get("type"),
+            "started_at": job.get("started_at"),
+            "updated_at": job.get("updated_at"),
+            "completed_at": job.get("completed_at")
+        }
+
+        # Include additional info based on status
+        if job["status"] == "completed":
+            response["files_created"] = job.get("files_created", [])
+            # Update has_welcome_page flag in database
+            try:
+                async with get_db_connection() as db:
+                    await db.execute("UPDATE PROMPTS SET has_welcome_page = 1 WHERE id = ?", (prompt_id,))
+                    await db.commit()
+            except Exception as db_err:
+                # Column may not exist yet; log and continue
+                logger.warning(f"Could not update has_welcome_page for prompt {prompt_id}: {db_err}")
+        elif job["status"] in ("failed", "timeout"):
+            response["error"] = job.get("error")
+
+        return JSONResponse(response)
+
+    except Exception as e:
+        logger.error(f"Error in get_welcome_job_status: {e}")
+        return JSONResponse({"success": False, "message": "Internal server error"}, status_code=500)
+
+
+@app.get("/api/welcome/{prompt_id}/ai/active-job", response_class=JSONResponse)
+async def get_active_welcome_job(
+    prompt_id: int,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Check if there's an active (pending/running) welcome job for this prompt.
+    Useful for UI to resume polling after page refresh.
+    """
+    if current_user is None:
+        return unauthenticated_response()
+
+    try:
+        # Verify user can manage this prompt
+        is_admin = await current_user.is_admin
+        if not await can_manage_prompt(current_user.id, prompt_id, is_admin):
+            return JSONResponse({"success": False, "message": "Access denied"}, status_code=403)
+
+        # Check for active welcome job
+        job = get_active_welcome_job_for_prompt(prompt_id)
+
+        if job:
+            return JSONResponse({
+                "success": True,
+                "has_active_job": True,
+                "task_id": job["task_id"],
+                "status": job["status"],
+                "type": job.get("type"),
+                "started_at": job.get("started_at")
+            })
+        else:
+            return JSONResponse({
+                "success": True,
+                "has_active_job": False
+            })
+
+    except Exception as e:
+        logger.error(f"Error in get_active_welcome_job: {e}")
+        return JSONResponse({"success": False, "message": "Internal server error"}, status_code=500)
+
+
+@app.get("/api/welcome/{prompt_id}/files", response_class=JSONResponse)
+async def get_welcome_files(
+    prompt_id: int,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    List all files in the prompt's welcome page directory.
+    Used to check if files exist before generating/modifying.
+    """
+    if current_user is None:
+        return unauthenticated_response()
+
+    try:
+        # Verify user can manage this prompt
+        is_admin = await current_user.is_admin
+        if not await can_manage_prompt(current_user.id, prompt_id, is_admin):
+            return JSONResponse({"success": False, "message": "Access denied"}, status_code=403)
+
+        prompt_info = await get_prompt_info(prompt_id)
+        prompt_dir = get_prompt_path(prompt_id, prompt_info)
+
+        if not prompt_dir or not os.path.exists(prompt_dir):
+            return JSONResponse({
+                "success": True,
+                "files": {"pages": [], "css": [], "js": [], "images": [], "other": [], "total_count": 0}
+            })
+
+        files = list_welcome_files(str(prompt_dir))
+
+        return JSONResponse({
+            "success": True,
+            "files": files
+        })
+
+    except Exception as e:
+        logger.error(f"Error in get_welcome_files: {e}")
+        return JSONResponse({"success": False, "message": "Internal server error"}, status_code=500)
+
+
+@app.delete("/api/welcome/{prompt_id}/files", response_class=JSONResponse)
+async def delete_welcome_files(
+    prompt_id: int,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Delete all welcome page files for a prompt (start fresh).
+    Preserves images by default for safety.
+    """
+    if current_user is None:
+        return unauthenticated_response()
+
+    try:
+        # Verify user can manage this prompt
+        is_admin = await current_user.is_admin
+        if not await can_manage_prompt(current_user.id, prompt_id, is_admin):
+            return JSONResponse({"success": False, "message": "Access denied"}, status_code=403)
+
+        prompt_info = await get_prompt_info(prompt_id)
+        prompt_dir = get_prompt_path(prompt_id, prompt_info)
+
+        if not prompt_dir or not os.path.exists(prompt_dir):
+            return JSONResponse({
+                "success": True,
+                "message": "No files to delete",
+                "deleted_count": 0
+            })
+
+        logger.info(f"Deleting welcome files for prompt {prompt_id}, user {current_user.id}")
+        result = delete_all_welcome_files(str(prompt_dir), keep_images=True)
+
+        if result["success"]:
+            logger.info(f"Deleted {result.get('deleted_count', 0)} welcome files for prompt {prompt_id}")
+            # Update has_welcome_page flag in database
+            try:
+                async with get_db_connection() as db:
+                    await db.execute("UPDATE PROMPTS SET has_welcome_page = 0 WHERE id = ?", (prompt_id,))
+                    await db.commit()
+            except Exception as db_err:
+                # Column may not exist yet; log and continue
+                logger.warning(f"Could not update has_welcome_page for prompt {prompt_id}: {db_err}")
+            return JSONResponse({
+                "success": True,
+                "message": result.get("message", "Files deleted"),
+                "deleted_count": result.get("deleted_count", 0)
+            })
+        else:
+            logger.error(f"Welcome delete failed for prompt {prompt_id}: {result.get('error')}")
+            return JSONResponse({
+                "success": False,
+                "message": result.get("error", "Unknown error"),
+                "deleted_count": result.get("deleted_count", 0)
+            }, status_code=500)
+
+    except Exception as e:
+        logger.error(f"Error in delete_welcome_files: {e}")
         return JSONResponse({"success": False, "message": "Internal server error"}, status_code=500)
 
 
@@ -13439,6 +16475,15 @@ async def save_landing_page(
             """, (prompt_id, section, use_default_template, use_default_template))
             await conn.commit()
 
+        # Update has_landing_page flag when home section is saved
+        if section == "home":
+            async with get_db_connection() as conn2:
+                await conn2.execute(
+                    "UPDATE PROMPTS SET has_landing_page = 1 WHERE id = ?",
+                    (prompt_id,)
+                )
+                await conn2.commit()
+
         return JSONResponse({"success": True, "message": "Changes saved and section configuration updated!"})
         
     except Exception as e:
@@ -13460,6 +16505,32 @@ async def get_public_prompts(current_user: User = Depends(get_current_user)) -> 
             public_prompts = await cursor.fetchall()
     
     return [{"id": p[0], "name": p[1], "description": p[2], "image": p[3]} for p in public_prompts]
+
+
+# ============================================================
+# CREATOR STOREFRONTS - Public creator profile pages
+# ============================================================
+
+@app.get("/store/{slug}", response_class=HTMLResponse)
+async def creator_storefront(request: Request, slug: str, current_user: User = Depends(get_current_user)):
+    """Render a creator's public storefront page."""
+    from storefront_service import get_creator_profile_by_slug, get_creator_storefront_data
+
+    profile = await get_creator_profile_by_slug(slug)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Creator not found")
+
+    viewer_id = current_user.id if current_user else None
+    storefront = await get_creator_storefront_data(profile['user_id'], viewer_id)
+    if not storefront:
+        raise HTTPException(status_code=404, detail="Creator not found")
+
+    # Build context — public page, optional auth
+    context = await get_template_context(request, current_user, branding_context={"storefront_slug": slug})
+    context["storefront"] = storefront
+    context["is_authenticated"] = current_user is not None
+
+    return templates.TemplateResponse("storefront.html", context)
 
 
 # ============================================================
@@ -13515,11 +16586,16 @@ async def explore_prompts(
     category: int = None,
     search: str = None,
     page: int = 1,
-    limit: int = 24
+    limit: int = 24,
+    mine: int = 0,
+    favorites: int = 0
 ):
     """Get paginated public prompts with optional filtering."""
     if current_user is None:
         raise HTTPException(status_code=401, detail="Authentication required")
+
+    # Piggyback ranking recalculation trigger
+    await maybe_trigger_recalculation()
 
     # Sanitize pagination
     page = max(1, page)
@@ -13529,10 +16605,33 @@ async def explore_prompts(
     async with get_db_connection(readonly=True) as conn:
         async with conn.cursor() as cursor:
             # Build query with filters
-            where_clauses = ["p.public = 1", "p.is_unlisted = 0"]
-            params = []
+            if mine:
+                where_clauses = ["""(
+                    EXISTS (
+                        SELECT 1 FROM PROMPT_PERMISSIONS pp
+                        WHERE pp.prompt_id = p.id AND pp.user_id = ? AND pp.permission_level = 'owner'
+                    )
+                    OR (
+                        NOT EXISTS (
+                            SELECT 1 FROM PROMPT_PERMISSIONS pp2
+                            WHERE pp2.prompt_id = p.id AND pp2.permission_level = 'owner'
+                        )
+                        AND p.created_by_user_id = ?
+                    )
+                )"""]
+                params = [current_user.id, current_user.id]
+            elif favorites:
+                where_clauses = [
+                    "p.public = 1", "p.is_unlisted = 0",
+                    "EXISTS (SELECT 1 FROM FAVORITE_PROMPTS fp2 WHERE fp2.user_id = ? AND fp2.prompt_id = p.id)"
+                ]
+                params = [current_user.id]
+            else:
+                where_clauses = ["p.public = 1", "p.is_unlisted = 0"]
+                params = []
 
-            if category:
+            # Category filter (only in normal browse mode)
+            if category and not mine and not favorites:
                 where_clauses.append("EXISTS (SELECT 1 FROM PROMPT_CATEGORIES pc2 WHERE pc2.prompt_id = p.id AND pc2.category_id = ?)")
                 params.append(category)
 
@@ -13541,24 +16640,22 @@ async def explore_prompts(
                 where_clauses.append("(p.name LIKE ? OR p.description LIKE ?)")
                 params.extend([search_term, search_term])
 
-            # Exclude age-restricted categories by default
-            where_clauses.append("""
-                NOT EXISTS (
-                    SELECT 1 FROM PROMPT_CATEGORIES pc_age
-                    JOIN CATEGORIES c_age ON pc_age.category_id = c_age.id
-                    WHERE pc_age.prompt_id = p.id AND c_age.is_age_restricted = 1
-                    AND ? = 0
-                )
-            """)
-            # Pass 0 to hide age-restricted, 1 to show
-            # For now always hide unless category filter explicitly targets one
-            show_age_restricted = 1 if category else 0
-            if category:
-                # Check if the selected category is age-restricted
-                await cursor.execute("SELECT is_age_restricted FROM CATEGORIES WHERE id = ?", (category,))
-                cat_row = await cursor.fetchone()
-                show_age_restricted = 1 if (cat_row and cat_row[0]) else (1 if category else 0)
-            params.append(show_age_restricted)
+            # Exclude age-restricted categories by default (skip for own prompts)
+            if not mine:
+                where_clauses.append("""
+                    NOT EXISTS (
+                        SELECT 1 FROM PROMPT_CATEGORIES pc_age
+                        JOIN CATEGORIES c_age ON pc_age.category_id = c_age.id
+                        WHERE pc_age.prompt_id = p.id AND c_age.is_age_restricted = 1
+                        AND ? = 0
+                    )
+                """)
+                show_age_restricted = 1 if category else 0
+                if category:
+                    await cursor.execute("SELECT is_age_restricted FROM CATEGORIES WHERE id = ?", (category,))
+                    cat_row = await cursor.fetchone()
+                    show_age_restricted = 1 if (cat_row and cat_row[0]) else (1 if category else 0)
+                params.append(show_age_restricted)
 
             where_sql = " AND ".join(where_clauses)
 
@@ -13567,17 +16664,35 @@ async def explore_prompts(
             await cursor.execute(count_sql, params)
             total = (await cursor.fetchone())[0]
 
-            # Fetch prompts
+            # Fetch prompts (LEFT JOIN favorites in same query)
+            user_id = current_user.id
+            order_clause = "ORDER BY p.ranking_score DESC, p.created_at DESC" if not mine and not favorites else "ORDER BY p.created_at DESC"
             query = f"""
                 SELECT p.id, p.name, p.description, p.image, p.public_id,
-                       p.created_at, p.is_paid, u.username as creator_name
+                       p.created_at, p.is_paid,
+                       p.public as is_public, p.is_unlisted,
+                       u.username as creator_name,
+                       CASE WHEN fp.user_id IS NOT NULL THEN 1 ELSE 0 END as is_favorite,
+                       CASE
+                           WHEN EXISTS (SELECT 1 FROM PROMPT_PERMISSIONS pp_m WHERE pp_m.prompt_id = p.id AND pp_m.user_id = ? AND pp_m.permission_level = 'owner') THEN 1
+                           WHEN NOT EXISTS (SELECT 1 FROM PROMPT_PERMISSIONS pp_m2 WHERE pp_m2.prompt_id = p.id AND pp_m2.permission_level = 'owner') AND p.created_by_user_id = ? THEN 1
+                           ELSE 0
+                       END as is_mine,
+                       p.purchase_price,
+                       CASE
+                           WHEN EXISTS (SELECT 1 FROM PROMPT_PERMISSIONS pp_a WHERE pp_a.prompt_id = p.id AND pp_a.user_id = ? AND pp_a.permission_level IN ('owner', 'edit', 'access')) THEN 1
+                           WHEN EXISTS (SELECT 1 FROM PACK_ACCESS pa JOIN PACK_ITEMS pi ON pa.pack_id = pi.pack_id WHERE pa.user_id = ? AND pi.prompt_id = p.id AND pi.is_active = 1 AND (pi.disable_at IS NULL OR pi.disable_at > datetime('now')) AND (pa.expires_at IS NULL OR pa.expires_at > datetime('now'))) THEN 1
+                           ELSE 0
+                       END as user_has_access,
+                       p.has_landing_page
                 FROM PROMPTS p
                 LEFT JOIN USERS u ON p.created_by_user_id = u.id
+                LEFT JOIN FAVORITE_PROMPTS fp ON fp.prompt_id = p.id AND fp.user_id = ?
                 WHERE {where_sql}
-                ORDER BY p.created_at DESC
+                {order_clause}
                 LIMIT ? OFFSET ?
             """
-            await cursor.execute(query, params + [limit, offset])
+            await cursor.execute(query, [user_id, user_id, user_id, user_id, user_id] + params + [limit, offset])
             rows = await cursor.fetchall()
 
             # Get prompt IDs for category fetch
@@ -13630,9 +16745,16 @@ async def explore_prompts(
             "public_id": row[4],
             "created_at": row[5],
             "is_paid": bool(row[6]),
-            "creator_name": row[7],
+            "is_public": bool(row[7]),
+            "is_unlisted": bool(row[8]),
+            "creator_name": row[9],
+            "is_favorite": bool(row[10]),
+            "is_mine": bool(row[11]),
             "slug": slug,
-            "categories": prompt_categories.get(row[0], [])
+            "categories": prompt_categories.get(row[0], []),
+            "purchase_price": row[12],
+            "user_has_access": bool(row[13]),
+            "has_landing_page": bool(row[14]),
         })
 
     total_pages = (total + limit - 1) // limit
@@ -14292,6 +17414,149 @@ async def _get_user_by_email(email: str) -> Optional[dict]:
         return None
 
 
+async def _create_pending_entitlement(
+    user_id: int, prompt_id: int = None, pack_id: int = None
+) -> Optional[str]:
+    """Create a pending entitlement claim and return the token."""
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now() + timedelta(hours=24)
+    try:
+        async with get_db_connection() as conn:
+            await conn.execute("""
+                INSERT INTO PENDING_ENTITLEMENTS (user_id, token, prompt_id, pack_id, expires_at)
+                VALUES (?, ?, ?, ?, ?)
+            """, (user_id, token, prompt_id, pack_id, expires_at.isoformat()))
+            await conn.commit()
+        return token
+    except Exception as e:
+        logger.error(f"Error creating pending entitlement: {e}")
+        return None
+
+
+async def _send_entitlement_claim_email(
+    request: Request, email: str, user_id: int,
+    prompt_id: int = None, pack_id: int = None
+):
+    """Create a pending entitlement and send the claim email to the existing user."""
+    token = await _create_pending_entitlement(user_id, prompt_id, pack_id)
+    if not token:
+        return
+
+    # Build claim URL
+    scheme = request.url.scheme
+    host = request.url.hostname
+    port = request.url.port
+    if port and port not in (80, 443):
+        claim_url = f"{scheme}://{host}:{port}/claim-entitlement/{token}"
+    else:
+        claim_url = f"{scheme}://{host}/claim-entitlement/{token}"
+
+    # Get product name and branding for the email
+    from common import get_manager_branding
+    product_name = None
+    branding = None
+    try:
+        async with get_db_connection(readonly=True) as conn:
+            if pack_id:
+                cur = await conn.execute(
+                    "SELECT name, created_by_user_id FROM PACKS WHERE id = ?", (pack_id,)
+                )
+                row = await cur.fetchone()
+                if row:
+                    product_name = row[0]
+                    branding = await get_manager_branding(row[1])
+            elif prompt_id:
+                cur = await conn.execute(
+                    "SELECT name, created_by_user_id FROM PROMPTS WHERE id = ?", (prompt_id,)
+                )
+                row = await cur.fetchone()
+                if row:
+                    product_name = row[0]
+                    if row[1]:
+                        branding = await get_manager_branding(row[1])
+    except Exception as e:
+        logger.warning(f"Could not get product name/branding for claim email: {e}")
+
+    email_service.send_claim_entitlement_email(
+        to_email=email,
+        claim_url=claim_url,
+        product_name=product_name,
+        branding=branding
+    )
+    logger.info(f"Claim entitlement email sent to {email} for user {user_id}")
+
+
+@app.get("/claim-entitlement/{token}")
+async def claim_entitlement(request: Request, token: str):
+    """
+    Claim a pack/prompt entitlement for an existing user.
+    User clicks this link from their email. Must be logged in to complete.
+    """
+    # Check if user is logged in FIRST (before consuming the token)
+    current_user = await get_current_user(request)
+    if not current_user:
+        # Redirect to login with ?next= pointing back here (token not consumed yet)
+        return RedirectResponse(f"/login?next=/claim-entitlement/{token}")
+
+    # Atomically claim the token: DELETE + RETURNING prevents TOCTOU races
+    async with get_db_connection() as conn:
+        cursor = await conn.execute(
+            "DELETE FROM PENDING_ENTITLEMENTS WHERE token = ? RETURNING user_id, prompt_id, pack_id, expires_at",
+            (token,)
+        )
+        row = await cursor.fetchone()
+        await conn.commit()
+
+    if not row:
+        return templates.TemplateResponse("verify_email.html", {
+            "request": request,
+            "success": False,
+            "error": "This claim link is invalid or has already been used.",
+            "get_static_url": lambda x: x
+        })
+
+    target_user_id, prompt_id, pack_id, expires_at = row[0], row[1], row[2], row[3]
+
+    # Check expiration
+    if datetime.fromisoformat(expires_at) < datetime.now():
+        return templates.TemplateResponse("verify_email.html", {
+            "request": request,
+            "success": False,
+            "error": "This claim link has expired. Please try registering again.",
+            "get_static_url": lambda x: x
+        })
+
+    # Security: logged-in user must match the target user
+    if current_user.id != target_user_id:
+        return templates.TemplateResponse("verify_email.html", {
+            "request": request,
+            "success": False,
+            "error": "This claim link belongs to a different account. Please log in with the correct account.",
+            "get_static_url": lambda x: x
+        })
+
+    # Grant entitlement using the same logic as OAuth
+    redirect_url = "/chat"
+    if pack_id:
+        pack_redirect = await _handle_pack_for_existing_user(pack_id, current_user.id)
+        if pack_redirect:
+            redirect_url = pack_redirect  # Paid pack -> purchase page
+    elif prompt_id:
+        # For individual prompts, set as current prompt
+        try:
+            async with get_db_connection() as conn:
+                await conn.execute(
+                    "UPDATE USER_DETAILS SET current_prompt_id = ? WHERE user_id = ?",
+                    (prompt_id, current_user.id)
+                )
+                await conn.commit()
+        except Exception as e:
+            logger.error(f"Error setting prompt for claim: {e}")
+
+    logger.info(f"Entitlement claimed: user={current_user.id}, pack={pack_id}, prompt={prompt_id}")
+    return RedirectResponse(redirect_url)
+
+
 def _generate_username_from_email(email: str) -> str:
     """Generate a username from email address."""
     # Take the part before @
@@ -14408,8 +17673,14 @@ async def register_submit(
     # Check if email already exists
     existing_user = await _get_user_by_email(email)
     if existing_user:
-        # Don't reveal that email exists - same message as success
+        # Don't reveal that email exists - same anti-enumeration message as success
         logger.info(f"Registration attempt with existing email: {email}")
+        # If registering from a landing page, send claim entitlement email
+        if prompt_id:
+            await _send_entitlement_claim_email(
+                request, email, existing_user["id"],
+                prompt_id=prompt_id, pack_id=None
+            )
         return JSONResponse({
             "status": "success",
             "message": "If this email is not already registered, you will receive a verification email shortly."
@@ -14620,6 +17891,12 @@ async def register_pack_submit(request: Request):
     existing_user = await _get_user_by_email(email)
     if existing_user:
         logger.info(f"Pack registration attempt with existing email: {email}")
+        # Send claim entitlement email so existing user can add this pack
+        if pack_id:
+            await _send_entitlement_claim_email(
+                request, email, existing_user["id"],
+                prompt_id=None, pack_id=pack_id
+            )
         return JSONResponse({
             "status": "success",
             "message": "If this email is not already registered, you will receive a verification email shortly."
@@ -15335,6 +18612,9 @@ async def delete_images(image_ids: List[int], current_user: User = Depends(get_c
     if not current_user:
         raise HTTPException(status_code=401, detail="Authentication required")
 
+    if not image_ids:
+        return {"success": True, "message": "No images to delete"}
+
     async with get_db_connection() as conn:
         cursor = await conn.cursor()
         placeholders = ','.join(['?' for _ in image_ids])
@@ -15958,6 +19238,874 @@ async def update_pricing_config(request: Request, current_user: User = Depends(g
 
 
 # =============================================================================
+# Admin Ranking Configuration
+# =============================================================================
+
+@app.get("/admin/ranking", response_class=HTMLResponse)
+async def admin_ranking_page(request: Request, current_user: User = Depends(get_current_user)):
+    """Admin page for configuring ranking weights and mode."""
+    if current_user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not await current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    ranking_config = await get_ranking_config()
+    context = await get_template_context(request, current_user)
+    context["ranking_config"] = ranking_config
+    return templates.TemplateResponse("admin_ranking.html", context)
+
+
+@app.get("/api/admin/ranking-config")
+async def api_get_ranking_config(request: Request, current_user: User = Depends(get_current_user)):
+    """Get current ranking configuration."""
+    if current_user is None:
+        return unauthenticated_response()
+    if not await current_user.is_admin:
+        return JSONResponse(status_code=403, content={"success": False, "message": "Admin access required"})
+
+    config = await get_ranking_config()
+    return JSONResponse(content={"success": True, "config": config})
+
+
+@app.put("/api/admin/ranking-config")
+async def api_update_ranking_config(request: Request, current_user: User = Depends(get_current_user)):
+    """Update ranking configuration."""
+    if current_user is None:
+        return unauthenticated_response()
+    if not await current_user.is_admin:
+        return JSONResponse(status_code=403, content={"success": False, "message": "Admin access required"})
+
+    try:
+        data = await request.json()
+
+        async with get_db_connection() as conn:
+            cursor = await conn.cursor()
+
+            if "mode" in data:
+                mode = data["mode"]
+                if mode not in ("piggyback", "scheduled"):
+                    return JSONResponse(status_code=400, content={"success": False, "message": "Invalid mode"})
+                await cursor.execute(
+                    "UPDATE SYSTEM_CONFIG SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = 'ranking_mode'",
+                    (mode,)
+                )
+
+            if "interval_hours" in data:
+                interval = int(data["interval_hours"])
+                if interval < 1 or interval > 168:
+                    return JSONResponse(status_code=400, content={"success": False, "message": "Interval must be 1-168 hours"})
+                await cursor.execute(
+                    "UPDATE SYSTEM_CONFIG SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = 'ranking_interval_hours'",
+                    (str(interval),)
+                )
+
+            if "weights" in data:
+                weights = data["weights"]
+                # Validate all weight values are numeric and non-negative
+                for k, v in weights.items():
+                    fv = float(v)
+                    if fv < 0 or fv > 1000:
+                        return JSONResponse(status_code=400, content={"success": False, "message": f"Invalid weight for {k}"})
+                await cursor.execute(
+                    "UPDATE SYSTEM_CONFIG SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = 'ranking_weights'",
+                    (json.dumps(weights),)
+                )
+
+            await conn.commit()
+
+        invalidate_ranking_config_cache()
+
+        return JSONResponse(content={"success": True, "message": "Ranking configuration updated"})
+    except Exception as e:
+        logger.error("Error updating ranking config: %s", e)
+        return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
+
+
+@app.post("/api/admin/ranking-recalculate")
+async def api_ranking_recalculate(request: Request, current_user: User = Depends(get_current_user)):
+    """Trigger manual ranking recalculation."""
+    if current_user is None:
+        return unauthenticated_response()
+    if not await current_user.is_admin:
+        return JSONResponse(status_code=403, content={"success": False, "message": "Admin access required"})
+
+    asyncio.create_task(recalculate_ranking_scores())
+    return JSONResponse(content={"success": True, "message": "Recalculation started"})
+
+
+# =============================================================================
+# Home Page Backend - API endpoints and welcome file system
+# =============================================================================
+
+WELCOME_HTML_ALLOWED_TAGS = {
+    "h1", "h2", "h3", "h4", "h5", "h6",
+    "p", "div", "span", "section", "article", "header", "footer", "nav", "main", "aside",
+    "strong", "em", "b", "i", "u", "s", "mark", "small", "sub", "sup", "abbr", "cite",
+    "code", "pre", "blockquote", "q",
+    "ul", "ol", "li", "dl", "dt", "dd",
+    "table", "thead", "tbody", "tfoot", "tr", "th", "td", "caption", "colgroup", "col",
+    "img", "figure", "figcaption", "picture", "source",
+    "video", "audio",
+    "a", "br", "hr", "wbr",
+    "details", "summary",
+    "style",
+}
+
+WELCOME_HTML_ALLOWED_ATTRIBUTES = {
+    "*": {"class", "style", "id", "title", "role", "aria-label", "aria-hidden", "data-*"},
+    "a": {"href", "target"},
+    "img": {"src", "alt", "width", "height", "loading"},
+    "source": {"src", "srcset", "type", "media"},
+    "video": {"src", "controls", "autoplay", "muted", "loop", "poster", "width", "height", "preload"},
+    "audio": {"src", "controls", "autoplay", "muted", "loop", "preload"},
+    "td": {"colspan", "rowspan"},
+    "th": {"colspan", "rowspan", "scope"},
+    "col": {"span"},
+    "colgroup": {"span"},
+    "blockquote": {"cite"},
+    "ol": {"start", "type"},
+}
+
+
+def sanitize_welcome_html(html: str) -> str:
+    """Sanitize welcome HTML once at save time using nh3. <style> tag is allowed because content renders inside Shadow DOM, preventing CSS leaks."""
+    return nh3.clean(
+        html,
+        tags=WELCOME_HTML_ALLOWED_TAGS,
+        attributes=WELCOME_HTML_ALLOWED_ATTRIBUTES,
+        link_rel="noopener noreferrer",
+        url_schemes={"http", "https", "mailto"},
+    )
+
+
+async def _get_pack_info_for_path(pack_id: int) -> dict:
+    """Get pack info needed for filesystem path resolution."""
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.cursor()
+        await cursor.execute('''
+            SELECT p.name, p.created_by_user_id, u.username as created_by_username
+            FROM PACKS p JOIN USERS u ON p.created_by_user_id = u.id
+            WHERE p.id = ?
+        ''', (pack_id,))
+        result = await cursor.fetchone()
+        if result:
+            return dict(result)
+        return None
+
+
+@app.get("/home/static/{world_tag}/{path:path}")
+async def serve_welcome_static_scoped(
+    world_tag: str,
+    path: str,
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """Serve static assets from a specific welcome world directory.
+
+    world_tag format: 'p{prompt_id}' or 'k{pack_id}', e.g. 'p57', 'k1'.
+    This avoids browser caching issues when switching between worlds.
+    """
+    if current_user is None:
+        return unauthenticated_response()
+
+    try:
+        # Parse world_tag
+        if len(world_tag) < 2 or world_tag[0] not in ('p', 'k'):
+            raise HTTPException(status_code=400, detail="Invalid world tag")
+        try:
+            entity_id = int(world_tag[1:])
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid world tag")
+
+        # Resolve filesystem path
+        if world_tag[0] == 'p':
+            info = await get_prompt_info(entity_id)
+            entity_path = get_prompt_path(entity_id, info)
+        else:
+            from welcome_service import _get_pack_info
+            pack_info = await _get_pack_info(entity_id)
+            if not pack_info:
+                raise HTTPException(status_code=404, detail="Pack not found")
+            from prompts import get_pack_path
+            entity_path = get_pack_path(entity_id, pack_info)
+
+        if not entity_path:
+            raise HTTPException(status_code=404, detail="Entity not found")
+
+        welcome_static_dir = os.path.join(str(entity_path), "welcome", "static")
+        file_path = os.path.join(welcome_static_dir, path)
+
+        # Security: ensure the resolved path is within the welcome static directory
+        real_file = os.path.realpath(file_path)
+        real_static_dir = os.path.realpath(welcome_static_dir)
+        if not real_file.startswith(real_static_dir):
+            raise HTTPException(status_code=403, detail="Access denied")
+
+        if not os.path.isfile(real_file):
+            raise HTTPException(status_code=404, detail="File not found")
+
+        return FileResponse(real_file)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error serving welcome static: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.get("/home", response_class=HTMLResponse)
+async def home_page(request: Request, current_user: User = Depends(get_current_user)):
+    if current_user is None:
+        return RedirectResponse(url="/login")
+    context = await get_template_context(request, current_user)
+    return templates.TemplateResponse("home.html", context)
+
+
+@app.get("/welcome/{entity_type}/{entity_id}", response_class=HTMLResponse)
+async def welcome_page(request: Request, entity_type: str, entity_id: int,
+                       current_user: User = Depends(get_current_user)):
+    if current_user is None:
+        return RedirectResponse(url="/login")
+    if entity_type not in ("prompt", "pack"):
+        raise HTTPException(status_code=404)
+    # Validate access
+    if entity_type == "pack":
+        if not await user_has_pack_access(current_user.id, entity_id):
+            raise HTTPException(status_code=403, detail="Access denied")
+    else:
+        if not await user_has_prompt_access(current_user, entity_id):
+            raise HTTPException(status_code=403, detail="Access denied")
+    # Build and serve
+    world = await build_world(entity_type, entity_id)
+    if not world:
+        raise HTTPException(status_code=404, detail="No welcome page found")
+    return await serve_welcome_world(request, current_user, world)
+
+
+@app.get("/api/home")
+async def get_home_data(request: Request, current_user: User = Depends(get_current_user)):
+    if current_user is None:
+        return unauthenticated_response()
+
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.cursor()
+        user_id = current_user.id
+        is_admin_user = await is_admin(user_id)
+
+        # Get user's accessible packs (via PACK_ACCESS)
+        await cursor.execute('''
+            SELECT p.id, p.name, p.slug, p.description, p.cover_image,
+                   p.created_by_user_id,
+                   (SELECT COUNT(*) FROM PACK_ITEMS pi WHERE pi.pack_id = p.id AND pi.is_active = 1) as prompt_count
+            FROM PACKS p
+            JOIN PACK_ACCESS pa ON pa.pack_id = p.id
+            WHERE pa.user_id = ? AND (pa.expires_at IS NULL OR pa.expires_at > datetime('now'))
+            ORDER BY pa.granted_at DESC
+            LIMIT 50
+        ''', (user_id,))
+        packs = [dict(row) for row in await cursor.fetchall()]
+
+        # Check welcome files for packs
+        from welcome_service import _get_pack_info
+        for pack in packs:
+            try:
+                pack_info = await _get_pack_info(pack['id'])
+                if pack_info:
+                    pack_dir = get_pack_path(pack['id'], pack_info)
+                    pack['has_welcome'] = os.path.isfile(os.path.join(pack_dir, "welcome", "index.html"))
+                else:
+                    pack['has_welcome'] = False
+            except Exception:
+                pack['has_welcome'] = False
+
+        # Get user's accessible prompts not in any pack
+        await cursor.execute('''
+            SELECT ud.all_prompts_access, ud.current_prompt_id, ud.public_prompts_access
+            FROM USER_DETAILS ud WHERE ud.user_id = ?
+        ''', (user_id,))
+        ud = await cursor.fetchone()
+        all_prompts_access = bool(ud['all_prompts_access']) if ud else False
+        public_prompts_access = bool(ud['public_prompts_access']) if ud else False
+
+        if all_prompts_access:
+            await cursor.execute('''
+                SELECT p.id, p.name, p.description, p.image, p.extensions_enabled,
+                       (SELECT COUNT(*) FROM PROMPT_EXTENSIONS pe WHERE pe.prompt_id = p.id) as extension_count,
+                       CASE WHEN p.created_by_user_id = ? THEN 1
+                            WHEN EXISTS (SELECT 1 FROM PROMPT_PERMISSIONS pp2 WHERE pp2.prompt_id = p.id AND pp2.user_id = ? AND pp2.permission_level = 'owner') THEN 1
+                            ELSE 0 END as is_mine
+                FROM PROMPTS p
+                WHERE p.id NOT IN (
+                    SELECT pi.prompt_id FROM PACK_ITEMS pi
+                    JOIN PACK_ACCESS pa ON pa.pack_id = pi.pack_id
+                    WHERE pa.user_id = ? AND pi.is_active = 1
+                )
+                ORDER BY p.name
+                LIMIT 50
+            ''', (user_id, user_id, user_id))
+        else:
+            await cursor.execute('''
+                SELECT p.id, p.name, p.description, p.image, p.extensions_enabled,
+                       (SELECT COUNT(*) FROM PROMPT_EXTENSIONS pe WHERE pe.prompt_id = p.id) as extension_count,
+                       CASE WHEN p.created_by_user_id = ? THEN 1
+                            WHEN pp.permission_level = 'owner' THEN 1
+                            ELSE 0 END as is_mine
+                FROM PROMPTS p
+                JOIN PROMPT_PERMISSIONS pp ON pp.prompt_id = p.id
+                WHERE pp.user_id = ?
+                AND p.id NOT IN (
+                    SELECT pi.prompt_id FROM PACK_ITEMS pi
+                    JOIN PACK_ACCESS pa ON pa.pack_id = pi.pack_id
+                    WHERE pa.user_id = ? AND pi.is_active = 1
+                )
+                ORDER BY p.name
+                LIMIT 50
+            ''', (user_id, user_id, user_id))
+
+        loose_prompts = [dict(row) for row in await cursor.fetchall()]
+
+        # Check welcome files for loose prompts
+        for p in loose_prompts:
+            try:
+                pi = await get_prompt_info(p['id'])
+                prompt_dir = get_prompt_path(p['id'], pi)
+                p['has_welcome'] = os.path.isfile(os.path.join(prompt_dir, "welcome", "index.html"))
+            except Exception:
+                p['has_welcome'] = False
+
+        # Get manager branding via UCR (USER_CREATOR_RELATIONSHIPS)
+        branding = None
+        await cursor.execute('''
+            SELECT mb.company_name, mb.logo_url, mb.brand_color_primary, mb.brand_color_secondary,
+                   mb.footer_text, mb.forced_theme, mb.disable_theme_selector, mb.hide_spark_branding
+            FROM USER_CREATOR_RELATIONSHIPS ucr
+            JOIN MANAGER_BRANDING mb ON mb.manager_id = ucr.creator_id
+            WHERE ucr.user_id = ? AND ucr.is_primary = 1
+        ''', (user_id,))
+        branding_row = await cursor.fetchone()
+        if branding_row:
+            branding = dict(branding_row)
+
+        # Favorites
+        await cursor.execute("SELECT prompt_id FROM FAVORITE_PROMPTS WHERE user_id = ?", (user_id,))
+        favorites = [row['prompt_id'] for row in await cursor.fetchall()]
+
+        # Stats
+        await cursor.execute("SELECT COUNT(*) as cnt FROM CONVERSATIONS WHERE user_id = ?", (user_id,))
+        conv_count = (await cursor.fetchone())['cnt']
+
+        await cursor.execute("SELECT COUNT(*) as cnt FROM MESSAGES WHERE user_id = ? AND is_bookmarked = 1", (user_id,))
+        bookmarks_count = (await cursor.fetchone())['cnt']
+
+        # Latest public marketplace prompts
+        latest_prompts = []
+        if public_prompts_access or all_prompts_access:
+            await cursor.execute('''
+                SELECT p.id, p.name, p.created_at FROM PROMPTS p
+                WHERE p.public = 1
+                ORDER BY p.created_at DESC LIMIT 5
+            ''')
+            latest_prompts = [dict(row) for row in await cursor.fetchall()]
+
+            # Check welcome files for latest prompts
+            for p in latest_prompts:
+                try:
+                    pi = await get_prompt_info(p['id'])
+                    prompt_dir = get_prompt_path(p['id'], pi)
+                    p['has_welcome'] = os.path.isfile(os.path.join(prompt_dir, "welcome", "index.html"))
+                except Exception:
+                    p['has_welcome'] = False
+
+        # Generate prompt image URLs for loose prompts
+        new_expiration = datetime.utcnow() + timedelta(hours=MEDIA_TOKEN_EXPIRE_HOURS)
+        for p in loose_prompts:
+            p['image_url'] = None
+            if p.get('image'):
+                try:
+                    img_path = f"{p['image']}_128.webp"
+                    token = generate_img_token(img_path, new_expiration, current_user)
+                    p['image_url'] = f"{CLOUDFLARE_BASE_URL}{img_path}?token={token}"
+                except Exception:
+                    pass
+
+        # Generate cover_image URLs for packs
+        for pack in packs:
+            pack['cover_image_url'] = None
+            if pack.get('cover_image'):
+                try:
+                    token = generate_img_token(pack['cover_image'], new_expiration, current_user)
+                    pack['cover_image_url'] = f"{CLOUDFLARE_BASE_URL}{pack['cover_image']}?token={token}"
+                except Exception:
+                    pass
+
+    return JSONResponse(content={
+        "user": {"id": current_user.id, "username": current_user.username},
+        "packs": packs,
+        "prompts": loose_prompts,
+        "latest_prompts": latest_prompts,
+        "branding": branding,
+        "favorites": favorites,
+        "stats": {
+            "conversation_count": conv_count,
+            "bookmarks_count": bookmarks_count,
+        },
+    })
+
+
+@app.put("/api/home/preferences")
+async def update_home_preferences(request: Request, current_user: User = Depends(get_current_user)):
+    if current_user is None:
+        return unauthenticated_response()
+
+    body = await request.json()
+    user_id = current_user.id
+
+    # Whitelist valid keys
+    valid_keys = {"pinned_prompt_id", "pinned_pack_id", "show_stats", "after_login"}
+    updates = {k: v for k, v in body.items() if k in valid_keys}
+
+    # Validate show_stats is boolean
+    if "show_stats" in updates and not isinstance(updates["show_stats"], bool):
+        return JSONResponse(content={"error": "show_stats must be boolean"}, status_code=400)
+
+    # Validate after_login is a known route
+    if "after_login" in updates:
+        allowed_routes = {"/home", "/chat", "/explore", "/dashboard"}
+        if updates["after_login"] not in allowed_routes:
+            return JSONResponse(content={"error": "Invalid after_login route"}, status_code=400)
+
+    # Validate pinned_prompt_id
+    if "pinned_prompt_id" in updates and updates["pinned_prompt_id"] is not None:
+        async with get_db_connection(readonly=True) as conn:
+            cursor = await conn.cursor()
+            if not await can_user_access_prompt(current_user, int(updates["pinned_prompt_id"]), cursor):
+                return JSONResponse(content={"error": "Prompt not accessible"}, status_code=403)
+
+    # Validate pinned_pack_id
+    if "pinned_pack_id" in updates and updates["pinned_pack_id"] is not None:
+        async with get_db_connection(readonly=True) as conn:
+            cursor = await conn.cursor()
+            await cursor.execute(
+                "SELECT 1 FROM PACK_ACCESS WHERE pack_id = ? AND user_id = ? AND (expires_at IS NULL OR expires_at > datetime('now'))",
+                (int(updates["pinned_pack_id"]), current_user.id)
+            )
+            if not await cursor.fetchone():
+                return JSONResponse(content={"error": "Pack not accessible"}, status_code=403)
+
+    async with get_db_connection() as conn:
+        cursor = await conn.cursor()
+
+        # Get current preferences
+        await cursor.execute("SELECT home_preferences FROM USER_DETAILS WHERE user_id = ?", (user_id,))
+        row = await cursor.fetchone()
+        current_prefs = {}
+        if row and row['home_preferences']:
+            try:
+                current_prefs = json.loads(row['home_preferences'])
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        # Merge updates
+        current_prefs.update(updates)
+
+        # Clean legacy keys from old Home Screen system
+        for legacy_key in ("home_start", "home_fixed_world", "active_world"):
+            current_prefs.pop(legacy_key, None)
+
+        await cursor.execute(
+            "UPDATE USER_DETAILS SET home_preferences = ? WHERE user_id = ?",
+            (json.dumps(current_prefs), user_id)
+        )
+        await conn.commit()
+
+    return JSONResponse(content={"success": True, "preferences": current_prefs})
+
+
+@app.post("/api/home/favorites/{prompt_id}")
+async def toggle_favorite_prompt(prompt_id: int, request: Request, current_user: User = Depends(get_current_user)):
+    if current_user is None:
+        return unauthenticated_response()
+
+    user_id = current_user.id
+
+    async with get_db_connection() as conn:
+        cursor = await conn.cursor()
+
+        # Check access
+        if not await can_user_access_prompt(current_user, prompt_id, cursor):
+            return JSONResponse(content={"error": "Prompt not accessible"}, status_code=403)
+
+        # Check if already favorited
+        await cursor.execute(
+            "SELECT 1 FROM FAVORITE_PROMPTS WHERE user_id = ? AND prompt_id = ?",
+            (user_id, prompt_id)
+        )
+        exists = await cursor.fetchone()
+
+        if exists:
+            await cursor.execute(
+                "DELETE FROM FAVORITE_PROMPTS WHERE user_id = ? AND prompt_id = ?",
+                (user_id, prompt_id)
+            )
+            is_favorite = False
+        else:
+            await cursor.execute(
+                "INSERT INTO FAVORITE_PROMPTS (user_id, prompt_id) VALUES (?, ?)",
+                (user_id, prompt_id)
+            )
+            is_favorite = True
+
+        await conn.commit()
+
+    return JSONResponse(content={"is_favorite": is_favorite})
+
+
+@app.get("/api/home/pack/{pack_id}")
+async def get_home_pack(pack_id: int, request: Request, current_user: User = Depends(get_current_user)):
+    if current_user is None:
+        return unauthenticated_response()
+
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.cursor()
+
+        # Verify pack access
+        await cursor.execute('''
+            SELECT 1 FROM PACK_ACCESS WHERE pack_id = ? AND user_id = ?
+            AND (expires_at IS NULL OR expires_at > datetime('now'))
+        ''', (pack_id, current_user.id))
+        if not await cursor.fetchone():
+            is_admin_user = await is_admin(current_user.id)
+            if not is_admin_user:
+                raise HTTPException(status_code=403, detail="Access denied")
+
+        # Pack info
+        await cursor.execute('''
+            SELECT p.id, p.name, p.slug, p.description, p.cover_image, p.tags,
+                   p.created_by_user_id, u.username as created_by_username,
+                   u.profile_picture as creator_profile_picture
+            FROM PACKS p
+            JOIN USERS u ON p.created_by_user_id = u.id
+            WHERE p.id = ?
+        ''', (pack_id,))
+        pack = await cursor.fetchone()
+        if not pack:
+            raise HTTPException(status_code=404, detail="Pack not found")
+        pack_data = dict(pack)
+
+        # Generate signed URLs for pack cover and creator avatar
+        new_expiration = datetime.utcnow() + timedelta(hours=MEDIA_TOKEN_EXPIRE_HOURS)
+
+        pack_data['cover_image_url'] = None
+        if pack_data.get('cover_image'):
+            try:
+                token = generate_img_token(pack_data['cover_image'], new_expiration, current_user)
+                pack_data['cover_image_url'] = f"{CLOUDFLARE_BASE_URL}{pack_data['cover_image']}?token={token}"
+            except Exception:
+                pass
+
+        pack_data['creator_avatar_url'] = None
+        creator_pic = pack_data.pop('creator_profile_picture', None)
+        if creator_pic:
+            try:
+                avatar_path = f"{creator_pic}_64.webp"
+                token = generate_img_token(avatar_path, new_expiration, current_user)
+                pack_data['creator_avatar_url'] = f"{CLOUDFLARE_BASE_URL}{avatar_path}?token={token}"
+            except Exception:
+                pass
+
+        # Parse tags from JSON string to list
+        try:
+            pack_data['tags'] = json.loads(pack_data['tags']) if pack_data.get('tags') else []
+        except (json.JSONDecodeError, TypeError):
+            pack_data['tags'] = []
+
+        # Prompts in this pack
+        await cursor.execute('''
+            SELECT pr.id, pr.name, pr.description, pr.image, pr.extensions_enabled,
+                   (SELECT COUNT(*) FROM PROMPT_EXTENSIONS pe WHERE pe.prompt_id = pr.id) as extension_count
+            FROM PROMPTS pr
+            JOIN PACK_ITEMS pi ON pi.prompt_id = pr.id
+            WHERE pi.pack_id = ? AND pi.is_active = 1
+            ORDER BY pi.display_order
+        ''', (pack_id,))
+        prompts = [dict(row) for row in await cursor.fetchall()]
+
+        # Generate signed image URLs for prompt avatars
+        for p in prompts:
+            p['image_url'] = None
+            if p.get('image'):
+                try:
+                    img_path = f"{p['image']}_64.webp"
+                    token = generate_img_token(img_path, new_expiration, current_user)
+                    p['image_url'] = f"{CLOUDFLARE_BASE_URL}{img_path}?token={token}"
+                except Exception:
+                    pass
+
+        # For each prompt, get extensions list if enabled
+        for p in prompts:
+            if p['extensions_enabled']:
+                await cursor.execute('''
+                    SELECT id, name, slug, description FROM PROMPT_EXTENSIONS
+                    WHERE prompt_id = ? ORDER BY display_order
+                ''', (p['id'],))
+                p['extensions'] = [dict(r) for r in await cursor.fetchall()]
+            else:
+                p['extensions'] = []
+
+        # Check welcome files for pack prompts
+        for p in prompts:
+            try:
+                pi = await get_prompt_info(p['id'])
+                prompt_dir = get_prompt_path(p['id'], pi)
+                p['has_welcome'] = os.path.isfile(os.path.join(prompt_dir, "welcome.html"))
+            except Exception:
+                p['has_welcome'] = False
+
+        # Recent conversations in this pack
+        await cursor.execute('''
+            SELECT c.id, c.chat_name, c.start_date, c.role_id,
+                   pr.name as prompt_name, pe.name as active_extension_name
+            FROM CONVERSATIONS c
+            JOIN PACK_ITEMS pi ON pi.prompt_id = c.role_id AND pi.pack_id = ?
+            LEFT JOIN PROMPTS pr ON c.role_id = pr.id
+            LEFT JOIN PROMPT_EXTENSIONS pe ON c.active_extension_id = pe.id
+            WHERE c.user_id = ? AND pi.is_active = 1
+            ORDER BY c.start_date DESC
+            LIMIT 10
+        ''', (pack_id, current_user.id))
+        recent_chats = [dict(row) for row in await cursor.fetchall()]
+
+    # Check for welcome file
+    try:
+        pack_info_for_path = await _get_pack_info_for_path(pack_id)
+        if pack_info_for_path:
+            pack_dir = get_pack_path(pack_id, pack_info_for_path)
+            welcome_path = os.path.join(pack_dir, "welcome.html")
+            pack_data['has_welcome'] = os.path.isfile(welcome_path)
+        else:
+            pack_data['has_welcome'] = False
+    except Exception:
+        pack_data['has_welcome'] = False
+
+    return JSONResponse(content={
+        "pack": pack_data,
+        "prompts": prompts,
+        "recent_chats": recent_chats
+    })
+
+
+@app.get("/api/home/prompt/{prompt_id}")
+async def get_home_prompt(prompt_id: int, request: Request, current_user: User = Depends(get_current_user)):
+    if current_user is None:
+        return unauthenticated_response()
+
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.cursor()
+
+        # Verify prompt access
+        if not await can_user_access_prompt(current_user, prompt_id, cursor):
+            raise HTTPException(status_code=403, detail="Access denied")
+
+        await cursor.execute('''
+            SELECT p.id, p.name, p.description, p.image, p.extensions_enabled,
+                   p.extensions_free_selection, p.created_by_user_id,
+                   u.username as created_by_username,
+                   u.profile_picture as creator_profile_picture
+            FROM PROMPTS p
+            JOIN USERS u ON p.created_by_user_id = u.id
+            WHERE p.id = ?
+        ''', (prompt_id,))
+        prompt = await cursor.fetchone()
+        if not prompt:
+            raise HTTPException(status_code=404, detail="Prompt not found")
+        prompt_data = dict(prompt)
+
+        # Generate signed URLs for prompt image and creator avatar
+        new_expiration = datetime.utcnow() + timedelta(hours=MEDIA_TOKEN_EXPIRE_HOURS)
+
+        prompt_data['image_url'] = None
+        if prompt_data.get('image'):
+            try:
+                img_path = f"{prompt_data['image']}_128.webp"
+                token = generate_img_token(img_path, new_expiration, current_user)
+                prompt_data['image_url'] = f"{CLOUDFLARE_BASE_URL}{img_path}?token={token}"
+            except Exception:
+                pass
+
+        prompt_data['creator_avatar_url'] = None
+        creator_pic = prompt_data.pop('creator_profile_picture', None)
+        if creator_pic:
+            try:
+                avatar_path = f"{creator_pic}_64.webp"
+                token = generate_img_token(avatar_path, new_expiration, current_user)
+                prompt_data['creator_avatar_url'] = f"{CLOUDFLARE_BASE_URL}{avatar_path}?token={token}"
+            except Exception:
+                pass
+
+        # Extensions
+        extensions = []
+        if prompt_data['extensions_enabled']:
+            await cursor.execute('''
+                SELECT id, name, slug, description FROM PROMPT_EXTENSIONS
+                WHERE prompt_id = ? ORDER BY display_order
+            ''', (prompt_id,))
+            extensions = [dict(r) for r in await cursor.fetchall()]
+
+        # Recent conversations
+        await cursor.execute('''
+            SELECT c.id, c.chat_name, c.start_date,
+                   pe.name as active_extension_name
+            FROM CONVERSATIONS c
+            LEFT JOIN PROMPT_EXTENSIONS pe ON c.active_extension_id = pe.id
+            WHERE c.user_id = ? AND c.role_id = ?
+            ORDER BY c.start_date DESC
+            LIMIT 10
+        ''', (current_user.id, prompt_id))
+        recent_chats = [dict(row) for row in await cursor.fetchall()]
+
+    # Check for welcome file
+    has_welcome = False
+    try:
+        pi = await get_prompt_info(prompt_id)
+        prompt_dir = get_prompt_path(prompt_id, pi)
+        has_welcome = os.path.isfile(os.path.join(prompt_dir, "welcome.html"))
+    except Exception:
+        pass
+    prompt_data['has_welcome'] = has_welcome
+
+    return JSONResponse(content={
+        "prompt": prompt_data,
+        "extensions": extensions,
+        "recent_chats": recent_chats
+    })
+
+
+@app.get("/api/home/prompt/{prompt_id}/welcome")
+async def get_prompt_welcome(prompt_id: int, current_user: User = Depends(get_current_user)):
+    if current_user is None:
+        return unauthenticated_response()
+
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.cursor()
+        if not await can_user_access_prompt(current_user, prompt_id, cursor):
+            raise HTTPException(status_code=403, detail="Access denied")
+
+    try:
+        pi = await get_prompt_info(prompt_id)
+        prompt_dir = get_prompt_path(prompt_id, pi)
+        welcome_path = os.path.join(prompt_dir, "welcome.html")
+        if os.path.isfile(welcome_path):
+            with open(welcome_path, 'r', encoding='utf-8') as f:
+                return JSONResponse(content={"html": f.read()})
+    except Exception:
+        pass
+    return JSONResponse(content={"html": ""}, status_code=404)
+
+
+@app.get("/api/home/pack/{pack_id}/welcome")
+async def get_pack_welcome(pack_id: int, current_user: User = Depends(get_current_user)):
+    if current_user is None:
+        return unauthenticated_response()
+
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.cursor()
+        await cursor.execute(
+            "SELECT 1 FROM PACK_ACCESS WHERE pack_id = ? AND user_id = ? AND (expires_at IS NULL OR expires_at > datetime('now'))",
+            (pack_id, current_user.id)
+        )
+        if not await cursor.fetchone():
+            is_admin_user = await is_admin(current_user.id)
+            if not is_admin_user:
+                raise HTTPException(status_code=403, detail="Access denied")
+
+    try:
+        pack_info = await _get_pack_info_for_path(pack_id)
+        if pack_info:
+            pack_dir = get_pack_path(pack_id, pack_info)
+            welcome_path = os.path.join(pack_dir, "welcome.html")
+            if os.path.isfile(welcome_path):
+                with open(welcome_path, 'r', encoding='utf-8') as f:
+                    return JSONResponse(content={"html": f.read()})
+    except Exception:
+        pass
+    return JSONResponse(content={"html": ""}, status_code=404)
+
+
+@app.put("/api/home/prompt/{prompt_id}/welcome")
+async def save_prompt_welcome(prompt_id: int, request: Request, current_user: User = Depends(get_current_user)):
+    if current_user is None:
+        return unauthenticated_response()
+
+    is_admin_user = await is_admin(current_user.id)
+    if not await can_manage_prompt(current_user.id, prompt_id, is_admin_user):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    body = await request.json()
+    html_content = body.get("html", "")
+
+    MAX_WELCOME_HTML_SIZE = 512 * 1024  # 512 KB
+    if len(html_content) > MAX_WELCOME_HTML_SIZE:
+        raise HTTPException(status_code=413, detail="Welcome HTML content exceeds maximum size (512 KB)")
+
+    pi = await get_prompt_info(prompt_id)
+    prompt_dir = get_prompt_path(prompt_id, pi)
+    welcome_path = os.path.join(prompt_dir, "welcome.html")
+
+    if html_content.strip():
+        clean_html = sanitize_welcome_html(html_content)
+        with open(welcome_path, 'w', encoding='utf-8') as f:
+            f.write(clean_html)
+    else:
+        # Empty content = remove welcome
+        if os.path.isfile(welcome_path):
+            os.remove(welcome_path)
+
+    return JSONResponse(content={"success": True})
+
+
+@app.put("/api/home/pack/{pack_id}/welcome")
+async def save_pack_welcome(pack_id: int, request: Request, current_user: User = Depends(get_current_user)):
+    if current_user is None:
+        return unauthenticated_response()
+
+    is_admin_user = await is_admin(current_user.id)
+
+    # Check pack ownership
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.cursor()
+        await cursor.execute("SELECT created_by_user_id FROM PACKS WHERE id = ?", (pack_id,))
+        pack = await cursor.fetchone()
+        if not pack:
+            raise HTTPException(status_code=404, detail="Pack not found")
+        if pack['created_by_user_id'] != current_user.id and not is_admin_user:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+    body = await request.json()
+    html_content = body.get("html", "")
+
+    MAX_WELCOME_HTML_SIZE = 512 * 1024  # 512 KB
+    if len(html_content) > MAX_WELCOME_HTML_SIZE:
+        raise HTTPException(status_code=413, detail="Welcome HTML content exceeds maximum size (512 KB)")
+
+    pack_info = await _get_pack_info_for_path(pack_id)
+    if not pack_info:
+        raise HTTPException(status_code=404, detail="Pack info not found")
+
+    pack_dir = get_pack_path(pack_id, pack_info)
+    welcome_path = os.path.join(pack_dir, "welcome.html")
+
+    if html_content.strip():
+        clean_html = sanitize_welcome_html(html_content)
+        with open(welcome_path, 'w', encoding='utf-8') as f:
+            f.write(clean_html)
+    else:
+        if os.path.isfile(welcome_path):
+            os.remove(welcome_path)
+
+    return JSONResponse(content={"success": True})
+
+
+# =============================================================================
 # Catch-all route for custom domains (MUST BE LAST)
 # =============================================================================
 @app.get("/{page:path}")
@@ -16040,11 +20188,15 @@ async def custom_domain_landing(
 # Add this to handle cleanup during shutdown
 @app.on_event("shutdown")
 async def shutdown_event():
+    # Close async Twilio client
+    if async_twilio is not None:
+        await async_twilio.close()
+
     # Cancel all pending tasks except the current task
     tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
     for task in tasks:
         task.cancel()
-    
+
     # Wait for all tasks to be cancelled
     await asyncio.gather(*tasks, return_exceptions=True)
         

@@ -157,9 +157,19 @@
     <div class="overlay" id="drop-zone-overlay"></div>
     <div id="sidebar">
         <div class="sidebar-collapse-row">
-            <a href="/" class="btn-home-sidebar" title="Home">
-                <i class="fas fa-home"></i>
-            </a>
+            <div class="sidebar-nav-icons">
+                <a href="/" class="btn-home-sidebar" title="Home">
+                    <i class="fas fa-home"></i>
+                </a>
+                <a href="/explore" class="btn-home-sidebar" title="Explore">
+                    <i class="fas fa-compass"></i>
+                </a>
+                {% if is_admin or is_manager %}
+                <a href="/dashboard" class="btn-home-sidebar" title="Dashboard">
+                    <i class="fas fa-tachometer-alt"></i>
+                </a>
+                {% endif %}
+            </div>
             <button class="btn-collapse-sidebar" id="collapse-sidebar-btn" title="Collapse sidebar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -167,55 +177,7 @@
                 </svg>
             </button>
         </div>
-        <div class="list-group">
-            <!-- User menu for mobile version -->
-            <div class="user-menu-mobile">
-                <div class="dropdown">
-                    <a class="dropdown-toggle list-group-item list-group-item-action" href="#" role="button" id="userDropdownMobile" data-bs-toggle="dropdown" aria-expanded="false">
-                        {{ username }}
-                    </a>
-                    <ul class="dropdown-menu" aria-labelledby="userDropdownMobile">
-                        <li><a class="dropdown-item" href="/edit-profile"><i class="fas fa-user-edit"></i> Edit Profile</a></li>
-                        <li><a class="dropdown-item" href="/api-credentials"><i class="fas fa-key"></i> API Credentials</a></li>
-                        <li><a class="dropdown-item" href="/payment"><i class="fas fa-credit-card"></i> Payments</a></li>
-                        <li><a class="dropdown-item" href="/media-gallery"><i class="fas fa-images"></i> Media Gallery</a></li>
-                        {% if is_manager or is_admin %}
-                        <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item" href="/curation-settings"><i class="fas fa-layer-group"></i> Curation Settings</a></li>
-                        <li><a class="dropdown-item" href="/manager/team-billing"><i class="fas fa-users-cog"></i> Team Billing</a></li>
-                        <li><a class="dropdown-item" href="/my-branding"><i class="fas fa-palette"></i> My Branding</a></li>
-                        <li><a class="dropdown-item" href="/manager/landing-analytics"><i class="fas fa-chart-area"></i> Landing Analytics</a></li>
-                        <li><a class="dropdown-item" href="/my-earnings"><i class="fas fa-chart-line"></i> My Earnings</a></li>
-                        {% endif %}
-                        <li><hr class="dropdown-divider"></li>
-                        <!-- Theme submenu (hover only, no data-bs-toggle to avoid Bootstrap error) -->
-                        <li class="dropend">
-                          <a class="dropdown-item dropdown-toggle" href="#">
-                            <i class="fas fa-palette"></i> Theme
-                          </a>
-                          <ul class="dropdown-menu theme-submenu">
-                            <li><a class="dropdown-item theme-option" href="#" data-theme="default">Default</a></li>
-                            <li><a class="dropdown-item theme-option" href="#" data-theme="light">Light</a></li>
-                            <li><a class="dropdown-item theme-option" href="#" data-theme="writer">Writer</a></li>
-                            <li><a class="dropdown-item theme-option" href="#" data-theme="coder">Coder</a></li>
-                            <li><a class="dropdown-item theme-option" href="#" data-theme="terminal">Terminal</a></li>
-                            <li><a class="dropdown-item theme-option" href="#" data-theme="eink">E-Ink</a></li>
-                            <li><a class="dropdown-item theme-option" href="#" data-theme="neumorphism">Neumorphism</a></li>
-                            <li><a class="dropdown-item theme-option" href="#" data-theme="frutigeraero">Frutiger Aero</a></li>
-                            <li><a class="dropdown-item theme-option" href="#" data-theme="memphis">Memphis</a></li>
-                            <li><a class="dropdown-item theme-option" href="#" data-theme="katarishoji">Katari Shoji</a></li>
-                            <li><a class="dropdown-item theme-option" href="#" data-theme="xmas">Christmas</a></li>
-                            <li><a class="dropdown-item theme-option" href="#" data-theme="halloween">Halloween</a></li>
-                            <li><a class="dropdown-item theme-option" href="#" data-theme="valentinesday">Valentine's Day</a></li>
-                                                      </ul>
-                        </li>
-                    </ul>
-                </div>
-                <a href="/logout" class="btn btn-sm btn-danger w-100 mt-2">Log Out</a>
-            </div>
-
-            <!-- Home link moved to sidebar-collapse-row -->
-
+        <div class="sidebar-top-fixed">
 			<div class="sidebar-section">
 			  <div class="btn-group w-100" role="group" aria-label="New Chat Button">
 				<button type="button" class="btn custom-new-chat-btn" id="new-chat-main-btn">
@@ -230,11 +192,33 @@
 				  <li>
 					<h6 class="dropdown-header">Select Prompt</h6>
 					<select class="form-select" id="promptDropdown" name="prompt_id">
-					  {% for prompt in prompts %}
-					  <option value="{{ prompt.id }}" {% if prompt.id == current_prompt_id %}selected{% endif %}>
-						{{ prompt.text }}
-					  </option>
-					  {% endfor %}
+					  {% set fav_prompts = prompts|selectattr('is_favorite')|list %}
+					  {% if fav_prompts %}
+					  <optgroup label="&#9733; Favorites">
+						{% for prompt in fav_prompts %}
+						<option value="{{ prompt.id }}" {% if prompt.id == current_prompt_id %}selected{% endif %}>
+						  {{ prompt.text }}
+						</option>
+						{% endfor %}
+					  </optgroup>
+					  {% endif %}
+					  {% set my_prompts = prompts|selectattr('is_mine')|list %}
+					  {% if my_prompts %}
+					  <optgroup label="My Prompts">
+						{% for prompt in my_prompts %}
+						<option value="{{ prompt.id }}" {% if prompt.id == current_prompt_id %}selected{% endif %}>
+						  {% if prompt.is_favorite %}&#9733; {% endif %}{{ prompt.text }}
+						</option>
+						{% endfor %}
+					  </optgroup>
+					  {% endif %}
+					  <optgroup label="All Prompts">
+						{% for prompt in prompts %}
+						<option value="{{ prompt.id }}" {% if prompt.id == current_prompt_id %}selected{% endif %}>
+						  {% if prompt.is_favorite %}&#9733; {% endif %}{{ prompt.text }}
+						</option>
+						{% endfor %}
+					  </optgroup>
 					</select>
 				  </li>
 				  <li><hr class="dropdown-divider"></li>
@@ -252,61 +236,80 @@
 			  </div>
 			</div>
 
+            <div class="search-section">
+                <div class="search-input-container">
+                    <i class="fas fa-search search-input-icon"></i>
+                    <input type="text" class="search-input" id="message-search-input"
+                           placeholder="Search messages..." aria-label="Search messages"
+                           autocomplete="off">
+                    <button class="search-clear-btn" id="search-clear-btn" title="Clear search">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
 
+        <div class="list-group">
+
+            <div id="search-results-section">
+                <div class="search-results-header" aria-live="polite">
+                    <span id="search-results-count"></span>
+                </div>
+                <div class="search-results-list" id="search-results-list" role="listbox"></div>
+                <button class="search-load-more" id="search-load-more" style="display:none">
+                    Load more results <i class="fas fa-chevron-down"></i>
+                </button>
+                <div class="search-empty-state" id="search-empty-state" style="display:none">
+                    No messages found
+                </div>
+            </div>
 
             <div class="sidebar-section">
-                <h3>Bookmarks</h3>
+                <h3><i class="fas fa-bookmark sidebar-section-icon"></i> Bookmarks</h3>
                 <a href="#" id="my-bookmarks-btn" class="list-group-item list-group-item-action">
-                    <i class="fas fa-bookmark"></i> My Bookmarks
+                    My Bookmarks
                 </a>
             </div>
 
             <!-- Chat Folders Section -->
             <div class="sidebar-section folders-section">
-                <h3>Folders</h3>
-                <div id="chat-folders-container">
-                    <div class="new-folder-item" id="add-folder-btn" title="New Folder">
-                        <i class="fas fa-folder-plus"></i>
-                        <span>New Folder</span>
-                    </div>
-                </div>
+                <h3><i class="fas fa-folder sidebar-section-icon"></i> Folders <button type="button" class="btn-section-action" id="add-folder-header-btn" title="New Folder"><i class="fas fa-plus"></i></button></h3>
+                <div id="chat-folders-container"></div>
             </div>
 
             <div class="sidebar-section external-section" style="display: none;">
-                <h3>External</h3>
+                <h3><i class="fas fa-share-nodes sidebar-section-icon"></i> External</h3>
                 <div id="external-chats-container"></div>
             </div>
-            <div class="sidebar-section">
-                <h3>Chats</h3>
+            <div class="sidebar-section chats-section">
+                <h3><i class="fas fa-message sidebar-section-icon"></i> Chats</h3>
                 <div id="dynamic-chats-container"></div>
+                <button id="load-more-button" onclick="loadMoreConversations()">
+                    Load more <i class="fas fa-chevron-down"></i>
+                </button>
             </div>
-            <div id="dynamic-chats-container"></div>
-            <button id="load-more-button" onclick="loadMoreConversations()">
-                Load more <i class="fas fa-chevron-down"></i>
-            </button>
         </div>
 
-        <div class="user-info d-none d-md-block mt-2">
+        <div class="sidebar-user">
             <div id="user-balance" data-balance="{{ user_balance }}"></div>
-            <div class="dropdown d-inline-block">
-                <h5 class="mb-0 ml-2 d-inline dropdown-toggle" href="#" role="button" id="userDropdownDesktop" data-bs-toggle="dropdown" aria-expanded="false">
-                    {{ username }}
-                </h5>
+            <div class="user-avatar">
+                {% if user_profile_picture %}
+                <img src="{{ user_profile_picture }}" alt="" class="user-avatar-img">
+                {% else %}
+                {{ username[0]|upper }}
+                {% endif %}
+            </div>
+            <div class="dropdown">
+                <div class="user-info-text" role="button" id="userDropdownDesktop" data-bs-toggle="dropdown" aria-expanded="false">
+                    <div class="user-info-name">{{ username }}</div>
+                    <div class="user-info-role">
+                        {% if is_admin %}Administrator{% elif is_manager %}Manager{% else %}User{% endif %}
+                    </div>
+                </div>
                 <ul class="dropdown-menu" aria-labelledby="userDropdownDesktop">
-                    <li><a class="dropdown-item" href="/edit-profile"><i class="fas fa-user-edit"></i> Edit Profile</a></li>
-                    <li><a class="dropdown-item" href="/api-credentials"><i class="fas fa-key"></i> API Credentials</a></li>
-                    <li><a class="dropdown-item" href="/payment"><i class="fas fa-credit-card"></i> Payments</a></li>
+                    <li><a class="dropdown-item" href="/settings"><i class="fas fa-cog"></i> Settings</a></li>
                     <li><a class="dropdown-item" href="/media-gallery"><i class="fas fa-images"></i> Media Gallery</a></li>
-                    {% if is_manager or is_admin %}
                     <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item" href="/curation-settings"><i class="fas fa-layer-group"></i> Curation Settings</a></li>
-                    <li><a class="dropdown-item" href="/manager/team-billing"><i class="fas fa-users-cog"></i> Team Billing</a></li>
-                    <li><a class="dropdown-item" href="/my-branding"><i class="fas fa-palette"></i> My Branding</a></li>
-                    <li><a class="dropdown-item" href="/manager/landing-analytics"><i class="fas fa-chart-area"></i> Landing Analytics</a></li>
-                    <li><a class="dropdown-item" href="/my-earnings"><i class="fas fa-chart-line"></i> My Earnings</a></li>
-                    {% endif %}
-                    <li><hr class="dropdown-divider"></li>
-                    <!-- Theme submenu (hover only, no data-bs-toggle to avoid Bootstrap error) -->
                     <li class="dropend">
                       <a class="dropdown-item dropdown-toggle" href="#">
                         <i class="fas fa-palette"></i> Theme
@@ -318,18 +321,20 @@
                         <li><a class="dropdown-item theme-option" href="#" data-theme="coder">Coder</a></li>
                         <li><a class="dropdown-item theme-option" href="#" data-theme="terminal">Terminal</a></li>
                         <li><a class="dropdown-item theme-option" href="#" data-theme="eink">E-Ink</a></li>
-                        <li><a class="dropdown-item theme-option" href="#" data-theme="neumorphism">Neumorphism</a></li>
+                        <li><a class="dropdown-item theme-option" href="#" data-theme="nekoglass">Neko Glass</a></li>
                         <li><a class="dropdown-item theme-option" href="#" data-theme="frutigeraero">Frutiger Aero</a></li>
                         <li><a class="dropdown-item theme-option" href="#" data-theme="memphis">Memphis</a></li>
                         <li><a class="dropdown-item theme-option" href="#" data-theme="katarishoji">Katari Shoji</a></li>
                         <li><a class="dropdown-item theme-option" href="#" data-theme="xmas">Christmas</a></li>
                         <li><a class="dropdown-item theme-option" href="#" data-theme="halloween">Halloween</a></li>
                         <li><a class="dropdown-item theme-option" href="#" data-theme="valentinesday">Valentine's Day</a></li>
-                                              </ul>
+                      </ul>
                     </li>
                 </ul>
             </div>
-            <a href="/logout" class="btn btn-sm btn-danger ml-2">Log Out</a>
+            <a href="/logout" class="btn-logout" title="Log Out">
+                <i class="fas fa-right-from-bracket"></i>
+            </a>
         </div>
     </div>
 
@@ -359,6 +364,20 @@
                             </div>
                             <div class="model-dropdown-content" id="model-dropdown-content">
                                 <!-- Models will be populated by JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Extension Level Selector -->
+                    <div class="extension-selector-container" id="extension-selector-container" style="display: none;">
+                        <small class="extension-current-info" id="extension-current-name"></small>
+                        <i class="fas fa-chevron-down extension-dropdown-icon" id="extension-dropdown-icon"></i>
+                        <div class="extension-dropdown-menu" id="extension-dropdown-menu">
+                            <div class="extension-dropdown-header">
+                                <i class="fas fa-layer-group"></i>
+                                <span>Select Level</span>
+                            </div>
+                            <div class="extension-dropdown-content" id="extension-dropdown-content">
+                                <!-- Extensions populated by JS -->
                             </div>
                         </div>
                     </div>
@@ -419,12 +438,12 @@
 
         <div id="image-previews" class="hidden"></div>
 
-        <div class="nav-menu">
-            <button class="nav-button" title="Go to top" onclick="scrollToTop()">⏫</button>
-            <button class="nav-button" title="Go one message up" onclick="scrollUp()">↑</button>
-            <button class="nav-button" title="Go one message down" onclick="scrollDown()">↓</button>
-            <button class="nav-button" title="Go to bottom" onclick="scrollToBottom()">⏬</button>
-        </div>
+        <button id="scroll-top-btn" class="scroll-nav-btn scroll-top-btn" title="Scroll to top">
+            <i class="fas fa-chevron-up"></i>
+        </button>
+        <button id="scroll-bottom-btn" class="scroll-nav-btn scroll-bottom-btn" title="Scroll to bottom">
+            <i class="fas fa-chevron-down"></i>
+        </button>
 
         <!-- API Keys Required Banner -->
         {% if not can_send_messages %}
@@ -448,18 +467,45 @@
         <div class="message-input" id="message-input-container" {% if not can_send_messages %}data-disabled="true"{% endif %}>
             <form id="form-message" class="input-group" enctype="multipart/form-data">
                 <div class="input-container">
-                    <div class="input-icons">
-                        {% if have_vision %}
-                        <i class="fas fa-paperclip attach-icon" onclick="document.getElementById('image-files').click();" style="pointer-events: none;"></i>
-                        {% endif %}
-
-                        <div id="audio-control">
-                            <i class="fas fa-microphone" id="audio-button"></i>
+                    <!-- Plus Menu Dropdown -->
+                    <div class="plus-menu-wrapper" id="plus-menu-wrapper">
+                        <button type="button" class="plus-menu-btn" id="plus-menu-btn" title="Tools & attachments">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <div class="plus-menu-dropdown" id="plus-menu-dropdown">
+                            <div class="plus-menu-section">
+                                {% if have_vision %}
+                                <button type="button" class="plus-menu-item" id="plus-attach-files">
+                                    <i class="fas fa-paperclip"></i>
+                                    <span class="plus-menu-label">Attach files</span>
+                                </button>
+                                {% endif %}
+                                <button type="button" class="plus-menu-item" id="plus-record-audio">
+                                    <i class="fas fa-microphone"></i>
+                                    <span class="plus-menu-label">Record audio</span>
+                                </button>
+                            </div>
+                            <div class="plus-menu-section" id="plus-ai-section">
+                                <button type="button" class="plus-menu-item" id="plus-thinking-tokens" style="display: none;">
+                                    <i class="fas fa-brain"></i>
+                                    <span class="plus-menu-label">Thinking tokens</span>
+                                    <span class="plus-menu-badge" id="thinking-tokens-badge">Off</span>
+                                </button>
+                                <button type="button" class="plus-menu-item" id="plus-web-search" style="display: none;">
+                                    <i class="fas fa-globe"></i>
+                                    <span class="plus-menu-label">Web search</span>
+                                    <div class="plus-menu-toggle-switch" id="web-search-toggle-switch"></div>
+                                </button>
+                            </div>
+                            <div class="plus-menu-section">
+                                <button type="button" class="plus-menu-item" id="plus-voice-call" title="AI voice assistant">
+                                    <i class="voice-wave-icon"></i>
+                                    <span class="plus-menu-label">AI Voice</span>
+                                </button>
+                            </div>
                         </div>
-
-                        <!-- Thinking tokens control for Claude models -->
-                        <div id="thinking-tokens-control" style="display: none;">
-                            <i class="fas fa-brain thinking-tokens-icon" title="Thinking Tokens Budget"></i>
+                        <!-- Thinking tokens popup (standalone, position: fixed in CSS) -->
+                        <div id="thinking-tokens-control">
                             <div id="thinking-tokens-popup" class="thinking-tokens-popup" style="display: none;">
                                 <h4>Thinking Tokens Budget</h4>
                                 <p>Adjust thinking tokens for deeper reasoning (Claude 3.7/4+ only)</p>
@@ -478,17 +524,11 @@
                                 <button id="thinking-tokens-apply" class="btn btn-sm btn-primary">Apply</button>
                             </div>
                         </div>
-
-                        <!-- Web Search Toggle -->
-                        <div id="web-search-control">
-                            <i class="fas fa-globe web-search-icon" id="web-search-button" title="Web Search"></i>
-                        </div>
                     </div>
+                    <!-- Hidden audio button for audio.js compatibility -->
+                    <i class="fas fa-microphone" id="audio-button" style="display: none;"></i>
                     <textarea id="message-text" class="form-control" placeholder="Write a message" rows="1" disabled></textarea>
                     <div class="send-controls">
-                        <div class="voice-call-control">
-                            <i class="fas fa-phone-volume" id="voice-call-button" title="Real-time call"></i>
-                        </div>
                         <button class="btn send-btn" type="submit" id="send-button" onclick="handleSendButtonClick(event)" disabled>
                             <span class="send-label">Send</span>
                             <span class="send-icon" aria-hidden="true"></span>
@@ -619,9 +659,10 @@
     <script src="{{ get_static_url('/static/js/chat/audio.js') }}"></script>
     <script src="{{ get_static_url('/static/js/chat/main.js') }}"></script>
     <script src="{{ get_static_url('/static/js/chat/chat.js') }}"></script>
-
+    <script src="{{ get_static_url('/static/js/chat/message-search.js') }}"></script>
     <script src="{{ get_static_url('/static/js/chat/folders.js') }}"></script>
     <script src="{{ get_static_url('/static/js/themeManager.js') }}"></script>
+    <script src="{{ get_static_url('/static/js/nekoglass-controls.js') }}"></script>
     <script src="/sdk/elevenlabs-client.js"></script>
     <script src="{{ get_static_url('/static/js/chat/voice-call.js') }}"></script>
     <script>

@@ -179,7 +179,7 @@
                 <h6 class="mb-3">Scenario D: With Curator Markup</h6>
                 <div class="preview-item">
                     <span>Base (API + Margin):</span>
-                    <span id="previewResellerBase">$11.00</span>
+                    <span id="previewReferralBase">$11.00</span>
                 </div>
                 <div class="preview-item">
                     <span>Creator Markup:</span>
@@ -191,20 +191,20 @@
                 </div>
                 <div class="preview-item fw-bold">
                     <span>User Pays:</span>
-                    <span id="previewResellerTotal">$20.00</span>
+                    <span id="previewReferralTotal">$20.00</span>
                 </div>
                 <hr class="my-2 opacity-50">
                 <div class="preview-item text-success">
                     <span>Creator Earns:</span>
-                    <span id="previewResellerCreator">$4.20</span>
+                    <span id="previewReferralCreator">$4.20</span>
                 </div>
                 <div class="preview-item text-info">
                     <span>Curator Earns:</span>
-                    <span id="previewResellerEarning">$2.10</span>
+                    <span id="previewReferralEarning">$2.10</span>
                 </div>
                 <div class="preview-item text-warning">
                     <span>Total Platform:</span>
-                    <span id="previewResellerPlatform">$3.70</span>
+                    <span id="previewReferralPlatform">$3.70</span>
                 </div>
             </div>
         </div>
@@ -216,7 +216,7 @@
 <script>
     const API_COST = 10;  // Example $10/Mtokens
     const CREATOR_MARKUP = 6;  // Example $6/Mtokens
-    const RESELLER_MARKUP = 3;  // Example $3/Mtokens
+    const REFERRAL_MARKUP = 3;  // Example $3/Mtokens
 
     function updatePreview() {
         const marginFree = parseFloat(document.getElementById('pricing_margin_free').value) || 0;
@@ -246,18 +246,18 @@
         document.getElementById('previewCreatorEarnings').textContent = `$${creatorEarnings.toFixed(2)}`;
         document.getElementById('previewPlatformCommission').textContent = `$${platformCommission.toFixed(2)}`;
 
-        // Scenario D: With reseller
-        const resellerBase = API_COST + paidMargin;
-        const resellerTotal = resellerBase + CREATOR_MARKUP + RESELLER_MARKUP;
-        const resellerCreatorEarnings = CREATOR_MARKUP * (creatorPercent / 100);
-        const resellerEarnings = RESELLER_MARKUP * (creatorPercent / 100);
-        const totalPlatform = paidMargin + (CREATOR_MARKUP + RESELLER_MARKUP) * (commission / 100);
+        // Scenario D: With referral
+        const referralBase = API_COST + paidMargin;
+        const referralTotal = referralBase + CREATOR_MARKUP + REFERRAL_MARKUP;
+        const referralCreatorEarnings = CREATOR_MARKUP * (creatorPercent / 100);
+        const referralEarnings = REFERRAL_MARKUP * (creatorPercent / 100);
+        const totalPlatform = paidMargin + (CREATOR_MARKUP + REFERRAL_MARKUP) * (commission / 100);
 
-        document.getElementById('previewResellerBase').textContent = `$${resellerBase.toFixed(2)}`;
-        document.getElementById('previewResellerTotal').textContent = `$${resellerTotal.toFixed(2)}`;
-        document.getElementById('previewResellerCreator').textContent = `$${resellerCreatorEarnings.toFixed(2)}`;
-        document.getElementById('previewResellerEarning').textContent = `$${resellerEarnings.toFixed(2)}`;
-        document.getElementById('previewResellerPlatform').textContent = `$${totalPlatform.toFixed(2)}`;
+        document.getElementById('previewReferralBase').textContent = `$${referralBase.toFixed(2)}`;
+        document.getElementById('previewReferralTotal').textContent = `$${referralTotal.toFixed(2)}`;
+        document.getElementById('previewReferralCreator').textContent = `$${referralCreatorEarnings.toFixed(2)}`;
+        document.getElementById('previewReferralEarning').textContent = `$${referralEarnings.toFixed(2)}`;
+        document.getElementById('previewReferralPlatform').textContent = `$${totalPlatform.toFixed(2)}`;
     }
 
     // Initial preview update

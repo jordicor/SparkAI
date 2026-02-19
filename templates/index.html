@@ -5,16 +5,66 @@
 {% block styles %}
 {# Theme CSS loaded by theme-loader.js #}
 <style>
-    .btn-block {
+    /* Dashboard card link items */
+    .dashboard-card-link {
         display: block;
-        width: 100%;
+        padding: 7px 0;
+        color: var(--text-primary);
+        text-decoration: none;
+        font-size: 0.88rem;
+        transition: all 0.15s;
+        border-radius: 4px;
     }
-    .card-body .btn {
-        margin-bottom: 10px;
+    .dashboard-card-link:hover {
+        color: var(--accent);
+        padding-left: 6px;
     }
-    .card-body .btn:last-child {
-        margin-bottom: 0;
+    .dashboard-card-link i {
+        width: 18px;
+        text-align: center;
+        margin-right: 8px;
+        color: var(--text-muted);
+        font-size: 0.8rem;
     }
+    .dashboard-card-link:hover i { color: var(--accent); }
+
+    /* Role badges */
+    .dashboard-badge-role {
+        font-size: 0.7rem;
+        padding: 3px 10px;
+        border-radius: 10px;
+        font-weight: 700;
+    }
+    .dashboard-badge-manager {
+        background: var(--bg-tertiary);
+        color: var(--accent);
+        border: 1px solid var(--accent);
+    }
+    .dashboard-badge-admin {
+        background: var(--bg-tertiary);
+        color: var(--danger);
+        border: 1px solid var(--danger);
+    }
+
+    /* Landing pages widget */
+    .landing-widget {
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 12px;
+        margin-top: 8px;
+    }
+
+    /* Toggle label for switches */
+    .dashboard-toggle-label {
+        font-size: 0.85rem;
+        color: var(--text-primary);
+    }
+    .dashboard-toggle-label i {
+        color: var(--text-muted);
+    }
+
+    /* Cache options panel */
     .cache-options {
         display: none;
         margin-top: 10px;
@@ -45,99 +95,78 @@
 {% block content %}
 <div class="container mt-3">
     <div class="row">
-        <!-- User Panel (visible for all users) -->
-        <div class="col-md-12 mb-4">
-            <h3 class="text-center mb-4">User Panel</h3>
-            <div class="row">
-                <div class="col-md-4 mb-4">
-                    <div class="section-container h-100">
-                        <div class="section-title"><i class="fas fa-user"></i> Profile Management</div>
-                        <div class="d-flex flex-column">
-                            <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/edit-profile';">Edit Profile</button>
-                            {% if can_change_password %}<button type="button" class="btn btn-outline-primary btn-block" onclick="window.location.href='/change-password';">Change Password</button>{% endif %}
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4 mb-4">
-                    <div class="section-container h-100">
-                        <div class="section-title"><i class="fas fa-comments"></i> Chat Functions</div>
-                        <div class="d-flex flex-column">
-                            <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/chat';">Start Chat</button>
-                            <button type="button" class="btn btn-outline-primary btn-block" onclick="window.location.href='/media-gallery';">Media Gallery</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4 mb-4">
-                    <div class="section-container h-100">
-                        <div class="section-title"><i class="fas fa-credit-card"></i> Payment</div>
-                        <div class="d-flex flex-column">
-                            <div class="p-2 text-center mb-3">
-                                <strong>Balance:</strong> ${{ "%.2f"|format(user_balance) }}
-                            </div>
-                            <button type="button" class="btn btn-outline-primary btn-block" onclick="window.location.href='/payment';">Payment</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Manager Panel (visible for managers and admins) -->
+        <!-- Business Tools (visible for managers and admins) -->
         {% if is_manager or is_admin %}
         <div class="col-md-12 mb-4">
-            <h3 class="text-center mb-4">Manager Panel</h3>
+            <div class="d-flex align-items-center justify-content-center gap-2 mb-4">
+                <h5 class="fw-bold mb-0" style="font-size:1rem;">Business Tools</h5>
+                <span class="dashboard-badge-role dashboard-badge-manager">Manager</span>
+            </div>
             <div class="row">
+                <!-- Content card -->
+                <div class="col-md-4 mb-4">
+                    <div class="section-container h-100">
+                        <div class="section-title"><i class="fas fa-file-alt"></i> Content</div>
+                        <div class="d-flex flex-column">
+                            <a href="/prompts" class="dashboard-card-link"><i class="fas fa-magic"></i> Prompts Management</a>
+                            <a href="/admin/packs" class="dashboard-card-link"><i class="fas fa-box-open"></i> Manage Packs</a>
+                            <a href="/admin/elevenlabs-agents" class="dashboard-card-link"><i class="fas fa-headset"></i> ElevenLabs Agents</a>
+                            <!-- Landing Pages subsection -->
+                            <hr class="my-2">
+                            <div class="section-title" style="font-size: 0.9rem; margin-bottom: 0.5rem;">
+                                <i class="fas fa-globe"></i> Landing Pages
+                                <span class="info-icon ms-auto" data-bs-toggle="tooltip" data-bs-placement="top"
+                                      title="Create a public landing page for your AI assistant. Use it to showcase your prompt, attract users, or present your AI companion.">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                                        <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+                                    </svg>
+                                </span>
+                            </div>
+                            {% if manageable_prompts %}
+                            <div class="landing-widget">
+                                <div class="input-group mb-2" style="height: calc(1.5em + 0.75rem + 2px);">
+                                    <select class="form-select" id="prompt" name="prompt_id" style="height: 100%; padding-block: 0;">
+                                        {% for prompt in manageable_prompts %}
+                                        <option value="{{ prompt.id }}" data-created-by="{{ prompt.created_by_username }}" data-public-id="{{ prompt.public_id }}" data-name="{{ prompt.name }}" data-custom-domain="{{ prompt.custom_domain or '' }}">{{ prompt.text }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <button type="button" class="btn btn-outline-secondary" style="height: 100%;" onclick="viewPublicProfile()" title="View public landing page">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                            <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+                                            <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <button type="button" class="btn btn-outline-primary btn-sm w-100" onclick="configurePublicProfile()">Configure Landing Page</button>
+                            </div>
+                            {% else %}
+                            <p class="text-muted mb-0" style="font-size:0.85rem;">You don't have any prompts to configure. <a href="/prompts/new">Create your first prompt</a>.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <!-- Business card -->
+                <div class="col-md-4 mb-4">
+                    <div class="section-container h-100">
+                        <div class="section-title"><i class="fas fa-chart-line"></i> Business</div>
+                        <div class="d-flex flex-column">
+                            <a href="/my-earnings" class="dashboard-card-link"><i class="fas fa-dollar-sign"></i> My Earnings</a>
+                            <a href="/curation-settings" class="dashboard-card-link"><i class="fas fa-star"></i> Curation Settings</a>
+                            <a href="/my-branding" class="dashboard-card-link"><i class="fas fa-paint-brush"></i> My Branding</a>
+                            <a href="/my-storefront" class="dashboard-card-link"><i class="fas fa-store"></i> My Storefront</a>
+                            <a href="/manager/landing-analytics" class="dashboard-card-link"><i class="fas fa-chart-area"></i> Landing Analytics</a>
+                        </div>
+                    </div>
+                </div>
+                <!-- User Management card -->
                 <div class="col-md-4 mb-4">
                     <div class="section-container h-100">
                         <div class="section-title"><i class="fas fa-users"></i> User Management</div>
                         <div class="d-flex flex-column">
-                            <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/create-user';">Create User</button>
-                            <button type="button" class="btn btn-outline-primary btn-block" onclick="window.location.href='/users-list';">Manage Users</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4 mb-4">
-                    <div class="section-container h-100">
-                        <div class="section-title"><i class="fas fa-file-alt"></i> Content Management</div>
-                        <div class="d-flex flex-column">
-                            <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/prompts';">Prompts Management</button>
-                            <button type="button" class="btn btn-outline-primary btn-block" onclick="window.location.href='/admin/elevenlabs-agents';">ElevenLabs Agents</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4 mb-4">
-                    <div class="section-container h-100">
-                        <div class="section-title">
-                            <i class="fas fa-globe"></i> Public Profile
-                            <span class="text-muted section-title-hint">- Select a prompt</span>
-                            <span class="info-icon ms-auto" data-bs-toggle="tooltip" data-bs-placement="top"
-                                  title="Create a public landing page for your AI assistant. Use it to showcase your prompt, attract users, or present your AI companion.">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                    <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
-                                    <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
-                                </svg>
-                            </span>
-                        </div>
-                        <div class="d-flex flex-column">
-                            {% if manageable_prompts %}
-                            <div class="input-group mb-3" style="height: calc(1.5em + 0.75rem + 2px);">
-                                <select class="form-select" id="prompt" name="prompt_id" style="height: 100%; padding-block: 0;">
-                                    {% for prompt in manageable_prompts %}
-                                    <option value="{{ prompt.id }}" data-created-by="{{ prompt.created_by_username }}" data-public-id="{{ prompt.public_id }}" data-name="{{ prompt.name }}" data-custom-domain="{{ prompt.custom_domain or '' }}">{{ prompt.text }}</option>
-                                    {% endfor %}
-                                </select>
-                                <button type="button" class="btn btn-outline-secondary" style="height: 100%;" onclick="viewPublicProfile()" title="View public landing page">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                        <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
-                                        <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
-                                    </svg>
-                                </button>
-                            </div>
-                            <button type="button" class="btn btn-outline-primary btn-block" onclick="configurePublicProfile()">
-                                Configure Public Profile
-                            </button>
-                            {% else %}
-                            <p class="text-muted mb-0">You don't have any prompts to configure. <a href="/prompts/new">Create your first prompt</a>.</p>
-                            {% endif %}
+                            <a href="/create-user" class="dashboard-card-link"><i class="fas fa-user-plus"></i> Create User</a>
+                            <a href="/users-list" class="dashboard-card-link"><i class="fas fa-users-cog"></i> Manage Users</a>
+                            <a href="/manager/team-billing" class="dashboard-card-link"><i class="fas fa-file-invoice-dollar"></i> Team Billing</a>
                         </div>
                     </div>
                 </div>
@@ -145,75 +174,101 @@
         </div>
         {% endif %}
 
-        <!-- Admin Panel (visible only for admins) -->
+        <!-- Platform (visible only for admins) -->
         {% if is_admin %}
         <div class="col-md-12">
-            <h3 class="text-center mb-4">Root Panel</h3>
+            <div class="d-flex align-items-center justify-content-center gap-2 mb-4">
+                <h5 class="fw-bold mb-0" style="font-size:1rem;">Platform</h5>
+                <span class="dashboard-badge-role dashboard-badge-admin">Admin</span>
+            </div>
             <div class="row">
+                <!-- AI & Models card -->
                 <div class="col-md-4 mb-4">
                     <div class="section-container h-100">
-                        <div class="section-title"><i class="fas fa-robot"></i> Content Management</div>
+                        <div class="section-title"><i class="fas fa-robot"></i> AI & Models</div>
                         <div class="d-flex flex-column">
-                            <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/admin/llms';">LLM Management</button>
-                            <button type="button" class="btn btn-outline-secondary btn-block mb-3" onclick="window.location.href='/admin/openrouter';">OpenRouter Models</button>
-                            <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/admin/voices';">Voices Management</button>
-                            <button type="button" class="btn btn-outline-primary btn-block" onclick="window.location.href='/admin/services';">Service Management</button>
+                            <a href="/admin/llms" class="dashboard-card-link"><i class="fas fa-brain"></i> LLM Management</a>
+                            <a href="/admin/openrouter" class="dashboard-card-link"><i class="fas fa-route"></i> OpenRouter Models</a>
+                            <a href="/admin/voices" class="dashboard-card-link"><i class="fas fa-microphone-alt"></i> Voices Management</a>
+                            <a href="/admin/services" class="dashboard-card-link"><i class="fas fa-server"></i> Service Management</a>
                         </div>
                     </div>
                 </div>
+                <!-- Operations card -->
                 <div class="col-md-4 mb-4">
                     <div class="section-container h-100">
-                        <div class="section-title"><i class="fas fa-cogs"></i> Other Functions</div>
+                        <div class="section-title"><i class="fas fa-cogs"></i> Operations</div>
                         <div class="d-flex flex-column">
-                            <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/admin/task-manager';">Task Manager</button>
-                            <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/admin/chat';">Admin Chat</button>
-                            <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/admin/usage';">Platform Usage</button>
-                            <button type="button" class="btn btn-outline-danger btn-block mb-3" onclick="window.location.href='/admin/security';">Security Operations</button>
-                            <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/admin/categories';">Manage Categories</button>
-                            <button type="button" class="btn btn-outline-danger btn-block" onclick="toggleCacheOptions()">Clean Audio Cache</button>
-                            <div id="cacheOptions" class="cache-options">
-                                <div class="form-check mb-2">
-                                    <input class="form-check-input" type="radio" name="cacheOption" id="deleteAll" value="all">
-                                    <label class="form-check-label" for="deleteAll">
-                                        Delete Everything
-                                    </label>
-                                </div>
-                                <div class="form-check mb-2">
-                                    <input class="form-check-input" type="radio" name="cacheOption" id="deleteOlder" value="older" checked>
-                                    <label class="form-check-label" for="deleteOlder">
-                                        Delete older than:
-                                    </label>
-                                </div>
-                                <div class="input-group mb-3">
-                                    <input type="number" class="form-control" id="cacheTime" value="1" min="1">
-                                    <select class="form-select" id="cacheTimeUnit">
-                                        <option value="h">Hours</option>
-                                        <option value="d">Days</option>
-                                        <option value="w">Weeks</option>
-                                        <option value="m">Months</option>
-                                    </select>
-                                    <button class="btn btn-outline-secondary" type="button" onclick="clearAudioCache()">Clean</button>
+                            <a href="/admin/task-manager" class="dashboard-card-link"><i class="fas fa-tasks"></i> Task Manager</a>
+                            <a href="/admin/chat" class="dashboard-card-link"><i class="fas fa-comments"></i> Admin Chat</a>
+                            <a href="/admin/usage" class="dashboard-card-link"><i class="fas fa-chart-pie"></i> Platform Usage</a>
+                            <a href="/admin/security" class="dashboard-card-link" style="color:var(--danger);"><i class="fas fa-shield-alt" style="color:var(--danger);"></i> Security Operations</a>
+                            <a href="/admin/security-guard" class="dashboard-card-link" style="color:var(--danger);"><i class="fas fa-user-shield" style="color:var(--danger);"></i> Security Guard</a>
+                            <a href="/admin/watchdog-events" class="dashboard-card-link" style="color:var(--warning);"><i class="fas fa-dog" style="color:var(--warning);"></i> Watchdog Events</a>
+                            <a href="/admin/categories" class="dashboard-card-link"><i class="fas fa-tags"></i> Manage Categories</a>
+                            <a href="/admin/whatsapp" class="dashboard-card-link" style="color: #25D366;"><i class="fab fa-whatsapp" style="color: #25D366;"></i> WhatsApp</a>
+                            <!-- Clean Audio Cache -->
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-outline-danger btn-sm w-100" onclick="toggleCacheOptions()"><i class="fas fa-broom me-1"></i> Clean Audio Cache</button>
+                                <div id="cacheOptions" class="cache-options">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="radio" name="cacheOption" id="deleteAll" value="all">
+                                        <label class="form-check-label" for="deleteAll">
+                                            Delete Everything
+                                        </label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="radio" name="cacheOption" id="deleteOlder" value="older" checked>
+                                        <label class="form-check-label" for="deleteOlder">
+                                            Delete older than:
+                                        </label>
+                                    </div>
+                                    <div class="input-group mb-3">
+                                        <input type="number" class="form-control" id="cacheTime" value="1" min="1">
+                                        <select class="form-select" id="cacheTimeUnit">
+                                            <option value="h">Hours</option>
+                                            <option value="d">Days</option>
+                                            <option value="w">Weeks</option>
+                                            <option value="m">Months</option>
+                                        </select>
+                                        <button class="btn btn-outline-secondary" type="button" onclick="clearAudioCache()">Clean</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
+                <!-- Infrastructure card -->
                 <div class="col-md-4 mb-4">
                     <div class="section-container h-100">
-                        <div class="section-title"><i class="fas fa-cloud"></i> External Services</div>
+                        <div class="section-title"><i class="fas fa-cloud"></i> Infrastructure</div>
                         <div class="d-flex flex-column">
-                            <button type="button" class="btn btn-outline-primary btn-block mb-3" onclick="window.location.href='/admin/discount-list';">Manage Discounts</button>
-                            <button type="button" class="btn btn-outline-warning btn-block mb-3" onclick="disableCloudflareCache()">Disable Cloudflare Cache</button>
-                            <button type="button" class="btn btn-outline-info btn-block mb-3" id="devModeBtn" onclick="toggleDevMode()">
-                                <i class="fas fa-code"></i> <span id="devModeStatus">Enable</span> Dev Mode (No Cache)
-                            </button>
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <span>CAPTCHA (Login/Register)</span>
+                            <a href="/admin/pricing" class="dashboard-card-link"><i class="fas fa-tags"></i> Admin Pricing</a>
+                            <a href="/admin/ranking" class="dashboard-card-link"><i class="fas fa-sort-amount-down"></i> Ranking Config</a>
+                            <a href="/admin/discount-list" class="dashboard-card-link"><i class="fas fa-percent"></i> Manage Discounts</a>
+                            <!-- Dev Mode toggle -->
+                            <div class="d-flex justify-content-between align-items-center mb-2 px-1">
+                                <span class="dashboard-toggle-label">
+                                    <i class="fas fa-code me-1"></i> Dev Mode
+                                </span>
+                                <div class="form-check form-switch mb-0">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="devModeToggle" onchange="toggleDevMode()">
+                                </div>
+                            </div>
+                            <!-- CAPTCHA toggle -->
+                            <div class="d-flex justify-content-between align-items-center mb-2 px-1">
+                                <span class="dashboard-toggle-label">
+                                    <i class="fas fa-robot me-1"></i> CAPTCHA
+                                </span>
                                 <div class="form-check form-switch mb-0">
                                     <input class="form-check-input" type="checkbox" role="switch" id="captchaToggle" {% if captcha_enabled %}checked{% endif %} onchange="toggleCaptcha(this.checked)">
                                 </div>
                             </div>
-                            <small class="text-muted">Disable for development/testing</small>
+                            <small class="text-muted px-1">Disable for development/testing</small>
+                            <!-- Cloudflare -->
+                            <div class="mt-2 mb-2">
+                                <button type="button" class="btn btn-outline-warning btn-sm w-100" onclick="disableCloudflareCache()"><i class="fas fa-exclamation-triangle me-1"></i> Disable Cloudflare Cache</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -289,33 +344,23 @@
     }
 
     function toggleDevMode() {
-        const current = document.cookie.includes('devMode=true');
-        if (current) {
-            // Disable dev mode
-            document.cookie = 'devMode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-            updateDevModeButton(false);
-            NotificationModal.info('Dev Mode', 'Dev mode disabled. Browser will use cached files.');
-        } else {
-            // Enable dev mode (expires in 24h)
+        const toggle = document.getElementById('devModeToggle');
+        const enabled = toggle.checked;
+        if (enabled) {
             document.cookie = 'devMode=true; path=/; max-age=86400';
-            updateDevModeButton(true);
             NotificationModal.info('Dev Mode', 'Dev mode enabled. Reload the page to get fresh files from nginx.');
+        } else {
+            document.cookie = 'devMode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+            NotificationModal.info('Dev Mode', 'Dev mode disabled. Browser will use cached files.');
         }
     }
 
     function updateDevModeButton(enabled) {
-        const statusSpan = document.getElementById('devModeStatus');
-        const btn = document.getElementById('devModeBtn');
-        if (statusSpan) {
-            statusSpan.textContent = enabled ? 'Disable' : 'Enable';
-        }
-        if (btn) {
-            btn.classList.toggle('btn-outline-info', !enabled);
-            btn.classList.toggle('btn-info', enabled);
-        }
+        const toggle = document.getElementById('devModeToggle');
+        if (toggle) toggle.checked = enabled;
     }
 
-    // Update dev mode button state on page load
+    // Update dev mode toggle state on page load
     document.addEventListener('DOMContentLoaded', function() {
         updateDevModeButton(document.cookie.includes('devMode=true'));
     });

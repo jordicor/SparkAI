@@ -361,7 +361,9 @@ async def handle_generate_video(function_arguments, messages, model, temperature
                 else:
                     await asyncio.sleep(0.1)
         
-        await deduct_balance(user_id, video_cost)
+        deducted = await deduct_balance(user_id, video_cost)
+        if not deducted:
+            print(f"WARNING: Failed to deduct video generation cost for user {user_id} - insufficient balance")
         await record_daily_usage(
             user_id=user_id,
             usage_type='video',

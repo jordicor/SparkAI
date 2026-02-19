@@ -254,7 +254,7 @@
 
             <!-- Section 6: Category Access (visible when public prompts enabled) -->
             <div class="section-container" id="categoryAccessSection" style="{% if not user_data.public_prompts_access %}display: none;{% endif %}">
-                <div class="section-title"><i class="fas fa-tags me-2"></i>Category Access (Curator Mode)</div>
+                <div class="section-title"><i class="fas fa-tags me-2"></i>Category Access</div>
                 <p class="text-muted small mb-3">Select which categories of public prompts this user can access. Leave "All Categories" checked to give access to all.</p>
                 <div class="mb-3 form-check">
                     <input type="checkbox" class="form-check-input" id="allowAllCategories" name="allow_all_categories" {% if not user_data.category_access %}checked{% endif %} onchange="toggleCategorySelection()">
@@ -284,9 +284,9 @@
                 </div>
             </div>
 
-            <!-- Section 7: Billing Mode (Enterprise) -->
+            <!-- Section 7: Team Billing -->
             <div class="section-container" id="billingModeSection">
-                <div class="section-title"><i class="fas fa-credit-card me-2"></i>Billing Mode (Enterprise)</div>
+                <div class="section-title"><i class="fas fa-credit-card me-2"></i>Team Billing</div>
                 <p class="text-muted small mb-3">Choose who pays for this user's AI consumption.</p>
 
                 <div class="mb-3">
@@ -300,13 +300,13 @@
                     <div class="form-check mt-2">
                         <input type="radio" class="form-check-input" name="billing_mode" value="manager_pays" id="billingManagerPays" {% if user_data.billing_account_id %}checked{% endif %} onchange="toggleBillingOptions()">
                         <label class="form-check-label" for="billingManagerPays">
-                            <strong>I pay for this user (Enterprise Mode)</strong>
+                            <strong>I cover this user's AI usage costs</strong>
                             <br><small class="text-muted">All AI costs will be charged to YOUR balance.</small>
                         </label>
                     </div>
                 </div>
 
-                <div id="enterpriseBillingOptions" style="{% if not user_data.billing_account_id %}display: none;{% endif %}" class="border rounded p-3 bg-light">
+                <div id="teamBillingOptions" style="{% if not user_data.billing_account_id %}display: none;{% endif %}" class="border rounded p-3 bg-light">
                     <div class="mb-3">
                         <label class="form-label">Monthly Spending Limit</label>
                         <div class="form-check">
@@ -489,7 +489,7 @@
         }
     });
 
-    // Category access handler (Reseller Mode)
+    // Category access handler (Curation)
     const publicPromptsCheckbox = document.getElementById('publicPromptsAccess');
     const categoryAccessSection = document.getElementById('categoryAccessSection');
 
@@ -529,10 +529,10 @@
     window.selectAllCategories = selectAllCategories;
     window.deselectAllCategories = deselectAllCategories;
 
-    // Billing mode functions (Enterprise)
+    // Team Billing functions
     function toggleBillingOptions() {
         const managerPays = document.getElementById('billingManagerPays').checked;
-        const optionsDiv = document.getElementById('enterpriseBillingOptions');
+        const optionsDiv = document.getElementById('teamBillingOptions');
         optionsDiv.style.display = managerPays ? 'block' : 'none';
 
         if (!managerPays) {

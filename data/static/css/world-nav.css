@@ -1,0 +1,390 @@
+/* ==========================================================================
+   Spark World Navbar
+   Floating translucent navbar for welcome world pages.
+   Self-contained — no dependency on platform theme variables.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Base Navbar
+   -------------------------------------------------------------------------- */
+.spark-world-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    background: rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.92);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    transform: translateY(0);
+    transition: transform 0.3s ease;
+    box-sizing: border-box;
+}
+
+/* Auto-hide state */
+.spark-world-nav--hidden {
+    transform: translateY(-100%);
+}
+
+/* --------------------------------------------------------------------------
+   Left Section (Logo + Product Switcher)
+   -------------------------------------------------------------------------- */
+.spark-world-nav-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+/* Logo */
+.spark-world-nav-logo-link {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    flex-shrink: 0;
+}
+
+.spark-world-nav-logo {
+    max-height: 28px;
+    width: auto;
+    filter: brightness(1.1);
+    opacity: 0.9;
+    transition: opacity 0.2s ease;
+}
+
+.spark-world-nav-logo:hover {
+    opacity: 1;
+}
+
+/* --------------------------------------------------------------------------
+   Product Switcher
+   -------------------------------------------------------------------------- */
+.spark-world-nav-switcher {
+    position: relative;
+    min-width: 0;
+}
+
+.spark-world-nav-current {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    color: inherit;
+    font: inherit;
+    text-shadow: inherit;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
+    min-width: 0;
+}
+
+.spark-world-nav-current:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.spark-world-nav-product-name {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+/* Chevron */
+.spark-world-nav-chevron {
+    font-size: 10px;
+    opacity: 0.7;
+    transition: transform 0.25s ease, opacity 0.2s ease;
+    flex-shrink: 0;
+}
+
+.spark-world-nav-chevron--open {
+    transform: rotate(180deg);
+}
+
+.spark-world-nav-current:hover .spark-world-nav-chevron {
+    opacity: 1;
+}
+
+/* --------------------------------------------------------------------------
+   Dropdown
+   -------------------------------------------------------------------------- */
+.spark-world-nav-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    min-width: 220px;
+    max-width: 320px;
+    max-height: 400px;
+    overflow-y: auto;
+    background: rgba(15, 15, 20, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-4px);
+    transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
+    padding: 4px 0;
+}
+
+.spark-world-nav-dropdown--open {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+/* Dropdown scrollbar */
+.spark-world-nav-dropdown::-webkit-scrollbar {
+    width: 6px;
+}
+
+.spark-world-nav-dropdown::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.spark-world-nav-dropdown::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+}
+
+.spark-world-nav-dropdown::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+/* Dropdown Item */
+.spark-world-nav-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    color: rgba(255, 255, 255, 0.85);
+    text-decoration: none;
+    text-shadow: none;
+    transition: background-color 0.15s ease;
+    cursor: pointer;
+}
+
+.spark-world-nav-dropdown-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+/* Active item */
+.spark-world-nav-dropdown-item--active {
+    background: rgba(99, 102, 241, 0.2);
+    border-left: 2px solid rgba(99, 102, 241, 0.8);
+    padding-left: 12px;
+}
+
+.spark-world-nav-dropdown-item--active:hover {
+    background: rgba(99, 102, 241, 0.3);
+}
+
+/* Dropdown Avatar */
+.spark-world-nav-dropdown-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* Avatar Placeholder */
+.spark-world-nav-dropdown-avatar-placeholder {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(99, 102, 241, 0.35);
+    color: rgba(255, 255, 255, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+/* Dropdown Name */
+.spark-world-nav-dropdown-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 13px;
+}
+
+/* --------------------------------------------------------------------------
+   Right Section (Nav Buttons)
+   -------------------------------------------------------------------------- */
+.spark-world-nav-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.spark-world-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    color: rgba(255, 255, 255, 0.9);
+    text-decoration: none;
+    text-shadow: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    white-space: nowrap;
+}
+
+.spark-world-nav-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.spark-world-nav-btn i {
+    font-size: 14px;
+}
+
+/* Chat button - slightly more prominent */
+.spark-world-nav-btn--accent {
+    background: rgba(99, 102, 241, 0.3);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+}
+
+.spark-world-nav-btn--accent:hover {
+    background: rgba(99, 102, 241, 0.5);
+}
+
+/* --------------------------------------------------------------------------
+   Back to Pack Button
+   -------------------------------------------------------------------------- */
+.spark-world-nav-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.75);
+    text-decoration: none;
+    text-shadow: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    white-space: nowrap;
+}
+
+.spark-world-nav-back:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.spark-world-nav-back i {
+    font-size: 10px;
+    transition: transform 0.2s ease;
+}
+
+.spark-world-nav-back:hover i {
+    transform: translateX(-2px);
+}
+
+/* --------------------------------------------------------------------------
+   Settings Dropdown
+   -------------------------------------------------------------------------- */
+.spark-world-nav-settings {
+    position: relative;
+}
+
+.spark-world-nav-settings-dropdown {
+    right: 0;
+    left: auto;
+    min-width: 180px;
+}
+
+/* --------------------------------------------------------------------------
+   Page Transitions (crossfade between worlds)
+   -------------------------------------------------------------------------- */
+@keyframes spark-world-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.spark-world-page {
+    animation: spark-world-fade-in 0.35s ease both;
+}
+
+.spark-world-fade-out {
+    opacity: 0 !important;
+    transition: opacity 0.25s ease !important;
+}
+
+/* --------------------------------------------------------------------------
+   Mobile Responsive
+   -------------------------------------------------------------------------- */
+@media (max-width: 767px) {
+    .spark-world-nav {
+        padding: 0 12px;
+    }
+
+    /* Hide button text labels on mobile */
+    .spark-world-nav-btn-text {
+        display: none;
+    }
+
+    /* Compact buttons on mobile */
+    .spark-world-nav-btn {
+        padding: 6px 10px;
+    }
+
+    /* Tighter product name */
+    .spark-world-nav-product-name {
+        max-width: 140px;
+    }
+
+    /* Full-width dropdown on mobile */
+    .spark-world-nav-dropdown {
+        position: fixed;
+        left: 0;
+        right: 0;
+        top: 48px;
+        max-width: none;
+        border-radius: 0 0 8px 8px;
+    }
+
+    /* Settings dropdown full width on mobile */
+    .spark-world-nav-settings-dropdown {
+        position: fixed;
+        left: 0;
+        right: 0;
+        top: 48px;
+        max-width: none;
+        border-radius: 0 0 8px 8px;
+    }
+
+    /* Hide back-to-pack text on mobile, show only arrow */
+    .spark-world-nav-back span {
+        display: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .spark-world-nav-product-name {
+        max-width: 100px;
+    }
+}

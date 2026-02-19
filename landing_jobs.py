@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Landing Jobs - Async job management for landing page generation.
+Landing Jobs - Async job management for landing page and welcome page generation.
 
-Handles background execution of Claude Code for landing page generation/modification,
+Handles background execution of Claude Code for landing/welcome page generation/modification,
 with JSON-based status tracking and PID monitoring.
 """
 
@@ -44,7 +44,8 @@ def create_job(
     job_type: Literal["generate", "modify"],
     timeout_seconds: int = 300,
     request_data: dict = None,
-    pack_id: int = None
+    pack_id: int = None,
+    target: str = "landing"
 ) -> dict:
     """
     Create a new job record.
@@ -56,6 +57,7 @@ def create_job(
         timeout_seconds: Max time before considering job timed out
         request_data: Original request parameters
         pack_id: The pack being processed (None for prompt jobs)
+        target: "landing" or "welcome" - which page type this job targets
 
     Returns:
         The job record dict
@@ -67,6 +69,7 @@ def create_job(
         "prompt_id": prompt_id,
         "pack_id": pack_id,
         "type": job_type,
+        "target": target,
         "status": "pending",
         "pid": None,
         "started_at": now,
@@ -134,6 +137,10 @@ def get_job(task_id: str) -> Optional[dict]:
     try:
         with open(job_path, 'r', encoding='utf-8') as f:
             job = json.load(f)
+
+        # Default target for old jobs that lack the field
+        if "target" not in job:
+            job["target"] = "landing"
 
         # Check for timeout if job is still running
         if job["status"] == "running":
@@ -252,7 +259,7 @@ def cleanup_old_jobs(max_age_hours: int = 24) -> int:
 
 def get_active_job_for_prompt(prompt_id: int) -> Optional[dict]:
     """
-    Check if there's already an active job for this prompt.
+    Check if there's already an active landing job for this prompt.
 
     Args:
         prompt_id: The prompt ID
@@ -265,7 +272,10 @@ def get_active_job_for_prompt(prompt_id: int) -> Optional[dict]:
             with open(job_file, 'r', encoding='utf-8') as f:
                 job = json.load(f)
 
-            if job.get("prompt_id") == prompt_id and job.get("status") in ("pending", "running"):
+            target = job.get("target", "landing")
+            if (job.get("prompt_id") == prompt_id
+                    and target == "landing"
+                    and job.get("status") in ("pending", "running")):
                 # Verify it's actually still running
                 job = _check_job_timeout(job)
                 if job.get("status") in ("pending", "running"):
@@ -278,7 +288,7 @@ def get_active_job_for_prompt(prompt_id: int) -> Optional[dict]:
 
 def get_active_job_for_pack(pack_id: int) -> Optional[dict]:
     """
-    Check if there's already an active job for this pack.
+    Check if there's already an active landing job for this pack.
 
     Args:
         pack_id: The pack ID
@@ -291,7 +301,64 @@ def get_active_job_for_pack(pack_id: int) -> Optional[dict]:
             with open(job_file, 'r', encoding='utf-8') as f:
                 job = json.load(f)
 
-            if job.get("pack_id") == pack_id and job.get("status") in ("pending", "running"):
+            target = job.get("target", "landing")
+            if (job.get("pack_id") == pack_id
+                    and target == "landing"
+                    and job.get("status") in ("pending", "running")):
+                job = _check_job_timeout(job)
+                if job.get("status") in ("pending", "running"):
+                    return job
+        except Exception:
+            pass
+
+    return None
+
+
+def get_active_welcome_job_for_prompt(prompt_id: int) -> Optional[dict]:
+    """
+    Check if there's already an active welcome job for this prompt.
+
+    Args:
+        prompt_id: The prompt ID
+
+    Returns:
+        Active job record or None
+    """
+    for job_file in JOBS_DIR.glob("*.json"):
+        try:
+            with open(job_file, 'r', encoding='utf-8') as f:
+                job = json.load(f)
+
+            if (job.get("prompt_id") == prompt_id
+                    and job.get("target") == "welcome"
+                    and job.get("status") in ("pending", "running")):
+                job = _check_job_timeout(job)
+                if job.get("status") in ("pending", "running"):
+                    return job
+        except Exception:
+            pass
+
+    return None
+
+
+def get_active_welcome_job_for_pack(pack_id: int) -> Optional[dict]:
+    """
+    Check if there's already an active welcome job for this pack.
+
+    Args:
+        pack_id: The pack ID
+
+    Returns:
+        Active job record or None
+    """
+    for job_file in JOBS_DIR.glob("*.json"):
+        try:
+            with open(job_file, 'r', encoding='utf-8') as f:
+                job = json.load(f)
+
+            if (job.get("pack_id") == pack_id
+                    and job.get("target") == "welcome"
+                    and job.get("status") in ("pending", "running")):
                 job = _check_job_timeout(job)
                 if job.get("status") in ("pending", "running"):
                     return job
@@ -310,11 +377,18 @@ import os
 # Add project root to path
 sys.path.insert(0, r"{project_root}")
 
-from landing_wizard import generate_landing, modify_landing, list_prompt_files
+# Target determines which wizard functions to use
+TARGET = "{target}"
+
+if TARGET == "welcome":
+    from landing_wizard import generate_welcome as generate_fn, modify_welcome as modify_fn, list_prompt_files
+else:
+    from landing_wizard import generate_landing as generate_fn, modify_landing as modify_fn, list_prompt_files
+
 from landing_jobs import update_job
 
 def run_job(task_id, job_type, prompt_dir, params):
-    """Execute the landing wizard job and update status."""
+    """Execute the wizard job and update status."""
     pid = os.getpid()
 
     # Mark as running with PID
@@ -322,27 +396,35 @@ def run_job(task_id, job_type, prompt_dir, params):
 
     try:
         if job_type == "generate":
-            result = generate_landing(
-                prompt_dir=prompt_dir,
-                user_description=params.get("description", ""),
-                style=params.get("style", "modern"),
-                primary_color=params.get("primary_color", "#3B82F6"),
-                secondary_color=params.get("secondary_color", "#10B981"),
-                language=params.get("language", "es"),
-                timeout=params.get("timeout", 300),
-                product_name=params.get("product_name", ""),
-                ai_system_prompt=params.get("ai_system_prompt", ""),
-                product_description=params.get("product_description", "")
-            )
+            kwargs = {
+                "prompt_dir": prompt_dir,
+                "user_description": params.get("description", ""),
+                "style": params.get("style", "modern"),
+                "primary_color": params.get("primary_color", "#3B82F6"),
+                "secondary_color": params.get("secondary_color", "#10B981"),
+                "language": params.get("language", "es"),
+                "timeout": params.get("timeout", 300),
+                "product_name": params.get("product_name", ""),
+                "ai_system_prompt": params.get("ai_system_prompt", ""),
+                "product_description": params.get("product_description", ""),
+            }
+            if TARGET == "welcome":
+                kwargs["avatar_path"] = params.get("avatar_path", "")
+                kwargs["chat_url"] = params.get("chat_url", "/chat")
+            result = generate_fn(**kwargs)
         else:  # modify
-            result = modify_landing(
-                prompt_dir=prompt_dir,
-                instructions=params.get("instructions", ""),
-                timeout=params.get("timeout", 300),
-                product_name=params.get("product_name", ""),
-                ai_system_prompt=params.get("ai_system_prompt", ""),
-                product_description=params.get("product_description", "")
-            )
+            kwargs = {
+                "prompt_dir": prompt_dir,
+                "instructions": params.get("instructions", ""),
+                "timeout": params.get("timeout", 300),
+                "product_name": params.get("product_name", ""),
+                "ai_system_prompt": params.get("ai_system_prompt", ""),
+                "product_description": params.get("product_description", ""),
+            }
+            if TARGET == "welcome":
+                kwargs["avatar_path"] = params.get("avatar_path", "")
+                kwargs["chat_url"] = params.get("chat_url", "/chat")
+            result = modify_fn(**kwargs)
 
         if result.get("success"):
             update_job(
@@ -383,10 +465,11 @@ def start_job(
     prompt_dir: str,
     params: dict,
     timeout_seconds: int = 300,
-    pack_id: int = None
+    pack_id: int = None,
+    target: str = "landing"
 ) -> dict:
     """
-    Start a background job for landing page generation/modification.
+    Start a background job for landing/welcome page generation/modification.
 
     Args:
         prompt_id: The prompt being processed (0 when pack_id is set)
@@ -395,17 +478,26 @@ def start_job(
         params: Parameters for the wizard function
         timeout_seconds: Max execution time
         pack_id: The pack being processed (None for prompt jobs)
+        target: "landing" or "welcome" - which page type to generate
 
     Returns:
         Job record with task_id
     """
-    # Check for existing active job
-    if pack_id:
-        existing = get_active_job_for_pack(pack_id)
-        entity_label = "pack"
+    # Check for existing active job (target-aware: landing and welcome can run in parallel)
+    if target == "welcome":
+        if pack_id:
+            existing = get_active_welcome_job_for_pack(pack_id)
+            entity_label = "pack"
+        else:
+            existing = get_active_welcome_job_for_prompt(prompt_id)
+            entity_label = "prompt"
     else:
-        existing = get_active_job_for_prompt(prompt_id)
-        entity_label = "prompt"
+        if pack_id:
+            existing = get_active_job_for_pack(pack_id)
+            entity_label = "pack"
+        else:
+            existing = get_active_job_for_prompt(prompt_id)
+            entity_label = "prompt"
     if existing:
         return {
             "success": False,
@@ -421,11 +513,12 @@ def start_job(
         job_type=job_type,
         timeout_seconds=timeout_seconds,
         request_data=params,
-        pack_id=pack_id
+        pack_id=pack_id,
+        target=target
     )
 
     # Write worker script to temp file
-    worker_script = WORKER_SCRIPT.format(project_root=str(PROJECT_ROOT))
+    worker_script = WORKER_SCRIPT.format(project_root=str(PROJECT_ROOT), target=target)
     worker_path = JOBS_DIR / f"worker_{task_id}.py"
 
     with open(worker_path, 'w', encoding='utf-8') as f:

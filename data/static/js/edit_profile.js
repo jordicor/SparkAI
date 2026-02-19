@@ -5,6 +5,7 @@ let audioPlayer = null;
 let alterEgoModal;
 
 document.addEventListener('DOMContentLoaded', function() {
+    initAfterLoginPreference();
     initPhoneInput();
     initializeAlterEgoState();
     loadVoices();
@@ -365,10 +366,13 @@ async function handleFormSubmit(event) {
     .then(data => {
         if (!data) return;
         if (data.success) {
-            NotificationModal.success('Success', 'Profile updated successfully');
             currentUserVoiceId = formData.get('sample_voice_id');
             originalPhoneNumber = fullPhoneNumber;
             currentAlterEgoId = formData.get('alter_ego_id');
+            // Save after-login preference alongside profile
+            saveAfterLoginPreference()
+                .then(() => NotificationModal.success('Success', 'Profile updated successfully'))
+                .catch(() => NotificationModal.success('Success', 'Profile updated successfully'));
         } else {
             NotificationModal.error('Error', 'Error updating profile: ' + data.message);
         }
@@ -1006,4 +1010,31 @@ function hideUsernameError() {
     if (errorDiv) {
         errorDiv.remove();
     }
+}
+
+// After Login preference management
+function initAfterLoginPreference() {
+    const radios = document.querySelectorAll('input[name="afterLogin"]');
+    if (!radios.length) return;
+
+    const prefs = (typeof homePreferences !== 'undefined' && homePreferences) ? homePreferences : {};
+    const afterLogin = prefs.after_login || '/home';
+
+    const radio = document.querySelector(`input[name="afterLogin"][value="${afterLogin}"]`);
+    if (radio) radio.checked = true;
+}
+
+function saveAfterLoginPreference() {
+    const selectedRadio = document.querySelector('input[name="afterLogin"]:checked');
+    if (!selectedRadio) return Promise.resolve();
+
+    return secureFetch('/api/home/preferences', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ after_login: selectedRadio.value })
+    })
+    .then(response => {
+        if (!response) return null;
+        return response.json();
+    });
 }
