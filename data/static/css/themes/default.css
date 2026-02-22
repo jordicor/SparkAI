@@ -18,6 +18,7 @@
 :root {
     /* ----- Backgrounds ----- */
     --bg-primary: #36393f;
+    --bg-primary-rgb: 54, 57, 63;
     --bg-secondary: #2f3136;
     --bg-tertiary: #202225;
 
@@ -887,7 +888,7 @@ input[type="file"].form-control::file-selector-button:hover {
    ========================================================== */
 .table-wrapper {
     border-radius: 8px;
-    overflow: hidden;
+    overflow-x: auto;
     border: 1px solid var(--border-color);
 }
 

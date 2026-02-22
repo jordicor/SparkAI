@@ -1052,7 +1052,7 @@
         // Dynamically set links to point to sparkai subdomain
         (function() {
             const host = window.location.host;
-            // Extract base domain (e.g., "example.com" from "cdn.example.com")
+            // Extract base domain (e.g., "jordicor.com" from "fstcdn.jordicor.com")
             const parts = host.split('.');
             const baseDomain = parts.length >= 2 ? parts.slice(-2).join('.') : host;
             const sparkaiBase = '//' + 'sparkai.' + baseDomain;

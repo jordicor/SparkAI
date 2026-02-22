@@ -1,0 +1,95 @@
+# robots.txt - SPARK AI Prompt Marketplace
+# Public marketplace content is allowed; authenticated areas are blocked.
+
+User-agent: *
+
+# Public marketplace content
+Allow: /p/
+Allow: /store/
+Allow: /register
+
+# Block authenticated / private areas
+Disallow: /admin/
+Disallow: /api/
+Disallow: /ws/
+Disallow: /internal/
+Disallow: /manager/
+Disallow: /home
+Disallow: /home/
+Disallow: /dashboard
+Disallow: /chat
+Disallow: /explore
+Disallow: /settings
+Disallow: /my-storefront
+Disallow: /my-branding
+Disallow: /my-earnings
+Disallow: /my-usage
+Disallow: /curation-settings
+Disallow: /find-user
+Disallow: /edit-profile
+Disallow: /edit-user
+Disallow: /api-credentials
+Disallow: /login
+Disallow: /logout
+Disallow: /create-user
+Disallow: /users-list
+Disallow: /change-password
+Disallow: /payment
+Disallow: /payment-success
+Disallow: /pack-purchase-success
+Disallow: /prompt-purchase-success
+Disallow: /payment-success-simulated
+Disallow: /media-gallery
+Disallow: /landing/
+Disallow: /welcome/
+Disallow: /claim-entitlement/
+Disallow: /verify-email/
+Disallow: /upload-profile-picture
+Disallow: /get-image/
+Disallow: /get-audio/
+Disallow: /get-pdfs
+Disallow: /get-mp3s
+Disallow: /download-pdf
+Disallow: /download-mp3
+Disallow: /serve-mp3/
+Disallow: /sdk/
+Disallow: /auth/
+Disallow: /auth-image
+Disallow: /auth-file
+Disallow: /get-user-directory
+Disallow: /healthz
+Disallow: /metrics
+Disallow: /whatsapp
+Disallow: /users/
+Disallow: /static/
+
+# Block AI training crawlers explicitly
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+User-agent: cohere-ai
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: FacebookBot
+Disallow: /
+
+# Update the domain below to match your production domain
+Sitemap: https://sparkai.jordicor.com/sitemap.xml

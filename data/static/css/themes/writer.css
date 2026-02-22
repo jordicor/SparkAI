@@ -25,6 +25,7 @@
 
     /* ----- Backgrounds ----- */
     --bg-primary: #f9f5ed;
+    --bg-primary-rgb: 248, 244, 236;
     --bg-secondary: #f0ebe3;
     --bg-tertiary: #e6dfd3;
 
@@ -913,7 +914,7 @@ li.invalid {
    ========================================================== */
 .table-wrapper {
     border-radius: 8px;
-    overflow: hidden;
+    overflow-x: auto;
     border: 1px solid var(--border-color);
 }
 

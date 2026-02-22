@@ -3,21 +3,62 @@ Custom Domain Middleware for Landing Pages.
 
 Handles routing for custom domains pointing to prompt landing pages.
 Uses in-memory cache with TTL to minimize database lookups.
+
+Static files for custom domains are served directly from this middleware
+to bypass FastAPI's StaticFiles mount at /static which would otherwise
+intercept and look in the global data/static/ directory.
 """
 
+import logging
 import os
+from pathlib import Path
 from typing import Optional, Dict
 
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response
+from starlette.responses import FileResponse, Response
 from cachetools import TTLCache
+
+logger = logging.getLogger(__name__)
+
+# Media type mapping for static file serving
+_MEDIA_TYPES = {
+    '.css': 'text/css',
+    '.js': 'application/javascript',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.svg': 'image/svg+xml',
+    '.webp': 'image/webp',
+    '.ico': 'image/x-icon',
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2',
+    '.ttf': 'font/ttf',
+    '.mp3': 'audio/mpeg',
+    '.mp4': 'video/mp4',
+    '.json': 'application/json',
+}
 
 # Cache: domain -> prompt_data (5 minute TTL, max 1000 entries)
 _domain_cache: TTLCache = TTLCache(maxsize=1000, ttl=300)
 
 # Primary domains that should skip custom domain lookup
 _primary_domains: set = set()
+
+
+def _build_prompt_path(username: str, prompt_id: int, prompt_name: str) -> Path:
+    """Build filesystem path to a prompt's landing page directory."""
+    from common import generate_user_hash, sanitize_name, DATA_DIR
+
+    hash_prefix1, hash_prefix2, user_hash = generate_user_hash(username)
+    padded_id = f"{prompt_id:07d}"
+    safe_name = sanitize_name(prompt_name)
+
+    return (
+        DATA_DIR / "users" / hash_prefix1 / hash_prefix2 / user_hash
+        / "prompts" / padded_id[:3] / f"{padded_id[3:]}_{safe_name}"
+    )
 
 
 def set_primary_domains(domains: list):
@@ -73,6 +114,13 @@ class CustomDomainMiddleware(BaseHTTPMiddleware):
         request.state.username = domain_data["username"]
         request.state.public_id = domain_data["public_id"]
 
+        # Serve static files directly to bypass the global StaticFiles mount.
+        # Without this, /static/* requests hit app.mount("/static", StaticFiles(...))
+        # which looks in data/static/ (global) instead of the prompt's directory.
+        path = request.url.path
+        if path.startswith("/static/"):
+            return self._serve_landing_static(domain_data, path[8:])  # strip "/static/"
+
         return await call_next(request)
 
     async def _get_domain_data(self, domain: str) -> Optional[Dict]:
@@ -111,6 +159,40 @@ class CustomDomainMiddleware(BaseHTTPMiddleware):
             return data
 
         return None
+
+    def _serve_landing_static(self, domain_data: Dict, resource_path: str) -> Response:
+        """
+        Serve a static file from the prompt's landing page directory.
+        Returns FileResponse on success, 404 on failure.
+        """
+        if not resource_path or ".." in resource_path:
+            return Response(status_code=404)
+
+        prompt_dir = _build_prompt_path(
+            domain_data["username"],
+            domain_data["prompt_id"],
+            domain_data["prompt_name"],
+        )
+        static_path = prompt_dir / "static" / resource_path
+
+        # Security first: validate path stays within prompt directory
+        try:
+            resolved = static_path.resolve(strict=False)
+            resolved.relative_to(prompt_dir.resolve())
+        except (ValueError, OSError):
+            return Response(status_code=404)
+
+        if not resolved.is_file():
+            return Response(status_code=404)
+
+        suffix = resolved.suffix.lower()
+        media_type = _MEDIA_TYPES.get(suffix, 'application/octet-stream')
+
+        return FileResponse(
+            resolved,
+            media_type=media_type,
+            headers={"Cache-Control": "public, max-age=3600"},
+        )
 
     def _get_404_html(self) -> str:
         """Return 404 HTML for unknown domains."""

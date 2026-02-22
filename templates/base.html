@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}SPARK{% endblock %}</title>
+    {% block meta_description %}<meta name="description" content="AI-powered prompt marketplace - Create, discover, and use AI assistants">{% endblock %}
 
     <!-- Theme detection - sets data-theme for skeleton CSS -->
     <script>
@@ -11,6 +12,10 @@
         try { savedTheme = localStorage.getItem('theme') || 'default'; } catch(e) {}
         document.documentElement.setAttribute('data-theme', savedTheme);
     </script>
+
+    <!-- Preconnect to CDN domains for faster resource loading -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 
     <!-- Skeleton CSS (loads first for instant skeleton display) -->
     <link rel="stylesheet" href="{{ get_static_url('/static/css/skeleton.css') }}">
@@ -75,7 +80,7 @@
         {% block navbar %}{% include 'navbar.html' %}{% endblock %}
 
         <!-- Main Content -->
-        <div class="main-container">
+        <main class="main-container">
 
         <!-- Page Header -->
         {% block header %}
@@ -112,7 +117,7 @@
         <!-- Main Page Content -->
         {% block content %}{% endblock %}
 
-    </div>
+    </main>
     </div><!-- /page-content -->
 
     <!-- Skeleton to Content Swap -->

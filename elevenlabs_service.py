@@ -519,6 +519,7 @@ class ElevenLabsService:
                 c.user_id,
                 c.role_id,
                 c.chat_name,
+                c.locked,
                 c.elevenlabs_session_id,
                 c.elevenlabs_status,
                 p.prompt AS prompt_text,

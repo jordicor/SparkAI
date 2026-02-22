@@ -90,8 +90,22 @@
    ========================================================== */
 .table-wrapper {
     border-radius: var(--border-radius);
-    overflow: hidden;
+    overflow-x: auto;
     border: 1px solid var(--border-color);
+}
+
+/* Sticky actions column - always visible on the right */
+.th-actions,
+.actions-cell {
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    background-color: var(--bg-secondary);
+    box-shadow: -2px 0 4px rgba(0, 0, 0, 0.1);
+}
+
+.table-hover tbody tr:hover .actions-cell {
+    background-color: var(--bg-tertiary, var(--bg-secondary));
 }
 
 /* Table base styles inside wrapper */
@@ -104,7 +118,7 @@
 .table-wrapper .table th,
 .table-wrapper .table td {
     border-color: var(--border-color);
-    padding: 12px 16px;
+    padding: 10px 12px;
     vertical-align: middle;
 }
 
@@ -127,6 +141,20 @@
 
 .table-wrapper .table tbody tr:hover {
     background-color: var(--bg-tertiary);
+}
+
+/* Compact icon-only table cells */
+.role-cell,
+.status-cell {
+    text-align: center;
+    width: 60px;
+    white-space: nowrap;
+}
+
+.role-cell i,
+.status-cell i {
+    font-size: 1rem;
+    cursor: help;
 }
 
 /* ==========================================================
@@ -184,6 +212,15 @@
 }
 
 .stat-badge.stat-private strong {
+    color: var(--text-muted);
+}
+
+.stat-badge.stat-password {
+    background: rgba(108, 117, 125, 0.15);
+    border-color: rgba(108, 117, 125, 0.3);
+}
+
+.stat-badge.stat-password strong {
     color: var(--text-muted);
 }
 
@@ -314,6 +351,11 @@
 
 .status-expired {
     color: var(--danger);
+}
+
+.status-na {
+    color: var(--text-muted, #6c757d);
+    font-weight: 500;
 }
 
 .status-public,

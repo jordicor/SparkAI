@@ -6,13 +6,29 @@
 <link rel="stylesheet" href="{{ get_static_url('/static/css/storefront.css') }}">
 {% endblock %}
 
+{% block meta_description %}<meta name="description" content="{{ storefront.profile.bio[:160] if storefront.profile.bio else storefront.profile.display_name ~ ' - Creator Storefront' }}">{% endblock %}
+
 {% block head_extra %}
-<meta name="description" content="{{ storefront.profile.bio[:160] if storefront.profile.bio else storefront.profile.display_name ~ ' - Creator Storefront' }}">
+{% set _scheme = request.headers.get('x-forwarded-proto', request.url.scheme) %}
+{% set _host = request.headers.get('host', request.url.hostname) %}
+{% set _base = _scheme ~ '://' ~ _host %}
+<link rel="canonical" href="{{ _base }}/store/{{ storefront.profile.slug }}">
+<!-- Open Graph -->
 <meta property="og:title" content="{{ storefront.profile.display_name }} - Storefront">
 <meta property="og:description" content="{{ storefront.profile.bio[:200] if storefront.profile.bio else 'Browse products from ' ~ storefront.profile.display_name }}">
 <meta property="og:type" content="profile">
+<meta property="og:url" content="{{ _base }}/store/{{ storefront.profile.slug }}">
 {% if storefront.avatar_url %}
-<meta property="og:image" content="{{ get_static_url('/static/' ~ storefront.avatar_url ~ '_fullsize.webp') }}">
+{% set _img_url = get_static_url('/static/' ~ storefront.avatar_url ~ '_fullsize.webp') %}
+{% set _abs_img = _img_url if _img_url.startswith('http') else _base ~ _img_url %}
+<meta property="og:image" content="{{ _abs_img }}">
+{% endif %}
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="{{ storefront.profile.display_name }} - Storefront">
+<meta name="twitter:description" content="{{ storefront.profile.bio[:200] if storefront.profile.bio else 'Creator storefront on SPARK' }}">
+{% if storefront.avatar_url %}
+<meta name="twitter:image" content="{{ _abs_img }}">
 {% endif %}
 {% endblock %}
 

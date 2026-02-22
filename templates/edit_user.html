@@ -98,6 +98,19 @@
                         </div>
                     </div>
                 </div>
+                <div class="flex-row">
+                    <div class="flex-column">
+                        <div class="mb-3">
+                            <label for="authenticationMode" class="form-label">Authentication Mode</label>
+                            <select class="form-select" id="authenticationMode" name="authentication_mode">
+                                <option value="magic_link_only" {{ 'selected' if user_data.authentication_mode == 'magic_link_only' else '' }}>Magic Link Only</option>
+                                <option value="magic_link_password" {{ 'selected' if user_data.authentication_mode == 'magic_link_password' else '' }}>Magic Link + Password</option>
+                                <option value="password_only" {{ 'selected' if user_data.authentication_mode == 'password_only' else '' }}>Password Only</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex-column"></div>
+                </div>
             </div>
 
             <!-- Section 2: AI Configuration -->

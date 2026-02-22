@@ -90,6 +90,58 @@
         </div>
     </div>
 
+    <!-- Section: Extensions -->
+    <div class="section-container">
+        <div class="section-title"><i class="fas fa-layer-group me-2"></i>Extensions (Levels / Phases)</div>
+
+        <!-- Enable toggle -->
+        <div class="mb-3 form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="extensions_enabled" name="extensions_enabled_toggle"
+                   onchange="toggleExtensionsPanel()">
+            <label class="form-check-label" for="extensions_enabled">
+                Enable Extensions
+                <i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip"
+                   title="Extensions add levels/phases to your prompt. The main prompt defines the base personality. Each extension adds specific instructions for a level or phase."></i>
+            </label>
+        </div>
+
+        <!-- Extensions panel (shown when enabled) -->
+        <div id="extensions-panel" style="display: none;">
+            <!-- Config options -->
+            <div class="flex-row mb-3">
+                <div class="flex-column">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="extensions_auto_advance">
+                        <label class="form-check-label" for="extensions_auto_advance">
+                            AI can auto-advance
+                            <i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip"
+                               title="When enabled, the AI can decide when to move to the next level during the conversation."></i>
+                        </label>
+                    </div>
+                </div>
+                <div class="flex-column">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="extensions_free_selection" checked>
+                        <label class="form-check-label" for="extensions_free_selection">
+                            Users can select any level
+                            <i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip"
+                               title="When enabled, users can jump to any level. When disabled, levels must be followed in order."></i>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Extension list placeholder -->
+            <div id="extensions-list" class="mb-3">
+                <p class="text-muted small">Save the prompt first, then add extensions here.</p>
+            </div>
+        </div>
+
+        <input type="hidden" name="extensions_enabled" id="hidden_extensions_enabled" value="0">
+        <input type="hidden" name="extensions_auto_advance" id="hidden_extensions_auto_advance" value="0">
+        <input type="hidden" name="extensions_free_selection" id="hidden_extensions_free_selection" value="1">
+    </div>
+
     <!-- Section 4: Settings -->
     <div class="section-container">
         <div class="section-title"><i class="fas fa-cog me-2"></i>Settings</div>
@@ -1033,11 +1085,29 @@
         bootstrap.Modal.getInstance(modalEl)?.hide();
     }
 
+    // Extensions Management (simplified for create page)
+    function toggleExtensionsPanel() {
+        const enabled = document.getElementById('extensions_enabled').checked;
+        document.getElementById('extensions-panel').style.display = enabled ? 'block' : 'none';
+    }
+
+    function serializeExtensionsConfig() {
+        document.getElementById('hidden_extensions_enabled').value =
+            document.getElementById('extensions_enabled').checked ? '1' : '0';
+        document.getElementById('hidden_extensions_auto_advance').value =
+            document.getElementById('extensions_auto_advance').checked ? '1' : '0';
+        document.getElementById('hidden_extensions_free_selection').value =
+            document.getElementById('extensions_free_selection').checked ? '1' : '0';
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         loadVoices();
         loadCategories();
         loadLLMs();
         toggleLLMOptions();
+
+        // Initialize extensions panel
+        toggleExtensionsPanel();
 
         // Add validation on public checkbox change
         document.getElementById('isPublic').addEventListener('change', function() {
@@ -1047,6 +1117,7 @@
 
         // Form validation on submit
         document.getElementById('createPromptForm').addEventListener('submit', function(e) {
+            serializeExtensionsConfig();
             serializeWatchdogConfig();
             // Serialize allowed LLMs for restricted mode
             const llmMode = document.querySelector('input[name="llm_mode"]:checked')?.value;

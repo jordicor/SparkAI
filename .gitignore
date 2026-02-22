@@ -4,8 +4,9 @@ data/users/
 __pycache__/
 tst/
 
-# Documentation - internal only, not published
-docs/
+# Documentation - include docs/ folder and its .md files
+!docs/
+!docs/*.md
 
 # Security config - include forbidden names list
 !data/config/
@@ -28,8 +29,6 @@ docs/
 *.sqlite
 *.sqlite3
 
-# Migration scripts (not needed for fresh installs)
-migration*.py
 
 # IDE and local config
 .claude/settings.local.json
@@ -63,3 +62,10 @@ stripe.bat
 start_app.bat
 start_dramatiq.bat
 testing_*.py
+
+# AI assistant instructions (private)
+CLAUDE.md
+AGENTS.md
+
+# Sync tool output (generated files)
+tools/sync_github/output/

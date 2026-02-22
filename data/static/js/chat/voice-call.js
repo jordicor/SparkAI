@@ -693,6 +693,10 @@
         });
 
         voiceButton.addEventListener('click', async () => {
+            // Block voice calls on locked conversations
+            if (typeof isCurrentConversationLocked !== 'undefined' && isCurrentConversationLocked) {
+                return;
+            }
             const isVisible = !overlay.classList.contains('hidden');
             if (isVisible) {
                 if (currentState === 'active' || currentState === 'connecting' || currentState === 'updating') {

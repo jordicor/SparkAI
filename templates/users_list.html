@@ -38,16 +38,56 @@
     </div>
 </div>
 
+<!-- Ultra Admin+ Modal -->
+{% if is_admin %}
+<div class="modal fade" id="ultraAdminModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content" style="border: 2px solid var(--warning, #ffc107);">
+            <div class="modal-header" style="background: var(--warning, #ffc107); color: #000;">
+                <h6 class="modal-title fw-bold">
+                    <i class="fas fa-bolt me-2"></i>Ultra Admin+
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <!-- Step 1: Request code -->
+                <div id="ultraAdminStep1">
+                    <p class="mb-3" style="font-size: 0.9rem;">A verification code will be sent to your email.</p>
+                    <button class="btn btn-warning w-100" onclick="requestUltraAdminCode()">
+                        <i class="fas fa-paper-plane me-1"></i> Send Code
+                    </button>
+                </div>
+                <!-- Step 2: Enter code -->
+                <div id="ultraAdminStep2" style="display: none;">
+                    <p class="mb-2" style="font-size: 0.9rem;">Code sent to <strong id="ultraAdminEmailHint"></strong></p>
+                    <input type="text" class="form-control form-control-lg text-center mb-3"
+                           id="ultraAdminCodeInput" maxlength="6" pattern="[0-9]{6}"
+                           placeholder="000000" autocomplete="off"
+                           style="letter-spacing: 8px; font-weight: bold;"
+                           onkeydown="if(event.key==='Enter') verifyUltraAdminCode()">
+                    <button class="btn btn-warning w-100" onclick="verifyUltraAdminCode()">
+                        <i class="fas fa-check me-1"></i> Verify
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Stats Row -->
 <div class="stats-row">
     <span class="stat-badge">
         <i class="fas fa-users"></i> <strong id="statTotal">{{ users|length }}</strong> Total
     </span>
     <span class="stat-badge stat-active">
-        <i class="fas fa-check-circle"></i> <strong id="statActive">{{ users|selectattr('is_expired', 'ne', 'Expired')|list|length }}</strong> Active
+        <i class="fas fa-check-circle"></i> <strong id="statActive">{{ users|selectattr('is_expired', 'eq', 'Active')|list|length }}</strong> Active
     </span>
     <span class="stat-badge stat-expired">
         <i class="fas fa-times-circle"></i> <strong id="statExpired">{{ users|selectattr('is_expired', 'eq', 'Expired')|list|length }}</strong> Expired
+    </span>
+    <span class="stat-badge stat-password">
+        <i class="fas fa-key"></i> <strong id="statPassword">{{ users|selectattr('is_expired', 'eq', 'N/A')|list|length }}</strong> Password
     </span>
     <span class="stat-badge" id="statFilteredContainer" style="display: none;">
         <i class="fas fa-filter"></i> <strong id="statFiltered">0</strong> Shown
@@ -73,6 +113,7 @@
                 <option value="">All Status</option>
                 <option value="active">Active</option>
                 <option value="expired">Expired</option>
+                <option value="password">Password Only</option>
             </select>
         </div>
         <div class="flex-column">
@@ -121,6 +162,16 @@
                 <label for="selectAll" class="form-check-label">Select all</label>
             </div>
             <div class="toolbar-right">
+                {% if is_admin %}
+                <button type="button" class="btn btn-sm btn-outline-warning" id="ultraAdminBtn"
+                        data-elevated="{{ 'true' if ultra_admin_elevated else 'false' }}"
+                        data-ttl="{{ ultra_admin_ttl }}"
+                        onclick="openUltraAdminModal()"
+                        title="Ultra Admin+: Elevate privileges">
+                    <i class="fas fa-bolt me-1"></i>
+                    <span id="ultraAdminLabel">Ultra Admin+</span>
+                </button>
+                {% endif %}
                 <a href="/create-user" class="btn btn-success">
                     <i class="fas fa-user-plus me-1"></i> Create User
                 </a>
@@ -139,13 +190,13 @@
                         <th data-sort="username" class="sortable sort-asc">User</th>
                         <th data-sort="role" class="sortable">Role</th>
                         <th data-sort="phone" class="sortable">Phone</th>
-                        <th data-sort="status" class="sortable">Status</th>
+                        <th data-sort="status" class="sortable">Auth</th>
                         <th data-sort="prompt" class="sortable">Prompt</th>
                         <th data-sort="llm" class="sortable">LLM</th>
                         <th data-sort="tokens" class="sortable">Tokens</th>
                         <th data-sort="cost" class="sortable">Cost</th>
                         <th data-sort="balance" class="sortable">Balance</th>
-                        <th data-sort="chats" class="sortable">Chats</th>
+                        <th data-sort="chats" class="sortable"><i class="fas fa-comments" title="Chats"></i></th>
                         <th class="th-actions">Edit</th>
                     </tr>
                 </thead>
@@ -154,24 +205,30 @@
                     <tr data-username="{{ user.username }}"
                         data-role="{{ user.role }}"
                         data-phone="{{ user.phone or '' }}"
-                        data-status="{{ 'expired' if user.is_expired == 'Expired' else 'active' }}"
+                        data-status="{{ 'expired' if user.is_expired == 'Expired' else ('password' if user.is_expired == 'N/A' else 'active') }}"
                         data-prompt="{{ user.prompt_name }}"
                         data-llm="{{ user.llm_model }}"
                         data-tokens="{{ user.tokens }}"
                         data-cost="{{ user.total_cost|float }}"
                         data-balance="{{ user.balance|float }}"
                         data-chats="{{ user.conversation_count }}"
-                        data-magic-link="{{ user.magic_link }}">
+                        data-magic-link="{{ user.magic_link or '' }}">
                         <td>
                             <input type="checkbox" name="selected_users" value="{{ user.username }}" class="user-checkbox">
                         </td>
                         <td>
-                            <span class="username-link" onclick="showMagicLink('{{ user.magic_link }}', '{{ user.username }}', {{ 'true' if user.is_expired == 'Expired' else 'false' }})" title="Click to view magic link">
+                            <span class="username-link" onclick="showMagicLink('{{ user.magic_link or '' }}', '{{ user.username }}', {{ 'true' if user.is_expired == 'Expired' else 'false' }}, {{ 'true' if user.is_expired == 'N/A' else 'false' }})" title="Click to view magic link">
                                 <i class="fas fa-user me-1"></i>{{ user.username }}
                             </span>
                         </td>
-                        <td class="role-cell">
-                            <span class="role-badge role-{{ user.role }}">{{ user.role|capitalize }}</span>
+                        <td class="role-cell" title="{{ user.role|capitalize }}">
+                            {% if user.role == 'admin' %}
+                            <i class="fas fa-crown text-warning"></i>
+                            {% elif user.role == 'manager' %}
+                            <i class="fas fa-user-tie text-info"></i>
+                            {% else %}
+                            <i class="fas fa-user text-muted"></i>
+                            {% endif %}
                         </td>
                         <td class="phone-cell">
                             {% if user.phone %}
@@ -184,15 +241,17 @@
                         </td>
                         <td class="status-cell">
                             {% if user.is_expired == 'Expired' %}
-                            <span class="status-expired"><i class="fas fa-times-circle me-1"></i>Expired</span>
+                            <span class="status-expired" title="Magic link expired"><i class="fas fa-times-circle"></i></span>
+                            {% elif user.is_expired == 'N/A' %}
+                            <span class="status-na" title="Password only"><i class="fas fa-shield-alt"></i></span>
                             {% else %}
-                            <span class="status-active"><i class="fas fa-check-circle me-1"></i>Active</span>
+                            <span class="status-active" title="Magic link active"><i class="fas fa-check-circle"></i></span>
                             {% endif %}
                         </td>
                         <td><span class="text-truncate d-inline-block" style="max-width: 120px;" title="{{ user.prompt_name }}">{{ user.prompt_name }}</span></td>
                         <td><span class="text-truncate d-inline-block" style="max-width: 100px;" title="{{ user.llm_model }}">{{ user.llm_model }}</span></td>
                         <td class="tokens-cell" title="{{ user.tokens }}">{{ user.tokens }}</td>
-                        <td>${{ "%.4f"|format(user.total_cost|float) }}</td>
+                        <td title="${{ "%.4f"|format(user.total_cost|float) }}">${{ "%.2f"|format(user.total_cost|float) }}</td>
                         <td>${{ "%.2f"|format(user.balance|float) }}</td>
                         <td>{{ user.conversation_count }}</td>
                         <td class="actions-cell">

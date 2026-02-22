@@ -65,6 +65,17 @@
         font-size: 0.75rem;
         color: var(--text-muted);
     }
+    .rep-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem; }
+    .rep-toolbar .btn-group .btn { padding: 0.25rem 0.6rem; font-size: 0.8rem; }
+    .rep-toolbar .btn-group .btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .rep-toolbar .rep-showing { font-size: 0.82rem; color: var(--text-secondary); }
+    .rep-pagination { display: flex; justify-content: center; align-items: center; gap: 0.75rem; margin-top: 0.75rem; }
+    .rep-pagination .btn { padding: 0.25rem 0.75rem; font-size: 0.82rem; }
+    .rep-pagination .page-info { font-size: 0.82rem; color: var(--text-secondary); }
+    th.sortable { cursor: pointer; user-select: none; }
+    th.sortable:hover { color: var(--accent); }
+    th.sortable .sort-icon { margin-left: 0.3rem; font-size: 0.7rem; opacity: 0.4; }
+    th.sortable.active .sort-icon { opacity: 1; color: var(--accent); }
 </style>
 {% endblock %}
 
@@ -231,6 +242,111 @@
         </table>
     </div>
 </div>
+
+<!-- IP Reputation System -->
+<div class="section-container mb-4" style="margin-top: 2rem;">
+    <div class="section-title"><i class="fas fa-brain me-2"></i>IP Reputation System</div>
+
+    <div class="row mb-3">
+        <div class="col-md-3 col-6 mb-2">
+            <div class="security-stat-card">
+                <div class="label"><i class="fas fa-crosshairs me-1"></i>Tracked IPs</div>
+                <div id="repStatTracked" class="value">-</div>
+                <div class="subtext">IPs with reputation data</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-2">
+            <div class="security-stat-card">
+                <div class="label"><i class="fas fa-skull-crossbones me-1"></i>Reputation Banned</div>
+                <div id="repStatBanned" class="value">-</div>
+                <div class="subtext">Currently banned by reputation</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-2">
+            <div class="security-stat-card">
+                <div class="label"><i class="fas fa-clock me-1"></i>Pending Flush</div>
+                <div id="repStatPending" class="value">-</div>
+                <div class="subtext">Updates awaiting DB write</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-2">
+            <div class="security-stat-card">
+                <div class="label"><i class="fas fa-search me-1"></i>IP Lookup</div>
+                <div style="margin-top: 0.5rem;">
+                    <form id="repLookupForm" class="input-group input-group-sm">
+                        <input id="repLookupIp" class="form-control" type="text" placeholder="1.2.3.4" required>
+                        <button class="btn btn-outline-primary" type="submit">Lookup</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="repIpDetailCard" class="mb-3" style="display: none;">
+        <div class="p-3" style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px;">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <strong>IP Detail: <code id="repDetailIp">-</code></strong>
+                <button class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('repIpDetailCard').style.display='none'">Close</button>
+            </div>
+            <div class="row small">
+                <div class="col-md-3"><span class="text-muted">Score:</span> <strong id="repDetailScore">-</strong></div>
+                <div class="col-md-3"><span class="text-muted">Total Requests:</span> <span id="repDetailTotal">-</span></div>
+                <div class="col-md-3"><span class="text-muted">Error Ratio:</span> <span id="repDetailRatio">-</span></div>
+                <div class="col-md-3"><span class="text-muted">Pattern Hits:</span> <span id="repDetailPatterns">-</span></div>
+            </div>
+            <div class="row small mt-1">
+                <div class="col-md-3"><span class="text-muted">Times Banned:</span> <span id="repDetailBanned">-</span></div>
+                <div class="col-md-3"><span class="text-muted">First Seen:</span> <span id="repDetailFirstSeen">-</span></div>
+                <div class="col-md-3"><span class="text-muted">Last Seen:</span> <span id="repDetailLastSeen">-</span></div>
+                <div class="col-md-3"><span class="text-muted">Last Path:</span> <code id="repDetailPath" class="text-truncate d-inline-block" style="max-width: 200px;">-</code></div>
+            </div>
+            <div class="row small mt-1">
+                <div class="col-12"><span class="text-muted">Last Ban Reason:</span> <span id="repDetailReason">-</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="rep-toolbar">
+        <div class="btn-group" id="repPageSizeGroup">
+            <button class="btn btn-outline-secondary" data-size="25">25</button>
+            <button class="btn btn-outline-secondary active" data-size="50">50</button>
+            <button class="btn btn-outline-secondary" data-size="100">100</button>
+            <button class="btn btn-outline-secondary" data-size="500">500</button>
+        </div>
+        <span class="rep-showing" id="repShowingText">Showing 0-0 of 0 IPs</span>
+    </div>
+
+    <div class="table-wrapper">
+        <table class="table" id="repTopIpsTable">
+            <thead>
+                <tr>
+                    <th>IP</th>
+                    <th class="sortable active" data-sort="score">Score <i class="fas fa-sort-down sort-icon"></i></th>
+                    <th class="sortable" data-sort="requests">Requests <i class="fas fa-sort sort-icon"></i></th>
+                    <th class="sortable" data-sort="error_ratio">Error Ratio <i class="fas fa-sort sort-icon"></i></th>
+                    <th class="sortable" data-sort="pattern_hits">Pattern Hits <i class="fas fa-sort sort-icon"></i></th>
+                    <th class="sortable" data-sort="times_banned">Times Banned <i class="fas fa-sort sort-icon"></i></th>
+                    <th>First Seen</th>
+                    <th class="sortable" data-sort="last_seen">Last Seen <i class="fas fa-sort sort-icon"></i></th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="repTopIpsTableBody">
+                <tr>
+                    <td colspan="9" class="text-center text-muted py-4">
+                        <i class="fas fa-spinner fa-spin me-2"></i>Loading reputation data...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="rep-pagination" id="repPagination">
+        <button class="btn btn-outline-secondary" id="repPrevPage" disabled>&lt; Prev</button>
+        <span class="page-info" id="repPageInfo">Page 1 of 1</span>
+        <button class="btn btn-outline-secondary" id="repNextPage" disabled>Next &gt;</button>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts_inline %}
@@ -267,6 +383,7 @@
         if (source === 'instant_pattern') return 'FastAPI (instant pattern)';
         if (source === 'cloudflare') return 'Cloudflare';
         if (source === 'nginx') return 'Nginx';
+        if (source === 'reputation') return 'Reputation system';
         return source;
     }
 
@@ -386,12 +503,12 @@
                     <td>${blockedAt}</td>
                     <td>${blockedUntil}</td>
                     <td>${syncStatus}</td>
-                    <td class="text-end">
+                    <td class="text-end table-actions">
                         <button class="btn btn-sm btn-outline-warning me-1" data-action="retry-sync" data-ip="${ip}">
                             <i class="fas fa-cloud-upload-alt"></i>
                         </button>
                         <button class="btn btn-sm btn-outline-danger" data-action="unblock" data-ip="${ip}">
-                            <i class="fas fa-unlock"></i>
+                            <i class="fas fa-trash-alt"></i>
                         </button>
                     </td>
                 </tr>
@@ -487,13 +604,209 @@
             await Promise.all([
                 loadStats(),
                 loadBlockedIps(),
-                loadEvents()
+                loadEvents(),
+                loadReputationStats(),
+                loadReputationTopIps()
             ]);
         } catch (error) {
             showAlert('danger', error.message || 'Failed to load security panel data.');
         } finally {
             if (refreshButton) refreshButton.disabled = false;
         }
+    }
+
+    // ---- IP Reputation ----
+
+    const reputationState = {
+        stats: null,
+        topIps: [],
+        pageSize: parseInt(sessionStorage.getItem('repPageSize')) || 50,
+        currentPage: 1,
+        sortColumn: 'score',
+        sortAsc: false
+    };
+
+    function formatTimestamp(ts) {
+        if (!ts) return '-';
+        const date = new Date(ts * 1000);
+        if (Number.isNaN(date.getTime())) return '-';
+        return date.toLocaleString();
+    }
+
+    function renderReputationStats() {
+        const stats = reputationState.stats || {};
+        document.getElementById('repStatTracked').textContent = stats.tracked_ips ?? '-';
+        document.getElementById('repStatBanned').textContent = stats.reputation_banned ?? '-';
+        document.getElementById('repStatPending').textContent = stats.pending_flush ?? '-';
+    }
+
+    const SORT_FIELD_MAP = {
+        score: 'score',
+        requests: 'total_requests',
+        error_ratio: 'error_ratio',
+        pattern_hits: 'pattern_hits',
+        times_banned: 'times_banned',
+        last_seen: 'last_seen'
+    };
+
+    function sortReputationData() {
+        const field = SORT_FIELD_MAP[reputationState.sortColumn] || 'score';
+        const asc = reputationState.sortAsc;
+        reputationState.topIps.sort((a, b) => {
+            const va = a[field] || 0;
+            const vb = b[field] || 0;
+            return asc ? va - vb : vb - va;
+        });
+    }
+
+    function updateRepSortHeaders() {
+        const headers = document.querySelectorAll('#repTopIpsTable th.sortable');
+        headers.forEach((th) => {
+            const col = th.getAttribute('data-sort');
+            const icon = th.querySelector('.sort-icon');
+            if (col === reputationState.sortColumn) {
+                th.classList.add('active');
+                icon.className = reputationState.sortAsc
+                    ? 'fas fa-sort-up sort-icon'
+                    : 'fas fa-sort-down sort-icon';
+            } else {
+                th.classList.remove('active');
+                icon.className = 'fas fa-sort sort-icon';
+            }
+        });
+    }
+
+    function renderReputationTopIps() {
+        const tbody = document.getElementById('repTopIpsTableBody');
+        const allIps = reputationState.topIps || [];
+        const showingText = document.getElementById('repShowingText');
+        const pageInfo = document.getElementById('repPageInfo');
+        const prevBtn = document.getElementById('repPrevPage');
+        const nextBtn = document.getElementById('repNextPage');
+
+        if (!allIps.length) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="text-center text-muted py-4">
+                        <i class="fas fa-check-circle me-2"></i>No reputation data yet.
+                    </td>
+                </tr>
+            `;
+            showingText.textContent = 'Showing 0-0 of 0 IPs';
+            pageInfo.textContent = 'Page 1 of 1';
+            prevBtn.disabled = true;
+            nextBtn.disabled = true;
+            updateRepSortHeaders();
+            return;
+        }
+
+        // Sort
+        sortReputationData();
+
+        // Pagination
+        const total = allIps.length;
+        const pageSize = reputationState.pageSize;
+        const totalPages = Math.max(1, Math.ceil(total / pageSize));
+        if (reputationState.currentPage > totalPages) reputationState.currentPage = totalPages;
+        const page = reputationState.currentPage;
+        const start = (page - 1) * pageSize;
+        const end = Math.min(start + pageSize, total);
+        const pageIps = allIps.slice(start, end);
+
+        const rows = pageIps.map((item) => {
+            const ip = escapeHtml(item.ip || '-');
+            const score = (item.score || 0).toFixed(1);
+            const totalReqs = item.total_requests || 0;
+            const ratio = ((item.error_ratio || 0) * 100).toFixed(0) + '%';
+            const patterns = item.pattern_hits || 0;
+            const banned = item.times_banned || 0;
+            const firstSeen = formatTimestamp(item.first_seen);
+            const lastSeen = formatTimestamp(item.last_seen);
+
+            const scoreClass = item.score >= 200 ? 'text-danger' :
+                               item.score >= 50 ? 'text-warning' : '';
+
+            return `
+                <tr>
+                    <td><code>${ip}</code></td>
+                    <td class="${scoreClass}"><strong>${score}</strong></td>
+                    <td>${totalReqs}</td>
+                    <td>${ratio}</td>
+                    <td>${patterns}</td>
+                    <td>${banned}</td>
+                    <td>${firstSeen}</td>
+                    <td>${lastSeen}</td>
+                    <td class="text-end table-actions">
+                        <button class="btn btn-sm btn-outline-info me-1" data-action="rep-lookup" data-ip="${ip}" title="View details">
+                            <i class="fas fa-search"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger me-1" data-action="rep-block" data-ip="${ip}" title="Block IP (24h)">
+                            <i class="fas fa-lock"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-warning" data-action="rep-reset" data-ip="${ip}" title="Reset score">
+                            <i class="fas fa-undo"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = rows.join('');
+
+        // Update toolbar and pagination
+        showingText.textContent = `Showing ${start + 1}-${end} of ${total} IPs`;
+        pageInfo.textContent = `Page ${page} of ${totalPages}`;
+        prevBtn.disabled = page <= 1;
+        nextBtn.disabled = page >= totalPages;
+
+        updateRepSortHeaders();
+    }
+
+    async function loadReputationStats() {
+        reputationState.stats = await fetchJson('/admin/security/reputation/stats');
+        renderReputationStats();
+    }
+
+    async function loadReputationTopIps() {
+        const payload = await fetchJson('/admin/security/reputation/top-ips?limit=500');
+        reputationState.topIps = payload.top_ips || [];
+        renderReputationTopIps();
+    }
+
+    async function lookupReputationIp(ip) {
+        const payload = await fetchJson(`/admin/security/reputation/ip-detail?ip=${encodeURIComponent(ip)}`);
+        const card = document.getElementById('repIpDetailCard');
+        if (!payload.found) {
+            showAlert('info', `No reputation data found for IP ${ip}`);
+            card.style.display = 'none';
+            return;
+        }
+
+        document.getElementById('repDetailIp').textContent = payload.ip || '-';
+        document.getElementById('repDetailScore').textContent = (payload.score || 0).toFixed(1);
+        document.getElementById('repDetailTotal').textContent = payload.total_requests || 0;
+        document.getElementById('repDetailRatio').textContent = ((payload.error_ratio || 0) * 100).toFixed(0) + '%';
+        document.getElementById('repDetailPatterns').textContent = payload.pattern_hits || 0;
+        document.getElementById('repDetailBanned').textContent = payload.times_banned || 0;
+        document.getElementById('repDetailFirstSeen').textContent = formatTimestamp(payload.first_seen);
+        document.getElementById('repDetailLastSeen').textContent = formatTimestamp(payload.last_seen);
+        document.getElementById('repDetailPath').textContent = payload.last_path || '-';
+        document.getElementById('repDetailReason').textContent = payload.last_ban_reason || '-';
+        card.style.display = 'block';
+    }
+
+    async function resetReputationScore(ip) {
+        const payload = await fetchJson('/admin/security/reputation/reset-score', {
+            method: 'POST',
+            body: JSON.stringify({ ip })
+        });
+        if (payload.success) {
+            showAlert('success', `Reputation score reset for ${ip}`);
+        } else {
+            showAlert('warning', `No reputation record found for ${ip}`);
+        }
+        await loadReputationTopIps();
+        await loadReputationStats();
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -553,6 +866,97 @@
                 }
             } catch (error) {
                 showAlert('danger', error.message || 'Security action failed.');
+            }
+        });
+
+        // Reputation IP lookup form
+        const repLookupForm = document.getElementById('repLookupForm');
+        repLookupForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const ip = document.getElementById('repLookupIp').value.trim();
+            try {
+                await lookupReputationIp(ip);
+            } catch (error) {
+                showAlert('danger', error.message || 'Failed to lookup IP reputation.');
+            }
+        });
+
+        // Reputation table actions (lookup + reset)
+        const repTopIpsTableBody = document.getElementById('repTopIpsTableBody');
+        repTopIpsTableBody.addEventListener('click', async (event) => {
+            const actionButton = event.target.closest('button[data-action]');
+            if (!actionButton) return;
+
+            const action = actionButton.getAttribute('data-action');
+            const ip = actionButton.getAttribute('data-ip');
+            if (!ip) return;
+
+            try {
+                if (action === 'rep-lookup') {
+                    await lookupReputationIp(ip);
+                } else if (action === 'rep-block') {
+                    if (!confirm(`Block IP ${ip} for 24 hours?`)) return;
+                    await fetchJson('/admin/security/block-ip', {
+                        method: 'POST',
+                        body: JSON.stringify({ ip, hours: 24, reason: 'Blocked from reputation panel' })
+                    });
+                    showAlert('success', `IP ${ip} blocked for 24h.`);
+                    await refreshSecurityPanel();
+                } else if (action === 'rep-reset') {
+                    await resetReputationScore(ip);
+                }
+            } catch (error) {
+                showAlert('danger', error.message || 'Reputation action failed.');
+            }
+        });
+
+        // Page size selector
+        const pageSizeGroup = document.getElementById('repPageSizeGroup');
+        // Set initial active button from stored page size
+        const storedSize = reputationState.pageSize;
+        pageSizeGroup.querySelectorAll('.btn').forEach((btn) => {
+            const isActive = parseInt(btn.getAttribute('data-size')) === storedSize;
+            btn.classList.toggle('active', isActive);
+        });
+        pageSizeGroup.addEventListener('click', (event) => {
+            const btn = event.target.closest('button[data-size]');
+            if (!btn) return;
+            const size = parseInt(btn.getAttribute('data-size'));
+            reputationState.pageSize = size;
+            reputationState.currentPage = 1;
+            sessionStorage.setItem('repPageSize', size);
+            pageSizeGroup.querySelectorAll('.btn').forEach((b) => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderReputationTopIps();
+        });
+
+        // Sortable column headers
+        document.getElementById('repTopIpsTable').querySelector('thead').addEventListener('click', (event) => {
+            const th = event.target.closest('th.sortable');
+            if (!th) return;
+            const col = th.getAttribute('data-sort');
+            if (reputationState.sortColumn === col) {
+                reputationState.sortAsc = !reputationState.sortAsc;
+            } else {
+                reputationState.sortColumn = col;
+                reputationState.sortAsc = false;
+            }
+            reputationState.currentPage = 1;
+            renderReputationTopIps();
+        });
+
+        // Pagination buttons
+        document.getElementById('repPrevPage').addEventListener('click', () => {
+            if (reputationState.currentPage > 1) {
+                reputationState.currentPage--;
+                renderReputationTopIps();
+            }
+        });
+        document.getElementById('repNextPage').addEventListener('click', () => {
+            const totalPages = Math.max(1, Math.ceil((reputationState.topIps || []).length / reputationState.pageSize));
+            if (reputationState.currentPage < totalPages) {
+                reputationState.currentPage++;
+                renderReputationTopIps();
             }
         });
 

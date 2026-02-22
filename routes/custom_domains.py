@@ -25,7 +25,7 @@ from common import deduct_balance, get_balance, record_daily_usage
 from middleware.custom_domains import invalidate_domain_cache
 
 # Configuration from environment
-CNAME_TARGET = os.getenv("CLOUDFLARE_CNAME_TARGET", "sparkai.jordicor.com")
+CNAME_TARGET = os.getenv("CLOUDFLARE_CNAME_TARGET", "")
 SLOT_PRICE = float(os.getenv("CUSTOM_DOMAIN_SLOT_PRICE", "25.00"))
 # Keep DOMAIN_PRICE for backwards compatibility
 DOMAIN_PRICE = SLOT_PRICE

@@ -23,6 +23,7 @@
 :root {
     /* ----- Backgrounds ----- */
     --bg-primary: #0f0d0e;
+    --bg-primary-rgb: 26, 31, 36;
     --bg-secondary: #1a472a;
     --bg-tertiary: #146b3a;
 
@@ -902,7 +903,7 @@ li.invalid {
    ========================================================== */
 .table-wrapper {
     border-radius: 8px;
-    overflow: hidden;
+    overflow-x: auto;
     border: 2px solid var(--border-color);
 }
 

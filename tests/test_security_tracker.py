@@ -428,6 +428,93 @@ class SecurityTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         # Must be more than 24h (original), should be ~168h
         self.assertGreater(remaining, 24 * 3600)
 
+    async def test_record_request_ban_already_handled_skips_ban_evaluation(self):
+        """When ban_already_handled=True, scoring still happens but no ban is triggered."""
+        from middleware.ip_reputation import IPReputationManager, ReputationConfig
+
+        manager = IPReputationManager()
+        manager._initialized = True
+
+        # Record with ban_already_handled=True and external_ban_until
+        ban_until = time.time() + 86400
+        result = manager.record_request(
+            "10.0.0.1", 403, "/wp-admin",
+            is_pattern_hit=True,
+            ban_already_handled=True,
+            external_ban_until=ban_until,
+        )
+
+        # Should return None (no ban evaluation)
+        self.assertIsNone(result)
+
+        # But score should still be recorded
+        delta = manager._pending.get("10.0.0.1")
+        self.assertIsNotNone(delta)
+        self.assertEqual(delta.score_delta, ReputationConfig.SCORE_PATTERN_MATCH)
+        self.assertEqual(delta.pattern_hits, 1)
+
+        # External ban should be persisted
+        self.assertEqual(delta.banned_until, ban_until)
+        self.assertEqual(delta.times_banned_delta, 1)
+
+    async def test_record_request_without_ban_already_handled_triggers_ban(self):
+        """Default behavior: record_request evaluates ban rules when ban_already_handled=False."""
+        from middleware.ip_reputation import IPReputationManager, ReputationConfig
+
+        manager = IPReputationManager()
+        manager._initialized = True
+
+        # Score enough to trigger a ban (SCORE_PATTERN_MATCH = 50 >= BAN_SCORE_MODERATE = 50)
+        result = manager.record_request(
+            "10.0.0.2", 403, "/wp-admin",
+            is_pattern_hit=True,
+        )
+
+        # Should trigger a ban
+        self.assertIsNotNone(result)
+        self.assertIn("ban_hours", result)
+        self.assertIn("reason", result)
+
+    async def test_block_ip_notifies_nginx_blocklist(self):
+        """block_ip() should call nginx_blocklist_manager.add_ip()."""
+        from unittest.mock import patch
+
+        tracker = SecurityTracker(
+            mode="off",
+            memory_backend=InMemorySecurityBackend(),
+            escalator=NoopEscalator(),
+        )
+
+        with patch("middleware.security.nginx_blocklist_manager") as mock_blocklist:
+            await tracker.block_ip(
+                ip="203.0.113.50",
+                hours=1,
+                reason="Test block",
+                source="test",
+            )
+            mock_blocklist.add_ip.assert_called_once_with("203.0.113.50")
+
+    async def test_unblock_ip_notifies_nginx_blocklist(self):
+        """unblock_ip() should call nginx_blocklist_manager.remove_ip()."""
+        from unittest.mock import patch
+
+        tracker = SecurityTracker(
+            mode="off",
+            memory_backend=InMemorySecurityBackend(),
+            escalator=NoopEscalator(),
+        )
+
+        await tracker.block_ip(
+            ip="203.0.113.51",
+            hours=1,
+            reason="Test block",
+            source="test",
+        )
+
+        with patch("middleware.security.nginx_blocklist_manager") as mock_blocklist:
+            await tracker.unblock_ip("203.0.113.51")
+            mock_blocklist.remove_ip.assert_called_once_with("203.0.113.51")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -30,6 +30,9 @@ from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
+from middleware.ip_reputation import reputation_manager
+from middleware.nginx_blocklist import nginx_blocklist_manager
+
 logger = logging.getLogger(__name__)
 
 
@@ -1221,6 +1224,9 @@ class SecurityTracker:
         except Exception as exc:
             logger.error(f"SECURITY: escalation check failed for {ip}: {exc}")
 
+        # Sync to nginx blocklist
+        nginx_blocklist_manager.add_ip(ip)
+
         # Opportunistic cleanup is traffic-driven: when new blocks happen, run a
         # bounded stale cleanup at most once per interval. No cron/worker required.
         try:
@@ -1331,6 +1337,7 @@ class SecurityTracker:
 
     async def unblock_ip(self, ip: str) -> Dict[str, Any]:
         unblocked = await self._run("unblock_ip", ip)
+        nginx_blocklist_manager.remove_ip(ip)
         escalation = await self.get_cloudflare_escalation(ip)
         result: Dict[str, Any] = {
             "ip": ip,
@@ -1494,6 +1501,19 @@ def is_landing_page_route(path: str) -> bool:
     return False
 
 
+def _has_valid_session(request: Request) -> bool:
+    """Lightweight JWT cookie check. Authenticated users are exempt from reputation scoring."""
+    token = request.cookies.get("access_token")
+    if not token:
+        return False
+    try:
+        from common import decode_jwt_cached, verify_token_expiration, SECRET_KEY
+        payload = decode_jwt_cached(token, SECRET_KEY)
+        return verify_token_expiration(payload)
+    except Exception:
+        return False
+
+
 # =============================================================================
 # Main Middleware
 # =============================================================================
@@ -1510,9 +1530,20 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         ip = get_client_ip(request)
         path = request.url.path
 
+        # 0.5. Check reputation ban (persistent layer)
+        reputation_ban = reputation_manager.check_reputation_ban(ip)
+        if reputation_ban is not None:
+            # Sync reputation ban into real-time tracker if not already blocked
+            if not await _tracker.is_blocked(ip):
+                remaining_hours = max(1, int((reputation_ban - time.time()) / 3600))
+                await _tracker.block_ip(ip, hours=remaining_hours, reason="Reputation ban (synced)", source="reputation")
+
         # 1. Check if IP is already blocked
         if await _tracker.is_blocked(ip):
             logger.debug(f"SECURITY: Blocked request from banned IP {ip}: {path}")
+            if not _has_valid_session(request):
+                reputation_manager.record_request(ip, 403, path, is_blocked_ip=True, ban_already_handled=True)
+            await nginx_blocklist_manager.maybe_reload()
             return Response(
                 content=SecurityConfig.BLOCK_MESSAGE,
                 status_code=SecurityConfig.BLOCK_STATUS_CODE,
@@ -1530,6 +1561,13 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                     reason=f"Instant block pattern: {matched_pattern} (path: {path})",
                     source="instant_pattern",
                 )
+                reputation_manager.record_request(
+                    ip, 403, path,
+                    is_pattern_hit=True,
+                    ban_already_handled=True,
+                    external_ban_until=time.time() + SecurityConfig.BLOCK_DURATION_HOURS * 3600,
+                )
+                await nginx_blocklist_manager.maybe_reload()
                 return Response(
                     content=SecurityConfig.BLOCK_MESSAGE,
                     status_code=SecurityConfig.BLOCK_STATUS_CODE,
@@ -1558,6 +1596,24 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                 )
                 # Note: This response already went out as 404
                 # The NEXT request from this IP will be blocked
+
+        # 5. Record in reputation system (non-authenticated only)
+        if not _has_valid_session(request):
+            is_wl = is_whitelisted_path(path)
+            ban_info = reputation_manager.record_request(ip, response.status_code, path, is_whitelisted_path=is_wl)
+            if ban_info:
+                # Reputation triggered a ban - sync to real-time tracker
+                await _tracker.block_ip(
+                    ip,
+                    hours=ban_info["ban_hours"],
+                    reason=f"Reputation: {ban_info['reason']}",
+                    source="reputation",
+                )
+                if ban_info.get("cf_escalate"):
+                    await _tracker.retry_cloudflare_sync(ip, reason=f"Reputation CF escalation: {ban_info.get('reason', '')}")
+
+        # 6. Piggyback nginx blocklist reload (debounced, only if dirty)
+        await nginx_blocklist_manager.maybe_reload()
 
         return response
 

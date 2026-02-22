@@ -150,10 +150,23 @@ Only generate images if the user specifically requests them or if they would sig
 - Use proper heading hierarchy: only ONE <h1> per page, then <h2>, <h3>, etc.
 - Add descriptive alt text to all images
 - Include Open Graph meta tags (og:title, og:description, og:image, og:type)
+  * og:image MUST be an absolute URL (e.g., https://domain.com/p/xxx/slug/static/img/og.png)
+  * NOT a relative path like "static/img/og-image.png"
+  * Use the LANDING_URL below as the base to build the absolute image URL
+- Include Twitter Card meta tags alongside Open Graph tags:
+  * <meta name="twitter:card" content="summary_large_image">
+  * <meta name="twitter:title" content="..."> (same as og:title)
+  * <meta name="twitter:description" content="..."> (same as og:description)
+  * <meta name="twitter:image" content="..."> (absolute URL, same as og:image)
 - Use descriptive, keyword-rich title tag
 - Add structured data (JSON-LD) for Product/Service schema if appropriate
 - Ensure all links have descriptive anchor text (avoid "click here")
-- Use canonical URL meta tag
+- Add canonical URL meta tag with an ABSOLUTE URL (not relative)
+  * Use: <link rel="canonical" href="{landing_url}">
+  * The canonical URL must start with https://
+
+LANDING_URL: {landing_url}
+(Use this as the base URL for canonical, og:url, og:image, and twitter:image absolute URLs)
 ########################################################################
 
 ########################################################################
@@ -223,7 +236,8 @@ def generate_landing(
     timeout: int = 180,
     product_name: str = "",
     ai_system_prompt: str = "",
-    product_description: str = ""
+    product_description: str = "",
+    landing_url: str = ""
 ) -> dict:
     """
     Generate a landing page using Claude Code.
@@ -239,6 +253,7 @@ def generate_landing(
         product_name: Name of the prompt/product
         ai_system_prompt: The AI's system prompt (for context, not to be role-played)
         product_description: Additional description from the prompt record
+        landing_url: Absolute URL of the landing page (for canonical, OG, and Twitter meta tags)
 
     Returns:
         dict with success status and created files or error message
@@ -272,7 +287,8 @@ def generate_landing(
         secondary_color=secondary_color,
         language_full=language_full,
         context_section=context_section,
-        image_cli_path=str(IMAGE_CLI_PATH)
+        image_cli_path=str(IMAGE_CLI_PATH),
+        landing_url=landing_url or "(not provided)"
     )
 
     claude_exe = find_claude_executable()
@@ -472,7 +488,10 @@ python "{image_cli_path}" -p "Hero image matching the style of existing landing 
 - Preserve or improve SEO: meta tags, semantic HTML5, heading hierarchy
 - Keep proper <h1> (only one), <h2>, <h3> structure
 - Maintain descriptive alt text on images
-- Keep Open Graph meta tags intact
+- Keep Open Graph meta tags intact; ensure og:image uses an absolute URL
+- Ensure Twitter Card meta tags are present (twitter:card, twitter:title,
+  twitter:description, twitter:image) - add them if missing
+- Ensure canonical URL is an absolute URL (starts with https://)
 ########################################################################
 
 ########################################################################

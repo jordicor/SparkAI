@@ -1,0 +1,846 @@
+{% extends 'base_admin.html' %}
+
+{% block title %}Geo-Blocking - SPARK{% endblock %}
+
+{% block styles %}
+<style>
+    .status-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        align-items: center;
+    }
+    .status-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .status-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+    .status-badge.connected {
+        background: rgba(16, 185, 129, 0.15);
+        color: #34d399;
+    }
+    .status-badge.disconnected {
+        background: rgba(239, 68, 68, 0.15);
+        color: #f87171;
+    }
+    .status-badge.enabled {
+        background: rgba(16, 185, 129, 0.15);
+        color: #34d399;
+    }
+    .status-badge.disabled {
+        background: rgba(234, 179, 8, 0.15);
+        color: #fbbf24;
+    }
+    .status-badge.plan {
+        background: rgba(99, 102, 241, 0.15);
+        color: #a78bfa;
+    }
+    .continent-header {
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: var(--text-secondary, #b9bbbe);
+        padding: 0.5rem 0 0.25rem 0;
+        border-bottom: 1px solid var(--border-color, #40444b);
+        margin-bottom: 0.5rem;
+        margin-top: 0.75rem;
+    }
+    .continent-header:first-child {
+        margin-top: 0;
+    }
+    .country-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 0.25rem 1rem;
+    }
+    .country-item {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.15rem 0.25rem;
+        border-radius: 4px;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+    .country-item:hover {
+        background: var(--bg-secondary, #2f3136);
+    }
+    .country-item label {
+        cursor: pointer;
+        margin-bottom: 0;
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .country-item .country-code {
+        font-size: 0.75rem;
+        color: var(--text-muted, #72767d);
+        min-width: 2rem;
+    }
+    .continent-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.35rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        border: 1px solid var(--border-color, #40444b);
+        background: var(--bg-tertiary, #202225);
+        transition: border-color 0.2s, background 0.2s;
+        user-select: none;
+    }
+    .continent-chip:hover {
+        border-color: var(--accent, #5865f2);
+    }
+    .continent-chip.active {
+        border-color: var(--accent, #5865f2);
+        background: rgba(88, 101, 242, 0.15);
+    }
+    .continent-chip input[type="checkbox"] {
+        margin: 0;
+    }
+    .help-text {
+        font-size: 0.8rem;
+        color: var(--text-muted, #72767d);
+    }
+    .landing-policy-mode {
+        display: inline-block;
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+    .landing-policy-mode.deny {
+        background: rgba(239, 68, 68, 0.15);
+        color: #f87171;
+    }
+    .landing-policy-mode.allow {
+        background: rgba(16, 185, 129, 0.15);
+        color: #34d399;
+    }
+</style>
+{% endblock %}
+
+{% block page_title %}Geo-Blocking{% endblock %}
+
+{% block page_subtitle %}
+<p class="page-subtitle">Cloudflare WAF geographic access control</p>
+{% endblock %}
+
+{% block content %}
+<!-- Section 1: Cloudflare Status -->
+<div class="section-container">
+    <div class="section-title"><i class="fas fa-signal me-2"></i>Cloudflare Status</div>
+    <div id="statusLoading" class="text-center py-3">
+        <div class="spinner-border spinner-border-sm text-primary"></div> Checking connection...
+    </div>
+    <div id="statusContent" style="display:none;">
+        <div class="status-row">
+            <div class="status-item">
+                <span class="text-muted">Connection:</span>
+                <span class="status-badge" id="cfConnectionBadge">--</span>
+            </div>
+            <div class="status-item">
+                <span class="text-muted">Plan:</span>
+                <span class="status-badge plan" id="cfPlanBadge">--</span>
+            </div>
+            <div class="status-item">
+                <span class="text-muted">WAF Rules:</span>
+                <strong id="cfRulesUsed">--</strong> / <span id="cfRulesMax">--</span>
+            </div>
+            <div class="status-item">
+                <span class="text-muted">Visitor Location Headers:</span>
+                <i class="fas fa-info-circle text-muted" style="font-size: 0.8rem; cursor: help;" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Adds CF-IPCountry header to requests reaching your server. Not required for geo-blocking (WAF rules work independently), but useful for server-side analytics, abuse detection, or logging visitor countries."></i>
+                <span id="cfTransformsContainer">
+                    <span class="status-badge" id="cfTransformsBadge">--</span>
+                    <button class="btn btn-sm btn-outline-warning ms-1" id="enableTransformsBtn" style="display:none;" onclick="enableTransforms()">
+                        Enable
+                    </button>
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 2: Global Geo-Blocking -->
+<div class="section-container">
+    <div class="section-title"><i class="fas fa-globe me-2"></i>Global Geo-Blocking</div>
+
+    <!-- Enable toggle -->
+    <div class="form-check form-switch mb-3">
+        <input class="form-check-input" type="checkbox" id="geoEnabled">
+        <label class="form-check-label fw-semibold" for="geoEnabled">Enable Geo-Blocking</label>
+    </div>
+
+    <!-- Config area (shown when enabled) -->
+    <div id="geoConfigArea" style="display:none;">
+        <!-- Mode selector -->
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Mode</label>
+            <div class="btn-group" role="group">
+                <input type="radio" class="btn-check" name="geoMode" id="modeDeny" value="deny" checked>
+                <label class="btn btn-outline-danger" for="modeDeny"><i class="fas fa-ban me-1"></i>Block Listed</label>
+                <input type="radio" class="btn-check" name="geoMode" id="modeAllow" value="allow">
+                <label class="btn btn-outline-success" for="modeAllow"><i class="fas fa-check me-1"></i>Allow Only Listed</label>
+            </div>
+            <div class="form-text" id="modeHelp">Countries and continents selected below will be <strong>blocked</strong>.</div>
+        </div>
+
+        <!-- Continent Quick Selectors -->
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Continents</label>
+            <div class="d-flex flex-wrap gap-2" id="continentCheckboxes"></div>
+        </div>
+
+        <!-- Country Multi-Select -->
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Countries</label>
+            <input type="text" class="form-control mb-2" id="countrySearch" placeholder="Search countries...">
+            <div id="countryGrid" class="border rounded p-2" style="max-height: 350px; overflow-y: auto; background: var(--bg-tertiary, #202225); border-color: var(--border-color, #40444b) !important;">
+                <!-- Populated by JS -->
+            </div>
+            <small class="text-muted"><span id="selectedCount">0</span> countries selected</small>
+        </div>
+
+        <!-- Custom 451 HTML -->
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Custom Block Page (optional)</label>
+            <textarea class="form-control" id="responseHtml" rows="4" placeholder="Custom HTML for blocked visitors (HTTP 451). Leave empty for default."></textarea>
+            <div class="form-text">Shown to visitors from blocked regions. Supports HTML.</div>
+        </div>
+
+        <!-- Save & Sync Button -->
+        <button class="btn btn-primary" id="saveGlobalBtn" onclick="saveGlobalConfig()">
+            <i class="fas fa-save me-1"></i> Save &amp; Sync to Cloudflare
+        </button>
+    </div>
+</div>
+
+<!-- Section 3: Per-Landing Geo Policies -->
+<div class="section-container">
+    <div class="section-title"><i class="fas fa-list me-2"></i>Per-Landing Geo Policies</div>
+    <div id="landingSummaryLoading" class="text-center py-3">
+        <div class="spinner-border spinner-border-sm text-primary"></div> Loading...
+    </div>
+    <div id="landingSummaryContent" style="display:none;">
+        <div class="table-responsive">
+            <table class="table table-sm align-middle">
+                <thead>
+                    <tr>
+                        <th>Landing</th>
+                        <th>Public ID</th>
+                        <th>Mode</th>
+                        <th>Countries</th>
+                        <th>Updated</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="landingSummaryBody"></tbody>
+            </table>
+        </div>
+        <p id="noLandingPolicies" style="display:none;" class="text-muted text-center py-2">No per-landing geo policies configured.</p>
+    </div>
+</div>
+
+<!-- Section 4: Actions (Danger Zone) -->
+<div class="section-container">
+    <div class="section-title text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Actions</div>
+    <div class="d-flex gap-2 flex-wrap">
+        <button class="btn btn-outline-primary" onclick="forceSync()">
+            <i class="fas fa-sync-alt me-1"></i> Force Re-sync All Rules
+        </button>
+        <button class="btn btn-outline-danger" onclick="removeAllRules()">
+            <i class="fas fa-trash me-1"></i> Remove All Geo Rules from CF
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts_inline %}
+<script>
+    // =========================================================================
+    // Geo data from server context (countries grouped by continent)
+    // =========================================================================
+    const GEO_DATA = {{ geo_data | tojson }};
+
+    // secureFetch is provided by session-utils.js (included via base_admin.html)
+
+    // =========================================================================
+    // HTML escape helper
+    // =========================================================================
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    // =========================================================================
+    // Alert helper
+    // =========================================================================
+    function showAlert(message, type, isHtml) {
+        const container = document.getElementById('alertContainer');
+        const id = 'alert-' + Date.now();
+        const content = isHtml ? message : escapeHtml(message);
+        const alertHtml = `
+            <div id="${id}" class="alert alert-${escapeHtml(type)} alert-dismissible fade show" role="alert">
+                ${content}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>`;
+        container.insertAdjacentHTML('beforeend', alertHtml);
+        setTimeout(() => {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }, 8000);
+    }
+
+    // =========================================================================
+    // State
+    // =========================================================================
+    let currentConfig = null; // populated by loadStatus
+
+    // =========================================================================
+    // Render continents
+    // =========================================================================
+    function renderContinents() {
+        const container = document.getElementById('continentCheckboxes');
+        container.innerHTML = '';
+
+        // GEO_DATA is { "continent_name": { code: "XX", countries: [{code, name}, ...] }, ... }
+        const continents = Object.keys(GEO_DATA).sort();
+        for (const continent of continents) {
+            const info = GEO_DATA[continent];
+            const chipId = 'continent-' + info.code;
+
+            const chip = document.createElement('label');
+            chip.className = 'continent-chip';
+            chip.setAttribute('for', chipId);
+            chip.innerHTML = `
+                <input type="checkbox" id="${chipId}" value="${info.code}" data-continent="${continent}">
+                <span>${continent}</span>
+                <small class="text-muted">(${info.countries.length})</small>`;
+            container.appendChild(chip);
+
+            // Toggle all countries in this continent
+            chip.querySelector('input').addEventListener('change', function() {
+                const checked = this.checked;
+                chip.classList.toggle('active', checked);
+                const countries = GEO_DATA[continent].countries;
+                for (const c of countries) {
+                    const cb = document.getElementById('country-' + c.code);
+                    if (cb && !cb.closest('.country-item').classList.contains('d-none')) {
+                        cb.checked = checked;
+                    }
+                    if (cb) cb.checked = checked;
+                }
+                updateSelectedCount();
+            });
+        }
+    }
+
+    // =========================================================================
+    // Render countries
+    // =========================================================================
+    function renderCountries() {
+        const container = document.getElementById('countryGrid');
+        container.innerHTML = '';
+
+        const continents = Object.keys(GEO_DATA).sort();
+        for (const continent of continents) {
+            const info = GEO_DATA[continent];
+
+            // Continent header
+            const header = document.createElement('div');
+            header.className = 'continent-header';
+            header.textContent = continent;
+            header.dataset.continent = continent;
+            container.appendChild(header);
+
+            // Country grid for this continent
+            const grid = document.createElement('div');
+            grid.className = 'country-grid';
+            grid.dataset.continent = continent;
+
+            const sorted = [...info.countries].sort((a, b) => a.name.localeCompare(b.name));
+            for (const country of sorted) {
+                const item = document.createElement('div');
+                item.className = 'country-item';
+                item.dataset.name = country.name.toLowerCase();
+                item.dataset.code = country.code.toLowerCase();
+                item.dataset.continent = continent;
+                item.innerHTML = `
+                    <input type="checkbox" id="country-${country.code}" value="${country.code}" class="form-check-input" style="min-width:1rem;">
+                    <label for="country-${country.code}">${country.name}</label>
+                    <span class="country-code">${country.code}</span>`;
+                item.querySelector('input').addEventListener('change', function() {
+                    updateContinentState(continent);
+                    updateSelectedCount();
+                });
+                grid.appendChild(item);
+            }
+            container.appendChild(grid);
+        }
+    }
+
+    // =========================================================================
+    // Update continent checkbox state based on child country checkboxes
+    // =========================================================================
+    function updateContinentState(continent) {
+        const info = GEO_DATA[continent];
+        if (!info) return;
+        const continentCb = document.getElementById('continent-' + info.code);
+        if (!continentCb) return;
+
+        const countryCodes = info.countries.map(c => c.code);
+        const total = countryCodes.length;
+        let checked = 0;
+        for (const code of countryCodes) {
+            const cb = document.getElementById('country-' + code);
+            if (cb && cb.checked) checked++;
+        }
+
+        continentCb.checked = checked === total && total > 0;
+        continentCb.indeterminate = checked > 0 && checked < total;
+        continentCb.closest('.continent-chip').classList.toggle('active', checked > 0);
+    }
+
+    // =========================================================================
+    // Filter countries by search
+    // =========================================================================
+    function filterCountries(query) {
+        query = query.toLowerCase().trim();
+        const items = document.querySelectorAll('#countryGrid .country-item');
+        const headers = document.querySelectorAll('#countryGrid .continent-header');
+        const grids = document.querySelectorAll('#countryGrid .country-grid');
+
+        // Track which continents have visible items
+        const visibleContinents = new Set();
+
+        items.forEach(item => {
+            const name = item.dataset.name;
+            const code = item.dataset.code;
+            const match = !query || name.includes(query) || code.includes(query);
+            item.classList.toggle('d-none', !match);
+            if (match) visibleContinents.add(item.dataset.continent);
+        });
+
+        // Show/hide continent headers based on whether they have visible children
+        headers.forEach(h => {
+            h.classList.toggle('d-none', !visibleContinents.has(h.dataset.continent));
+        });
+        grids.forEach(g => {
+            g.classList.toggle('d-none', !visibleContinents.has(g.dataset.continent));
+        });
+    }
+
+    // =========================================================================
+    // Update selected count
+    // =========================================================================
+    function updateSelectedCount() {
+        const checked = document.querySelectorAll('#countryGrid .country-item input:checked').length;
+        document.getElementById('selectedCount').textContent = checked;
+    }
+
+    // =========================================================================
+    // Get selected country codes
+    // =========================================================================
+    function getSelectedCountries() {
+        const codes = [];
+        document.querySelectorAll('#countryGrid .country-item input:checked').forEach(cb => {
+            codes.push(cb.value);
+        });
+        return codes;
+    }
+
+    // =========================================================================
+    // Get selected continent codes
+    // =========================================================================
+    function getSelectedContinents() {
+        const codes = [];
+        document.querySelectorAll('#continentCheckboxes input:checked').forEach(cb => {
+            codes.push(cb.value);
+        });
+        return codes;
+    }
+
+    // =========================================================================
+    // Set selected countries from an array of codes
+    // =========================================================================
+    function setSelectedCountries(codes) {
+        const codeSet = new Set(codes || []);
+        document.querySelectorAll('#countryGrid .country-item input').forEach(cb => {
+            cb.checked = codeSet.has(cb.value);
+        });
+        // Update continent states
+        for (const continent of Object.keys(GEO_DATA)) {
+            updateContinentState(continent);
+        }
+        updateSelectedCount();
+    }
+
+    // =========================================================================
+    // Load status + global config
+    // =========================================================================
+    async function loadStatus() {
+        try {
+            const resp = await secureFetch('/api/admin/geo/status');
+            if (!resp) return;
+            const data = await resp.json();
+
+            if (!data.success) {
+                showAlert('Failed to load status: ' + (data.message || 'Unknown error'), 'danger');
+                document.getElementById('statusLoading').innerHTML = '<span class="text-danger">Failed to load status</span>';
+                document.getElementById('landingSummaryLoading').innerHTML = '<span class="text-danger">Failed to load</span>';
+                return;
+            }
+
+            currentConfig = data;
+            const status = data.status || {};
+            const config = data.config || {};
+
+            // -- Connection badge --
+            const connBadge = document.getElementById('cfConnectionBadge');
+            if (status.connected) {
+                connBadge.className = 'status-badge connected';
+                connBadge.textContent = 'Connected';
+            } else {
+                connBadge.className = 'status-badge disconnected';
+                connBadge.textContent = 'Not Configured';
+            }
+
+            // -- Plan badge --
+            document.getElementById('cfPlanBadge').textContent = status.plan || '--';
+
+            // -- WAF rules --
+            document.getElementById('cfRulesUsed').textContent = status.rules_used != null ? status.rules_used : '--';
+            document.getElementById('cfRulesMax').textContent = status.rules_max != null ? status.rules_max : '--';
+
+            // -- Managed Transforms --
+            const transformsBadge = document.getElementById('cfTransformsBadge');
+            const enableBtn = document.getElementById('enableTransformsBtn');
+            if (status.transforms_enabled) {
+                transformsBadge.className = 'status-badge enabled';
+                transformsBadge.textContent = 'Enabled';
+                enableBtn.style.display = 'none';
+            } else {
+                transformsBadge.className = 'status-badge disabled';
+                transformsBadge.textContent = 'Disabled';
+                enableBtn.style.display = 'inline-block';
+            }
+
+            // Show status, hide loading
+            document.getElementById('statusLoading').style.display = 'none';
+            document.getElementById('statusContent').style.display = '';
+
+            // -- Populate global config form --
+            const geoEnabled = document.getElementById('geoEnabled');
+            geoEnabled.checked = !!config.geo_enabled;
+            toggleConfigArea(geoEnabled.checked);
+
+            if (config.mode) {
+                const modeRadio = document.getElementById(config.mode === 'allow' ? 'modeAllow' : 'modeDeny');
+                if (modeRadio) modeRadio.checked = true;
+                updateModeHelp(config.mode);
+            }
+
+            if (config.countries) {
+                setSelectedCountries(config.countries);
+            }
+
+            if (config.response_html) {
+                document.getElementById('responseHtml').value = config.response_html;
+            }
+
+            // -- Populate landing summary --
+            populateLandingSummary(data.landing_policies || []);
+
+        } catch (err) {
+            console.error('Error loading geo status:', err);
+            showAlert('Error loading geo status: ' + err.message, 'danger');
+            document.getElementById('statusLoading').innerHTML = '<span class="text-danger">Connection error</span>';
+            document.getElementById('landingSummaryLoading').innerHTML = '<span class="text-danger">Connection error</span>';
+        }
+    }
+
+    // =========================================================================
+    // Toggle config area visibility
+    // =========================================================================
+    function toggleConfigArea(show) {
+        document.getElementById('geoConfigArea').style.display = show ? '' : 'none';
+    }
+
+    // =========================================================================
+    // Update mode help text
+    // =========================================================================
+    function updateModeHelp(mode) {
+        const helpEl = document.getElementById('modeHelp');
+        if (mode === 'allow') {
+            helpEl.innerHTML = '<strong>Only</strong> countries and continents selected below will be <strong>allowed</strong>. All others are blocked.';
+        } else {
+            helpEl.innerHTML = 'Countries and continents selected below will be <strong>blocked</strong>.';
+        }
+    }
+
+    // =========================================================================
+    // Populate landing summary table
+    // =========================================================================
+    function populateLandingSummary(policies) {
+        const tbody = document.getElementById('landingSummaryBody');
+        const noMsg = document.getElementById('noLandingPolicies');
+        tbody.innerHTML = '';
+
+        document.getElementById('landingSummaryLoading').style.display = 'none';
+        document.getElementById('landingSummaryContent').style.display = '';
+
+        if (!policies || policies.length === 0) {
+            noMsg.style.display = '';
+            return;
+        }
+        noMsg.style.display = 'none';
+
+        for (const p of policies) {
+            const modeClass = p.mode === 'allow' ? 'allow' : 'deny';
+            const modeLabel = p.mode === 'allow' ? 'Allow' : 'Block';
+            const countries = p.countries || [];
+            const countriesDisplay = countries.length > 5
+                ? (countries.slice(0, 5).join(', ') + ' +' + (countries.length - 5) + ' more')
+                : countries.join(', ') || '--';
+            const updated = p.updated_at ? new Date(p.updated_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '--';
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${escapeHtml(p.name || '--')}</td>
+                <td><code>${escapeHtml(p.public_id || '--')}</code></td>
+                <td><span class="landing-policy-mode ${modeClass}">${modeLabel}</span></td>
+                <td><small>${escapeHtml(countriesDisplay)}</small></td>
+                <td><small>${updated}</small></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-secondary" data-action="edit" data-id="${p.id}" title="Edit">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" data-action="delete" data-publicid="${escapeHtml(p.public_id || '')}" title="Remove">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </td>`;
+            tbody.appendChild(tr);
+        }
+
+        // Event delegation for landing action buttons
+        tbody.addEventListener('click', function(e) {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            if (btn.dataset.action === 'edit') {
+                editLandingPolicy(btn.dataset.id);
+            } else if (btn.dataset.action === 'delete') {
+                deleteLandingPolicy(btn.dataset.publicid);
+            }
+        });
+    }
+
+    // =========================================================================
+    // Save global config
+    // =========================================================================
+    async function saveGlobalConfig() {
+        const btn = document.getElementById('saveGlobalBtn');
+        const originalHtml = btn.innerHTML;
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving &amp; Syncing...';
+
+        const mode = document.querySelector('input[name="geoMode"]:checked').value;
+        const countries = getSelectedCountries();
+        const continents = getSelectedContinents();
+        const responseHtml = document.getElementById('responseHtml').value.trim();
+        const geoEnabled = document.getElementById('geoEnabled').checked;
+
+        const payload = {
+            geo_enabled: geoEnabled,
+            mode: mode,
+            countries: countries,
+            continents: continents,
+            response_html: responseHtml
+        };
+
+        try {
+            const resp = await secureFetch('/api/admin/geo/global', {
+                method: 'PUT',
+                body: JSON.stringify(payload)
+            });
+            if (!resp) return;
+            const result = await resp.json();
+
+            if (result.success) {
+                btn.innerHTML = '<i class="fas fa-check me-1"></i> Saved!';
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-success');
+                showAlert('Global geo-blocking config saved and synced to Cloudflare.', 'success');
+
+                setTimeout(() => {
+                    btn.innerHTML = originalHtml;
+                    btn.classList.remove('btn-success');
+                    btn.classList.add('btn-primary');
+                    btn.disabled = false;
+                }, 2500);
+            } else {
+                showAlert('Save failed: ' + (result.message || 'Unknown error'), 'danger');
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            }
+        } catch (err) {
+            console.error('Error saving global config:', err);
+            showAlert('Error saving config: ' + err.message, 'danger');
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        }
+    }
+
+    // =========================================================================
+    // Enable Managed Transforms
+    // =========================================================================
+    async function enableTransforms() {
+        const btn = document.getElementById('enableTransformsBtn');
+        const originalHtml = btn.innerHTML;
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+        try {
+            const resp = await secureFetch('/api/admin/geo/enable-transforms', { method: 'POST' });
+            if (!resp) return;
+            const result = await resp.json();
+
+            if (result.success) {
+                const badge = document.getElementById('cfTransformsBadge');
+                badge.className = 'status-badge enabled';
+                badge.textContent = 'Enabled';
+                btn.style.display = 'none';
+                showAlert('Managed Transforms enabled successfully.', 'success');
+            } else {
+                showAlert('Failed to enable transforms: ' + (result.message || 'Unknown error'), 'danger');
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            }
+        } catch (err) {
+            console.error('Error enabling transforms:', err);
+            showAlert('Error: ' + err.message, 'danger');
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        }
+    }
+
+    // =========================================================================
+    // Force Re-sync
+    // =========================================================================
+    async function forceSync() {
+        if (!confirm('This will re-sync all geo-blocking rules to Cloudflare. Continue?')) return;
+
+        showAlert('<span class="spinner-border spinner-border-sm me-1"></span> Syncing rules to Cloudflare...', 'info', true);
+
+        try {
+            const resp = await secureFetch('/api/admin/geo/sync', { method: 'POST' });
+            if (!resp) return;
+            const result = await resp.json();
+
+            if (result.success) {
+                showAlert('All rules re-synced to Cloudflare successfully.', 'success');
+                await loadStatus();
+            } else {
+                showAlert('Sync failed: ' + (result.message || 'Unknown error'), 'danger');
+            }
+        } catch (err) {
+            console.error('Error during force sync:', err);
+            showAlert('Sync error: ' + err.message, 'danger');
+        }
+    }
+
+    // =========================================================================
+    // Remove All Rules
+    // =========================================================================
+    async function removeAllRules() {
+        if (!confirm('WARNING: This will remove ALL geo-blocking rules from Cloudflare.\n\nAll geographic restrictions will be lifted immediately.\n\nAre you sure?')) return;
+        if (!confirm('This action cannot be undone easily. Confirm again to proceed.')) return;
+
+        showAlert('<span class="spinner-border spinner-border-sm me-1"></span> Removing all geo rules from Cloudflare...', 'warning', true);
+
+        try {
+            const resp = await secureFetch('/api/admin/geo/rules', { method: 'DELETE' });
+            if (!resp) return;
+            const result = await resp.json();
+
+            if (result.success) {
+                showAlert('All geo-blocking rules removed from Cloudflare.', 'success');
+                await loadStatus();
+            } else {
+                showAlert('Failed to remove rules: ' + (result.message || 'Unknown error'), 'danger');
+            }
+        } catch (err) {
+            console.error('Error removing rules:', err);
+            showAlert('Error: ' + err.message, 'danger');
+        }
+    }
+
+    // =========================================================================
+    // Edit / Delete landing policy (placeholder navigation)
+    // =========================================================================
+    function editLandingPolicy(promptId) {
+        if (!promptId) return;
+        // Navigate to the landing config page - geo tab is the 5th tab
+        window.location.href = '/landing/' + encodeURIComponent(promptId);
+    }
+
+    async function deleteLandingPolicy(publicId) {
+        if (!publicId) return;
+        if (!confirm('Remove the geo policy for landing "' + publicId + '"? The landing itself will not be affected.')) return;
+
+        try {
+            const resp = await secureFetch('/api/admin/geo/landing/' + encodeURIComponent(publicId), { method: 'DELETE' });
+            if (!resp) return;
+            const result = await resp.json();
+
+            if (result.success) {
+                showAlert('Landing geo policy removed.', 'success');
+                await loadStatus();
+            } else {
+                showAlert('Failed: ' + (result.message || 'Unknown error'), 'danger');
+            }
+        } catch (err) {
+            console.error('Error deleting landing policy:', err);
+            showAlert('Error: ' + err.message, 'danger');
+        }
+    }
+
+    // =========================================================================
+    // Init
+    // =========================================================================
+    document.addEventListener('DOMContentLoaded', async () => {
+        renderContinents();
+        renderCountries();
+        await loadStatus();
+
+        // Toggle config area when enabling/disabling
+        document.getElementById('geoEnabled').addEventListener('change', function() {
+            toggleConfigArea(this.checked);
+        });
+
+        // Country search filter
+        document.getElementById('countrySearch').addEventListener('input', function() {
+            filterCountries(this.value);
+        });
+
+        // Mode change updates help text
+        document.querySelectorAll('[name="geoMode"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                updateModeHelp(this.value);
+            });
+        });
+    });
+</script>
+{% endblock %}

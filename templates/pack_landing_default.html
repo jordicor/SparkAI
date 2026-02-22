@@ -8,9 +8,17 @@
     <meta property="og:title" content="{{ pack.name }}">
     <meta property="og:description" content="{{ pack.description[:160] if pack.description else 'AI Pack on SPARK' }}">
     <meta property="og:type" content="product">
+    <meta property="og:url" content="{{ site_url }}/pack/{{ pack.public_id }}/{{ pack.slug }}/">
     {% if pack.cover_image %}
-    <meta property="og:image" content="/api/packs/{{ pack.id }}/cover/fullsize">
+    <meta property="og:image" content="{{ site_url }}/api/packs/{{ pack.id }}/cover/fullsize">
     {% endif %}
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ pack.name }}">
+    <meta name="twitter:description" content="{{ pack.description[:200] if pack.description else 'AI prompt pack on SPARK' }}">
+    {% if pack.cover_image %}
+    <meta name="twitter:image" content="{{ site_url }}/api/packs/{{ pack.id }}/cover/fullsize">
+    {% endif %}
+    <link rel="canonical" href="{{ site_url }}/pack/{{ pack.public_id }}/{{ pack.slug }}/">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">

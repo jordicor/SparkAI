@@ -35,6 +35,7 @@ SEED_DIR = SCRIPT_DIR
 SEED_IMAGES_DIR = SEED_DIR / "images"
 SEED_PROMPTS_DIR = SEED_DIR / "prompts"
 SEED_LANDINGS_DIR = SEED_DIR / "landings"
+SEED_WELCOMES_DIR = SEED_DIR / "welcomes"
 
 # Admin user configuration
 ADMIN_USERNAME = "admin"
@@ -241,6 +242,23 @@ PROMPTS = [
     },
 ]
 
+PACKS = [
+    {
+        "name": "Productivity Suite",
+        "slug": "productivity-suite",
+        "description": "Your essential AI toolkit for getting things done. Three specialized assistants that cover your daily professional needs.",
+        "prompt_ids": [1, 2, 3],  # Spark, Writer, Coder
+        "welcome_folder": "pack_productivity_suite",
+    },
+    {
+        "name": "Growth & Learning",
+        "slug": "growth-learning",
+        "description": "Your personal development team. Whether you are studying, working on yourself, or need a thinking partner to challenge your ideas.",
+        "prompt_ids": [4, 7, 8],  # Tutor, Coach, Nova-Orion
+        "welcome_folder": "pack_growth_learning",
+    },
+]
+
 
 # =============================================================================
 # DATABASE OPERATIONS
@@ -435,12 +453,66 @@ def seed_prompts(conn, admin_id):
                     shutil.rmtree(dst_templates)
                 shutil.copytree(src_templates, dst_templates)
 
+        # Copy welcome.html if it exists in seed welcomes
+        welcome_folder_name = prompt_data.get("image_folder")
+        src_welcome = SEED_WELCOMES_DIR / welcome_folder_name / "welcome.html"
+        if src_welcome.exists():
+            shutil.copy2(src_welcome, dst_prompt_folder / "welcome.html")
+
         seeded_count += 1
 
     conn.commit()
     print(f"  - Seeded {seeded_count} prompts with images")
     if landings_count > 0:
         print(f"  - Copied {landings_count} landing pages")
+
+
+def seed_packs(conn, admin_id):
+    """Seed PACKS, PACK_ITEMS, PACK_ACCESS and copy pack welcome files."""
+    cursor = conn.cursor()
+    user_dir = get_user_directory_path(ADMIN_USERNAME)
+    data_dir = PROJECT_ROOT / "data"
+
+    for pack_data in PACKS:
+        # Insert pack
+        cursor.execute("""
+            INSERT INTO PACKS (name, slug, description, created_by_user_id, is_public, status)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (pack_data["name"], pack_data["slug"], pack_data["description"],
+              admin_id, True, "published"))
+        pack_id = cursor.lastrowid
+
+        # Insert pack items
+        for order, prompt_id in enumerate(pack_data["prompt_ids"], 1):
+            cursor.execute("""
+                INSERT INTO PACK_ITEMS (pack_id, prompt_id, display_order)
+                VALUES (?, ?, ?)
+            """, (pack_id, prompt_id, order))
+
+        # Grant pack access to admin
+        cursor.execute("""
+            INSERT INTO PACK_ACCESS (pack_id, user_id, granted_via)
+            VALUES (?, ?, ?)
+        """, (pack_id, admin_id, "seed"))
+
+        # Create pack directory and copy welcome
+        pack_name_sanitized = pack_data["name"].lower().replace(" ", "_")
+        # Remove chars that sanitize_name removes: <>:"/\|?*
+        for ch in '<>:"/\\|?*':
+            pack_name_sanitized = pack_name_sanitized.replace(ch, '')
+        pack_folder = f"{pack_id:04d}_{pack_name_sanitized}"
+        dst_pack_folder = data_dir / user_dir / "packs" / "000" / pack_folder
+        dst_pack_folder.mkdir(parents=True, exist_ok=True)
+
+        # Copy welcome.html
+        welcome_folder = pack_data.get("welcome_folder")
+        if welcome_folder:
+            src_welcome = SEED_WELCOMES_DIR / welcome_folder / "welcome.html"
+            if src_welcome.exists():
+                shutil.copy2(src_welcome, dst_pack_folder / "welcome.html")
+
+    conn.commit()
+    print(f"  - Seeded {len(PACKS)} packs with items and welcomes")
 
 
 # =============================================================================
@@ -481,6 +553,7 @@ def run_seed(force=False):
         seed_llm_models(conn)
         admin_id = seed_admin_user(conn)
         seed_prompts(conn, admin_id)
+        seed_packs(conn, admin_id)
 
         print("\n" + "-" * 60)
         print("Seed completed successfully!")

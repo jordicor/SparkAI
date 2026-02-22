@@ -71,6 +71,7 @@ CREATE TABLE PROMPTS (
     purchase_price DECIMAL DEFAULT NULL,
     ranking_score REAL DEFAULT 0,
     has_landing_page BOOLEAN DEFAULT 0,
+    geo_policy TEXT DEFAULT NULL,
     FOREIGN KEY (voice_id) REFERENCES VOICES (id),
     FOREIGN KEY (created_by_user_id) REFERENCES USERS (id)
 );

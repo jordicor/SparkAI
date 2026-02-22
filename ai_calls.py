@@ -42,7 +42,7 @@ from common import (
     SECRET_KEY,
     ALGORITHM,
     MAX_TOKENS,
-    TOKEN_LIMIT,
+
     MAX_MESSAGE_SIZE,
     CLOUDFLARE_FOR_IMAGES,
     openai_key,
@@ -970,6 +970,16 @@ async def save_message(
                 status_code=403
             )
 
+    # Early lock check before reading files into memory
+    async with get_db_connection(readonly=True) as conn:
+        lock_cursor = await conn.execute(
+            "SELECT locked FROM CONVERSATIONS WHERE id = ? AND user_id = ?",
+            (conversation_id, current_user.id)
+        )
+        lock_row = await lock_cursor.fetchone()
+        if not lock_row or lock_row[0]:
+            return JSONResponse(content={'success': False, 'message': 'Conversation is locked.'}, status_code=403)
+
     # Convert UploadFile to dict format if files exist
     files = None
     if file:
@@ -1040,18 +1050,28 @@ async def get_ai_response(
                         u.user_info,
                         ud.current_alter_ego_id,
                         COALESCE(p.disable_web_search, 0) AS disable_web_search,
-                        COALESCE(ud.web_search_enabled, 1) AS user_web_search_enabled
+                        COALESCE(ud.web_search_enabled, 1) AS user_web_search_enabled,
+                        COALESCE(p.extensions_enabled, 0) AS extensions_enabled,
+                        COALESCE(p.extensions_auto_advance, 0) AS extensions_auto_advance,
+                        COALESCE(p.extensions_free_selection, 1) AS extensions_free_selection,
+                        c.active_extension_id,
+                        pe.name AS extension_name,
+                        pe.prompt_text AS extension_prompt_text
                     FROM CONVERSATIONS c
                     LEFT JOIN PROMPTS p ON c.role_id = p.id
                     LEFT JOIN USER_DETAILS ud ON ud.user_id = ?
                     LEFT JOIN USERS u ON u.id = ?
+                    LEFT JOIN PROMPT_EXTENSIONS pe ON c.active_extension_id = pe.id
                     WHERE c.id = ? AND c.user_id = ?
                 """, (user_id, user_id, conversation_id, user_id))
 
                 result = await cursor_ro.fetchone()
 
                 if result:
-                    conversation_role_id, prompt, effective_role_id, user_info, current_alter_ego_id, disable_web_search, user_web_search_enabled = result
+                    (conversation_role_id, prompt, effective_role_id, user_info,
+                     current_alter_ego_id, disable_web_search, user_web_search_enabled,
+                     extensions_enabled, extensions_auto_advance, extensions_free_selection,
+                     active_extension_id, extension_name, extension_prompt_text) = result
                     
                     if conversation_role_id is None and effective_role_id:
                         # Update conversation role_id if needed
@@ -1105,6 +1125,40 @@ async def get_ai_response(
                         else:
                             prompt_base = prompt
 
+                    # --- Extensions: inject active extension prompt and level context ---
+                    has_extensions = False
+                    if extensions_enabled and extension_prompt_text:
+                        prompt_base = (
+                            f"{prompt_base}\n\n"
+                            f"--- ACTIVE EXTENSION: {extension_name} ---\n"
+                            f"{extension_prompt_text}\n"
+                            f"--- END EXTENSION ---"
+                        )
+
+                    if extensions_enabled and extensions_auto_advance:
+                        async with get_db_connection(readonly=True) as conn_ext:
+                            async with conn_ext.cursor() as cursor_ext:
+                                await cursor_ext.execute(
+                                    "SELECT id, name, display_order, description FROM PROMPT_EXTENSIONS WHERE prompt_id = ? ORDER BY display_order",
+                                    (effective_role_id,)
+                                )
+                                all_extensions = await cursor_ext.fetchall()
+                                if all_extensions:
+                                    has_extensions = True
+                                    ext_list = "\n".join([
+                                        f"  - [{e[0]}] {e[1]}{' (CURRENT)' if e[0] == active_extension_id else ''}: {e[3] or 'No description'}"
+                                        for e in all_extensions
+                                    ])
+                                    extensions_context = (
+                                        f"\n\n--- EXTENSION LEVELS ---\n"
+                                        f"This conversation has the following levels/phases. You are currently on the one marked (CURRENT).\n"
+                                        f"When you determine the current level's objectives are sufficiently covered, "
+                                        f"use the advanceExtension tool to transition to the next level.\n"
+                                        f"{ext_list}\n"
+                                        f"--- END EXTENSION LEVELS ---"
+                                    )
+                                    prompt_base += extensions_context
+
                     # --- Watchdog: read config and pending hint ---
                     watchdog_config = None
                     prompt_id = effective_role_id
@@ -1149,6 +1203,7 @@ async def get_ai_response(
                                         conversation_id=conversation_id,
                                         user_id=user_id,
                                         user_api_keys=user_api_keys or {},
+                                        ai_prompt_context=prompt_base,
                                     )
                                     pre_action = pre_result.get("action", "pass")
                                     pre_hint = pre_result.get("hint", "")
@@ -1329,6 +1384,10 @@ async def get_ai_response(
                 filtered_tools = tools
                 if disable_web_search or not user_web_search_enabled:
                     filtered_tools = [t for t in tools if t['function']['name'] != 'query_perplexity']
+
+                # Filter advanceExtension tool: only include when extensions + auto_advance are active
+                if not (extensions_enabled and extensions_auto_advance and has_extensions):
+                    filtered_tools = [t for t in filtered_tools if t.get("function", {}).get("name") != "advanceExtension"]
 
                 if machine == "Gemini":
                     api_func = call_gemini_api
@@ -1635,6 +1694,29 @@ tools_in_app = [
                 "type": "object",
                 "properties": {},
                 "required": []
+            }
+        },
+        "strict": True
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "advanceExtension",
+            "description": "Transition to a different extension/level in this conversation. Use this when you've sufficiently covered the current level's objectives and it's time to move on.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "target_extension_id": {
+                        "type": "integer",
+                        "description": "The ID of the extension to transition to. Use the IDs from the EXTENSION LEVELS list in your instructions."
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Brief internal note about why you're transitioning now."
+                    }
+                },
+                "required": ["target_extension_id", "reason"],
+                "additionalProperties": False
             }
         },
         "strict": True
@@ -1966,7 +2048,9 @@ async def call_llm_api(messages, model, temperature, max_tokens, prompt, convers
                                             
                                             if 'choices' in chunk_data and chunk_data['choices']:
                                                 for choice in chunk_data['choices']:
-                                                    if 'delta' in choice:
+                                                    if not choice:
+                                                        continue
+                                                    if 'delta' in choice and choice['delta'] is not None:
                                                         delta = choice['delta']
 
                                                         # Handle tool_calls (new OpenAI format)
@@ -2008,7 +2092,7 @@ async def call_llm_api(messages, model, temperature, max_tokens, prompt, convers
                                                         continue
 
                                             # Handle usage information
-                                            if 'usage' in chunk_data and 'total_tokens' in chunk_data['usage']:
+                                            if 'usage' in chunk_data and chunk_data['usage'] and 'total_tokens' in chunk_data['usage']:
                                                 input_tokens = chunk_data['usage']['prompt_tokens']
                                                 output_tokens = chunk_data['usage']['completion_tokens'] 
                                                 total_tokens = chunk_data['usage']['total_tokens']
@@ -2533,7 +2617,7 @@ async def change_response_mode(user_id: int, new_mode: str):
         return f"Error changing mode: {str(e)}"
 
 
-async def dream_of_consciousness(conversation_id, cursor):
+async def dream_of_consciousness(conversation_id, cursor, user_id=None):
     """
     Generate a 'consciousness dream' analysis based on conversation history.
     Uses Maslow's hierarchy of needs as a framework.
@@ -2543,12 +2627,13 @@ async def dream_of_consciousness(conversation_id, cursor):
         logger.debug(f"conversation_id: {conversation_id}, type: {type(conversation_id)}")
 
         query = '''
-            SELECT message, type
-            FROM MESSAGES
-            WHERE conversation_id = ?
-            ORDER BY date ASC
+            SELECT m.message, m.type
+            FROM MESSAGES m
+            JOIN CONVERSATIONS c ON c.id = m.conversation_id
+            WHERE m.conversation_id = ? AND c.user_id = ?
+            ORDER BY m.date ASC
         '''
-        await cursor.execute(query, (str(conversation_id),))
+        await cursor.execute(query, (str(conversation_id), str(user_id)))
 
         messages_db = await cursor.fetchall()
 
@@ -2858,7 +2943,7 @@ async def handle_function_call(function_name, function_arguments, messages, mode
             async with get_db_connection(readonly=True) as conn_ro:
                 async with conn_ro.cursor() as cursor_ro:
                     first_chunk = True
-                    async for chunk in dream_of_consciousness(function_arguments['conversation_id'], cursor_ro):
+                    async for chunk in dream_of_consciousness(function_arguments['conversation_id'], cursor_ro, user_id):
                         # Add separator before first chunk if there's pre-tool content
                         if first_chunk and content:
                             content += "\n\n"
@@ -2925,6 +3010,64 @@ async def handle_function_call(function_name, function_arguments, messages, mode
 
             except Exception as e:
                 logger.error(f"[pass_turn] Error: {e}")
+
+        elif function_name == "advanceExtension":
+            try:
+                target_id = function_arguments.get("target_extension_id")
+                try:
+                    target_id = int(target_id)
+                except (TypeError, ValueError):
+                    error_msg = "\n\n[Extension transition failed - invalid target ID]"
+                    if content:
+                        content += error_msg
+                    else:
+                        content = error_msg
+                    yield f"data: {orjson.dumps({'content': error_msg.strip()}).decode()}\n\n"
+                    logger.warning(f"[advanceExtension] Invalid target_extension_id type for conversation {conversation_id}: {function_arguments.get('target_extension_id')!r}")
+                    raise ValueError("invalid target_extension_id")
+
+                reason = function_arguments.get("reason", "")
+
+                # Validate: extension exists, belongs to this conversation's prompt, and user owns the conversation
+                async with get_db_connection(readonly=True) as conn_ext_ro:
+                    async with conn_ext_ro.cursor() as cursor_ext_ro:
+                        await cursor_ext_ro.execute(
+                            "SELECT pe.id, pe.name, pe.prompt_text, pe.display_order "
+                            "FROM PROMPT_EXTENSIONS pe "
+                            "JOIN CONVERSATIONS c ON c.role_id = pe.prompt_id "
+                            "WHERE pe.id = ? AND c.id = ? AND c.user_id = ?",
+                            (target_id, conversation_id, user_id)
+                        )
+                        ext = await cursor_ext_ro.fetchone()
+
+                if ext:
+                    async with conversation_write_lock(conversation_id):
+                        async with get_db_connection() as conn_ext_rw:
+                            await conn_ext_rw.execute(
+                                "UPDATE CONVERSATIONS SET active_extension_id = ? WHERE id = ?",
+                                (target_id, conversation_id)
+                            )
+                            await conn_ext_rw.commit()
+
+                    transition_msg = f"\n\n[Transitioned to: {ext[1]}]"
+                    if content:
+                        content += transition_msg
+                    else:
+                        content = transition_msg
+                    # SSE event for frontend to update level selector
+                    yield f"data: {orjson.dumps({'extension_changed': {'id': target_id, 'name': ext[1]}}).decode()}\n\n"
+                    logger.info(f"[advanceExtension] Conversation {conversation_id} transitioned to extension {target_id} ({ext[1]}) - Reason: {reason}")
+                else:
+                    error_msg = "\n\n[Extension transition failed - invalid target]"
+                    if content:
+                        content += error_msg
+                    else:
+                        content = error_msg
+                    yield f"data: {orjson.dumps({'content': error_msg.strip()}).decode()}\n\n"
+                    logger.warning(f"[advanceExtension] Invalid target extension {target_id} for conversation {conversation_id}")
+
+            except Exception as e:
+                logger.error(f"[advanceExtension] Error: {e}")
 
         elif function_name == "changeResponseMode":
             try:
@@ -3191,38 +3334,6 @@ async def save_content_to_db(content, input_tokens, output_tokens, total_tokens,
             last_lock_error,
         )
     return None
-
-
-async def check_token_limit(user_id: int, TOKEN_LIMIT: int) -> bool:
-    async with get_db_connection(readonly=True) as conn:
-        cursor = await conn.cursor()
-
-        query = '''
-        SELECT u.role_id, COALESCE(ud.tokens_spent, 0) as tokens_spent
-        FROM USERS u
-        LEFT JOIN USER_DETAILS ud ON u.id = ud.user_id
-        LEFT JOIN USER_ROLES ur ON u.role_id = ur.id
-        WHERE u.id = ?
-        '''
-        await cursor.execute(query, (user_id,))
-        result = await cursor.fetchone()
-
-        if not result:
-            logger.info(f"No information found for user ID: {user_id}")
-            return False
-
-        role_id, tokens_spent = result
-
-        # Get role name
-        await cursor.execute('SELECT role_name FROM USER_ROLES WHERE id = ?', (role_id,))
-        role_result = await cursor.fetchone()
-        is_admin = role_result and role_result[0].lower() == 'admin'
-
-        logger.debug(f"User ID: {user_id}, Role: {'admin' if is_admin else 'no admin'}, Tokens used: {tokens_spent}")
-
-        if is_admin:
-            return True
-        return tokens_spent < TOKEN_LIMIT
 
 
 @router.post("/api/conversations/{conversation_id}/rename")

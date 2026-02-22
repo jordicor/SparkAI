@@ -1349,6 +1349,14 @@ async def pack_ai_wizard_generate(
     # Build product context
     product_description = await _build_pack_product_description(pack_row, pack_id)
 
+    # Build absolute landing URL for SEO meta tags (canonical, og:url, og:image, twitter:image)
+    landing_url = ""
+    pack_public_id = pack_row["public_id"] if pack_row["public_id"] else ""
+    if pack_public_id:
+        pack_slug = pack_row["slug"] if pack_row["slug"] else slugify(pack_row["name"])
+        primary_domain = os.getenv("PRIMARY_APP_DOMAIN", "")
+        landing_url = f"https://{primary_domain}/pack/{pack_public_id}/{pack_slug}/"
+
     params = {
         "description": description,
         "style": style,
@@ -1359,6 +1367,7 @@ async def pack_ai_wizard_generate(
         "product_name": pack_row["name"],
         "ai_system_prompt": "",
         "product_description": product_description,
+        "landing_url": landing_url,
     }
 
     logger.info("Starting AI wizard job for pack %s, user %s, timeout=%ss", pack_id, current_user.id, timeout_seconds)
@@ -3267,6 +3276,7 @@ async def pack_landing_page(request: Request, public_id: str, slug: str):
             "tags": cached["tags"],
             "created_by_username": cached["username"],
         }
+        site_url = str(request.base_url).rstrip("/")
         context = {
             "request": request,
             "pack": pack_dict,
@@ -3275,6 +3285,7 @@ async def pack_landing_page(request: Request, public_id: str, slug: str):
             "is_paid": bool(pack_dict.get("is_paid")),
             "price_display": f"${pack_dict['price']:.2f}" if pack_dict.get("is_paid") else "FREE",
             "base_url": f"/pack/{public_id}/{slug}",
+            "site_url": site_url,
             "google_oauth_available": bool(GOOGLE_CLIENT_ID),
         }
 

@@ -42,6 +42,7 @@
 
     /* ----- Backgrounds ----- */
     --bg-primary: #F8F5F0;
+    --bg-primary-rgb: 20, 25, 30;
     --bg-secondary: #FFFFFF;
     --bg-tertiary: #F5F1EA;
     --bg-gradient: linear-gradient(135deg, var(--ks-cream) 0%, var(--ks-cream-light) 50%, var(--ks-gold-accent) 100%);
@@ -1081,7 +1082,7 @@ input[type="file"].form-control::file-selector-button:hover {
    ========================================================== */
 .table-wrapper {
     border-radius: 8px;
-    overflow: hidden;
+    overflow-x: auto;
     border: 1px solid var(--border-color);
 }
 
@@ -1531,6 +1532,93 @@ input[type="file"].form-control::file-selector-button:hover {
 
 .modal-footer {
     border-color: var(--border-color);
+}
+
+/* --- NotificationModal overrides (injected styles use #ID selectors) --- */
+#notificationModal .modal-header {
+    background: linear-gradient(135deg, var(--ks-navy-deep) 0%, var(--ks-navy-mid) 100%) !important;
+    border-bottom: 1px solid var(--ks-gold-muted) !important;
+    color: var(--ks-gold-highlight) !important;
+}
+
+#notificationModal .modal-title {
+    color: var(--ks-gold-highlight) !important;
+    font-family: var(--font-primary);
+}
+
+#notificationModal .modal-header .btn-close {
+    filter: brightness(0) invert(1) !important;
+}
+
+#notificationModal .modal-body {
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--ks-cream-light) 100%);
+    color: var(--text-primary) !important;
+}
+
+#notificationModal .modal-footer {
+    background: var(--ks-cream-light);
+    border-top: 1px solid var(--border-color) !important;
+}
+
+#notificationModal #notificationModalIcon {
+    border-radius: 50%;
+}
+
+/* Info type - navy/gold instead of blue */
+#notificationModal.modal-info #notificationModalHeader {
+    border-left: 4px solid var(--ks-gold-muted) !important;
+}
+#notificationModal.modal-info #notificationModalIcon {
+    background-color: var(--ks-navy-mid) !important;
+    color: var(--ks-gold-highlight) !important;
+}
+#notificationModal.modal-info #notificationModalConfirmBtn {
+    background-color: var(--ks-navy-deep) !important;
+    border-color: var(--ks-navy-deep) !important;
+    color: var(--ks-gold-highlight) !important;
+}
+#notificationModal.modal-info #notificationModalConfirmBtn:hover {
+    background-color: var(--ks-navy-mid) !important;
+}
+
+/* Success type - themed green */
+#notificationModal.modal-success #notificationModalConfirmBtn {
+    background-color: var(--success) !important;
+    border-color: var(--success) !important;
+}
+
+/* Error type - themed red */
+#notificationModal.modal-error #notificationModalConfirmBtn {
+    background-color: var(--danger) !important;
+    border-color: var(--danger) !important;
+}
+
+/* Confirm type - navy/gold */
+#notificationModal.modal-confirm #notificationModalHeader {
+    border-left: 4px solid var(--ks-gold-muted) !important;
+}
+#notificationModal.modal-confirm #notificationModalIcon {
+    background-color: var(--ks-navy-mid) !important;
+    color: var(--ks-gold-highlight) !important;
+}
+#notificationModal.modal-confirm #notificationModalConfirmBtn {
+    background-color: var(--ks-navy-deep) !important;
+    border-color: var(--ks-navy-deep) !important;
+    color: var(--ks-gold-highlight) !important;
+}
+#notificationModal.modal-confirm #notificationModalConfirmBtn:hover {
+    background-color: var(--ks-navy-mid) !important;
+}
+
+/* Cancel button - cream/navy outline */
+#notificationModal #notificationModalCancelBtn {
+    background-color: var(--ks-cream-light) !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-primary) !important;
+}
+#notificationModal #notificationModalCancelBtn:hover {
+    background-color: var(--ks-cream) !important;
+    border-color: var(--ks-gold-muted) !important;
 }
 
 /* ==========================================================

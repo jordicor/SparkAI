@@ -1211,6 +1211,75 @@ textarea {
     box-shadow: 0 0 0 3px rgba(191, 161, 106, 0.2);
 }
 
+/* --- NotificationModal overrides for chat context --- */
+#notificationModal .modal-header {
+    background: linear-gradient(135deg, var(--ks-navy-deep) 0%, var(--ks-navy-mid) 100%) !important;
+    border-bottom: 1px solid var(--ks-gold-muted) !important;
+    color: var(--ks-gold-highlight) !important;
+}
+
+#notificationModal .modal-title {
+    color: var(--ks-gold-highlight) !important;
+    font-family: var(--font-primary);
+}
+
+#notificationModal .modal-header .btn-close {
+    filter: brightness(0) invert(1) !important;
+    opacity: 0.8;
+}
+
+#notificationModal .modal-body {
+    background: linear-gradient(135deg, var(--ks-white) 0%, var(--ks-cream) 100%);
+    color: var(--ks-text-primary) !important;
+}
+
+#notificationModal .modal-footer {
+    background: var(--ks-cream);
+    border-top: 1px solid var(--ks-border) !important;
+}
+
+#notificationModal.modal-info #notificationModalHeader {
+    border-left: 4px solid var(--ks-gold-muted) !important;
+}
+#notificationModal.modal-info #notificationModalIcon {
+    background-color: var(--ks-navy-mid) !important;
+    color: var(--ks-gold-highlight) !important;
+}
+#notificationModal.modal-info #notificationModalConfirmBtn {
+    background-color: var(--ks-navy-deep) !important;
+    border-color: var(--ks-navy-deep) !important;
+    color: var(--ks-gold-highlight) !important;
+}
+#notificationModal.modal-info #notificationModalConfirmBtn:hover {
+    background-color: var(--ks-navy-mid) !important;
+}
+
+#notificationModal.modal-confirm #notificationModalHeader {
+    border-left: 4px solid var(--ks-gold-muted) !important;
+}
+#notificationModal.modal-confirm #notificationModalIcon {
+    background-color: var(--ks-navy-mid) !important;
+    color: var(--ks-gold-highlight) !important;
+}
+#notificationModal.modal-confirm #notificationModalConfirmBtn {
+    background-color: var(--ks-navy-deep) !important;
+    border-color: var(--ks-navy-deep) !important;
+    color: var(--ks-gold-highlight) !important;
+}
+#notificationModal.modal-confirm #notificationModalConfirmBtn:hover {
+    background-color: var(--ks-navy-mid) !important;
+}
+
+#notificationModal #notificationModalCancelBtn {
+    background-color: var(--ks-cream) !important;
+    border: 1px solid var(--ks-border) !important;
+    color: var(--ks-text-primary) !important;
+}
+#notificationModal #notificationModalCancelBtn:hover {
+    background-color: var(--ks-white) !important;
+    border-color: var(--ks-gold-muted) !important;
+}
+
 /* ==========================================================
    Code Blocks (Actualizado para el tema)
    ========================================================== */
@@ -1292,122 +1361,196 @@ textarea {
     color: var(--ks-gold-highlight);
 }
 
-/* Code inside bot messages */
+/* Code inside bot messages - dark navy with gold/cream tones */
 .message.bot .code-block {
-    background-color: #f8f5f0;
-    border-color: var(--msg-bot-border);
+    background-color: var(--ks-navy-deep);
+    border: 1px solid rgba(191, 161, 106, 0.25);
 }
 
 .message.bot .code-block pre {
-    background-color: #f8f5f0;
-    color: var(--msg-bot-text);
+    background-color: var(--ks-navy-deep);
+    color: var(--ks-cream);
 }
 
 .message.bot .code-block code {
-    color: var(--msg-bot-text);
+    color: var(--ks-cream);
 }
 
 .message.bot .code-header {
-    background: linear-gradient(135deg, var(--msg-bot-bg-start), var(--msg-bot-bg-mid));
-    border-bottom-color: var(--msg-bot-divider);
+    background: linear-gradient(135deg, var(--ks-navy-mid), var(--ks-navy-deep));
+    border-bottom: 1px solid rgba(191, 161, 106, 0.2);
 }
 
 .message.bot .code-language {
-    color: var(--ks-gold-muted);
+    color: var(--ks-gold-highlight);
 }
 
 .message.bot .copy-button {
-    color: var(--ks-gold-muted);
+    color: var(--ks-gold-highlight);
 }
 
 .message.bot .copy-button:hover {
-    background-color: rgba(191, 161, 106, 0.1);
-    color: var(--ks-navy-deep);
+    background-color: rgba(217, 196, 154, 0.15);
+    color: var(--ks-gold-accent);
+}
+
+/* All pre/code blocks inside bot messages (both .code-block wrapped and bare) */
+.message.bot .message-content pre:not(.code-block pre) {
+    background-color: var(--ks-navy-deep) !important;
+    border: 1px solid rgba(191, 161, 106, 0.25);
+    border-radius: 12px;
+    padding: 16px;
+    margin: 16px 0;
+    overflow-x: auto;
+}
+
+.message.bot .message-content pre:not(.code-block pre) code {
+    color: var(--ks-cream) !important;
+    font-family: 'Consolas', 'Monaco', 'Andale Mono', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    background: none !important;
 }
 
 /* ==========================================================
-   Syntax Highlighting for Bot Messages (Light Theme)
+   Syntax Highlighting for Bot Messages (Dark Navy Theme)
+   Covers all code blocks: .code-block wrapped AND bare pre
    ========================================================== */
 
-/* Reset the wildcard rule for code blocks - higher specificity */
+/* Override the wildcard color rule for ALL code inside bot messages */
 .message.bot .message-content .code-block,
 .message.bot .message-content .code-block *,
-.message.bot .message-content .code-block pre,
-.message.bot .message-content .code-block code,
-.message.bot .message-content .code-block span {
-    color: #3F3A31 !important;
+.message.bot .message-content pre code,
+.message.bot .message-content pre code *,
+.message.bot .message-content pre span {
+    color: var(--ks-cream) !important;
 }
 
-/* Comments - gray/muted */
-.message.bot .message-content .code-block code .hljs-comment,
-.message.bot .message-content .code-block code .hljs-quote {
-    color: #6a737d !important;
+/* Override hljs background on code elements inside bot messages */
+.message.bot .message-content code.hljs {
+    background: transparent !important;
+}
+
+/* Comments */
+.message.bot .message-content pre code .hljs-comment,
+.message.bot .message-content pre code .hljs-quote {
+    color: #7A8BA0 !important;
     font-style: italic;
 }
 
-/* Keywords, tags - navy blue */
-.message.bot .message-content .code-block code .hljs-keyword,
-.message.bot .message-content .code-block code .hljs-selector-tag,
-.message.bot .message-content .code-block code .hljs-addition,
-.message.bot .message-content .code-block code .hljs-name {
-    color: #0550ae !important;
+/* Keywords, tags - bright gold */
+.message.bot .message-content pre code .hljs-keyword,
+.message.bot .message-content pre code .hljs-selector-tag,
+.message.bot .message-content pre code .hljs-addition,
+.message.bot .message-content pre code .hljs-name {
+    color: #D9C49A !important;
     font-weight: 600;
 }
 
-/* Strings - dark green */
-.message.bot .message-content .code-block code .hljs-string,
-.message.bot .message-content .code-block code .hljs-doctag,
-.message.bot .message-content .code-block code .hljs-regexp {
-    color: #0a7d47 !important;
+/* Strings - soft green */
+.message.bot .message-content pre code .hljs-string,
+.message.bot .message-content pre code .hljs-doctag,
+.message.bot .message-content pre code .hljs-regexp {
+    color: #A3BE8C !important;
 }
 
-/* Numbers - dark orange */
-.message.bot .message-content .code-block code .hljs-number,
-.message.bot .message-content .code-block code .hljs-literal,
-.message.bot .message-content .code-block code .hljs-built_in {
-    color: #a65700 !important;
+/* Numbers, literals, builtins - warm amber */
+.message.bot .message-content pre code .hljs-number,
+.message.bot .message-content pre code .hljs-literal,
+.message.bot .message-content pre code .hljs-built_in {
+    color: #EBCB8B !important;
 }
 
-/* Functions, attributes - purple */
-.message.bot .message-content .code-block code .hljs-function,
-.message.bot .message-content .code-block code .hljs-title,
-.message.bot .message-content .code-block code .hljs-attr,
-.message.bot .message-content .code-block code .hljs-attribute {
-    color: #6f42c1 !important;
+/* Functions, titles, attributes - light gold */
+.message.bot .message-content pre code .hljs-function,
+.message.bot .message-content pre code .hljs-title,
+.message.bot .message-content pre code .hljs-title\.function_,
+.message.bot .message-content pre code .hljs-attr,
+.message.bot .message-content pre code .hljs-attribute {
+    color: #EFE3C4 !important;
 }
 
-/* Variables, params - dark red */
-.message.bot .message-content .code-block code .hljs-variable,
-.message.bot .message-content .code-block code .hljs-params,
-.message.bot .message-content .code-block code .hljs-template-variable {
-    color: #953800 !important;
+/* Variables, params - soft coral */
+.message.bot .message-content pre code .hljs-variable,
+.message.bot .message-content pre code .hljs-params,
+.message.bot .message-content pre code .hljs-template-variable {
+    color: #D08770 !important;
 }
 
-/* Types, classes - teal */
-.message.bot .message-content .code-block code .hljs-type,
-.message.bot .message-content .code-block code .hljs-class .hljs-title {
-    color: #116677 !important;
+/* Types, classes - light blue */
+.message.bot .message-content pre code .hljs-type,
+.message.bot .message-content pre code .hljs-class .hljs-title {
+    color: #88C0D0 !important;
 }
 
-/* Meta, preprocessor */
-.message.bot .message-content .code-block code .hljs-meta,
-.message.bot .message-content .code-block code .hljs-symbol {
-    color: #6e7781 !important;
+/* Meta, preprocessor, symbol - muted lavender */
+.message.bot .message-content pre code .hljs-meta,
+.message.bot .message-content pre code .hljs-symbol {
+    color: #B48EAD !important;
 }
 
-/* Deletion - red */
-.message.bot .message-content .code-block code .hljs-deletion {
-    color: #b31d28 !important;
-    background-color: #ffeef0;
+/* Properties, selectors (SQL columns, YAML keys, CSS props) - gold highlight */
+.message.bot .message-content pre code .hljs-property,
+.message.bot .message-content pre code .hljs-selector-class,
+.message.bot .message-content pre code .hljs-selector-id,
+.message.bot .message-content pre code .hljs-selector-pseudo,
+.message.bot .message-content pre code .hljs-selector-attr {
+    color: #D9C49A !important;
+}
+
+/* Operators, punctuation - muted cream */
+.message.bot .message-content pre code .hljs-operator,
+.message.bot .message-content pre code .hljs-punctuation {
+    color: #B8AFA2 !important;
+}
+
+/* Tags (HTML/XML) - gold */
+.message.bot .message-content pre code .hljs-tag {
+    color: #BFA16A !important;
+}
+
+/* Section, bullet - light blue */
+.message.bot .message-content pre code .hljs-section,
+.message.bot .message-content pre code .hljs-bullet {
+    color: #88C0D0 !important;
+}
+
+/* Subst, template-tag - coral */
+.message.bot .message-content pre code .hljs-subst,
+.message.bot .message-content pre code .hljs-template-tag {
+    color: #D08770 !important;
+}
+
+/* Link, url - light blue underline */
+.message.bot .message-content pre code .hljs-link {
+    color: #88C0D0 !important;
+    text-decoration: underline;
+}
+
+/* Deletion - soft red */
+.message.bot .message-content pre code .hljs-deletion {
+    color: #BF616A !important;
+    background-color: rgba(191, 97, 106, 0.1);
 }
 
 /* Emphasis and strong */
-.message.bot .message-content .code-block code .hljs-emphasis {
+.message.bot .message-content pre code .hljs-emphasis {
     font-style: italic;
 }
 
-.message.bot .message-content .code-block code .hljs-strong {
+.message.bot .message-content pre code .hljs-strong {
     font-weight: bold;
+}
+
+/* Inline code inside bot messages (no hljs class = not in a code block) */
+.message.bot .message-content code:not([class]),
+.message.bot .message-content code.inline-code {
+    background-color: rgba(10, 25, 47, 0.12) !important;
+    color: var(--ks-navy-deep) !important;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Consolas', 'Monaco', 'Andale Mono', monospace;
+    font-size: 0.9em;
 }
 
 /* ==========================================================

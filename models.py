@@ -252,3 +252,31 @@ class PackItem:
             "prompt_image": self.prompt_image,
             "prompt_owner_username": self.prompt_owner_username,
         }
+
+
+@dataclass
+class PromptExtension:
+    id: int
+    prompt_id: int
+    name: str
+    slug: str
+    prompt_text: str
+    description: Optional[str] = None
+    display_order: int = 0
+    is_default: bool = False
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "prompt_id": self.prompt_id,
+            "name": self.name,
+            "slug": self.slug,
+            "prompt_text": self.prompt_text,
+            "description": self.description,
+            "display_order": self.display_order,
+            "is_default": self.is_default,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }

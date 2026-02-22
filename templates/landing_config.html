@@ -280,6 +280,11 @@
                     <i class="fas fa-user-plus me-1"></i> Registration
                 </button>
             </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="geoblocking-tab" data-bs-toggle="tab" data-bs-target="#geoblocking" type="button" role="tab">
+                    <i class="fas fa-globe me-1"></i> Geo-Blocking
+                </button>
+            </li>
         </ul>
 
         <!-- Tab Content -->
@@ -591,6 +596,84 @@
                         <div id="regConfigSuccess" class="alert alert-success" style="display: none;">
                             <i class="fas fa-check-circle me-2"></i>Settings saved successfully!
                         </div>
+                </div>
+            </div>
+
+            <!-- Geo-Blocking Tab -->
+            <div class="tab-pane fade" id="geoblocking" role="tabpanel">
+                <div class="section-container">
+                    <div class="section-title">
+                        <i class="fas fa-globe"></i> Geo-Blocking
+                    </div>
+                    <p class="text-muted mb-3">Control which countries can access this landing page via Cloudflare WAF rules</p>
+
+                    <!-- Loading -->
+                    <div id="geoLoading" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2 text-muted">Loading geo-blocking settings...</p>
+                    </div>
+
+                    <!-- Not configured notice -->
+                    <div id="geoNotConfigured" style="display:none;">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Geo-blocking is not available. Cloudflare credentials are not configured on this platform.
+                            <br><small class="text-muted">Contact the platform administrator to enable geo-blocking.</small>
+                        </div>
+                    </div>
+
+                    <!-- Config form (hidden until loaded) -->
+                    <div id="geoConfigForm" style="display:none;">
+                        <!-- Global blocks info banner -->
+                        <div id="globalBlocksInfo" class="alert alert-secondary mb-3" style="display:none;">
+                            <i class="fas fa-shield-alt me-2"></i>
+                            <strong>Platform-level blocks active:</strong>
+                            <span id="globalBlocksText">These countries are already blocked by the platform admin.</span>
+                            <div id="globalBlocksList" class="mt-1 small"></div>
+                        </div>
+
+                        <!-- Enable toggle -->
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="geoLandingEnabled">
+                            <label class="form-check-label fw-semibold" for="geoLandingEnabled">Enable Geo-Blocking for this Landing</label>
+                        </div>
+
+                        <!-- Config area (shown when enabled) -->
+                        <div id="geoLandingConfigArea" style="display:none;">
+                            <!-- Mode selector -->
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Mode</label>
+                                <div class="btn-group" role="group">
+                                    <input type="radio" class="btn-check" name="geoLandingMode" id="landingModeDeny" value="deny" checked>
+                                    <label class="btn btn-outline-danger" for="landingModeDeny"><i class="fas fa-ban me-1"></i>Block Listed</label>
+                                    <input type="radio" class="btn-check" name="geoLandingMode" id="landingModeAllow" value="allow">
+                                    <label class="btn btn-outline-success" for="landingModeAllow"><i class="fas fa-check me-1"></i>Allow Only Listed</label>
+                                </div>
+                                <div class="form-text" id="landingModeHelp">Countries selected below will be BLOCKED from accessing this landing page.</div>
+                            </div>
+
+                            <!-- Continent Quick Selectors -->
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Continents</label>
+                                <div class="d-flex flex-wrap gap-2" id="landingContinentCheckboxes"></div>
+                            </div>
+
+                            <!-- Country Multi-Select -->
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Countries</label>
+                                <input type="text" class="form-control mb-2" id="landingCountrySearch" placeholder="Search countries...">
+                                <div id="landingCountryGrid" class="border rounded p-2" style="max-height: 300px; overflow-y: auto; background: var(--bg-tertiary, #202225);">
+                                    <!-- Populated by JS -->
+                                </div>
+                                <small class="text-muted"><span id="landingSelectedCount">0</span> countries selected</small>
+                            </div>
+
+                            <!-- Save Button -->
+                            <button class="btn btn-primary" id="saveGeoBtn" onclick="saveLandingGeo()">
+                                <i class="fas fa-save me-1"></i> Save &amp; Sync to Cloudflare
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2041,5 +2124,248 @@
                 { type: 'error', confirmText: 'Remove' }
             );
         }
+
+        // ============================================================
+        // Geo-Blocking Tab
+        // ============================================================
+
+        let geoCountryData = null;
+        let globalBlockedCountries = new Set();
+
+        async function loadGeoConfig() {
+            try {
+                const response = await secureFetch(`/api/landing/${promptId}/geo`);
+                if (!response || !response.ok) {
+                    if (response && response.status === 404) {
+                        // CF not configured
+                        document.getElementById('geoLoading').style.display = 'none';
+                        document.getElementById('geoNotConfigured').style.display = 'block';
+                        return;
+                    }
+                    throw new Error('Failed to load geo config');
+                }
+
+                const data = await response.json();
+                if (!data.success) {
+                    document.getElementById('geoLoading').style.display = 'none';
+                    document.getElementById('geoNotConfigured').style.display = 'block';
+                    return;
+                }
+
+                geoCountryData = data.geo_data;
+
+                // Render continent and country selectors
+                renderLandingContinents();
+                renderLandingCountries();
+
+                // Show global blocks info
+                if (data.global_blocks && data.global_blocks.length > 0) {
+                    globalBlockedCountries = new Set(data.global_blocks);
+                    document.getElementById('globalBlocksInfo').style.display = 'block';
+                    const names = data.global_blocks.map(code => {
+                        const c = geoCountryData.countries.find(x => x.code === code);
+                        return c ? c.name : code;
+                    });
+                    document.getElementById('globalBlocksList').textContent = names.join(', ');
+                    // Mark globally blocked countries as disabled in the UI
+                    markGloballyBlocked();
+                }
+
+                // Populate form with current values
+                if (data.policy) {
+                    document.getElementById('geoLandingEnabled').checked = data.policy.enabled;
+                    if (data.policy.enabled) {
+                        document.getElementById('geoLandingConfigArea').style.display = 'block';
+                    }
+                    // Set mode
+                    const geoMode = ["deny", "allow"].includes(data.policy.mode) ? data.policy.mode : "deny";
+                    const modeRadio = document.querySelector(`[name="geoLandingMode"][value="${geoMode}"]`);
+                    if (modeRadio) modeRadio.checked = true;
+                    updateLandingModeHelp();
+                    // Check countries
+                    if (data.policy.countries) {
+                        data.policy.countries.forEach(code => {
+                            const cb = document.getElementById(`landing-country-${code}`);
+                            if (cb) cb.checked = true;
+                        });
+                    }
+                    // Check continents (if all countries in continent are checked)
+                    if (data.policy.continents) {
+                        data.policy.continents.forEach(code => {
+                            const cb = document.getElementById(`landing-continent-${code}`);
+                            if (cb) cb.checked = true;
+                        });
+                    }
+                    updateLandingSelectedCount();
+                }
+
+                document.getElementById('geoLoading').style.display = 'none';
+                document.getElementById('geoConfigForm').style.display = 'block';
+
+            } catch (err) {
+                console.error('Error loading geo config:', err);
+                document.getElementById('geoLoading').style.display = 'none';
+                document.getElementById('geoNotConfigured').style.display = 'block';
+            }
+        }
+
+        function renderLandingContinents() {
+            const container = document.getElementById('landingContinentCheckboxes');
+            if (!geoCountryData) return;
+
+            const continents = geoCountryData.continents;
+            container.innerHTML = Object.entries(continents).map(([code, name]) => `
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="landing-continent-${code}" value="${code}"
+                           onchange="toggleLandingContinent('${code}', this.checked)">
+                    <label class="form-check-label small" for="landing-continent-${code}">${name}</label>
+                </div>
+            `).join('');
+        }
+
+        function renderLandingCountries() {
+            const container = document.getElementById('landingCountryGrid');
+            if (!geoCountryData) return;
+
+            const continents = geoCountryData.continents;
+            let html = '';
+
+            for (const [contCode, contName] of Object.entries(continents)) {
+                const countries = geoCountryData.countries.filter(c => c.continent === contCode);
+                if (countries.length === 0) continue;
+
+                html += `<div class="mb-2"><strong class="small text-muted">${contName}</strong></div>`;
+                html += '<div class="row g-1 mb-3">';
+                for (const c of countries) {
+                    const isGloballyBlocked = globalBlockedCountries.has(c.code);
+                    html += `
+                        <div class="col-6 col-md-4 col-lg-3 landing-country-item" data-name="${c.name.toLowerCase()}" data-code="${c.code}">
+                            <div class="form-check">
+                                <input class="form-check-input landing-country-cb" type="checkbox"
+                                       id="landing-country-${c.code}" value="${c.code}"
+                                       data-continent="${c.continent}"
+                                       ${isGloballyBlocked ? 'disabled' : ''}
+                                       onchange="updateLandingSelectedCount()">
+                                <label class="form-check-label small ${isGloballyBlocked ? 'text-muted' : ''}" for="landing-country-${c.code}">
+                                    ${c.code} - ${c.name} ${isGloballyBlocked ? '<i class="fas fa-lock text-warning" title="Blocked globally"></i>' : ''}
+                                </label>
+                            </div>
+                        </div>`;
+                }
+                html += '</div>';
+            }
+
+            container.innerHTML = html;
+        }
+
+        function markGloballyBlocked() {
+            globalBlockedCountries.forEach(code => {
+                const cb = document.getElementById(`landing-country-${code}`);
+                if (cb) {
+                    cb.disabled = true;
+                    cb.checked = false;
+                }
+            });
+        }
+
+        function toggleLandingContinent(continentCode, checked) {
+            document.querySelectorAll(`.landing-country-cb[data-continent="${continentCode}"]`).forEach(cb => {
+                if (!cb.disabled) {
+                    cb.checked = checked;
+                }
+            });
+            updateLandingSelectedCount();
+        }
+
+        function updateLandingModeHelp() {
+            const mode = document.querySelector('[name="geoLandingMode"]:checked')?.value || 'deny';
+            const help = document.getElementById('landingModeHelp');
+            if (mode === 'deny') {
+                help.textContent = 'Countries selected below will be BLOCKED from accessing this landing page.';
+            } else {
+                help.textContent = 'ONLY countries selected below will be ALLOWED to access this landing page.';
+            }
+        }
+
+        function updateLandingSelectedCount() {
+            const checked = document.querySelectorAll('.landing-country-cb:checked:not(:disabled)');
+            document.getElementById('landingSelectedCount').textContent = checked.length;
+        }
+
+        function filterLandingCountries(query) {
+            const q = query.toLowerCase().trim();
+            document.querySelectorAll('.landing-country-item').forEach(item => {
+                const name = item.getAttribute('data-name');
+                const code = item.getAttribute('data-code').toLowerCase();
+                item.style.display = (!q || name.includes(q) || code.includes(q)) ? '' : 'none';
+            });
+        }
+
+        async function saveLandingGeo() {
+            const btn = document.getElementById('saveGeoBtn');
+            const origText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Syncing...';
+
+            try {
+                const enabled = document.getElementById('geoLandingEnabled').checked;
+                const mode = document.querySelector('[name="geoLandingMode"]:checked')?.value || 'deny';
+                const countries = Array.from(document.querySelectorAll('.landing-country-cb:checked:not(:disabled)')).map(cb => cb.value);
+                const continents = Array.from(document.querySelectorAll('[id^="landing-continent-"]:checked')).map(cb => cb.value);
+
+                const response = await secureFetch(`/api/landing/${promptId}/geo`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ enabled, mode, countries, continents }),
+                });
+
+                if (!response) return;
+                const data = await response.json();
+
+                if (data.success) {
+                    NotificationModal.success('Geo-Blocking Saved', 'Geo-blocking settings saved and synced to Cloudflare');
+                } else {
+                    NotificationModal.error('Geo-Blocking Error', data.message || 'Failed to save geo-blocking settings');
+                }
+            } catch (err) {
+                NotificationModal.error('Geo-Blocking Error', 'Error saving geo-blocking settings: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = origText;
+            }
+        }
+
+        // Wire up geo tab events
+        document.addEventListener('DOMContentLoaded', () => {
+            // Load geo config when tab is first shown
+            const geoTab = document.getElementById('geoblocking-tab');
+            if (geoTab) {
+                let geoLoaded = false;
+                geoTab.addEventListener('shown.bs.tab', () => {
+                    if (!geoLoaded) {
+                        geoLoaded = true;
+                        loadGeoConfig();
+                    }
+                });
+            }
+
+            // Enable toggle
+            const enableToggle = document.getElementById('geoLandingEnabled');
+            if (enableToggle) {
+                enableToggle.addEventListener('change', () => {
+                    document.getElementById('geoLandingConfigArea').style.display = enableToggle.checked ? 'block' : 'none';
+                });
+            }
+
+            // Mode change
+            document.querySelectorAll('[name="geoLandingMode"]').forEach(r => {
+                r.addEventListener('change', updateLandingModeHelp);
+            });
+
+            // Country search
+            const searchInput = document.getElementById('landingCountrySearch');
+            if (searchInput) {
+                searchInput.addEventListener('input', (e) => filterLandingCountries(e.target.value));
+            }
+        });
     </script>
 {% endblock %}

@@ -938,7 +938,7 @@ input[type="file"].form-control::file-selector-button:hover {
    ========================================================== */
 .table-wrapper {
     border-radius: 8px;
-    overflow: hidden;
+    overflow-x: auto;
     border: 1px solid var(--glass-border-subtle);
 }
 

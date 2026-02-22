@@ -51,6 +51,59 @@ class EmailService:
 
         return self._send_via_postmark(to_email, magic_link, username, branding)
 
+    def send_ultra_admin_code(self, to_email: str, code: str, username: str) -> bool:
+        """Send Ultra Admin+ elevation verification code via email or console."""
+        if not self.use_email_service:
+            logger.info(f"[ULTRA ADMIN+] Elevation code for '{username}' ({to_email}): {code}")
+            return True
+
+        if not self.postmark_token:
+            logger.error("POSTMARK_SERVER_TOKEN not configured")
+            return False
+
+        try:
+            subject = "SparkAI - Ultra Admin+ Verification Code"
+            html_body = f"""
+            <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #333;">Ultra Admin+ Verification</h2>
+                <p>Your elevation code is:</p>
+                <div style="background: #f5f5f5; border: 2px solid #e0e0e0; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;">
+                    <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #333;">{code}</span>
+                </div>
+                <p style="color: #666; font-size: 14px;">This code expires in 5 minutes. Do not share it.</p>
+                <p style="color: #999; font-size: 12px;">If you did not request this, someone may have access to your account.</p>
+            </div>
+            """
+            text_body = f"Your Ultra Admin+ elevation code is: {code}. This code expires in 5 minutes."
+
+            response = requests.post(
+                'https://api.postmarkapp.com/email',
+                headers={
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Postmark-Server-Token': self.postmark_token
+                },
+                json={
+                    'From': self.from_email,
+                    'To': to_email,
+                    'Subject': subject,
+                    'HtmlBody': html_body,
+                    'TextBody': text_body,
+                    'MessageStream': 'outbound'
+                }
+            )
+
+            if response.status_code == 200:
+                logger.info(f"[ULTRA ADMIN+] Elevation code email sent to {to_email}")
+                return True
+            else:
+                logger.error(f"[ULTRA ADMIN+] Failed to send email: {response.status_code} - {response.text}")
+                return False
+
+        except Exception as e:
+            logger.error(f"[ULTRA ADMIN+] Error sending elevation code email: {e}")
+            return False
+
     def send_verification_email(self, to_email: str, verification_url: str, is_manager: bool = False,
                                  prompt_name: str = None, branding: Dict = None) -> bool:
         """

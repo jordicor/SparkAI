@@ -102,6 +102,10 @@ from auth import get_user_by_google_id, get_user_by_email, update_user_google_id
 from auth import ACCESS_TOKEN_EXPIRE_MINUTES, unauthenticated_response
 from email_service import email_service
 from email_validation import validate_email_robust
+from ultra_admin import (
+    generate_elevation_code, verify_elevation_code, is_elevated,
+    revoke_elevation, get_elevation_ttl, get_active_lock_owner, ELEVATION_TTL
+)
 from common import Cost, generate_user_hash, has_sufficient_balance, cost_tts, cache_directory, users_directory, tts_engine, get_balance, deduct_balance, record_daily_usage, load_service_costs, estimate_message_tokens, custom_unescape, sanitize_name, templates, validate_path_within_directory, slugify, is_internal_ip, generate_public_id, get_template_context
 from common import SCRIPT_DIR, DATA_DIR, CLOUDFLARE_API_KEY, CLOUDFLARE_EMAIL, CLOUDFLARE_ZONE_ID, CLOUDFLARE_API_URL, CLOUDFLARE_FOR_IMAGES, CLOUDFLARE_SECRET, CLOUDFLARE_IMAGE_SUBDOMAIN, CLOUDFLARE_BASE_URL, generate_cloudflare_signature, generate_signed_url_cloudflare, CLOUDFLARE_DOMAIN, CLOUDFLARE_CNAME_TARGET
 from common import ALGORITHM, MAX_TOKENS, MAX_MESSAGE_SIZE, MAX_IMAGE_UPLOAD_SIZE, MAX_IMAGE_PIXELS, PERPLEXITY_API_KEY, elevenlabs_key, openai_key, claude_key, gemini_key, openrouter_key, service_sid, twilio_sid, twilio_auth, twilio_messaging_service_sid, decode_jwt_cached, validate_twilio_media_url, AVATAR_TOKEN_EXPIRE_HOURS, MEDIA_TOKEN_EXPIRE_HOURS
@@ -135,6 +139,7 @@ from rate_limiter import (
     RateLimitConfig as RLC, get_client_ip
 )
 from captcha_service import verify_captcha, get_captcha_config, set_captcha_enabled, get_captcha_runtime_status
+from cloudflare_geo import get_all_geo_data, validate_country_codes, validate_continent_codes, geo_sync_engine, CloudflareGeoClient, get_countries_for_continent
 
 # Custom domains for landing pages
 from middleware.custom_domains import CustomDomainMiddleware, set_primary_domains
@@ -191,6 +196,14 @@ async def lifespan(app: FastAPI):
     # Set WAL journal mode once (persistent across connections)
     from database import ensure_wal_mode
     await ensure_wal_mode()
+
+    # Initialize IP Reputation system
+    from middleware.ip_reputation import reputation_manager
+    await reputation_manager.initialize()
+
+    # Initialize nginx blocklist sync
+    from middleware.nginx_blocklist import nginx_blocklist_manager
+    await nginx_blocklist_manager.initialize()
 
     # Create WhatsApp and system tables if not exists
     async with get_db_connection() as conn:
@@ -260,6 +273,14 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(recalculate_ranking_scores())
 
     yield
+
+    # Shutdown IP Reputation system
+    from middleware.ip_reputation import reputation_manager
+    await reputation_manager.shutdown()
+
+    # Shutdown nginx blocklist sync
+    from middleware.nginx_blocklist import nginx_blocklist_manager
+    await nginx_blocklist_manager.shutdown()
 
     # Cleanup ranking leader lock file
     if _is_ranking_leader:
@@ -350,7 +371,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 app.add_middleware(SessionMiddleware, secret_key=os.urandom(24))
 
 # Custom Domain Middleware - configure primary domains that skip DB lookup
-PRIMARY_APP_DOMAIN = os.getenv("PRIMARY_APP_DOMAIN", "sparkai.jordicor.com")
+PRIMARY_APP_DOMAIN = os.getenv("PRIMARY_APP_DOMAIN", "")
 set_primary_domains([
     PRIMARY_APP_DOMAIN,
     CLOUDFLARE_DOMAIN,
@@ -390,6 +411,10 @@ class SecurityManualUnblockRequest(BaseModel):
 class SecurityRetrySyncRequest(BaseModel):
     ip: str
     reason: str = "Manual sync retry from admin panel"
+
+
+class SecurityResetScoreRequest(BaseModel):
+    ip: str
 
 
 class TextToSpeechRequest(BaseModel):
@@ -4522,6 +4547,161 @@ async def check_session(request: Request, current_user: User = Depends(get_curre
         "used_magic_link": used_magic_link
     })
 
+
+# =============================================================================
+# Sitemap XML — public, no auth required
+# =============================================================================
+
+_sitemap_cache: dict = {"xml": None, "generated_at": 0.0}
+_SITEMAP_CACHE_TTL = 3600  # 1 hour in seconds
+
+
+@app.get("/sitemap.xml")
+async def sitemap_xml():
+    """
+    Dynamic sitemap for search-engine crawlers.
+
+    Includes:
+      - Static pages (homepage, explore)
+      - Public prompt landing pages (not unlisted, with landing page)
+      - Public published packs with landing pages
+      - Public creator storefronts
+
+    Cached in-memory for 1 hour to avoid DB load on every crawl.
+    """
+    now = time.time()
+
+    # Return cached version if still fresh
+    if _sitemap_cache["xml"] and (now - _sitemap_cache["generated_at"]) < _SITEMAP_CACHE_TTL:
+        return Response(
+            content=_sitemap_cache["xml"],
+            media_type="application/xml",
+            headers={"Cache-Control": f"public, max-age={_SITEMAP_CACHE_TTL}"},
+        )
+
+    from common import PUBLIC_PROFILE_DOMAIN
+
+    domain = PUBLIC_PROFILE_DOMAIN
+    protocol = "http" if "localhost" in domain else "https"
+    base_url = f"{protocol}://{domain}"
+
+    urls: list[dict] = []
+
+    # -- Static pages --
+    urls.append({"loc": f"{base_url}/", "priority": "1.0", "changefreq": "daily"})
+
+    try:
+        async with get_db_connection(readonly=True) as conn:
+
+            # -- Public prompt landing pages --
+            # public=1, is_unlisted=0, has_landing_page=1, public_id IS NOT NULL
+            cursor = await conn.execute("""
+                SELECT p.public_id, p.name, p.created_at,
+                       CASE WHEN pcd.custom_domain IS NOT NULL AND pcd.is_active = 1
+                            AND pcd.verification_status = 1
+                            THEN pcd.custom_domain ELSE NULL END AS custom_domain
+                FROM PROMPTS p
+                LEFT JOIN PROMPT_CUSTOM_DOMAINS pcd ON p.id = pcd.prompt_id
+                WHERE p.public = 1
+                  AND p.is_unlisted = 0
+                  AND p.has_landing_page = 1
+                  AND p.public_id IS NOT NULL
+            """)
+            prompt_rows = await cursor.fetchall()
+
+            for row in prompt_rows:
+                public_id = row[0]
+                name = row[1]
+                created_at = row[2]
+                custom_domain = row[3]
+
+                slug = slugify(name) if name else ""
+
+                if custom_domain:
+                    loc = f"https://{custom_domain}/"
+                else:
+                    loc = f"{base_url}/p/{public_id}/{slug}/"
+
+                entry = {"loc": loc, "priority": "0.7", "changefreq": "weekly"}
+                if created_at:
+                    entry["lastmod"] = str(created_at)[:10]  # YYYY-MM-DD
+                urls.append(entry)
+
+            # -- Public published packs with landing pages --
+            cursor = await conn.execute("""
+                SELECT public_id, slug, updated_at
+                FROM PACKS
+                WHERE status = 'published'
+                  AND is_public = 1
+                  AND public_id IS NOT NULL
+                  AND has_custom_landing = 1
+            """)
+            pack_rows = await cursor.fetchall()
+
+            for row in pack_rows:
+                pack_public_id = row[0]
+                pack_slug = row[1]
+                pack_updated_at = row[2]
+
+                loc = f"{base_url}/pack/{pack_public_id}/{pack_slug}/"
+                entry = {"loc": loc, "priority": "0.6", "changefreq": "weekly"}
+                if pack_updated_at:
+                    entry["lastmod"] = str(pack_updated_at)[:10]
+                urls.append(entry)
+
+            # -- Public creator storefronts --
+            cursor = await conn.execute("""
+                SELECT slug, updated_at
+                FROM CREATOR_PROFILES
+                WHERE is_public = 1
+            """)
+            storefront_rows = await cursor.fetchall()
+
+            for row in storefront_rows:
+                store_slug = row[0]
+                store_updated_at = row[1]
+
+                loc = f"{base_url}/store/{store_slug}"
+                entry = {"loc": loc, "priority": "0.6", "changefreq": "weekly"}
+                if store_updated_at:
+                    entry["lastmod"] = str(store_updated_at)[:10]
+                urls.append(entry)
+
+    except Exception as e:
+        logger.error(f"Sitemap generation DB error: {e}")
+        # Fail fast: return minimal valid sitemap with just the homepage
+        urls = [{"loc": f"{base_url}/", "priority": "1.0", "changefreq": "daily"}]
+
+    # Build XML
+    xml_parts = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ]
+    for url_entry in urls:
+        xml_parts.append("  <url>")
+        xml_parts.append(f"    <loc>{url_entry['loc']}</loc>")
+        if "lastmod" in url_entry:
+            xml_parts.append(f"    <lastmod>{url_entry['lastmod']}</lastmod>")
+        if "changefreq" in url_entry:
+            xml_parts.append(f"    <changefreq>{url_entry['changefreq']}</changefreq>")
+        if "priority" in url_entry:
+            xml_parts.append(f"    <priority>{url_entry['priority']}</priority>")
+        xml_parts.append("  </url>")
+    xml_parts.append("</urlset>")
+
+    xml_content = "\n".join(xml_parts)
+
+    # Cache it
+    _sitemap_cache["xml"] = xml_content
+    _sitemap_cache["generated_at"] = now
+
+    return Response(
+        content=xml_content,
+        media_type="application/xml",
+        headers={"Cache-Control": f"public, max-age={_SITEMAP_CACHE_TTL}"},
+    )
+
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, current_user: User = Depends(get_current_user)):
     # Handle custom domain landing pages
@@ -5180,7 +5360,7 @@ async def edit_user_form(
                        ud.can_change_password, u.email, ud.api_key_mode, ud.user_api_keys,
                        ud.category_access, ud.billing_account_id, ud.billing_limit,
                        ud.billing_limit_action, ur.role_name, ud.billing_auto_refill_amount,
-                       ud.billing_max_limit
+                       ud.billing_max_limit, ud.authentication_mode
                 FROM USERS u
                 JOIN USER_DETAILS ud ON u.id = ud.user_id
                 JOIN USER_ROLES ur ON u.role_id = ur.id
@@ -5212,7 +5392,8 @@ async def edit_user_form(
                 'billing_limit_action': user_row[18] or 'block',
                 'role_name': user_row[19],
                 'billing_auto_refill_amount': user_row[20] or 10.0,
-                'billing_max_limit': user_row[21]
+                'billing_max_limit': user_row[21],
+                'authentication_mode': user_row[22] or 'magic_link_only'
             }
         else:
             user_data = None
@@ -5254,11 +5435,12 @@ async def update_user(
     category_ids: Optional[List[str]] = Form(None),
     allow_all_categories: bool = Form(False),
     billing_mode: str = Form(default="user_pays"),
-    billing_limit: Optional[float] = Form(default=None),
+    billing_limit: Optional[str] = Form(default=None),
     billing_limit_action: str = Form(default="block"),
-    billing_auto_refill_amount: Optional[float] = Form(default=10.0),
-    billing_max_limit: Optional[float] = Form(default=None),
-    user_role_id: Optional[int] = Form(default=None)
+    billing_auto_refill_amount: Optional[str] = Form(default=None),
+    billing_max_limit: Optional[str] = Form(default=None),
+    user_role_id: Optional[str] = Form(default=None),
+    authentication_mode: str = Form(default="magic_link_only")
 ):
     if current_user is None:
         return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x})
@@ -5280,6 +5462,17 @@ async def update_user(
         # Verify permissions
         if await current_user.is_manager and role_id == 1:  # Assuming role_id 1 is for admin
             raise HTTPException(status_code=403, detail="Managers cannot edit admin accounts.")
+
+        # Parse optional numeric fields (HTML forms send empty string instead of null)
+        billing_limit = float(billing_limit) if billing_limit and billing_limit.strip() else None
+        billing_auto_refill_amount = float(billing_auto_refill_amount) if billing_auto_refill_amount and billing_auto_refill_amount.strip() else 10.0
+        billing_max_limit = float(billing_max_limit) if billing_max_limit and billing_max_limit.strip() else None
+        user_role_id = int(user_role_id) if user_role_id and user_role_id.strip() else None
+
+        # Validate authentication mode
+        valid_auth_modes = ["magic_link_only", "magic_link_password", "password_only"]
+        if authentication_mode not in valid_auth_modes:
+            raise HTTPException(status_code=400, detail="Invalid authentication mode.")
 
         # Validate the new username
         if len(new_username) < 3 or len(new_username) > 20:
@@ -5351,11 +5544,13 @@ async def update_user(
             balance = ?,
             all_prompts_access = ?,
             public_prompts_access = ?,
-            can_change_password = ?
+            can_change_password = ?,
+            authentication_mode = ?
         """
         update_details_params = [
             prompt_id, machine, allow_file_upload, allow_image_generation,
-            balance, all_prompts_access, public_prompts_access, can_change_password
+            balance, all_prompts_access, public_prompts_access, can_change_password,
+            authentication_mode
         ]
 
         # Add api_key_mode to update if provided
@@ -5517,8 +5712,21 @@ async def users_list(request: Request, current_user: User = Depends(get_current_
             })
         await conn.close()
         sorted_users = sorted(users, key=lambda x: (x['is_expired'] == 'Expired', -x['user_id']))
+
+        # Ultra Admin+ state
+        ultra_admin_elevated = False
+        ultra_admin_ttl = -1
+        if await current_user.is_admin:
+            forwarded = request.headers.get("X-Forwarded-For")
+            req_ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else None)
+            ultra_admin_elevated = await is_elevated(current_user.id, request_ip=req_ip)
+            if ultra_admin_elevated:
+                ultra_admin_ttl = await get_elevation_ttl(current_user.id)
+
         context = await get_template_context(request, current_user)
         context["users"] = sorted_users
+        context["ultra_admin_elevated"] = ultra_admin_elevated
+        context["ultra_admin_ttl"] = ultra_admin_ttl
         return templates.TemplateResponse("users_list.html", context)
 
 @app.post("/admin/renew-token/{username}")
@@ -5553,6 +5761,11 @@ async def renew_token(request: Request, username: str, current_user: User = Depe
             WHERE user_id = ?
             """
             await cursor.execute(query, (new_token, new_expires_at, user_id))
+            if cursor.rowcount == 0:
+                await cursor.execute(
+                    "INSERT INTO magic_links (user_id, token, expires_at) VALUES (?, ?, ?)",
+                    (user_id, new_token, new_expires_at)
+                )
             await conn.commit()
             await conn.close()
             url_path = 'login?token='
@@ -5605,7 +5818,7 @@ async def refresh_session(request: Request, current_user: User = Depends(get_cur
         raise HTTPException(status_code=500, detail="Error refreshing session")
 
 
-async def delete_user(username, current_user):
+async def delete_user(username, current_user, request_ip=None):
     async with get_db_connection() as conn:
         cursor = await conn.cursor()
         logger.debug(f"Attempting to delete username: {username} by user: {current_user.username}")
@@ -5636,14 +5849,26 @@ async def delete_user(username, current_user):
         is_self_deletion = current_user.username == username
         
         # Security validations
+        ultra_admin_elevated = await is_elevated(current_user.id, request_ip=request_ip) if is_current_user_admin else False
+
         if (not is_current_user_admin and not is_self_deletion) or \
-           (is_current_user_admin and is_target_admin and not is_self_deletion):
+           (is_current_user_admin and is_target_admin and not is_self_deletion and not ultra_admin_elevated):
             logger.warning(f"Unauthorized deletion attempt: {current_user.username} trying to delete {username}")
             raise HTTPException(
-                status_code=403, 
-                detail="Unauthorized: You can only delete your own account or non-admin accounts if you are an admin"
+                status_code=403,
+                detail="Unauthorized: You do not have permission to delete this account"
             )
-            
+
+        # Audit log for admin-on-admin deletion via Ultra Admin+
+        if is_target_admin and ultra_admin_elevated:
+            await log_admin_action(
+                admin_id=current_user.id,
+                action_type="ultra_admin_deleted_admin",
+                request=None,
+                target_user_id=user_id,
+                details=f"Admin '{username}' deleted by '{current_user.username}' via Ultra Admin+"
+            )
+
         try:
             # Add user to revoked list in Redis
             await add_revoked_user(user_id)
@@ -5682,26 +5907,53 @@ async def delete_user(username, current_user):
                     except Exception as e:
                         logger.error(f"Error deleting prompt directory {prompt_dir}: {str(e)}")
                         
-            # Cascade deletion of data in database
+            # Cascade deletion of all related data in database
             async with conn.cursor() as delete_cursor:
-                # Delete prompts
-                await delete_cursor.execute("DELETE FROM prompts WHERE created_by_user_id = ?", (user_id,))
-                logger.debug(f"Deleted prompts for user {username}")
-                
-                # Delete permissions
-                await delete_cursor.execute("DELETE FROM prompt_permissions WHERE user_id = ?", (user_id,))
-                logger.debug(f"Deleted prompt permissions for user {username}")
-                
-                # Delete magic links
-                await delete_cursor.execute("DELETE FROM magic_links WHERE user_id = ?", (user_id,))
-                logger.debug(f"Deleted magic links for user {username}")
-                
-                # Delete user details
-                await delete_cursor.execute("DELETE FROM user_details WHERE user_id = ?", (user_id,))
-                logger.debug(f"Deleted user details for user {username}")
+                # Delete in dependency order (children before parents)
+                cascade_tables = [
+                    ("MESSAGES", "user_id"),
+                    ("CONVERSATIONS", "user_id"),
+                    ("CHAT_FOLDERS", "user_id"),
+                    ("SERVICE_USAGE", "user_id"),
+                    ("USAGE_DAILY", "user_id"),
+                    ("TRANSACTIONS", "user_id"),
+                    ("DISCOUNTS", "created_by_user_id"),
+                    ("PROMPT_PERMISSIONS", "user_id"),
+                    ("PROMPT_PURCHASES", "buyer_user_id"),
+                    ("FAVORITE_PROMPTS", "user_id"),
+                    ("PACK_PURCHASES", "buyer_user_id"),
+                    ("PACK_ACCESS", "user_id"),
+                    ("PACKS", "created_by_user_id"),
+                    ("CREATOR_EARNINGS", "creator_id"),
+                    ("CREATOR_EARNINGS", "consumer_id"),
+                    ("CREATOR_EARNINGS", "referral_id"),
+                    ("CREATOR_PROFILES", "user_id"),
+                    ("USER_CREATOR_RELATIONSHIPS", "user_id"),
+                    ("USER_CREATOR_RELATIONSHIPS", "creator_id"),
+                    ("USER_CAPTIVE_DOMAINS", "user_id"),
+                    ("PROMPT_CUSTOM_DOMAINS", "activated_by_user_id"),
+                    ("MANAGER_BRANDING", "manager_id"),
+                    ("USER_ALTER_EGOS", "user_id"),
+                    ("WHATSAPP_LOG", "user_id"),
+                    ("PENDING_ENTITLEMENTS", "user_id"),
+                    ("MAGIC_LINKS", "user_id"),
+                    ("PROMPTS", "created_by_user_id"),
+                    # Nullify audit log references instead of deleting
+                ]
 
-                # Delete the user
-                await delete_cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+                for table, column in cascade_tables:
+                    await delete_cursor.execute(f"DELETE FROM {table} WHERE {column} = ?", (user_id,))
+
+                # Nullify audit log references (preserve audit trail)
+                await delete_cursor.execute("UPDATE ADMIN_AUDIT_LOG SET target_user_id = NULL WHERE target_user_id = ?", (user_id,))
+                await delete_cursor.execute("UPDATE ADMIN_AUDIT_LOG SET admin_id = NULL WHERE admin_id = ?", (user_id,))
+
+                # Nullify USER_DETAILS.created_by references from other users
+                await delete_cursor.execute("UPDATE USER_DETAILS SET created_by = NULL WHERE created_by = ?", (user_id,))
+
+                # Delete user details and user record last
+                await delete_cursor.execute("DELETE FROM USER_DETAILS WHERE user_id = ?", (user_id,))
+                await delete_cursor.execute("DELETE FROM USERS WHERE id = ?", (user_id,))
                 logger.debug(f"Deleted user record for {username}")
                 
                 await conn.commit()
@@ -5719,9 +5971,137 @@ async def delete_user(username, current_user):
         finally:
             await conn.close()
 
-async def delete_selected_users(usernames, current_user):
+async def delete_selected_users(usernames, current_user, request_ip=None):
     for username in usernames:
-        await delete_user(username, current_user)
+        await delete_user(username, current_user, request_ip=request_ip)
+
+# ── Ultra Admin+ endpoints ──────────────────────────────────────────
+
+@app.post("/api/ultra-admin/request-code")
+async def ultra_admin_request_code(request: Request, current_user: User = Depends(get_current_user)):
+    if current_user is None or not await current_user.is_admin:
+        return JSONResponse(content={"error": "Admin access required."}, status_code=403)
+
+    # Check concurrent lock
+    lock_owner = await get_active_lock_owner()
+    if lock_owner is not None and lock_owner != current_user.id:
+        return JSONResponse(content={"error": "Another admin is currently elevated."}, status_code=409)
+
+    # Get admin email
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.execute("SELECT email FROM USERS WHERE id = ?", (current_user.id,))
+        row = await cursor.fetchone()
+
+    email = row[0] if row else None
+    if not email:
+        return JSONResponse(content={"error": "No email configured for this account."}, status_code=400)
+
+    code = await generate_elevation_code(current_user.id)
+    if code is None:
+        return JSONResponse(content={"error": "Please wait before requesting another code."}, status_code=429)
+
+    # Send code via email
+    sent = email_service.send_ultra_admin_code(email, code, current_user.username)
+    if not sent:
+        await redis_client.delete(f"ultra_admin:code:{current_user.id}")
+        await redis_client.delete(f"ultra_admin:cooldown:{current_user.id}")
+        return JSONResponse(content={"error": "Failed to send verification code. Try again."}, status_code=500)
+
+    await log_admin_action(
+        admin_id=current_user.id,
+        action_type="ultra_admin_code_requested",
+        request=request,
+        details=f"Elevation code requested, sent to {email[:3]}***"
+    )
+
+    # Return email hint (first 3 chars + mask)
+    at_idx = email.find('@')
+    if at_idx > 3:
+        email_hint = email[:3] + '*' * (at_idx - 3) + email[at_idx:]
+    elif at_idx > 0:
+        email_hint = email[:1] + '*' * (at_idx - 1) + email[at_idx:]
+    else:
+        email_hint = '***'
+
+    return JSONResponse(content={"status": "sent", "email_hint": email_hint})
+
+@app.post("/api/ultra-admin/verify")
+async def ultra_admin_verify(request: Request, current_user: User = Depends(get_current_user)):
+    if current_user is None or not await current_user.is_admin:
+        return JSONResponse(content={"error": "Admin access required."}, status_code=403)
+
+    body = await request.json()
+    code = body.get("code", "").strip()
+
+    if not code or len(code) != 6 or not code.isdigit():
+        return JSONResponse(content={"error": "Invalid code format."}, status_code=400)
+
+    # Get request IP
+    forwarded = request.headers.get("X-Forwarded-For")
+    ip_address = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
+
+    success, message = await verify_elevation_code(current_user.id, code, ip_address)
+
+    if success:
+        await log_admin_action(
+            admin_id=current_user.id,
+            action_type="ultra_admin_elevated",
+            request=request,
+            details=f"Ultra Admin+ elevation granted from IP {ip_address}"
+        )
+        return JSONResponse(content={"status": "elevated", "ttl": ELEVATION_TTL})
+    else:
+        await log_admin_action(
+            admin_id=current_user.id,
+            action_type="ultra_admin_verification_failed",
+            request=request,
+            details=f"Verification failed: {message}"
+        )
+        error_messages = {
+            "no_code": "No verification code found. Please request a new one.",
+            "max_attempts": "Too many failed attempts. Please request a new code.",
+            "already_elevated": "Another admin is currently elevated. Only one Ultra Admin+ session allowed at a time.",
+        }
+        # Handle wrong_code:N format
+        if message.startswith("wrong_code:"):
+            remaining = message.split(":")[1]
+            error_msg = f"Incorrect code. {remaining} attempt(s) remaining."
+        else:
+            error_msg = error_messages.get(message, "Verification failed.")
+
+        status_code = 409 if message == "already_elevated" else 403
+        return JSONResponse(content={"error": error_msg, "reason": message}, status_code=status_code)
+
+@app.post("/api/ultra-admin/revoke")
+async def ultra_admin_revoke(request: Request, current_user: User = Depends(get_current_user)):
+    if current_user is None or not await current_user.is_admin:
+        return JSONResponse(content={"error": "Admin access required."}, status_code=403)
+
+    await revoke_elevation(current_user.id)
+
+    await log_admin_action(
+        admin_id=current_user.id,
+        action_type="ultra_admin_revoked",
+        request=request,
+        details="Ultra Admin+ elevation revoked manually"
+    )
+
+    return JSONResponse(content={"status": "revoked"})
+
+@app.get("/api/ultra-admin/status")
+async def ultra_admin_status(request: Request, current_user: User = Depends(get_current_user)):
+    if current_user is None or not await current_user.is_admin:
+        return JSONResponse(content={"elevated": False, "remaining_seconds": -1})
+
+    forwarded = request.headers.get("X-Forwarded-For")
+    ip_address = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
+
+    elevated = await is_elevated(current_user.id, request_ip=ip_address)
+    ttl = await get_elevation_ttl(current_user.id) if elevated else -1
+
+    return JSONResponse(content={"elevated": elevated, "remaining_seconds": ttl})
+
+# ── End Ultra Admin+ endpoints ──────────────────────────────────────
 
 @app.post("/admin/delete-users")
 async def delete_users(request: Request, current_user: User = Depends(get_current_user)):
@@ -5733,11 +6113,29 @@ async def delete_users(request: Request, current_user: User = Depends(get_curren
     
     form_data = await request.form()
     selected_users = form_data.getlist("selected_users")
-    
-    if selected_users:
-        await delete_selected_users(selected_users, current_user)
 
-    return RedirectResponse(url="/users-list", status_code=303)
+    # Extract request IP for Ultra Admin+ validation
+    forwarded = request.headers.get("X-Forwarded-For")
+    request_ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else None)
+
+    if not selected_users:
+        return JSONResponse(content={"error": "No users selected."}, status_code=400)
+
+    errors = []
+    deleted = []
+    for username in selected_users:
+        try:
+            await delete_user(username, current_user, request_ip=request_ip)
+            deleted.append(username)
+        except HTTPException as e:
+            errors.append(f"{username}: {e.detail}")
+
+    if errors and not deleted:
+        return JSONResponse(content={"detail": "; ".join(errors)}, status_code=403)
+    elif errors:
+        return JSONResponse(content={"message": f"Deleted {len(deleted)} user(s). Errors: {'; '.join(errors)}"})
+    else:
+        return JSONResponse(content={"message": f"Successfully deleted {len(deleted)} user(s)."})
 
 @app.post("/api/delete-account")
 async def delete_account(request: Request, current_user: User = Depends(get_current_user)):
@@ -5745,7 +6143,7 @@ async def delete_account(request: Request, current_user: User = Depends(get_curr
         raise HTTPException(status_code=401, detail="Not authenticated")
     
     try:
-        await delete_user(current_user.username, current_user)
+        await delete_user(current_user.username, current_user, request_ip=None)
         return {"message": "Account deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -8133,6 +8531,8 @@ async def get_elevenlabs_config(conversation_id: int, current_user: User = Depen
     conversation = await elevenlabs_service.validate_conversation_access(conversation_id, current_user.id, is_admin_user)
     if not conversation:
         return JSONResponse(content={'error': 'Conversation not found'}, status_code=404)
+    if conversation.get("locked"):
+        return JSONResponse(content={'error': 'This conversation is locked'}, status_code=403)
 
     config = await elevenlabs_service.get_configuration(conversation_id, current_user.id, is_admin_user)
     if not config:
@@ -8159,6 +8559,8 @@ async def start_elevenlabs_session(conversation_id: int, request: Request, curre
     conversation = await elevenlabs_service.validate_conversation_access(conversation_id, current_user.id, is_admin_user)
     if not conversation:
         return JSONResponse(content={'error': 'Conversation not found'}, status_code=404)
+    if conversation.get("locked"):
+        return JSONResponse(content={'error': 'This conversation is locked'}, status_code=403)
 
     existing_session = (conversation.get('elevenlabs_session_id') or '').strip()
     existing_status = (conversation.get('elevenlabs_status') or '').lower()
@@ -8204,6 +8606,8 @@ async def complete_elevenlabs_session(conversation_id: int, request: Request, cu
     conversation = await elevenlabs_service.validate_conversation_access(conversation_id, current_user.id, is_admin_user)
     if not conversation:
         return JSONResponse(content={'error': 'Conversation not found'}, status_code=404)
+    if conversation.get("locked"):
+        return JSONResponse(content={'error': 'This conversation is locked'}, status_code=403)
 
     session_id = requested_session_id or (conversation.get('elevenlabs_session_id') or '').strip()
     if not session_id:
@@ -8316,6 +8720,8 @@ async def stop_elevenlabs_session(conversation_id: int, request: Request, curren
     conversation = await elevenlabs_service.validate_conversation_access(conversation_id, current_user.id, is_admin_user)
     if not conversation:
         return JSONResponse(content={'error': 'Conversation not found'}, status_code=404)
+    if conversation.get("locked"):
+        return JSONResponse(content={'error': 'This conversation is locked'}, status_code=403)
 
     session_id = requested_session_id or (conversation.get('elevenlabs_session_id') or '').strip()
     if not session_id:
@@ -12029,6 +12435,83 @@ async def admin_security_retry_sync(
 
 
 # ---------------------------------------------------------------------------
+# IP Reputation admin endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/admin/security/reputation/stats")
+async def admin_security_reputation_stats(current_user: User = Depends(get_current_user)):
+    """IP Reputation system summary stats."""
+    if current_user is None:
+        return unauthenticated_response()
+    if not await current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only administrators can access this function")
+    from middleware.ip_reputation import reputation_manager
+    stats = await reputation_manager.get_stats()
+    return JSONResponse(stats)
+
+
+@app.get("/admin/security/reputation/top-ips")
+async def admin_security_reputation_top_ips(
+    limit: int = Query(default=500, ge=1, le=500),
+    current_user: User = Depends(get_current_user),
+):
+    """Top scored IPs by reputation."""
+    if current_user is None:
+        return unauthenticated_response()
+    if not await current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only administrators can access this function")
+    from middleware.ip_reputation import reputation_manager
+    top_ips = await reputation_manager.get_top_ips(limit=limit)
+    return JSONResponse({"top_ips": top_ips, "count": len(top_ips)})
+
+
+@app.get("/admin/security/reputation/ip-detail")
+async def admin_security_reputation_ip_detail(
+    ip: str = Query(..., min_length=1),
+    current_user: User = Depends(get_current_user),
+):
+    """Full reputation record for a single IP."""
+    if current_user is None:
+        return unauthenticated_response()
+    if not await current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only administrators can access this function")
+    from middleware.ip_reputation import reputation_manager
+    from middleware.security import _normalize_ip
+    try:
+        normalized_ip = _normalize_ip(ip)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    detail = await reputation_manager.get_ip_detail(normalized_ip)
+    if detail is None:
+        return JSONResponse({"found": False, "ip": normalized_ip})
+    return JSONResponse({"found": True, **detail})
+
+
+@app.post("/admin/security/reputation/reset-score")
+async def admin_security_reputation_reset_score(
+    request: Request,
+    payload: SecurityResetScoreRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Reset reputation score for an IP (keeps ban history)."""
+    if current_user is None:
+        return unauthenticated_response()
+    if not await current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only administrators can access this function")
+    from middleware.ip_reputation import reputation_manager
+    success = await reputation_manager.reset_ip_score(payload.ip)
+
+    await log_admin_action(
+        admin_id=current_user.id,
+        action_type="security_reputation_reset_score",
+        request=request,
+        target_resource_type="ip_reputation",
+        details=f"ip={payload.ip};success={success}",
+    )
+    return JSONResponse({"success": success, "ip": payload.ip})
+
+
+# ---------------------------------------------------------------------------
 # Watchdog admin panel
 # ---------------------------------------------------------------------------
 
@@ -12717,6 +13200,29 @@ async def whatsapp_webhook(request: Request):
                     from_=to_number, to=from_number
                 )
                 return {"status": "success"}
+
+            # Early check: locked or deleted conversation (before expensive media/transcription)
+            lock_cursor = await conn.execute(
+                "SELECT locked FROM CONVERSATIONS WHERE id = ? AND user_id = ?",
+                (conversation_id, current_user.id)
+            )
+            lock_row = await lock_cursor.fetchone()
+            if not lock_row or lock_row[0]:
+                # Log the blocked attempt for observability
+                async with get_db_connection() as log_conn:
+                    await log_conn.execute(
+                        "INSERT INTO WHATSAPP_LOG (user_id, phone_number, direction, message_type, response_mode) VALUES (?, ?, 'in', 'text', ?)",
+                        (current_user.id, from_number, answer_mode)
+                    )
+                    await log_conn.commit()
+                reason = "locked" if lock_row else "not found"
+                logger.info(f"WhatsApp message blocked: conversation {conversation_id} {reason} for user {current_user.id}")
+                await async_twilio.send_message(
+                    body="This conversation is locked and cannot receive new messages. Send !new to start a fresh conversation.",
+                    from_=to_number,
+                    to=from_number
+                )
+                return {"status": "success", "message": f"Conversation {reason}"}
 
             transcribed_text = ""
             file_dict = None
@@ -15285,6 +15791,135 @@ async def set_landing_config_endpoint(
         return JSONResponse({"success": False, "message": "Internal server error"}, status_code=500)
 
 
+# =============================================================================
+# Landing Page Geo-Blocking Configuration API
+# =============================================================================
+
+@app.get("/api/landing/{prompt_id}/geo", response_class=JSONResponse)
+async def get_landing_geo(prompt_id: int, current_user: User = Depends(get_current_user)):
+    """Get geo-blocking policy for a landing page + global blocks for subordination."""
+    if current_user is None:
+        return unauthenticated_response()
+
+    try:
+        is_admin = await current_user.is_admin
+        if not await can_manage_prompt(current_user.id, prompt_id, is_admin):
+            return JSONResponse({"success": False, "message": "Access denied"}, status_code=403)
+
+        # Check if CF is configured
+        client = CloudflareGeoClient()
+        if not client.is_configured():
+            return JSONResponse({"success": False, "message": "Cloudflare not configured"}, status_code=404)
+
+        # Get the prompt's geo_policy
+        async with get_db_connection(readonly=True) as conn:
+            async with conn.execute(
+                "SELECT geo_policy FROM PROMPTS WHERE id = ?", (prompt_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                if not row:
+                    return JSONResponse({"success": False, "message": "Prompt not found"}, status_code=404)
+
+            policy = None
+            try:
+                policy = json.loads(row[0]) if row[0] else None
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+            # Get global blocked countries for subordination display
+            global_blocks = set()
+            async with conn.execute(
+                "SELECT key, value FROM SYSTEM_CONFIG WHERE key IN ('geo_enabled', 'geo_global_mode', 'geo_global_blocked_countries', 'geo_global_blocked_continents')"
+            ) as cursor:
+                global_config = {}
+                async for r in cursor:
+                    global_config[r[0]] = r[1]
+
+            if global_config.get("geo_enabled") == "1" and global_config.get("geo_global_mode") == "deny":
+                try:
+                    countries = json.loads(global_config.get("geo_global_blocked_countries", "[]"))
+                    continents = json.loads(global_config.get("geo_global_blocked_continents", "[]"))
+                    for cont in continents:
+                        global_blocks.update(get_countries_for_continent(cont))
+                    global_blocks.update(countries)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+        return JSONResponse({
+            "success": True,
+            "policy": policy,
+            "global_blocks": sorted(global_blocks),
+            "geo_data": get_all_geo_data(),
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting geo policy for prompt {prompt_id}: {e}")
+        return JSONResponse({"success": False, "message": "Internal server error"}, status_code=500)
+
+
+@app.put("/api/landing/{prompt_id}/geo", response_class=JSONResponse)
+async def set_landing_geo(request: Request, prompt_id: int, current_user: User = Depends(get_current_user)):
+    """Save geo-blocking policy for a landing page and sync to Cloudflare."""
+    if current_user is None:
+        return unauthenticated_response()
+
+    try:
+        is_admin = await current_user.is_admin
+        if not await can_manage_prompt(current_user.id, prompt_id, is_admin):
+            return JSONResponse({"success": False, "message": "Access denied"}, status_code=403)
+
+        data = await request.json()
+
+        enabled = bool(data.get("enabled", False))
+        mode = data.get("mode", "deny")
+        if mode not in ("deny", "allow"):
+            return JSONResponse({"success": False, "message": "Invalid mode"}, status_code=400)
+
+        countries = validate_country_codes(data.get("countries", []))
+        continents = validate_continent_codes(data.get("continents", []))
+
+        # Build the geo_policy JSON
+        policy = {
+            "enabled": enabled,
+            "mode": mode,
+            "countries": countries,
+            "continents": continents,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        # Save to PROMPTS.geo_policy
+        policy_json = json.dumps(policy) if enabled else None  # NULL if disabled to clean up
+
+        async with get_db_connection() as conn:
+            await conn.execute(
+                "UPDATE PROMPTS SET geo_policy = ? WHERE id = ?",
+                (policy_json, prompt_id)
+            )
+            await conn.commit()
+
+        # Sync to Cloudflare (only if global geo is enabled)
+        sync_result = None
+        async with get_db_connection(readonly=True) as conn:
+            async with conn.execute(
+                "SELECT value FROM SYSTEM_CONFIG WHERE key = 'geo_enabled'"
+            ) as cursor:
+                row = await cursor.fetchone()
+                geo_enabled = row[0] == "1" if row else False
+
+        if geo_enabled:
+            sync_result = await geo_sync_engine.sync_all()
+
+        return JSONResponse({
+            "success": True,
+            "message": "Geo-blocking policy saved" + (" and synced to Cloudflare" if sync_result else ""),
+            "sync": sync_result,
+        })
+
+    except Exception as e:
+        logger.error(f"Error saving geo policy for prompt {prompt_id}: {e}")
+        return JSONResponse({"success": False, "message": "Internal server error"}, status_code=500)
+
+
 @app.post("/api/landing/{prompt_id}/ai/generate", response_class=JSONResponse)
 async def generate_landing_with_wizard(
     request: Request,
@@ -15385,18 +16020,26 @@ async def generate_landing_with_wizard(
         if not prompt_dir or not os.path.exists(prompt_dir):
             return JSONResponse({"success": False, "message": "Prompt directory not found"}, status_code=404)
 
-        # Get additional prompt details (system prompt and description) for context
+        # Get additional prompt details (system prompt, description, public_id) for context
         ai_system_prompt = ""
         product_description = ""
+        public_id = ""
         async with get_db_connection(readonly=True) as conn:
             cursor = await conn.execute(
-                "SELECT prompt, description FROM PROMPTS WHERE id = ?",
+                "SELECT prompt, description, public_id FROM PROMPTS WHERE id = ?",
                 (prompt_id,)
             )
             row = await cursor.fetchone()
             if row:
                 ai_system_prompt = row[0] or ""
                 product_description = row[1] or ""
+                public_id = row[2] or ""
+
+        # Build absolute landing URL for SEO meta tags (canonical, og:url, og:image, twitter:image)
+        landing_url = ""
+        if public_id:
+            prompt_slug = slugify(prompt_info['name'])
+            landing_url = f"https://{PRIMARY_APP_DOMAIN}/p/{public_id}/{prompt_slug}/"
 
         # Prepare job parameters
         params = {
@@ -15408,7 +16051,8 @@ async def generate_landing_with_wizard(
             "timeout": timeout_seconds,
             "product_name": prompt_info['name'],
             "ai_system_prompt": ai_system_prompt,
-            "product_description": product_description
+            "product_description": product_description,
+            "landing_url": landing_url
         }
 
         # Start background job
@@ -19115,6 +19759,282 @@ async def reorder_categories(
         await conn.commit()
 
     return {"success": True, "message": "Categories reordered successfully"}
+
+
+# =============================================================================
+# Admin Geo-Blocking Configuration
+# =============================================================================
+
+@app.get("/admin/geo", response_class=HTMLResponse)
+async def admin_geo_page(request: Request, current_user: User = Depends(get_current_user)):
+    """Admin page for geo-blocking configuration via Cloudflare WAF."""
+    if current_user is None:
+        return RedirectResponse(url="/login", status_code=303)
+
+    if not await current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    context = await get_template_context(request, current_user)
+    # Transform geo data into continent-grouped format for the admin UI
+    raw = get_all_geo_data()
+    grouped = {}
+    for cont_code, cont_name in raw.get("continents", {}).items():
+        countries = [c for c in raw.get("countries", []) if c.get("continent") == cont_code]
+        grouped[cont_name] = {"code": cont_code, "countries": countries}
+    context["geo_data"] = grouped
+    return templates.TemplateResponse("admin_geo.html", context)
+
+
+@app.get("/api/admin/geo/status")
+async def get_geo_status(request: Request, current_user: User = Depends(get_current_user)):
+    """Get Cloudflare geo-blocking status and current configuration."""
+    if current_user is None:
+        return unauthenticated_response()
+
+    if not await current_user.is_admin:
+        return JSONResponse(status_code=403, content={"success": False, "message": "Admin access required"})
+
+    try:
+        client = CloudflareGeoClient()
+
+        # Build status sub-object matching admin UI expectations
+        plan_rules_max = {"free": 5, "pro": 20, "business": 100, "enterprise": 1000}
+        status_obj = {
+            "connected": client.is_configured(),
+            "plan": "--",
+            "rules_used": 0,
+            "rules_max": 5,
+            "transforms_enabled": False,
+        }
+
+        if client.is_configured():
+            try:
+                zone_info = await client.get_zone_info()
+                plan = zone_info.get("plan", {})
+                plan_id = plan.get("legacy_id", plan.get("name", "unknown"))
+                status_obj["plan"] = plan_id
+                status_obj["rules_max"] = plan_rules_max.get(plan_id, 5)
+
+                try:
+                    ruleset = await client.get_ruleset()
+                    rules = ruleset.get("rules", [])
+                    status_obj["rules_used"] = len(rules)
+                except Exception:
+                    pass
+
+                try:
+                    status_obj["transforms_enabled"] = await client.check_managed_transforms()
+                except Exception:
+                    pass
+
+            except Exception as e:
+                status_obj["connection_error"] = str(e)
+
+        # Load current global config from DB and parse into UI-friendly format
+        async with get_db_connection(readonly=True) as conn:
+            raw_config = {}
+            async with conn.execute(
+                "SELECT key, value FROM SYSTEM_CONFIG WHERE key LIKE 'geo_%'"
+            ) as cursor:
+                async for row in cursor:
+                    raw_config[row[0]] = row[1] if row[1] else ""
+
+            config_obj = {
+                "geo_enabled": raw_config.get("geo_enabled") == "1",
+                "mode": raw_config.get("geo_global_mode", "deny"),
+                "countries": json.loads(raw_config.get("geo_global_blocked_countries", "[]")),
+                "continents": json.loads(raw_config.get("geo_global_blocked_continents", "[]")),
+                "response_html": raw_config.get("geo_global_response_html", ""),
+            }
+
+            # Get landing summary: prompts with geo_policy set
+            async with conn.execute("""
+                SELECT p.id, p.name, p.public_id, p.geo_policy,
+                       pcd.custom_domain
+                FROM PROMPTS p
+                LEFT JOIN PROMPT_CUSTOM_DOMAINS pcd ON pcd.prompt_id = p.id AND pcd.is_active = 1
+                WHERE p.geo_policy IS NOT NULL
+                ORDER BY p.name
+            """) as cursor:
+                landing_policies = []
+                async for row in cursor:
+                    policy = None
+                    try:
+                        policy = json.loads(row[3]) if row[3] else None
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                    if policy:
+                        landing_policies.append({
+                            "id": row[0],
+                            "name": row[1],
+                            "public_id": row[2],
+                            "mode": policy.get("mode", "deny"),
+                            "countries": policy.get("countries", []),
+                            "enabled": policy.get("enabled", False),
+                            "updated_at": policy.get("updated_at", ""),
+                            "custom_domain": row[4],
+                        })
+
+        return JSONResponse(content={
+            "success": True,
+            "status": status_obj,
+            "config": config_obj,
+            "landing_policies": landing_policies,
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting geo status: {e}")
+        return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
+
+
+@app.put("/api/admin/geo/global")
+async def update_geo_global(request: Request, current_user: User = Depends(get_current_user)):
+    """Save global geo-blocking configuration and sync to Cloudflare."""
+    if current_user is None:
+        return unauthenticated_response()
+
+    if not await current_user.is_admin:
+        return JSONResponse(status_code=403, content={"success": False, "message": "Admin access required"})
+
+    try:
+        data = await request.json()
+
+        # Validate (JS sends geo_enabled, accept both keys)
+        enabled = bool(data.get("geo_enabled", data.get("enabled", False)))
+        mode = data.get("mode", "deny")
+        if mode not in ("deny", "allow"):
+            return JSONResponse(status_code=400, content={"success": False, "message": "Invalid mode"})
+
+        countries = validate_country_codes(data.get("countries", []))
+        continents = validate_continent_codes(data.get("continents", []))
+        response_html = str(data.get("response_html", ""))
+        if len(response_html.encode("utf-8")) > 10240:
+            return JSONResponse(status_code=400, content={"success": False, "message": "Custom block page HTML exceeds 10 KB limit"})
+
+        # Save to SYSTEM_CONFIG
+        async with get_db_connection() as conn:
+            updates = {
+                "geo_enabled": "1" if enabled else "0",
+                "geo_global_mode": mode,
+                "geo_global_blocked_countries": json.dumps(countries),
+                "geo_global_blocked_continents": json.dumps(continents),
+                "geo_global_response_html": response_html,
+            }
+            for key, value in updates.items():
+                await conn.execute(
+                    "INSERT OR REPLACE INTO SYSTEM_CONFIG (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
+                    (key, value)
+                )
+            await conn.commit()
+
+        # Sync to Cloudflare
+        sync_result = await geo_sync_engine.sync_all()
+
+        return JSONResponse(content={
+            "success": True,
+            "message": "Global geo-blocking configuration saved and synced",
+            "sync": sync_result
+        })
+
+    except Exception as e:
+        logger.error(f"Error updating global geo config: {e}")
+        return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
+
+
+@app.post("/api/admin/geo/sync")
+async def force_geo_sync(request: Request, current_user: User = Depends(get_current_user)):
+    """Force re-sync all geo-blocking rules to Cloudflare."""
+    if current_user is None:
+        return unauthenticated_response()
+
+    if not await current_user.is_admin:
+        return JSONResponse(status_code=403, content={"success": False, "message": "Admin access required"})
+
+    try:
+        sync_result = await geo_sync_engine.sync_all()
+        return JSONResponse(content={"success": True, "message": "Geo rules synced", "sync": sync_result})
+    except Exception as e:
+        logger.error(f"Error syncing geo rules: {e}")
+        return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
+
+
+@app.post("/api/admin/geo/enable-transforms")
+async def enable_geo_transforms(request: Request, current_user: User = Depends(get_current_user)):
+    """Enable Cloudflare visitor location managed headers."""
+    if current_user is None:
+        return unauthenticated_response()
+
+    if not await current_user.is_admin:
+        return JSONResponse(status_code=403, content={"success": False, "message": "Admin access required"})
+
+    try:
+        client = CloudflareGeoClient()
+        if not client.is_configured():
+            return JSONResponse(status_code=400, content={"success": False, "message": "Cloudflare not configured"})
+
+        result = await client.enable_managed_transforms()
+        return JSONResponse(content={"success": True, "message": "Managed transforms enabled", "result": result})
+    except Exception as e:
+        logger.error(f"Error enabling transforms: {e}")
+        return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
+
+
+@app.delete("/api/admin/geo/rules")
+async def remove_geo_rules(request: Request, current_user: User = Depends(get_current_user)):
+    """Remove all spark geo-blocking rules from Cloudflare."""
+    if current_user is None:
+        return unauthenticated_response()
+
+    if not await current_user.is_admin:
+        return JSONResponse(status_code=403, content={"success": False, "message": "Admin access required"})
+
+    try:
+        result = await geo_sync_engine.remove_all_rules()
+        return JSONResponse(content={"success": True, "message": "All geo rules removed", "result": result})
+    except Exception as e:
+        logger.error(f"Error removing geo rules: {e}")
+        return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
+
+
+@app.delete("/api/admin/geo/landing/{public_id}")
+async def delete_landing_geo_policy(public_id: str, current_user: User = Depends(get_current_user)):
+    """Remove geo-blocking policy from a specific landing page."""
+    if current_user is None:
+        return unauthenticated_response()
+
+    if not await current_user.is_admin:
+        return JSONResponse(status_code=403, content={"success": False, "message": "Admin access required"})
+
+    try:
+        async with get_db_connection() as conn:
+            async with conn.execute(
+                "SELECT id FROM PROMPTS WHERE public_id = ?", (public_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                if not row:
+                    return JSONResponse(status_code=404, content={"success": False, "message": "Landing not found"})
+
+            await conn.execute(
+                "UPDATE PROMPTS SET geo_policy = NULL WHERE public_id = ?",
+                (public_id,)
+            )
+            await conn.commit()
+
+        # Re-sync to CF
+        async with get_db_connection(readonly=True) as conn:
+            async with conn.execute(
+                "SELECT value FROM SYSTEM_CONFIG WHERE key = 'geo_enabled'"
+            ) as cursor:
+                row = await cursor.fetchone()
+                geo_enabled = row[0] == "1" if row else False
+
+        if geo_enabled:
+            await geo_sync_engine.sync_all()
+
+        return JSONResponse(content={"success": True, "message": "Landing geo policy removed"})
+    except Exception as e:
+        logger.error(f"Error deleting landing geo policy for {public_id}: {e}")
+        return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
 
 
 # =============================================================================

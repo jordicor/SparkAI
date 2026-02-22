@@ -162,7 +162,7 @@ AUTH_IMAGE_ALLOWED_PREFIXES = [p.strip() for p in os.getenv("AUTH_IMAGE_ALLOWED_
 
 # CDN Configuration
 CDN_BASE_URL = os.getenv("CDN_BASE_URL", "")  # For static files (/static/)
-CDN_FILES_URL = os.getenv("CDN_FILES_URL", "https://fstcdn.jordicor.com")  # For user files (/users/)
+CDN_FILES_URL = os.getenv("CDN_FILES_URL", "")  # For user files (/users/)
 ENABLE_CDN = os.getenv("ENABLE_CDN", "false").lower() == "true"
 
 def get_static_url(path: str) -> str:

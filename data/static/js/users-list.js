@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', function() {
     populateFilterDropdowns();
     setupEventListeners();
     applyFiltersAndSort();
+    initUltraAdminState();
 });
 
 /**
@@ -114,25 +115,34 @@ function setupEventListeners() {
         cb.addEventListener('change', updateSelectedCount);
     });
 
-    // Delete form confirmation
+    // Delete form confirmation (AJAX-based to handle errors gracefully)
     const usersForm = document.getElementById('usersForm');
     if (usersForm) {
-        let confirmedSubmit = false;
         usersForm.addEventListener('submit', function(e) {
-            const count = document.querySelectorAll('.user-checkbox:checked').length;
-            if (count === 0) {
-                e.preventDefault();
-                return;
-            }
-            if (confirmedSubmit) {
-                confirmedSubmit = false;
-                return;
-            }
             e.preventDefault();
-            const form = this;
-            NotificationModal.confirm('Delete Users', `Are you sure you want to delete ${count} user(s)? This action cannot be undone.`, () => {
-                confirmedSubmit = true;
-                form.requestSubmit();
+            const checked = document.querySelectorAll('.user-checkbox:checked');
+            const count = checked.length;
+            if (count === 0) return;
+
+            NotificationModal.confirm('Delete Users', `Are you sure you want to delete ${count} user(s)? This action cannot be undone.`, async () => {
+                try {
+                    const formData = new FormData(usersForm);
+                    const response = await secureFetch('/admin/delete-users', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    if (!response) return;
+
+                    const data = await response.json();
+                    if (response.ok) {
+                        NotificationModal.success('Deleted', data.message || 'Users deleted successfully.');
+                        setTimeout(() => window.location.reload(), 1000);
+                    } else {
+                        NotificationModal.error('Delete Failed', data.detail || data.error || 'Could not delete users.');
+                    }
+                } catch (error) {
+                    NotificationModal.error('Error', 'An unexpected error occurred.');
+                }
             }, null, { type: 'error', confirmText: 'Delete' });
         });
     }
@@ -265,10 +275,14 @@ function updateStats(filteredCount) {
     const total = UsersListState.users.length;
     const active = UsersListState.users.filter(u => u.status === 'active').length;
     const expired = UsersListState.users.filter(u => u.status === 'expired').length;
+    const password = UsersListState.users.filter(u => u.status === 'password').length;
 
     document.getElementById('statTotal').textContent = total;
     document.getElementById('statActive').textContent = active;
     document.getElementById('statExpired').textContent = expired;
+
+    const statPassword = document.getElementById('statPassword');
+    if (statPassword) statPassword.textContent = password;
 
     const filteredStat = document.getElementById('statFiltered');
     const filteredContainer = document.getElementById('statFilteredContainer');
@@ -337,7 +351,7 @@ function getVisibleCheckboxes() {
 /**
  * Show magic link for a user
  */
-function showMagicLink(magicLink, username, isExpired) {
+function showMagicLink(magicLink, username, isExpired, isPasswordOnly) {
     const container = document.getElementById('magicLinkContainer');
     const input = document.getElementById('magicLink');
     const actionButton = document.getElementById('actionButton');
@@ -346,17 +360,26 @@ function showMagicLink(magicLink, username, isExpired) {
     if (!container || !input || !actionButton || !title) return;
 
     title.innerHTML = '<i class="fas fa-magic me-2"></i>Magic Link for: <strong>' + escapeHtml(username) + '</strong>';
-    input.value = magicLink;
     container.style.display = 'block';
 
     const copyMessage = document.getElementById('copyMessage');
     if (copyMessage) copyMessage.style.display = 'none';
 
-    if (isExpired) {
+    if (isPasswordOnly || !magicLink || magicLink === 'None') {
+        input.value = 'No magic link (password-only user)';
+        input.style.opacity = '0.6';
+        actionButton.innerHTML = '<i class="fas fa-magic me-1"></i> Generate';
+        actionButton.className = 'btn btn-info';
+        actionButton.onclick = function() { renewMagicLink(username); };
+    } else if (isExpired) {
+        input.value = magicLink;
+        input.style.opacity = '1';
         actionButton.innerHTML = '<i class="fas fa-sync me-1"></i> Renew';
         actionButton.className = 'btn btn-warning';
         actionButton.onclick = function() { renewMagicLink(username); };
     } else {
+        input.value = magicLink;
+        input.style.opacity = '1';
         actionButton.innerHTML = '<i class="fas fa-copy me-1"></i> Copy';
         actionButton.className = 'btn btn-success';
         actionButton.onclick = copyToClipboard;
@@ -432,7 +455,7 @@ async function renewMagicLink(username) {
                 row.dataset.status = 'active';
                 const statusCell = row.querySelector('.status-cell');
                 if (statusCell) {
-                    statusCell.innerHTML = '<span class="status-active"><i class="fas fa-check-circle me-1"></i>Active</span>';
+                    statusCell.innerHTML = '<span class="status-active" title="Magic link active"><i class="fas fa-check-circle"></i></span>';
                 }
 
                 // Update state
@@ -542,4 +565,166 @@ function formatNumber(num) {
     }
 
     return num.toString();
+}
+
+// ==========================================================
+// Ultra Admin+ — Privilege Elevation
+// ==========================================================
+
+let ultraAdminCountdown = null;
+
+/**
+ * Initialize Ultra Admin+ state on page load
+ */
+function initUltraAdminState() {
+    const btn = document.getElementById('ultraAdminBtn');
+    if (!btn) return;
+
+    const isElevated = btn.dataset.elevated === 'true';
+    const ttl = parseInt(btn.dataset.ttl) || 0;
+
+    if (isElevated && ttl > 0) {
+        activateUltraAdminUI(ttl);
+    }
+}
+
+/**
+ * Open the Ultra Admin+ modal
+ */
+function openUltraAdminModal() {
+    document.getElementById('ultraAdminStep1').style.display = 'block';
+    document.getElementById('ultraAdminStep2').style.display = 'none';
+    const codeInput = document.getElementById('ultraAdminCodeInput');
+    if (codeInput) codeInput.value = '';
+    new bootstrap.Modal(document.getElementById('ultraAdminModal')).show();
+}
+
+/**
+ * Request elevation code from server
+ */
+async function requestUltraAdminCode() {
+    try {
+        const response = await secureFetch('/api/ultra-admin/request-code', { method: 'POST' });
+        if (!response) return;
+
+        const data = await response.json();
+
+        if (response.ok) {
+            document.getElementById('ultraAdminStep1').style.display = 'none';
+            document.getElementById('ultraAdminStep2').style.display = 'block';
+            document.getElementById('ultraAdminEmailHint').textContent = data.email_hint || '';
+            document.getElementById('ultraAdminCodeInput').focus();
+        } else if (response.status === 429) {
+            NotificationModal.warning('Cooldown', data.error || 'Please wait before requesting another code.');
+        } else if (response.status === 409) {
+            NotificationModal.warning('Unavailable', data.error || 'Another admin is currently elevated.');
+        } else {
+            NotificationModal.error('Error', data.error || 'Could not send code.');
+        }
+    } catch (error) {
+        NotificationModal.error('Error', 'Unexpected error requesting code.');
+    }
+}
+
+/**
+ * Verify the entered code
+ */
+async function verifyUltraAdminCode() {
+    const code = document.getElementById('ultraAdminCodeInput').value.trim();
+    if (code.length !== 6 || !/^\d{6}$/.test(code)) {
+        NotificationModal.warning('Invalid Code', 'Enter a 6-digit numeric code.');
+        return;
+    }
+
+    try {
+        const response = await secureFetch('/api/ultra-admin/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code })
+        });
+        if (!response) return;
+
+        const data = await response.json();
+
+        if (response.ok && data.status === 'elevated') {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('ultraAdminModal'));
+            if (modal) modal.hide();
+            NotificationModal.success('Ultra Admin+ Active', 'Elevated privileges granted for 30 minutes.');
+            activateUltraAdminUI(data.ttl);
+        } else {
+            NotificationModal.error('Verification Failed', data.error || 'Incorrect code.');
+            document.getElementById('ultraAdminCodeInput').value = '';
+            document.getElementById('ultraAdminCodeInput').focus();
+        }
+    } catch (error) {
+        NotificationModal.error('Error', 'Unexpected error verifying code.');
+    }
+}
+
+/**
+ * Activate the Ultra Admin+ UI (button changes to active state with countdown)
+ */
+function activateUltraAdminUI(ttlSeconds) {
+    const btn = document.getElementById('ultraAdminBtn');
+    if (!btn) return;
+
+    btn.classList.remove('btn-outline-warning', 'btn-sm');
+    btn.classList.add('btn-warning', 'btn-sm');
+    btn.onclick = null;
+    btn.style.cursor = 'default';
+
+    let remaining = ttlSeconds;
+    updateUltraAdminTimer(btn, remaining);
+
+    ultraAdminCountdown = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) {
+            deactivateUltraAdminUI();
+        } else {
+            updateUltraAdminTimer(btn, remaining);
+        }
+    }, 1000);
+}
+
+/**
+ * Update the countdown timer display
+ */
+function updateUltraAdminTimer(btn, seconds) {
+    const min = Math.floor(seconds / 60);
+    const sec = seconds % 60;
+    btn.innerHTML =
+        '<i class="fas fa-bolt me-1"></i>' +
+        'Ultra Admin+ (' + min + ':' + sec.toString().padStart(2, '0') + ') ' +
+        '<i class="fas fa-times-circle ms-1" style="cursor:pointer;" onclick="revokeUltraAdmin(event)" title="Deactivate"></i>';
+}
+
+/**
+ * Deactivate the Ultra Admin+ UI (return to normal state)
+ */
+function deactivateUltraAdminUI() {
+    clearInterval(ultraAdminCountdown);
+    ultraAdminCountdown = null;
+
+    const btn = document.getElementById('ultraAdminBtn');
+    if (!btn) return;
+
+    btn.classList.remove('btn-warning');
+    btn.classList.add('btn-outline-warning');
+    btn.innerHTML = '<i class="fas fa-bolt me-1"></i><span id="ultraAdminLabel">Ultra Admin+</span>';
+    btn.onclick = openUltraAdminModal;
+    btn.style.cursor = 'pointer';
+}
+
+/**
+ * Revoke Ultra Admin+ elevation
+ */
+async function revokeUltraAdmin(event) {
+    if (event) event.stopPropagation();
+    try {
+        await secureFetch('/api/ultra-admin/revoke', { method: 'POST' });
+        deactivateUltraAdminUI();
+        NotificationModal.info('Ultra Admin+ Deactivated', 'Privileges returned to normal.');
+    } catch (error) {
+        NotificationModal.error('Error', 'Could not revoke elevation.');
+    }
 }
