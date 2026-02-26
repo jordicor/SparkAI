@@ -6,6 +6,12 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+<p align="center">
+  <img src="docs/screenshots/chat-default-theme.png" alt="SPARK - AI Chat Interface" width="800">
+  <br>
+  <sub><a href="docs/screenshots/GALLERY.md">View full screenshot gallery</a></sub>
+</p>
+
 ---
 
 ## What is SPARK?
@@ -26,6 +32,11 @@ Think of it as **Poe + Shopify for AI prompts + white-label** -- all in one code
 Each mode has its own billing logic, user relationships, and access controls -- all running on the same instance.
 
 > **Note**: These modes are architectural configurations, not user-facing labels. The platform adapts automatically based on how each creator configures their prompts and billing.
+
+<p align="center">
+  <img src="docs/screenshots/explore-marketplace.png" alt="SPARK Prompt Marketplace" width="700">
+  <br><em>Prompt Marketplace -- browse AI personalities with custom avatars and descriptions</em>
+</p>
 
 ---
 
@@ -66,6 +77,11 @@ A unique two-layer AI behavior monitoring system that ensures prompts stay on-ch
 - **Role Coherence Module**: Detects when the AI contradicts its configured personality
 
 Configurable per prompt with presets for interview, coaching, education, and custom modes. Full admin dashboard with event timeline, filters, and audit trail.
+
+<p align="center">
+  <img src="docs/screenshots/watchdog-locked-conversation.png" alt="Watchdog - Locked Conversation" width="700">
+  <br><em>Watchdog in action: conversation locked after detecting policy violations with hint escalation</em>
+</p>
 
 ---
 
@@ -173,6 +189,11 @@ Creators get their own public storefront page within SPARK:
 - **PDF**: ReportLab with full Markdown rendering (tables, code blocks, emojis, nested lists), embedded images, document metadata
 - **MP3**: TTS-powered audio export of entire conversations
 
+<p align="center">
+  <img src="docs/screenshots/multimedia-image-video-generation.png" alt="AI Image and Video Generation" width="700">
+  <br><em>AI-generated images and videos created directly in chat conversation</em>
+</p>
+
 ---
 
 ### Real-Time Voice Calls
@@ -224,6 +245,35 @@ Full white-label infrastructure for Curator Mode:
 - **13 UI Themes**: All WCAG AA compliant for contrast. Includes Default, Light, Coder (VS Code), Terminal, Writer, Neko Glass, Frutiger Aero, Memphis, E-ink, Katari Shoji, Halloween, Christmas, Valentine's. Template included for creating new themes
 - **Usage Dashboard**: Personal usage stats at `/my-usage` with daily aggregation charts
 
+<details>
+<summary><strong>Theme Gallery -- click to expand</strong></summary>
+<br>
+<table>
+<tr>
+<td align="center"><strong>Default</strong><br><img src="docs/screenshots/chat-default-theme-expanded.png" width="400"></td>
+<td align="center"><strong>Terminal</strong><br><img src="docs/screenshots/chat-terminal-theme.png" width="400"></td>
+</tr>
+<tr>
+<td align="center"><strong>Neko Glass</strong><br><img src="docs/screenshots/chat-neko-glass-theme.png" width="400"></td>
+<td align="center"><strong>Memphis</strong><br><img src="docs/screenshots/chat-memphis-theme.png" width="400"></td>
+</tr>
+<tr>
+<td align="center"><strong>Writer</strong><br><img src="docs/screenshots/chat-writer-theme.png" width="400"></td>
+<td align="center"><strong>Coder (VS Code)</strong><br><img src="docs/screenshots/chat-coder-theme.png" width="400"></td>
+</tr>
+<tr>
+<td align="center"><strong>Light</strong><br><img src="docs/screenshots/chat-light-theme.png" width="400"></td>
+<td align="center"><strong>Halloween</strong><br><img src="docs/screenshots/chat-halloween-theme.png" width="400"></td>
+</tr>
+<tr>
+<td align="center"><strong>Christmas</strong><br><img src="docs/screenshots/chat-christmas-theme.png" width="400"></td>
+<td align="center"><strong>Valentine's Day</strong><br><img src="docs/screenshots/chat-valentines-theme.png" width="400"></td>
+</tr>
+</table>
+
+<p align="center"><em>All 13 themes are WCAG AA compliant. New themes can be created from the included template.</em></p>
+</details>
+
 ---
 
 ### Authentication
@@ -256,6 +306,21 @@ Multi-modal authentication system:
 - **ElevenLabs Agent Config**: Map voices and agents to specific prompts
 - **Ranking Dashboard**: Configure explore ranking weights and trigger recalculation at `/admin/ranking`
 - **WhatsApp Admin**: Twilio configuration and phone number management at `/admin/whatsapp`
+
+<details>
+<summary><strong>Admin Screenshots -- click to expand</strong></summary>
+<br>
+<table>
+<tr>
+<td align="center"><strong>Admin Dashboard</strong><br><img src="docs/screenshots/admin-dashboard.png" width="400"></td>
+<td align="center"><strong>Platform Usage Analytics</strong><br><img src="docs/screenshots/platform-usage-analytics.png" width="400"></td>
+</tr>
+<tr>
+<td align="center"><strong>LLM Management (344+ models)</strong><br><img src="docs/screenshots/llm-management-openrouter.png" width="400"></td>
+<td align="center"><strong>Pricing Configuration</strong><br><img src="docs/screenshots/pricing-configuration.png" width="400"></td>
+</tr>
+</table>
+</details>
 
 ---
 
