@@ -64,9 +64,9 @@ Every theme is fully custom-designed and WCAG AA compliant. Users can switch the
       <em>Writer -- Warm paper tones for long-form writing</em>
     </td>
     <td align="center">
-      <img src="chat-light-blue-theme.png" alt="Light Blue Theme" width="400" />
+      <img src="chat-frutiger-aero-theme.png" alt="Frutiger Aero Theme" width="400" />
       <br />
-      <em>Light Blue -- Soft and calming blue palette</em>
+      <em>Frutiger Aero -- 2000s glassy, soft gradients</em>
     </td>
   </tr>
   <tr>

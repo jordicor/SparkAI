@@ -8,8 +8,18 @@
 
 <p align="center">
   <img src="docs/screenshots/chat-default-theme.png" alt="SPARK - AI Chat Interface" width="800">
-  <br>
-  <sub><a href="docs/screenshots/GALLERY.md">View full screenshot gallery</a></sub>
+</p>
+
+<table>
+<tr>
+<td align="center"><img src="docs/screenshots/chat-neko-glass-theme.png" width="270"><br><sub>Neko Glass</sub></td>
+<td align="center"><img src="docs/screenshots/chat-frutiger-aero-theme.png" width="270"><br><sub>Frutiger Aero</sub></td>
+<td align="center"><img src="docs/screenshots/chat-writer-theme.png" width="270"><br><sub>Writer</sub></td>
+</tr>
+</table>
+
+<p align="center">
+  <sub>13 built-in themes, all WCAG AA compliant — <a href="docs/screenshots/GALLERY.md#13-ui-themes">see all themes</a> · <a href="docs/screenshots/GALLERY.md">full screenshot gallery</a></sub>
 </p>
 
 ---
