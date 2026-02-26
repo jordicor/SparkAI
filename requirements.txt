@@ -90,7 +90,6 @@ g2pkk==0.1.2
 gevent==23.9.1
 gevent-websocket==0.10.1
 google==3.0.0
-google-ai-generativelanguage==0.6.10
 google-api-core==2.14.0
 google-api-python-client==2.147.0
 google-auth==2.35.0
@@ -98,7 +97,6 @@ google-auth-httplib2==0.2.0
 google-auth-oauthlib==1.1.0
 google-cloud==0.34.0
 google-cloud-texttospeech==2.14.2
-google-generativeai==0.8.2
 google-genai>=1.32.0
 googleapis-common-protos==1.61.0
 greenlet==3.0.2

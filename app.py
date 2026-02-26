@@ -108,7 +108,7 @@ from ultra_admin import (
 )
 from common import Cost, generate_user_hash, has_sufficient_balance, cost_tts, cache_directory, users_directory, tts_engine, get_balance, deduct_balance, record_daily_usage, load_service_costs, estimate_message_tokens, custom_unescape, sanitize_name, templates, validate_path_within_directory, slugify, is_internal_ip, generate_public_id, get_template_context
 from common import SCRIPT_DIR, DATA_DIR, CLOUDFLARE_API_KEY, CLOUDFLARE_EMAIL, CLOUDFLARE_ZONE_ID, CLOUDFLARE_API_URL, CLOUDFLARE_FOR_IMAGES, CLOUDFLARE_SECRET, CLOUDFLARE_IMAGE_SUBDOMAIN, CLOUDFLARE_BASE_URL, generate_cloudflare_signature, generate_signed_url_cloudflare, CLOUDFLARE_DOMAIN, CLOUDFLARE_CNAME_TARGET
-from common import ALGORITHM, MAX_TOKENS, MAX_MESSAGE_SIZE, MAX_IMAGE_UPLOAD_SIZE, MAX_IMAGE_PIXELS, PERPLEXITY_API_KEY, elevenlabs_key, openai_key, claude_key, gemini_key, openrouter_key, service_sid, twilio_sid, twilio_auth, twilio_messaging_service_sid, decode_jwt_cached, validate_twilio_media_url, AVATAR_TOKEN_EXPIRE_HOURS, MEDIA_TOKEN_EXPIRE_HOURS
+from common import ALGORITHM, MAX_TOKENS, MAX_MESSAGE_SIZE, MAX_IMAGE_UPLOAD_SIZE, MAX_IMAGE_PIXELS, PERPLEXITY_API_KEY, elevenlabs_key, openai_key, claude_key, gemini_key, openrouter_key, service_sid, twilio_sid, twilio_auth, twilio_messaging_service_sid, decode_jwt_cached, verify_token_expiration, validate_twilio_media_url, AVATAR_TOKEN_EXPIRE_HOURS, MEDIA_TOKEN_EXPIRE_HOURS
 from common import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
 from common import STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET
 from common import encrypt_api_key, decrypt_api_key, mask_api_key
@@ -1194,10 +1194,10 @@ async def test_api_key(request: Request, current_user: User = Depends(get_curren
             return JSONResponse(content={"success": True, "message": "Anthropic API key is valid"})
 
         elif provider == "google":
-            import google.generativeai as genai_test
-            genai_test.configure(api_key=key)
-            # List models to verify the key
-            list(genai_test.list_models())
+            from google import genai as genai_test
+            test_client = genai_test.Client(api_key=key)
+            # List models to verify the key works
+            list(test_client.models.list())
             return JSONResponse(content={"success": True, "message": "Google AI API key is valid"})
 
         elif provider == "xai":
@@ -5520,6 +5520,25 @@ async def update_user(
             if await cursor.fetchone():
                 # Prevent admin from demoting themselves
                 if user_id != current_user.id or user_role_id == 1:
+                    # Changing an admin's role requires Ultra Admin+ elevation
+                    is_target_admin = (role_id == 1)
+                    is_role_change = (user_role_id != role_id)
+                    if is_target_admin and is_role_change:
+                        forwarded = request.headers.get("X-Forwarded-For")
+                        req_ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else None)
+                        if not await is_elevated(current_user.id, request_ip=req_ip):
+                            return JSONResponse(content={"success": False, "error": "Ultra Admin+ elevation required to change an admin's role."})
+                        # Audit log for role change of admin via Ultra Admin+
+                        await cursor.execute("SELECT role_name FROM USER_ROLES WHERE id = ?", (user_role_id,))
+                        new_role_row = await cursor.fetchone()
+                        new_role_name = new_role_row[0] if new_role_row else f"role_id={user_role_id}"
+                        await log_admin_action(
+                            admin_id=current_user.id,
+                            action_type="ultra_admin_changed_admin_role",
+                            request=request,
+                            target_user_id=user_id,
+                            details=f"Admin '{username}' role changed to '{new_role_name}' by '{current_user.username}' via Ultra Admin+"
+                        )
                     update_query = update_query.replace("email = ?", "email = ?, role_id = ?")
                     update_params.insert(-1, user_role_id)
 
@@ -8242,6 +8261,10 @@ async def auth_image(request: Request, token: str = Query(None), request_uri: st
     try:
         payload = decode_jwt_cached(token, SECRET_KEY)
 
+        if not verify_token_expiration(payload):
+            logger.warning("[auth_image] Token expired")
+            raise HTTPException(status_code=401, detail="Token expired")
+
         username = payload.get("username")
         if username is None:
             logger.error("[auth_image] No Username in jwt")
@@ -8404,9 +8427,10 @@ async def get_messages(
             await cursor.execute('''
                 SELECT m.id AS message_id, m.conversation_id, m.user_id, u.username,
                        m.message, m.type, strftime('%Y-%m-%d %H:%M:%S', m.date) as date_utc,
-                       m.is_bookmarked
+                       m.is_bookmarked, m.llm_id, l.machine AS llm_machine, l.model AS llm_model
                 FROM MESSAGES m
                 LEFT JOIN USERS u ON m.user_id = u.id
+                LEFT JOIN LLM l ON m.llm_id = l.id
                 WHERE m.conversation_id = ? AND m.id < ?
                 ORDER BY m.id DESC
                 LIMIT ?
@@ -8415,9 +8439,10 @@ async def get_messages(
             await cursor.execute('''
                 SELECT m.id AS message_id, m.conversation_id, m.user_id, u.username,
                        m.message, m.type, strftime('%Y-%m-%d %H:%M:%S', m.date) as date_utc,
-                       m.is_bookmarked
+                       m.is_bookmarked, m.llm_id, l.machine AS llm_machine, l.model AS llm_model
                 FROM MESSAGES m
                 LEFT JOIN USERS u ON m.user_id = u.id
+                LEFT JOIN LLM l ON m.llm_id = l.id
                 WHERE m.conversation_id = ?
                 ORDER BY m.id DESC
                 LIMIT ?
@@ -8508,7 +8533,10 @@ async def get_messages(
                 "message": processed_message,
                 "type": row['type'],
                 "date": row['date_utc'],
-                "is_bookmarked": bool(row['is_bookmarked'])
+                "is_bookmarked": bool(row['is_bookmarked']),
+                "llm_id": row['llm_id'],
+                "llm_machine": row['llm_machine'],
+                "llm_model": row['llm_model']
             })
 
     messages_list.reverse()
@@ -9161,7 +9189,18 @@ async def update_conversation_extension(
 
 
 @app.post("/api/conversations/{conversation_id}/stop")
-async def stop_message(conversation_id: int):
+async def stop_message(conversation_id: int, current_user: User = Depends(get_current_user)):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="User not authenticated")
+
+    # Verify the user owns this conversation
+    async with get_db_connection() as conn:
+        async with conn.execute('SELECT user_id FROM conversations WHERE id = ?', (conversation_id,)) as cursor:
+            conversation = await cursor.fetchone()
+
+    if not conversation or conversation[0] != current_user.id:
+        raise HTTPException(status_code=403, detail="You do not have permission to stop this conversation")
+
     stop_signals[conversation_id] = True
     return {"success": True, "message": "Stop signal sent."}
 
@@ -19053,6 +19092,10 @@ async def auth_file(request: Request, request_uri: str, token: str):
     try:
         logger.info(f"request_uri: {request_uri}")
         payload = decode_jwt_cached(token, SECRET_KEY)
+
+        if not verify_token_expiration(payload):
+            logger.warning("[auth_file] Token expired")
+            raise HTTPException(status_code=401, detail="Token expired")
 
         username = payload.get("username")
         if not username:

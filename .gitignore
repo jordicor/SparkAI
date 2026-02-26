@@ -63,9 +63,5 @@ start_app.bat
 start_dramatiq.bat
 testing_*.py
 
-# AI assistant instructions (private)
-CLAUDE.md
-AGENTS.md
-
 # Sync tool output (generated files)
 tools/sync_github/output/

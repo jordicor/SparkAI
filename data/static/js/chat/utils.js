@@ -57,24 +57,6 @@ function encodeForHTML(str) {
     });
 }
 
-function unescapeHTML(html) {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    return doc.documentElement.textContent;
-}
-
-function unescapeCodeBlocks(html) {
-	// Create temporary div
-	var div = document.createElement('div');
-	div.innerHTML = html;
-
-	// Find all <code> and <code class="..."> elements
-	div.querySelectorAll('code').forEach(function(element) {
-		element.innerHTML = unescapeHTML(element.innerHTML);
-	});
-
-	return div.innerHTML;
-}
-
 
 function removeWaitingMessage() {
     var temporaryMessages = document.querySelectorAll('.temporary-message');
@@ -361,7 +343,7 @@ function handleSendButtonClick(event) {
     });
 }
 
-function addLoadingIndicator() {
+function addLoadingIndicator(messageText = '') {
     var chatWindow = document.getElementById('chat-window');
     var loadingIndicator = document.createElement('div');
     loadingIndicator.classList.add('loading-indicator', 'temporary-message');
@@ -370,6 +352,16 @@ function addLoadingIndicator() {
             <span class="visually-hidden">Loading...</span>
         </div>
     `;
+
+    const label = typeof messageText === 'string' ? messageText.trim() : '';
+    if (label) {
+        loadingIndicator.style.flexDirection = 'column';
+        const textEl = document.createElement('div');
+        textEl.classList.add('loading-indicator-text');
+        textEl.textContent = label;
+        loadingIndicator.appendChild(textEl);
+    }
+
     chatWindow.appendChild(loadingIndicator);
 
     // Ensure loading indicator is completely visible

@@ -173,6 +173,248 @@ function applyCollapsibleCodeBlocks(container) {
     });
 }
 
+function renderMarkdownIntoElement(targetElement, markdownText) {
+    const text = typeof markdownText === 'string' ? markdownText : String(markdownText || '');
+    let processedHTML = DOMPurify.sanitize(marked.parse(text));
+    processedHTML = formatCodeBlocks(processedHTML);
+    targetElement.innerHTML = processedHTML;
+
+    targetElement.querySelectorAll('pre code').forEach((el) => {
+        hljs.highlightElement(el);
+    });
+}
+
+function getActiveMultiAiSlideText(messageElement) {
+    if (!messageElement || typeof messageElement.querySelector !== 'function') {
+        return '';
+    }
+    const carousel = messageElement.querySelector('.multi-ai-carousel');
+    if (!carousel) return '';
+
+    const api = carousel._multiAiApi;
+    if (api && typeof api.getActiveText === 'function') {
+        return api.getActiveText();
+    }
+
+    const activeContent = carousel.querySelector('.multi-ai-slide.active .multi-ai-slide-content');
+    return activeContent ? activeContent.textContent.trim() : '';
+}
+
+function createMultiAiCarousel(models = []) {
+    const normalizedModels = (Array.isArray(models) ? models : []).map((model, index) => {
+        let llmId = Number.parseInt(model?.llm_id, 10);
+        if (!Number.isFinite(llmId)) {
+            llmId = -(index + 1);
+        }
+
+        return {
+            llm_id: llmId,
+            machine: model?.machine || 'AI',
+            model: model?.model || `Model ${index + 1}`,
+        };
+    });
+
+    const carousel = document.createElement('div');
+    carousel.classList.add('multi-ai-carousel');
+    carousel.tabIndex = 0;
+
+    const header = document.createElement('div');
+    header.classList.add('multi-ai-header');
+
+    const label = document.createElement('span');
+    label.classList.add('multi-ai-label');
+    label.textContent = 'Multi-AI Compare';
+
+    const nav = document.createElement('div');
+    nav.classList.add('multi-ai-nav');
+
+    const prevBtn = document.createElement('button');
+    prevBtn.type = 'button';
+    prevBtn.classList.add('multi-ai-nav-btn', 'multi-ai-prev');
+    prevBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
+
+    const indicator = document.createElement('div');
+    indicator.classList.add('multi-ai-indicator');
+
+    const nextBtn = document.createElement('button');
+    nextBtn.type = 'button';
+    nextBtn.classList.add('multi-ai-nav-btn', 'multi-ai-next');
+    nextBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
+
+    nav.appendChild(prevBtn);
+    nav.appendChild(indicator);
+    nav.appendChild(nextBtn);
+    header.appendChild(label);
+    header.appendChild(nav);
+
+    const slidesContainer = document.createElement('div');
+    slidesContainer.classList.add('multi-ai-slides-container');
+
+    carousel.appendChild(header);
+    carousel.appendChild(slidesContainer);
+
+    const slides = [];
+    const textsByLlmId = new Map();
+    let activeIndex = 0;
+    let globalErrorEl = null;
+
+    function getSlideState(llmId) {
+        const normalized = Number.parseInt(llmId, 10);
+        return slides.find((slide) => slide.llmId === normalized) || null;
+    }
+
+    function setActiveSlide(nextIndex) {
+        if (!slides.length) return;
+        if (nextIndex < 0 || nextIndex >= slides.length) return;
+
+        activeIndex = nextIndex;
+        slides.forEach((slide, idx) => {
+            slide.element.classList.toggle('active', idx === activeIndex);
+            slide.dot.classList.toggle('active', idx === activeIndex);
+            slide.dot.setAttribute('aria-pressed', idx === activeIndex ? 'true' : 'false');
+        });
+
+        prevBtn.disabled = activeIndex === 0;
+        nextBtn.disabled = activeIndex === slides.length - 1;
+    }
+
+    function setSlideContent(llmId, content, append = false) {
+        const slide = getSlideState(llmId);
+        if (!slide) return false;
+
+        const current = textsByLlmId.get(slide.llmId) || '';
+        const newValue = append ? `${current}${content || ''}` : String(content || '');
+        textsByLlmId.set(slide.llmId, newValue);
+
+        renderMarkdownIntoElement(slide.paragraph, newValue);
+        slide.element.classList.remove('error');
+        applyCollapsibleCodeBlocks(slide.element);
+        initializeNewImages(slide.element);
+        return true;
+    }
+
+    function setSlideError(llmId, errorText) {
+        const slide = getSlideState(llmId);
+        if (!slide) return false;
+
+        const text = String(errorText || 'Unknown error');
+        textsByLlmId.set(slide.llmId, text);
+        slide.paragraph.innerHTML = '';
+        const errorSpan = document.createElement('span');
+        errorSpan.classList.add('multi-ai-slide-error');
+        errorSpan.textContent = text;
+        slide.paragraph.appendChild(errorSpan);
+        slide.element.classList.add('error', 'completed');
+        return true;
+    }
+
+    function markSlideDone(llmId) {
+        const slide = getSlideState(llmId);
+        if (!slide) return false;
+        slide.element.classList.add('completed');
+        return true;
+    }
+
+    function setGlobalError(errorText) {
+        const text = String(errorText || 'Unexpected error');
+        if (!globalErrorEl) {
+            globalErrorEl = document.createElement('div');
+            globalErrorEl.classList.add('multi-ai-global-error');
+            carousel.insertBefore(globalErrorEl, slidesContainer);
+        }
+        globalErrorEl.textContent = text;
+    }
+
+    function getActiveText() {
+        if (!slides.length) return '';
+        const activeSlide = slides[activeIndex];
+        if (!activeSlide || !activeSlide.content || typeof activeSlide.content.textContent !== 'string') {
+            return '';
+        }
+        return activeSlide.content.textContent.trim();
+    }
+
+    normalizedModels.forEach((model, index) => {
+        const slide = document.createElement('div');
+        slide.classList.add('multi-ai-slide');
+        slide.dataset.llmId = String(model.llm_id);
+
+        const slideHeader = document.createElement('div');
+        slideHeader.classList.add('multi-ai-slide-header');
+
+        const modelName = document.createElement('span');
+        modelName.classList.add('multi-ai-model-name');
+        modelName.textContent = model.model;
+
+        const providerTag = document.createElement('span');
+        providerTag.classList.add('multi-ai-provider-tag');
+        providerTag.textContent = model.machine;
+
+        const content = document.createElement('div');
+        content.classList.add('multi-ai-slide-content');
+        const paragraph = document.createElement('p');
+        content.appendChild(paragraph);
+
+        slideHeader.appendChild(modelName);
+        slideHeader.appendChild(providerTag);
+        slide.appendChild(slideHeader);
+        slide.appendChild(content);
+        slidesContainer.appendChild(slide);
+
+        const dot = document.createElement('button');
+        dot.type = 'button';
+        dot.classList.add('multi-ai-dot');
+        dot.setAttribute('aria-label', `View ${model.model}`);
+        dot.addEventListener('click', () => setActiveSlide(index));
+        indicator.appendChild(dot);
+
+        slides.push({
+            llmId: model.llm_id,
+            element: slide,
+            content,
+            paragraph,
+            dot,
+        });
+    });
+
+    prevBtn.addEventListener('click', () => setActiveSlide(activeIndex - 1));
+    nextBtn.addEventListener('click', () => setActiveSlide(activeIndex + 1));
+    carousel.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowLeft') {
+            event.preventDefault();
+            setActiveSlide(activeIndex - 1);
+        } else if (event.key === 'ArrowRight') {
+            event.preventDefault();
+            setActiveSlide(activeIndex + 1);
+        }
+    });
+
+    if (slides.length > 0) {
+        setActiveSlide(0);
+    } else {
+        prevBtn.disabled = true;
+        nextBtn.disabled = true;
+    }
+
+    carousel._multiAiApi = {
+        setSlideContent,
+        appendChunk: (llmId, chunk) => setSlideContent(llmId, chunk, true),
+        setSlideError,
+        markSlideDone,
+        setGlobalError,
+        setActiveByLlmId: (llmId) => {
+            const target = getSlideState(llmId);
+            if (!target) return false;
+            const idx = slides.findIndex((slide) => slide.llmId === target.llmId);
+            if (idx >= 0) setActiveSlide(idx);
+            return idx >= 0;
+        },
+        getActiveText,
+    };
+
+    return carousel;
+}
+
 function addMessage(author, message, timestampInfo = null, isTemporary = false, messageObj = null, prepend = false, container = null, messageId = null) {
     var divMessage = document.createElement('div');
     divMessage.classList.add('message', 'text-white', author === 'user' ? 'user' : 'bot');
@@ -203,11 +445,9 @@ function addMessage(author, message, timestampInfo = null, isTemporary = false, 
                 divText.classList.add('preserve-whitespace');
                 divText.textContent = messageText;
             } else {
-                let escapedText = escapeHTML(messageText);
-                let processedHTML = marked.parse(escapedText);
-                let parsedMarkdown = unescapeCodeBlocks(processedHTML);
-                parsedMarkdown = formatCodeBlocks(parsedMarkdown);
-                divText.innerHTML = parsedMarkdown;
+                let processedHTML = DOMPurify.sanitize(marked.parse(messageText));
+                processedHTML = formatCodeBlocks(processedHTML);
+                divText.innerHTML = processedHTML;
 
                 divText.querySelectorAll('pre code').forEach((el) => {
                     hljs.highlightElement(el);
@@ -216,6 +456,39 @@ function addMessage(author, message, timestampInfo = null, isTemporary = false, 
             messageContent.appendChild(divText);
             if (author === 'user') applyCollapsibleUserMsg(divText, messageContent);
             else applyCollapsibleCodeBlocks(divText);
+        } else if (messageObj.type === 'multi_ai' && author === 'bot') {
+            const rawResponses = Array.isArray(messageObj.responses) ? messageObj.responses : [];
+            const normalizedResponses = rawResponses.map((response, index) => {
+                let llmId = Number.parseInt(response?.llm_id, 10);
+                if (!Number.isFinite(llmId)) {
+                    llmId = -(index + 1);
+                }
+                return {
+                    llm_id: llmId,
+                    machine: response?.machine || 'AI',
+                    model: response?.model || `Model ${index + 1}`,
+                    content: String(response?.content || ''),
+                    error: Boolean(response?.error),
+                };
+            });
+
+            const carousel = createMultiAiCarousel(normalizedResponses);
+            divMessage.classList.add('multi-ai-message');
+            divMessage._multiAiCarousel = carousel;
+            messageContent.appendChild(carousel);
+
+            if (carousel._multiAiApi) {
+                normalizedResponses.forEach((response) => {
+                    if (response.error) {
+                        carousel._multiAiApi.setSlideError(response.llm_id, response.content);
+                    } else {
+                        carousel._multiAiApi.setSlideContent(response.llm_id, response.content);
+                    }
+                    carousel._multiAiApi.markSlideDone(response.llm_id);
+                });
+            }
+
+            messageText = normalizedResponses.find((r) => !r.error)?.content || normalizedResponses[0]?.content || '';
         } else if (messageObj.type === 'image_url') {
             var imgElement = document.createElement('img');
             imgElement.src = messageObj.url;
@@ -261,10 +534,9 @@ function addMessage(author, message, timestampInfo = null, isTemporary = false, 
             divText.classList.add('preserve-whitespace');
             divText.textContent = messageText;
         } else {
-            let escapedText = escapeHTML(messageText);
-            let processedHTML = marked.parse(escapedText);
-            parsedMarkdown = unescapeCodeBlocks(processedHTML);
-            divText.innerHTML = parsedMarkdown;
+            let processedHTML = DOMPurify.sanitize(marked.parse(messageText));
+            processedHTML = formatCodeBlocks(processedHTML);
+            divText.innerHTML = processedHTML;
 
             divText.querySelectorAll('pre code').forEach((el) => {
                 hljs.highlightElement(el);
@@ -287,10 +559,18 @@ function addMessage(author, message, timestampInfo = null, isTemporary = false, 
         audioIcon.classList.add('fa', 'fa-volume-up');
         audioIcon.style.cursor = 'pointer';
         audioIcon.style.display = 'inline';
+
+        const resolveMessageText = () => {
+            if (divMessage.classList.contains('multi-ai-message')) {
+                const activeText = getActiveMultiAiSlideText(divMessage);
+                if (activeText) return activeText;
+            }
+            return messageText;
+        };
     
         audioIcon.dataset.id = currentConversationId;
         audioIcon.onclick = function() {
-            textToSpeech(messageText, user_id, currentConversationId, audioIcon, author);
+            textToSpeech(resolveMessageText(), user_id, currentConversationId, audioIcon, author);
         };
     
         const bookmarkIcon = document.createElement('i');
@@ -321,7 +601,7 @@ function addMessage(author, message, timestampInfo = null, isTemporary = false, 
         copyIcon.style.cursor = 'pointer';
         copyIcon.style.display = 'none';
         copyIcon.onclick = function() {
-            copyToClipboard(messageText, copyIcon);
+            copyToClipboard(resolveMessageText(), copyIcon);
         };
     
         iconContainer.appendChild(audioIcon);
@@ -585,6 +865,10 @@ function sendMessage(messageText) {
 
     // Send the compressed message with pako
     const messageText_raw = messageText;
+    const selectedMultiAiModels = window.multiAiManager?.enabled
+        ? window.multiAiManager.selectedModels.map((model) => ({ ...model }))
+        : [];
+    const isMultiAiRequest = selectedMultiAiModels.length >= 2;
 
     let timestamp = new Date().toISOString();
 
@@ -606,7 +890,11 @@ function sendMessage(messageText) {
     // Get the user message ID
     //getLastMessageId(userMessageElement)
 
-    addLoadingIndicator();
+    const multiAiLoadingText = isMultiAiRequest
+        ? `Comparing ${selectedMultiAiModels.length} AI models...`
+        : '';
+
+    addLoadingIndicator(multiAiLoadingText);
     document.getElementById('message-text').disabled = true;
 
     var files = document.getElementById('image-files').files;
@@ -622,9 +910,26 @@ function sendMessage(messageText) {
         formData.append('thinking_budget_tokens', currentThinkingBudget);
     }
 
+    // Multi-AI: append model IDs if active
+    if (isMultiAiRequest) {
+        // Block file attachments in Multi-AI v1
+        if (attachedFiles && attachedFiles.length > 0) {
+            NotificationModal.warning(
+                'Multi-AI',
+                'File attachments are not supported in Multi-AI Compare mode. Please disable Multi-AI or remove the attached files.'
+            );
+            if (userMessageElement) userMessageElement.remove();
+            removeLoadingIndicator();
+            document.getElementById('message-text').disabled = false;
+            document.getElementById('message-text').focus();
+            return;
+        }
+        formData.append('multi_ai_models', JSON.stringify(selectedMultiAiModels.map((model) => model.llm_id)));
+    }
+
     var imagePreviews = document.getElementById('image-previews');
     imagePreviews.innerHTML = '';
-    
+
     processFiles(attachedFiles, formData, imagePreviews);
     attachedFiles = [];
 
@@ -639,6 +944,33 @@ function sendMessage(messageText) {
         signal: signal,
     })
     .then(response => {
+        const restoreInputAfterFailure = () => {
+            if (userMessageElement) userMessageElement.remove();
+            removeLoadingIndicator();
+            toggleSendButton('Send');
+            document.getElementById('message-text').disabled = false;
+            const submitBtn = document.querySelector('#form-message button[type="submit"]');
+            if (submitBtn) submitBtn.disabled = false;
+            document.getElementById('message-text').focus();
+        };
+
+        const extractServerError = (resp) => {
+            if (!resp) return Promise.resolve('Request failed');
+            return resp.clone().json()
+                .then((body) => {
+                    if (!body || typeof body !== 'object') return `Request failed (${resp.status})`;
+                    return body.error || body.message || body.detail || `Request failed (${resp.status})`;
+                })
+                .catch(() => {
+                    return resp.text()
+                        .then((txt) => {
+                            const trimmed = typeof txt === 'string' ? txt.trim() : '';
+                            return trimmed || `Request failed (${resp.status})`;
+                        })
+                        .catch(() => `Request failed (${resp.status})`);
+                });
+        };
+
         if (!response) {
             // secureFetch returned null (session expired)
             return null;
@@ -652,30 +984,58 @@ function sendMessage(messageText) {
             });
         }
         if (response.status === 403) {
-            // Conversation is locked (e.g. watchdog force-lock)
-            // Remove the user message we optimistically added to the DOM
-            if (userMessageElement) userMessageElement.remove();
-            isCurrentConversationLocked = true;
-            const lockedBanner = document.getElementById('locked-conversation-banner');
-            if (lockedBanner) lockedBanner.style.display = 'flex';
-            const msgInput = document.getElementById('message-text');
-            msgInput.placeholder = 'This conversation is locked';
-            msgInput.disabled = true;
-            const submitBtn = document.querySelector('#form-message button[type="submit"]');
-            if (submitBtn) submitBtn.disabled = true;
+            restoreInputAfterFailure();
             document.getElementById('loading-indicator').style.display = 'none';
-            toggleSendButton('Send');
-            // Reload conversation to show the system lock message
-            loadConversation(currentConversationId);
+
+            // Try to parse response to distinguish app-level lock from external block (e.g. Cloudflare WAF)
+            return response.clone().json().then(body => {
+                const isAppLock = body.message && body.message.toLowerCase().includes('locked');
+                if (isAppLock) {
+                    // Conversation is locked (e.g. watchdog force-lock)
+                    isCurrentConversationLocked = true;
+                    const lockedBanner = document.getElementById('locked-conversation-banner');
+                    if (lockedBanner) lockedBanner.style.display = 'flex';
+                    const msgInput = document.getElementById('message-text');
+                    msgInput.placeholder = 'This conversation is locked';
+                    msgInput.disabled = true;
+                    const submitBtn = document.querySelector('#form-message button[type="submit"]');
+                    if (submitBtn) submitBtn.disabled = true;
+                    refreshActiveConversation();
+                } else {
+                    // JSON 403 but not a lock
+                    const msg = body?.error || body?.message || body?.detail || 'Request blocked';
+                    NotificationModal.error('Message blocked', String(msg));
+                }
+                return null;
+            }).catch(() => {
+                // Non-JSON 403 = external block (Cloudflare WAF, firewall, etc.) — NOT a conversation lock
+                NotificationModal.error('Message blocked', 'Request blocked by external security filter (403).');
+                console.warn('Message blocked by external security filter (403). The conversation is NOT locked.');
+                return null;
+            });
+        }
+
+        if (!response.ok) {
+            restoreInputAfterFailure();
+            return extractServerError(response).then((msg) => {
+                NotificationModal.error('Send failed', String(msg));
+                return null;
+            });
+        }
+
+        if (!response.body) {
+            restoreInputAfterFailure();
+            NotificationModal.error('Send failed', 'No response stream received from server.');
             return null;
         }
+
         return response.body.getReader();
     })
     .then(reader => {
         if (!reader) return; // If there was redirection, reader will be undefined
         
-        const decoder = new TextDecoder();
-        let buffer = '';
+        const sseDecoder = new TextDecoder('utf-8');
+        let sseBuffer = '';
         let botMessageText = '';
         let endConversation = false;
         let newMessageId = null;
@@ -700,8 +1060,17 @@ function sendMessage(messageText) {
         const messageContent = document.createElement('div');
         messageContent.classList.add('message-content');
 
-        const botMessageParagraph = document.createElement('p');
-        messageContent.appendChild(botMessageParagraph);
+        let botMessageParagraph = null;
+        let multiAiCarousel = null;
+        if (isMultiAiRequest) {
+            botMessageElement.classList.add('multi-ai-message');
+            multiAiCarousel = createMultiAiCarousel(selectedMultiAiModels);
+            botMessageElement._multiAiCarousel = multiAiCarousel;
+            messageContent.appendChild(multiAiCarousel);
+        } else {
+            botMessageParagraph = document.createElement('p');
+            messageContent.appendChild(botMessageParagraph);
+        }
 
         // Add message content to message container
         messageContentContainer.appendChild(messageContent);
@@ -717,7 +1086,15 @@ function sendMessage(messageText) {
         const iconContainer = document.createElement('div');
         iconContainer.classList.add('icon-container');
 
-        const audioIcon = createIcon('fa-volume-up', 'inline', () => textToSpeech(marked.parse(botMessageText), user_id, currentConversationId, audioIcon, 'bot'));
+        const getCurrentBotText = () => {
+            if (isMultiAiRequest) {
+                const activeText = getActiveMultiAiSlideText(botMessageElement);
+                return activeText || botMessageText;
+            }
+            return botMessageText;
+        };
+
+        const audioIcon = createIcon('fa-volume-up', 'inline', () => textToSpeech(getCurrentBotText(), user_id, currentConversationId, audioIcon, 'bot'));
         const bookmarkIcon = createIcon('fa-bookmark', 'none', function() {
             const messageElement = this.closest('.message');
             const messageId = messageElement ? messageElement.dataset.messageId : null;
@@ -727,7 +1104,7 @@ function sendMessage(messageText) {
                 console.error('Could not find message ID to mark as favorite');
             }
         });
-        const copyIcon = createIcon('fa-copy', 'none', () => copyToClipboard(botMessageText, copyIcon));
+        const copyIcon = createIcon('fa-copy', 'none', () => copyToClipboard(getCurrentBotText(), copyIcon));
         const rollbackIcon = createIcon('fa-undo', 'none', () => rollbackConversation(newMessageId, currentConversationId));            
 
         iconContainer.appendChild(audioIcon);
@@ -759,7 +1136,7 @@ function sendMessage(messageText) {
         removeLoadingIndicator();
         // Reset text field to original size
         document.getElementById('message-text').style.height = 'auto';
-        addLoadingIndicator();
+        addLoadingIndicator(multiAiLoadingText);
         scrollToBottomIfNeeded();
 
         function readStream() {
@@ -772,9 +1149,10 @@ function sendMessage(messageText) {
 					}
 					return;
 				}				
-                const decoder = new TextDecoder('utf-8');
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n');
+                sseBuffer += sseDecoder.decode(value, { stream: true });
+                const lines = sseBuffer.split('\n');
+                // Keep the last (potentially incomplete) line in the buffer
+                sseBuffer = lines.pop();
         
                 for (const line of lines) {
                     if (line.startsWith('data: ')) {
@@ -813,7 +1191,27 @@ function sendMessage(messageText) {
 
                             if (parsedData.updated_chat_name) {
                                 updateActiveChatName(parsedData.updated_chat_name);
-                            } else if (parsedData.video_content) {
+                            } else if (parsedData.multi_ai && multiAiCarousel?._multiAiApi) {
+                                multiAiCarousel._multiAiApi.appendChunk(parsedData.llm_id, parsedData.content || '');
+                                botMessageText = getActiveMultiAiSlideText(botMessageElement);
+                                scrollToBottomIfNeeded();
+                            } else if (parsedData.multi_ai_done && multiAiCarousel?._multiAiApi) {
+                                multiAiCarousel._multiAiApi.markSlideDone(parsedData.llm_id);
+                            } else if (parsedData.multi_ai_error && multiAiCarousel?._multiAiApi) {
+                                multiAiCarousel._multiAiApi.setSlideError(parsedData.llm_id, parsedData.error || 'Unknown error');
+                                scrollToBottomIfNeeded();
+                            } else if (parsedData.error && !parsedData.multi_ai_error) {
+                                console.error('SSE error:', parsedData.error);
+                                if (multiAiCarousel?._multiAiApi) {
+                                    multiAiCarousel._multiAiApi.setGlobalError(parsedData.error);
+                                } else if (botMessageParagraph) {
+                                    botMessageParagraph.innerHTML = '';
+                                    const errorEl = document.createElement('span');
+                                    errorEl.classList.add('multi-ai-slide-error');
+                                    errorEl.textContent = parsedData.error;
+                                    botMessageParagraph.appendChild(errorEl);
+                                }
+                            } else if (parsedData.video_content && botMessageParagraph) {
                                 // Handle video content - render as video element
                                 try {
                                     const videoData = JSON.parse(parsedData.video_content);
@@ -839,7 +1237,7 @@ function sendMessage(messageText) {
                                     console.error('Error parsing video content:', e);
                                 }
                                 scrollToBottomIfNeeded();
-                            } else if (parsedData.content) {
+                            } else if (parsedData.content && !parsedData.multi_ai && botMessageParagraph) {
                                 // Handle replace_last for progress updates
                                 if (parsedData.replace_last) {
                                     botMessageText = parsedData.content;
@@ -847,18 +1245,8 @@ function sendMessage(messageText) {
                                     botMessageText += parsedData.content;
                                 }
 
-                                let processedHTML = marked.parse(botMessageText);
-                                processedHTML = formatCodeBlocks(processedHTML);
-                                botMessageParagraph.innerHTML = processedHTML;
-
-                                // Apply highlight.js to code blocks
-                                botMessageElement.querySelectorAll('pre code').forEach((block) => {
-                                    hljs.highlightElement(block);
-                                });
-
-                                // Initialize newly added images
+                                renderMarkdownIntoElement(botMessageParagraph, botMessageText);
                                 initializeNewImages(botMessageElement);
-
                                 scrollToBottomIfNeeded();
                             } else if (parsedData.message_ids) {
 								if (parsedData.message_ids.bot) {
@@ -929,6 +1317,11 @@ function sendMessage(messageText) {
             }
 
             applyCollapsibleCodeBlocks(botMessageElement);
+
+            // Multi-AI: reset state after message completes
+            if (window.multiAiManager) {
+                window.multiAiManager.afterMessageSent();
+            }
 
             // Add event listeners to show/hide icons
             botMessageElement.addEventListener('mouseover', function() {
@@ -1859,6 +2252,12 @@ function continueConversation(conversationId, chatName, machine, isInit = false,
                 );
             }
 
+            // Update Multi-AI state on conversation change
+            if (window.multiAiManager) {
+                window.multiAiManager.onConversationChange();
+                window.multiAiManager.updateVisibility();
+            }
+
             // Initialize extension selector from conversation data
             if (conversationData && conversationData.extensions_enabled && window.extensionSelector) {
                 window.extensionSelector.init(
@@ -1960,6 +2359,12 @@ function updateChatHeader(conversationId, chatName, llmModel = null) {
                         chatModel.textContent = 'AI';
                     }
                 }
+
+                // Update Multi-AI state on conversation change (API fallback path)
+                if (window.multiAiManager) {
+                    window.multiAiManager.onConversationChange();
+                    window.multiAiManager.updateVisibility();
+                }
             })
             .catch(error => {
                 console.error('Error fetching conversation details:', error);
@@ -1999,6 +2404,34 @@ function processMessage(message, container, prepend = false) {
 
     try {
         const parsedMessage = JSON.parse(message.message);
+        if (
+            parsedMessage &&
+            typeof parsedMessage === 'object' &&
+            !Array.isArray(parsedMessage) &&
+            parsedMessage.multi_ai === true &&
+            Array.isArray(parsedMessage.responses)
+        ) {
+            messageObj = {
+                type: 'multi_ai',
+                responses: parsedMessage.responses,
+                is_bookmarked: message.is_bookmarked,
+                conversation_id: message.conversation_id
+            };
+
+            addMessage(
+                message.type,
+                null,
+                { timestamp: timestamps, isNewMessage: false },
+                false,
+                messageObj,
+                prepend,
+                container,
+                message.id
+            );
+            processedMessageIds.add(message.id);
+            return;
+        }
+
         if (Array.isArray(parsedMessage)) {
             parsedMessage.forEach(item => {
                 if (item.type === 'text') {
@@ -2782,17 +3215,19 @@ class ModelSelector {
                 html += '<div style="height: 4px;"></div>'; // Separator
             }
             
+            const safeMachine = escapeHtml(machine);
             html += `<div class="model-group">`;
-            html += `<div class="model-group-header">${machine}</div>`;
+            html += `<div class="model-group-header">${safeMachine}</div>`;
             
             // Sort models within each group
             const sortedModels = groupedModels[machine].sort((a, b) => a.model.localeCompare(b.model));
             
             sortedModels.forEach(model => {
                 // const visionBadge = model.vision ? '<span class="vision-badge">Vision</span>' : '';
+                const safeModel = escapeHtml(String(model.model || ''));
                 html += `
-                    <div class="model-item" data-llm-id="${model.id}" data-model="${model.model}">
-                        <span>${model.model}</span>
+                    <div class="model-item" data-llm-id="${model.id}" data-model="${safeModel}">
+                        <span>${safeModel}</span>
                     </div>
                 `;
             });
@@ -2807,7 +3242,7 @@ class ModelSelector {
         this.dropdownContent.querySelectorAll('.model-item').forEach(item => {
             item.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const llmId = parseInt(item.dataset.llmId);
+                const llmId = parseInt(item.dataset.llmId, 10);
                 const modelName = item.dataset.model;
                 this.selectModel(llmId, modelName);
             });
@@ -3161,10 +3596,237 @@ class ExtensionSelector {
     }
 }
 
-// Initialize model selector and extension selector when DOM is loaded
+// Multi-AI Compare Manager
+class MultiAiManager {
+    constructor() {
+        this.enabled = false;
+        this.selectedModels = [];  // array of {llm_id, machine, model}
+        this.keepActive = false;
+        this.maxModels = 4;
+        this.modal = null;
+        this.init();
+    }
+
+    init() {
+        const modalEl = document.getElementById('multiAiModal');
+        if (modalEl) {
+            this.modal = new bootstrap.Modal(modalEl);
+        }
+
+        document.getElementById('plus-multi-ai')?.addEventListener('click', () => {
+            closePlusMenu();
+            this.openModal();
+        });
+
+        document.getElementById('multi-ai-apply-btn')?.addEventListener('click', () => {
+            this.apply();
+        });
+
+        document.getElementById('multi-ai-disable-btn')?.addEventListener('click', () => {
+            this.disable();
+        });
+
+        document.getElementById('multi-ai-keep-active-check')?.addEventListener('change', (e) => {
+            this.keepActive = e.target.checked;
+        });
+    }
+
+    openModal() {
+        this.populateModels();
+        this.modal?.show();
+    }
+
+    populateModels() {
+        const container = document.getElementById('multi-ai-model-list');
+        if (!container || !window.availableModels) return;
+
+        const forcedLlmId = window.modelSelector?.forcedLlmId;
+        const allowedLlms = window.modelSelector?.allowedLlms;
+
+        // Should not be reachable if visibility is updated correctly, but guard anyway
+        if (forcedLlmId) return;
+
+        let models = window.availableModels;
+        if (allowedLlms) {
+            models = models.filter(m => allowedLlms.includes(m.id));
+        }
+
+        // Group by machine (provider)
+        const grouped = {};
+        models.forEach(m => {
+            if (!grouped[m.machine]) grouped[m.machine] = [];
+            grouped[m.machine].push(m);
+        });
+
+        let html = '';
+        const sortedMachines = Object.keys(grouped).sort((a, b) => {
+            if (a === 'GPT') return -1;
+            if (b === 'GPT') return 1;
+            return a.localeCompare(b);
+        });
+
+        sortedMachines.forEach(machine => {
+            const safeMachine = escapeHtml(machine);
+            html += `<div class="multi-ai-provider-group">`;
+            html += `<div class="multi-ai-provider-header">${safeMachine}</div>`;
+            grouped[machine].sort((a, b) => a.model.localeCompare(b.model)).forEach(model => {
+                const checked = this.selectedModels.some(s => s.llm_id === model.id) ? 'checked' : '';
+                const safeModelName = escapeHtml(String(model.model || ''));
+                const safeMachineName = escapeHtml(String(model.machine || ''));
+                html += `
+                    <label class="multi-ai-model-item">
+                        <input type="checkbox" class="multi-ai-checkbox"
+                               data-llm-id="${model.id}"
+                               data-machine="${safeMachineName}"
+                               data-model="${safeModelName}"
+                               ${checked}>
+                        <span class="multi-ai-model-name">${safeModelName}</span>
+                    </label>
+                `;
+            });
+            html += `</div>`;
+        });
+
+        container.innerHTML = html;
+
+        container.querySelectorAll('.multi-ai-checkbox').forEach(cb => {
+            cb.addEventListener('change', (e) => this.onCheckboxChange(e));
+        });
+
+        this.updateCount();
+    }
+
+    onCheckboxChange(event) {
+        const checked = document.querySelectorAll('.multi-ai-checkbox:checked');
+        if (checked.length > this.maxModels) {
+            event.target.checked = false;
+            return;
+        }
+        this.updateCount();
+    }
+
+    updateCount() {
+        const checked = document.querySelectorAll('.multi-ai-checkbox:checked');
+        const countEl = document.getElementById('multi-ai-count');
+        const applyBtn = document.getElementById('multi-ai-apply-btn');
+
+        if (countEl) countEl.textContent = checked.length;
+        if (applyBtn) applyBtn.disabled = checked.length < 2;
+    }
+
+    apply() {
+        const checked = document.querySelectorAll('.multi-ai-checkbox:checked');
+        this.selectedModels = Array.from(checked).map(cb => ({
+            llm_id: parseInt(cb.dataset.llmId, 10),
+            machine: cb.dataset.machine,
+            model: cb.dataset.model
+        }));
+
+        this.enabled = this.selectedModels.length >= 2;
+        this.keepActive = document.getElementById('multi-ai-keep-active-check')?.checked || false;
+
+        this.updateUI();
+        this.modal?.hide();
+    }
+
+    disable() {
+        this.enabled = false;
+        this.selectedModels = [];
+        this.keepActive = false;
+
+        document.querySelectorAll('.multi-ai-checkbox').forEach(cb => cb.checked = false);
+        const keepCheck = document.getElementById('multi-ai-keep-active-check');
+        if (keepCheck) keepCheck.checked = false;
+
+        this.updateUI();
+        this.modal?.hide();
+    }
+
+    updateUI() {
+        const badge = document.getElementById('multi-ai-badge');
+
+        if (this.enabled) {
+            if (badge) {
+                badge.textContent = `${this.selectedModels.length} AIs`;
+                badge.classList.add('active');
+            }
+        } else {
+            if (badge) {
+                badge.textContent = 'Off';
+                badge.classList.remove('active');
+            }
+        }
+
+        // Integrate with existing plus menu indicator dot
+        updatePlusMenuIndicator();
+    }
+
+    onConversationChange() {
+        if (!this.keepActive) {
+            this.disable();
+            return;
+        }
+
+        const forcedLlmId = window.modelSelector?.forcedLlmId;
+        if (forcedLlmId) {
+            this.disable();
+            return;
+        }
+
+        const allowedLlms = window.modelSelector?.allowedLlms;
+        if (allowedLlms) {
+            this.selectedModels = this.selectedModels.filter(
+                m => allowedLlms.includes(m.llm_id)
+            );
+        }
+
+        if (this.selectedModels.length < 2) {
+            this.disable();
+            return;
+        }
+
+        this.updateUI();
+    }
+
+    updateVisibility() {
+        const section = document.getElementById('plus-multi-ai-section');
+        if (!section) return;
+
+        const forcedLlmId = window.modelSelector?.forcedLlmId;
+        if (forcedLlmId) {
+            section.style.display = 'none';
+            return;
+        }
+
+        const allowedLlms = window.modelSelector?.allowedLlms;
+        if (allowedLlms && allowedLlms.length < 2) {
+            section.style.display = 'none';
+            return;
+        }
+
+        const availableCount = allowedLlms
+            ? window.availableModels?.filter(m => allowedLlms.includes(m.id)).length || 0
+            : window.availableModels?.length || 0;
+
+        section.style.display = availableCount >= 2 ? '' : 'none';
+    }
+
+    getModelIds() {
+        return this.selectedModels.map(m => m.llm_id);
+    }
+
+    afterMessageSent() {
+        if (!this.keepActive) {
+            this.disable();
+        }
+    }
+}
+
+// Initialize model selector, extension selector, and multi-ai manager when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     window.modelSelector = new ModelSelector();
     window.extensionSelector = new ExtensionSelector();
+    window.multiAiManager = new MultiAiManager();
 });
 
 // WhatsApp Mode Management Functions
@@ -3329,6 +3991,8 @@ function openPlusMenu() {
     const dropdown = document.getElementById('plus-menu-dropdown');
     if (btn) btn.classList.add('open');
     if (dropdown) dropdown.classList.add('show');
+    // Refresh Multi-AI button visibility each time the menu opens
+    window.multiAiManager?.updateVisibility();
 }
 
 function closePlusMenu() {
@@ -3354,7 +4018,7 @@ function updateAiSectionVisibility() {
 function updatePlusMenuIndicator() {
     const btn = document.getElementById('plus-menu-btn');
     if (!btn) return;
-    const hasActive = currentThinkingBudget > 0 || webSearchEnabled;
+    const hasActive = currentThinkingBudget > 0 || webSearchEnabled || (window.multiAiManager?.enabled === true);
     btn.classList.toggle('has-active', hasActive);
 }
 

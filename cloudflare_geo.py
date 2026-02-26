@@ -254,6 +254,75 @@ class CloudflareGeoClient:
             logger.info("CF managed transforms: visitor location headers enabled")
             return data.get("result", {})
 
+    async def upsert_image_skip_rule(self) -> dict:
+        """Create or update the WAF skip rule that allows AI providers to download authenticated images.
+
+        This rule skips Super Bot Fight Mode (via phases) and Security Level checks
+        (via products) for requests that match the authenticated image URL pattern,
+        preventing Cloudflare from blocking AI provider servers when they try to
+        download user-uploaded images.
+        """
+        skip_rule = {
+            "action": "skip",
+            "action_parameters": {
+                "phases": ["http_request_sbfm"],
+                "products": ["securityLevel"],
+            },
+            "expression": (
+                '(http.request.uri.path contains "/users/" '
+                'and http.request.uri.query contains "token=" '
+                'and http.request.uri.path contains "/img/")'
+            ),
+            "description": "[spark-img-skip] Allow AI providers to download authenticated images",
+            "enabled": True,
+        }
+
+        async with httpx.AsyncClient(timeout=15) as client:
+            # Step 1: Get current ruleset
+            current = await self.get_ruleset()
+            ruleset_id = current.get("id")
+            existing_rules = current.get("rules", [])
+
+            if not ruleset_id:
+                raise RuntimeError("No existing WAF ruleset found - run a geo sync first to create one")
+
+            # Step 2: Filter out any existing spark-img rules to avoid duplicates
+            other_rules = [
+                r for r in existing_rules
+                if not r.get("description", "").startswith("[spark-img-")
+            ]
+
+            # Step 3: Prepend skip rule (skip rules must come before block rules)
+            merged_rules = [skip_rule] + other_rules
+
+            # Strip CF-managed fields before PUT
+            cleaned_rules = []
+            for rule in merged_rules:
+                cleaned = {
+                    "action": rule["action"],
+                    "expression": rule["expression"],
+                    "description": rule.get("description", ""),
+                    "enabled": rule.get("enabled", True),
+                }
+                if "action_parameters" in rule:
+                    cleaned["action_parameters"] = rule["action_parameters"]
+                cleaned_rules.append(cleaned)
+
+            # Step 4: PUT the merged ruleset
+            url = f"{self.CF_API_BASE}/zones/{self._zone_id}/rulesets/{ruleset_id}"
+            payload = {"rules": cleaned_rules}
+            logger.debug("CF API: PUT %s (%d rules, including img-skip)", url, len(cleaned_rules))
+            resp = await client.put(url, headers=self._headers(), json=payload)
+
+            data = resp.json()
+            if not data.get("success"):
+                errors = data.get("errors", [])
+                raise RuntimeError(f"CF API error upserting image skip rule: {errors}")
+
+            result = data.get("result", {})
+            logger.info("CF image skip rule upserted: %d total rules in ruleset", len(result.get("rules", [])))
+            return result
+
 
 # =============================================================================
 # Component 3: GeoExpressionCompiler

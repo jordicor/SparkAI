@@ -112,6 +112,7 @@ CREATE TABLE IF NOT EXISTS MESSAGES (
     input_tokens_used INTEGER DEFAULT 0,
     output_tokens_used INTEGER DEFAULT 0,
     date TEXT,
+    llm_id INTEGER DEFAULT NULL,
     FOREIGN KEY (conversation_id) REFERENCES CONVERSATIONS(id)
 );
 

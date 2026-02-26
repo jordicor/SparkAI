@@ -12,5 +12,11 @@ async def is_whatsapp_conversation(conversation_id):
         if result:
             external_platforms = orjson.loads(result[0]) if result[0] else {}
             whatsapp_data = external_platforms.get('whatsapp', {})
-            return whatsapp_data.get('conversation_id') == conversation_id
+            whatsapp_conversation_id = whatsapp_data.get('conversation_id')
+            if whatsapp_conversation_id is None:
+                return False
+            try:
+                return int(whatsapp_conversation_id) == int(conversation_id)
+            except (TypeError, ValueError):
+                return str(whatsapp_conversation_id) == str(conversation_id)
     return False

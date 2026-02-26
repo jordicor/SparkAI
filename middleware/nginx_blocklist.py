@@ -17,10 +17,15 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Configuration (env vars with sensible defaults)
 # ---------------------------------------------------------------------------
-_NGINX_BASE = os.getenv("NGINX_BASE_PATH", "")
-NGINX_EXE = os.getenv("NGINX_BLOCKLIST_EXE", os.path.join(_NGINX_BASE, "nginx.exe") if _NGINX_BASE else "nginx")
-NGINX_PREFIX = os.getenv("NGINX_BLOCKLIST_PREFIX", _NGINX_BASE)
-NGINX_CONF = os.getenv("NGINX_BLOCKLIST_CONF", os.path.join(_NGINX_BASE, "conf", "nginx.conf") if _NGINX_BASE else "")
+_NGINX_BASE = (os.getenv("NGINX_BASE_PATH", "") or "").strip()
+NGINX_EXE = (os.getenv("NGINX_BLOCKLIST_EXE", "") or "").strip()
+NGINX_PREFIX = (os.getenv("NGINX_BLOCKLIST_PREFIX", _NGINX_BASE) or "").strip()
+NGINX_CONF = (os.getenv("NGINX_BLOCKLIST_CONF", "") or "").strip()
+
+if not NGINX_EXE:
+    NGINX_EXE = os.path.join(_NGINX_BASE, "nginx.exe") if _NGINX_BASE else "nginx"
+if not NGINX_CONF and _NGINX_BASE:
+    NGINX_CONF = os.path.join(_NGINX_BASE, "conf", "nginx.conf")
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BLOCKLIST_PATH = os.getenv("NGINX_BLOCKLIST_PATH", os.path.join(_PROJECT_ROOT, "data", "nginx_blocklist.conf"))
@@ -76,10 +81,13 @@ class NginxBlocklistManager:
             self._last_reload_ts = now
             return
 
-        self._nginx_reload()
-        self._dirty = False
+        reloaded = self._nginx_reload()
+        if reloaded:
+            self._dirty = False
+            logger.info("NGINX_BLOCKLIST: Reloaded with %d blocked IPs", len(self._blocked_ips))
+        else:
+            logger.warning("NGINX_BLOCKLIST: Reload failed; keeping pending blocklist changes for retry")
         self._last_reload_ts = now
-        logger.info("NGINX_BLOCKLIST: Reloaded with %d blocked IPs", len(self._blocked_ips))
 
     async def initialize(self) -> None:
         """
@@ -106,12 +114,29 @@ class NginxBlocklistManager:
 
         self._write_blocklist()
         ok = self._nginx_test()
+        reloaded = False
         if ok:
-            self._nginx_reload()
-            logger.info("NGINX_BLOCKLIST: Shutdown flush completed (%d IPs)", len(self._blocked_ips))
+            reloaded = self._nginx_reload()
+            if reloaded:
+                logger.info("NGINX_BLOCKLIST: Shutdown flush completed (%d IPs)", len(self._blocked_ips))
+            else:
+                logger.error("NGINX_BLOCKLIST: Shutdown flush reload failed")
         else:
             logger.error("NGINX_BLOCKLIST: Shutdown flush - config test failed, skipped reload")
-        self._dirty = False
+        if ok and reloaded:
+            self._dirty = False
+
+    def _build_nginx_cmd(self, *args: str) -> list[str]:
+        """
+        Build nginx command safely.
+        Only include -p / -c when configured to avoid invalid empty values.
+        """
+        cmd = [NGINX_EXE, *args]
+        if NGINX_PREFIX:
+            cmd.extend(["-p", NGINX_PREFIX])
+        if NGINX_CONF:
+            cmd.extend(["-c", NGINX_CONF])
+        return cmd
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -150,8 +175,9 @@ class NginxBlocklistManager:
     def _nginx_test(self) -> bool:
         """Run nginx -t to validate config. Returns True if valid."""
         try:
+            cmd = self._build_nginx_cmd("-t")
             result = subprocess.run(
-                [NGINX_EXE, "-t", "-p", NGINX_PREFIX, "-c", NGINX_CONF],
+                cmd,
                 capture_output=True, timeout=10,
             )
             if result.returncode != 0:
@@ -165,19 +191,24 @@ class NginxBlocklistManager:
             logger.error("NGINX_BLOCKLIST: nginx -t error: %s", exc)
             return False
 
-    def _nginx_reload(self) -> None:
-        """Send reload signal to nginx."""
+    def _nginx_reload(self) -> bool:
+        """Send reload signal to nginx. Returns True if reload command succeeds."""
         try:
+            cmd = self._build_nginx_cmd("-s", "reload")
             result = subprocess.run(
-                [NGINX_EXE, "-s", "reload", "-p", NGINX_PREFIX, "-c", NGINX_CONF],
+                cmd,
                 capture_output=True, timeout=10,
             )
             if result.returncode != 0:
                 logger.error("NGINX_BLOCKLIST: nginx reload failed: %s", result.stderr.decode(errors="replace"))
+                return False
+            return True
         except subprocess.TimeoutExpired:
             logger.error("NGINX_BLOCKLIST: nginx reload timed out")
+            return False
         except Exception as exc:
             logger.error("NGINX_BLOCKLIST: nginx reload error: %s", exc)
+            return False
 
 
 # ---------------------------------------------------------------------------

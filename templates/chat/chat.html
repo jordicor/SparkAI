@@ -57,6 +57,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
 </head>
 <body>
     <!-- Skeleton loader - shown while page content loads -->
@@ -503,6 +504,13 @@
                                     <span class="plus-menu-label">AI Voice</span>
                                 </button>
                             </div>
+                            <div class="plus-menu-section" id="plus-multi-ai-section" style="display: none;">
+                                <button type="button" class="plus-menu-item" id="plus-multi-ai">
+                                    <i class="fas fa-layer-group"></i>
+                                    <span class="plus-menu-label">Multi-AI Compare</span>
+                                    <span class="plus-menu-badge" id="multi-ai-badge">Off</span>
+                                </button>
+                            </div>
                         </div>
                         <!-- Thinking tokens popup (standalone, position: fixed in CSS) -->
                         <div id="thinking-tokens-control">
@@ -569,6 +577,37 @@
         <div class="fullsize-controls">
             <button id="downloadButton" class="btn btn-primary">Download</button>
             <button id="deleteButton" class="btn btn-danger">Delete</button>
+        </div>
+    </div>
+
+    <!-- Multi-AI Compare Modal -->
+    <div class="modal fade" id="multiAiModal" tabindex="-1" aria-labelledby="multiAiModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="multiAiModalLabel">Multi-AI Compare</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="multi-ai-description">Select up to 4 AI models to compare responses side by side.</p>
+                    <div id="multi-ai-model-list" class="multi-ai-model-list">
+                        <!-- Populated dynamically by JS, grouped by provider -->
+                    </div>
+                    <div class="multi-ai-selection-count">
+                        <span id="multi-ai-count">0</span>/4 models selected
+                    </div>
+                    <div class="multi-ai-keep-active">
+                        <label class="form-check-label" for="multi-ai-keep-active-check">
+                            <input type="checkbox" class="form-check-input" id="multi-ai-keep-active-check">
+                            Keep active for all following messages
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="multi-ai-disable-btn">Disable</button>
+                    <button type="button" class="btn btn-primary" id="multi-ai-apply-btn" disabled>Apply</button>
+                </div>
+            </div>
         </div>
     </div>
 

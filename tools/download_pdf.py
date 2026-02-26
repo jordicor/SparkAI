@@ -152,6 +152,19 @@ def get_styles():
             'fontSize': 12,
             'leading': 14,
         },
+        'multi_ai_model': {
+            'parent': styles['Normal'],
+            'fontName': f"{MAIN_FONT_NAME}-Bold",
+            'fontSize': 11,
+            'leading': 13,
+        },
+        'multi_ai_error': {
+            'parent': styles['Normal'],
+            'fontName': MAIN_FONT_NAME,
+            'fontSize': 10,
+            'leading': 12,
+            'textColor': colors.red,
+        },
         'Code': {
             'parent': styles['BodyText'],
             'fontName': 'Courier',
@@ -188,6 +201,8 @@ def get_styles():
         'small_italic': styles['small_italic'],
         'user': styles['user'],
         'bot': styles['bot'],
+        'multi_ai_model': styles['multi_ai_model'],
+        'multi_ai_error': styles['multi_ai_error'],
         'Code': styles['Code'],
         'Emoji': styles['Emoji'],
         'Heading1': styles['Heading1'],
@@ -543,27 +558,70 @@ async def generate_and_save_pdf(conversation_id: int, user_id: int, is_admin: bo
         logger.info(f"Processing message: {text}")
 
         try:
-            if text.strip().startswith("[") and text.strip().endswith("]"):
-                # Message in JSON format
+            parsed_json = None
+            stripped_raw = text.strip()
+            if ((stripped_raw.startswith("[") and stripped_raw.endswith("]"))
+                    or (stripped_raw.startswith("{") and stripped_raw.endswith("}"))):
+                try:
+                    parsed_json = orjson.loads(stripped_raw)
+                except orjson.JSONDecodeError:
+                    parsed_json = None
+
+            if isinstance(parsed_json, dict) and parsed_json.get("multi_ai") and isinstance(parsed_json.get("responses"), list):
                 elements.append(Spacer(1, 0.1 * inch))
                 elements.append(Paragraph(f"{sender_type_upper}:", styles[sender_type.lower()]))
                 elements.append(Spacer(1, 0.05 * inch))
-                elements_json = orjson.loads(text)
-                for element_json in elements_json:
-                    if element_json["type"] == "text":
-                        html_text = markdown_to_html(element_json["text"])
+
+                responses = parsed_json.get("responses", [])
+                for idx, response in enumerate(responses):
+                    if not isinstance(response, dict):
+                        continue
+                    model_label = response.get("model") or response.get("machine") or f"Model {idx + 1}"
+                    model_label = html.escape(str(model_label))
+                    response_content = response.get("content", "")
+                    if response_content is None:
+                        response_content = ""
+                    response_text = str(response_content)
+
+                    elements.append(Paragraph(f"{model_label}:", styles["multi_ai_model"]))
+
+                    if response.get("error"):
+                        safe_error = xml.sax.saxutils.escape(response_text)
+                        elements.append(Paragraph(f"<i>{safe_error}</i>", styles["multi_ai_error"]))
+                    else:
+                        cleaned_response = strip_html(response_text)
+                        if cleaned_response.strip():
+                            html_text = markdown_to_html(response_text)
+                            message_elements = html_to_reportlab(html_text, styles, hash_prefixes)
+                            elements.extend(message_elements)
+                    elements.append(Spacer(1, 0.04 * inch))
+
+                elements.append(Paragraph(date_str, styles["small_italic"]))
+
+            elif isinstance(parsed_json, list):
+                # Message in JSON list format (text/images/videos)
+                elements.append(Spacer(1, 0.1 * inch))
+                elements.append(Paragraph(f"{sender_type_upper}:", styles[sender_type.lower()]))
+                elements.append(Spacer(1, 0.05 * inch))
+                for element_json in parsed_json:
+                    if not isinstance(element_json, dict):
+                        continue
+                    if element_json.get("type") == "text":
+                        html_text = markdown_to_html(str(element_json.get("text", "")))
                         message_elements = html_to_reportlab(html_text, styles, hash_prefixes)
                         elements.extend(message_elements)
                         elements.append(Spacer(1, 0.05 * inch))
                         elements.append(Paragraph(date_str, styles["small_italic"]))
-                    elif element_json["type"] == "image_url":
-                        # Create an <img> tag and process it
-                        img_tag = f'<img src="{element_json["image_url"]["url"]}" alt="Image"/>'
-                        html_text = markdown_to_html(img_tag)
-                        message_elements = html_to_reportlab(html_text, styles, hash_prefixes)
-                        elements.extend(message_elements)
-                        elements.append(Spacer(1, 0.05 * inch))
-                        elements.append(Paragraph(date_str, styles["small_italic"]))
+                    elif element_json.get("type") == "image_url":
+                        image_url = element_json.get("image_url", {}).get("url")
+                        if image_url:
+                            img_tag = f'<img src="{image_url}" alt="Image"/>'
+                            html_text = markdown_to_html(img_tag)
+                            message_elements = html_to_reportlab(html_text, styles, hash_prefixes)
+                            elements.extend(message_elements)
+                            elements.append(Spacer(1, 0.05 * inch))
+                            elements.append(Paragraph(date_str, styles["small_italic"]))
+
             else:
                 # Normal text message, possibly with Markdown
                 stripped_text = strip_html(text)

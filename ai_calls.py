@@ -7,19 +7,23 @@ import aiosqlite
 import anthropic
 import jwt
 from jwt import PyJWTError as JWTError
-import google.generativeai as genai
+from google import genai as google_genai
+from google.genai import types as genai_types
 from openai import OpenAI
 from fastapi import APIRouter, Depends, HTTPException, Request, File, UploadFile, Form, Body
 from fastapi.responses import JSONResponse, StreamingResponse, RedirectResponse
 from datetime import datetime, timedelta
+import io
 import zlib
 import base64
+from PIL import Image as PilImage
 import re
 import os
 import logging
 from typing import List, Optional
 import traceback
 import sqlite3
+import uuid
 import requests
 import urllib.parse
 from contextlib import asynccontextmanager
@@ -45,6 +49,9 @@ from common import (
 
     MAX_MESSAGE_SIZE,
     CLOUDFLARE_FOR_IMAGES,
+    CLOUDFLARE_BASE_URL,
+    generate_signed_url_cloudflare,
+    MEDIA_TOKEN_EXPIRE_HOURS,
     openai_key,
     xai_key,
     claude_key,
@@ -62,6 +69,7 @@ from common import (
     decrypt_api_key,
     get_user_api_key_mode,
     resolve_api_key_for_provider,
+    users_directory,
 )
 from models import User, ConnectionManager
 from save_images import save_image_locally, generate_img_token, resize_image, get_or_generate_img_token
@@ -75,7 +83,6 @@ aiohttp_logger.setLevel(logging.DEBUG)
 # API client configuration
 openai = OpenAI(api_key=openai_key)
 anthropic.api_key = claude_key
-genai.configure(api_key=gemini_key)
 
 # Caches and signals
 model_token_cost_cache = {}
@@ -193,25 +200,238 @@ TAKEOVER_SECURITY_SUFFIX = """
 ==========================="""
 
 
-def _format_messages_for_provider(
+def _flatten_multi_ai_bot_message(raw_message: str) -> Optional[str]:
+    """Flatten a stored Multi-AI JSON bot message into plain text context."""
+    if not isinstance(raw_message, str):
+        return None
+
+    try:
+        parsed = orjson.loads(raw_message)
+    except (orjson.JSONDecodeError, TypeError, ValueError):
+        return None
+
+    responses = parsed.get("responses") if isinstance(parsed, dict) else None
+    if not (isinstance(parsed, dict) and parsed.get("multi_ai") and isinstance(responses, list)):
+        return None
+
+    parts = ["[Multi-AI Response]"]
+    for idx, response in enumerate(responses):
+        if not isinstance(response, dict):
+            continue
+        model_label = response.get("model") or response.get("machine") or f"Model {idx + 1}"
+        content = response.get("content", "")
+        if content is None:
+            content = ""
+        content_text = str(content)
+        if response.get("error"):
+            parts.append(f"{model_label}: [Error: {content_text}]")
+        else:
+            parts.append(f"{model_label}: {content_text}")
+    parts.append("[End Multi-AI Response]")
+    return "\n".join(parts)
+
+
+def flatten_multi_ai_context(messages_dicts: list) -> list:
+    """Return a copy of context messages with Multi-AI bot payloads flattened."""
+    flattened = []
+    for msg in messages_dicts or []:
+        if not isinstance(msg, dict):
+            flattened.append(msg)
+            continue
+
+        if msg.get("type") == "bot":
+            flattened_message = _flatten_multi_ai_bot_message(msg.get("message"))
+            if flattened_message is not None:
+                new_msg = msg.copy()
+                new_msg["message"] = flattened_message
+                flattened.append(new_msg)
+                continue
+
+        flattened.append(msg)
+    return flattened
+
+
+def parse_stored_message(content):
+    """Parse a stored message that may be a JSON-encoded list (image messages).
+
+    Messages with images are stored as JSON strings like:
+      '[{"type":"image_url","image_url":{"url":"..."}},{"type":"text","text":"..."}]'
+    This returns the parsed list, or the original string if it's not a JSON list.
+    """
+    if isinstance(content, str) and content.startswith('['):
+        try:
+            parsed = orjson.loads(content)
+            if isinstance(parsed, list):
+                return parsed
+        except Exception:
+            pass
+    return content
+
+
+async def hydrate_image_for_context(image_block: dict, machine: str, current_user, force_base64: bool = False) -> dict:
+    """Re-hydrate a stored image block with a fresh token URL for AI provider access.
+
+    Takes a stored block like {"type":"image_url","image_url":{"url":"https://cdn.../hash_fullsize.webp"}}
+    and returns a provider-appropriate format with authenticated URL.
+
+    For xAI: reads WebP from disk and converts to JPEG base64 (xAI does not support WebP).
+    """
+    base_url = image_block.get("image_url", {}).get("url", "")
+
+    # Strip CLOUDFLARE_BASE_URL prefix to get relative path
+    if CLOUDFLARE_BASE_URL and base_url.startswith(CLOUDFLARE_BASE_URL):
+        image_path = base_url[len(CLOUDFLARE_BASE_URL):]
+    else:
+        image_path = base_url
+
+    # xAI: cannot use token URLs because the served file is WebP.
+    # Read from disk, convert to JPEG, send as base64 data URL.
+    # Workaround for xAI's lack of WebP support — remove if xAI adds it.
+    if machine == "xAI" and image_path.lower().endswith(".webp") and not force_base64:
+        # image_path is like "users/abc/defg/hash/files/001/0001/img/user/sha1_fullsize.webp"
+        # Disk location is under "data/" prefix
+        disk_path = os.path.join("data", image_path.replace("/", os.sep))
+        try:
+            img = PilImage.open(disk_path)
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=85)
+            b64 = base64.b64encode(buf.getvalue()).decode()
+            return {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{b64}"}
+            }
+        except Exception as e:
+            logger.warning(f"[hydrate_image_for_context] Could not convert WebP for xAI, skipping image: {e}")
+            return None  # Caller filters out None results
+
+    # Fallback: read from disk, return base64. Used when AI providers cannot download URLs.
+    if force_base64:
+        disk_path = os.path.join("data", image_path.replace("/", os.sep))
+        try:
+            with open(disk_path, "rb") as f:
+                raw_bytes = f.read()
+            b64 = base64.b64encode(raw_bytes).decode()
+            # Detect media type
+            lower_path = image_path.lower()
+            if lower_path.endswith(".png"):
+                media_type = "image/png"
+            elif lower_path.endswith((".jpg", ".jpeg")):
+                media_type = "image/jpeg"
+            else:
+                media_type = "image/webp"
+            # xAI: WebP -> JPEG conversion
+            if machine == "xAI" and media_type == "image/webp":
+                img = PilImage.open(io.BytesIO(raw_bytes))
+                if img.mode in ("RGBA", "P"):
+                    img = img.convert("RGB")
+                buf = io.BytesIO()
+                img.save(buf, format="JPEG", quality=85)
+                b64 = base64.b64encode(buf.getvalue()).decode()
+                media_type = "image/jpeg"
+            if machine == "Claude":
+                return {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": b64}}
+            return {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{b64}"}}
+        except Exception as e:
+            logger.warning(f"[hydrate_image_for_context] force_base64 failed for {disk_path}: {e}")
+            return None
+
+    # Generate authenticated URL
+    if CLOUDFLARE_FOR_IMAGES:
+        token_url = generate_signed_url_cloudflare(image_path, expiration_seconds=3600)
+    else:
+        token = await get_or_generate_img_token(current_user)
+        token_url = f"{CLOUDFLARE_BASE_URL}{image_path}?token={token}"
+
+    if machine == "Claude":
+        return {
+            "type": "image",
+            "source": {
+                "type": "url",
+                "url": token_url,
+            }
+        }
+    # GPT, OpenRouter, Gemini — all use OpenAI image_url format with token URL
+    return {
+        "type": "image_url",
+        "image_url": {"url": token_url}
+    }
+
+
+async def _format_messages_for_provider(
     context_messages: list,
     message,
     full_prompt: str,
     machine: str,
+    current_user=None,
+    force_base64: bool = False,
 ) -> list | str:
     """Format messages for a specific LLM provider.
     Extracted from get_ai_response() to be reused by watchdog_takeover_response()."""
+    context_messages = flatten_multi_ai_context(context_messages)
     api_messages = []
 
     if machine == "Gemini":
-        combined_messages = f"{full_prompt}\n"
+        contents = []
         for msg in context_messages:
-            role = "User" if msg["type"] == "user" else "Assistant"
-            content = msg["message"]
-            combined_messages += f"{role}: {content}\n"
-        user_input = message if isinstance(message, str) else orjson.dumps(message).decode()
-        combined_messages += f"User: {user_input}\n"
-        return combined_messages
+            role = "user" if msg["type"] == "user" else "model"
+            message_content = msg["message"]
+            if isinstance(message_content, list):
+                parts = []
+                for block in message_content:
+                    if block.get("type") == "text":
+                        parts.append(genai_types.Part.from_text(text=block["text"]))
+                    elif block.get("type") == "image_url":
+                        url = block["image_url"]["url"]
+                        if current_user:
+                            hydrated_block = await hydrate_image_for_context(block, "Gemini", current_user, force_base64=force_base64)
+                            if hydrated_block is None:
+                                continue
+                            token_url = hydrated_block["image_url"]["url"]
+                        else:
+                            token_url = url
+                        mime = "image/webp"
+                        if url.lower().endswith(".png"):
+                            mime = "image/png"
+                        elif url.lower().endswith(".jpg") or url.lower().endswith(".jpeg"):
+                            mime = "image/jpeg"
+                        if token_url.startswith("data:"):
+                            header, b64_data = token_url.split(",", 1)
+                            mime = header.split(":")[1].split(";")[0]
+                            parts.append(genai_types.Part.from_bytes(data=base64.b64decode(b64_data), mime_type=mime))
+                        else:
+                            parts.append(genai_types.Part.from_uri(file_uri=token_url, mime_type=mime))
+                if parts:
+                    contents.append(genai_types.Content(role=role, parts=parts))
+            else:
+                contents.append(genai_types.Content(role=role, parts=[genai_types.Part.from_text(text=str(message_content))]))
+
+        # Add new user message
+        if isinstance(message, list):
+            parts = []
+            for block in message:
+                if block.get("type") == "text":
+                    parts.append(genai_types.Part.from_text(text=block["text"]))
+                elif block.get("type") == "image_url":
+                    url = block["image_url"]["url"]
+                    if url.startswith("data:"):
+                        # New message: base64 data URL -> use from_bytes
+                        header, b64_data = url.split(",", 1)
+                        mime = header.split(":")[1].split(";")[0]
+                        parts.append(genai_types.Part.from_bytes(data=base64.b64decode(b64_data), mime_type=mime))
+                    else:
+                        # Token URL -> use from_uri
+                        mime = "image/webp"
+                        if url.lower().endswith(".png"):
+                            mime = "image/png"
+                        elif url.lower().endswith(".jpg") or url.lower().endswith(".jpeg"):
+                            mime = "image/jpeg"
+                        parts.append(genai_types.Part.from_uri(file_uri=url, mime_type=mime))
+            contents.append(genai_types.Content(role="user", parts=parts))
+        else:
+            contents.append(genai_types.Content(role="user", parts=[genai_types.Part.from_text(text=str(message))]))
+        return contents
 
     elif machine == "O1":
         combined_message_content = f"{full_prompt}\n\n{message}"
@@ -227,9 +447,18 @@ def _format_messages_for_provider(
         for i, msg in enumerate(context_messages):
             content = msg["message"]
             if isinstance(content, list):
+                # Hydrate image blocks with fresh token URLs
+                hydrated = []
+                for block in content:
+                    if block.get("type") == "image_url" and current_user:
+                        result = await hydrate_image_for_context(block, machine, current_user, force_base64=force_base64)
+                        if result is not None:
+                            hydrated.append(result)
+                    else:
+                        hydrated.append(block)
                 api_messages.append({
                     "role": "user" if msg["type"] == "user" else "assistant",
-                    "content": content,
+                    "content": hydrated,
                 })
             else:
                 if i == len(context_messages) - 2 and msg["type"] == "user" and machine == "Claude":
@@ -317,8 +546,8 @@ async def watchdog_takeover_response(
     full_prompt += AI_WELFARE_MODULE + security_context + TAKEOVER_SECURITY_SUFFIX
 
     # 5. Format messages for the watchdog LLM's provider
-    api_messages = _format_messages_for_provider(
-        context_messages, message, full_prompt, wd_machine
+    api_messages = await _format_messages_for_provider(
+        context_messages, message, full_prompt, wd_machine, current_user
     )
 
     # 6. Select streaming function
@@ -354,6 +583,7 @@ async def watchdog_takeover_response(
         "watchdog_config": None,  # Prevent self-evaluation
         "watchdog_hint_active": False,
         "watchdog_hint_eval_id": None,
+        "llm_id": wd_llm_id,
     }
     if resolved_key:
         kwargs["user_api_key"] = resolved_key
@@ -477,31 +707,23 @@ GPT5_MODELS = {"gpt-5", "gpt-5-mini", "gpt-5-nano"}
 
 router = APIRouter()
 
-async def process_save_message(
+async def _validate_message_request(
     request: Request,
-    conversation_id: int,
     current_user: User,
-    text_compressed: Optional[bytes] = None,  # bytes instead of UploadFile
-    text_plain: Optional[str] = None,
-    files: Optional[List[dict]] = None,  # dict with 'data', 'content_type', 'filename'
-    full_response: bool = False,
     is_whatsapp: bool = False,
-    thinking_budget_tokens: Optional[int] = None,
-    user_api_keys: Optional[dict] = None  # User's custom API keys
 ):
-    """
-    Pure business logic function for processing and saving messages.
-    No FastAPI dependencies (Form, File, Depends).
-    """
-    logger.debug("enters into process_save_message")
+    """Validate auth/session/rate limits for message endpoints.
 
+    Returns:
+        None when validation passes, otherwise a JSONResponse with the error.
+    """
     if current_user is None:
         return JSONResponse(
             content={'redirect': '/login'},
             status_code=401
         )
 
-    # Only verify session if NOT a WhatsApp call
+    # Only verify browser session token for non-WhatsApp flows.
     if not is_whatsapp:
         token = request.cookies.get("session")
         if not token:
@@ -543,7 +765,7 @@ async def process_save_message(
         return JSONResponse(
             content={
                 'error': 'Rate limit exceeded',
-                'message': f'Too many AI requests. Limit: {rate_status["limit"]} per minute. Current: {rate_status["current"]}',
+                'message': f"Too many AI requests. Limit: {rate_status['limit']} per minute. Current: {rate_status['current']}",
                 'rate_limit': rate_status
             },
             status_code=429
@@ -552,6 +774,100 @@ async def process_save_message(
     # Track metrics
     await increment_metric("ai_requests_total")
     await increment_user_activity(current_user.id)
+    return None
+
+
+def _convert_to_jpeg_b64(image_data_b64: str) -> str:
+    """Convert a base64-encoded image (any format) to JPEG base64.
+
+    Workaround for xAI which does not support WebP. If xAI adds WebP support
+    in the future, this conversion becomes unnecessary.
+    """
+    raw = base64.b64decode(image_data_b64)
+    img = PilImage.open(io.BytesIO(raw))
+    if img.mode in ("RGBA", "P"):
+        img = img.convert("RGB")
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=85)
+    return base64.b64encode(buf.getvalue()).decode()
+
+
+def format_image_for_provider(machine: str, image_url_base: str, image_data_b64: str, media_type: str):
+    """Return (content_to_save, content_to_send) for an image, per provider.
+
+    content_to_save uses a uniform OpenAI-compatible format (image_url with base URL).
+    content_to_send varies by provider API requirements.
+    """
+    content_to_save = {
+        "type": "image_url",
+        "image_url": {"url": image_url_base}
+    }
+
+    if machine == "xAI":
+        # xAI only accepts JPEG/PNG — convert WebP to JPEG on the fly
+        if media_type == "image/webp":
+            jpeg_b64 = _convert_to_jpeg_b64(image_data_b64)
+            send_media = "image/jpeg"
+            send_b64 = jpeg_b64
+        else:
+            send_media = media_type
+            send_b64 = image_data_b64
+        content_to_send = {
+            "type": "image_url",
+            "image_url": {"url": f"data:{send_media};base64,{send_b64}"}
+        }
+    elif machine in ("GPT", "OpenRouter"):
+        content_to_send = {
+            "type": "image_url",
+            "image_url": {"url": f"data:{media_type};base64,{image_data_b64}"}
+        }
+    elif machine == "Claude":
+        content_to_send = {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": media_type,
+                "data": image_data_b64,
+            }
+        }
+    elif machine == "Gemini":
+        content_to_send = {
+            "type": "image_url",
+            "image_url": {"url": f"data:{media_type};base64,{image_data_b64}"}
+        }
+    else:
+        raise ValueError(f"Unsupported provider for images: {machine}")
+
+    return content_to_save, content_to_send
+
+
+async def process_save_message(
+    request: Request,
+    conversation_id: int,
+    current_user: User,
+    text_compressed: Optional[bytes] = None,  # bytes instead of UploadFile
+    text_plain: Optional[str] = None,
+    files: Optional[List[dict]] = None,  # dict with 'data', 'content_type', 'filename'
+    full_response: bool = False,
+    is_whatsapp: bool = False,
+    thinking_budget_tokens: Optional[int] = None,
+    user_api_keys: Optional[dict] = None,  # User's custom API keys
+    prevalidated: bool = False,
+):
+    """
+    Pure business logic function for processing and saving messages.
+    No FastAPI dependencies (Form, File, Depends).
+    """
+    logger.debug("enters into process_save_message")
+
+    if not prevalidated:
+        guard_response = await _validate_message_request(
+            request=request,
+            current_user=current_user,
+            is_whatsapp=is_whatsapp,
+        )
+        if guard_response is not None:
+            return guard_response
 
     context_months = 2
     start_date = datetime.utcnow() - timedelta(days=context_months * 30)
@@ -649,8 +965,7 @@ async def process_save_message(
         if total_cost >= current_balance:
             return JSONResponse(content={'success': False, 'message': 'Insufficient balance to send the message.'}, status_code=402)
 
-        print("Total cost", total_cost)
-        print("BALANCE", current_balance)
+        logger.debug(f"Total cost: {total_cost}, Balance: {current_balance}")
 
         async with conn_ro.execute(
             '''
@@ -663,47 +978,63 @@ async def process_save_message(
         ) as cursor:
             context_messages = await cursor.fetchall()
 
-    context_messages_dicts = [{"message": custom_unescape(msg[0]), "type": msg[1]} for msg in context_messages]
+    context_messages_dicts = [{"message": parse_stored_message(custom_unescape(msg[0])), "type": msg[1]} for msg in context_messages]
+    context_messages_dicts = flatten_multi_ai_context(context_messages_dicts)
 
     if files:
         logger.debug("Tiene archivos")
+        MAX_IMAGE_SIZE_MB = 5           # Claude is the most restrictive at 5 MB
+        MAX_IMAGES_PER_MESSAGE = 10     # Reasonable per-message upload limit
+        MAX_IMAGE_DIMENSION = 8000      # Claude's max dimension (<=20 images)
+
+        if len(files) > MAX_IMAGES_PER_MESSAGE:
+            return JSONResponse(
+                content={'success': False, 'message': f'Maximum {MAX_IMAGES_PER_MESSAGE} images per message.'},
+                status_code=400
+            )
+
         for file_item in files:
             # CHANGE: use dict instead of UploadFile
             image_data = file_item['data']
             image_media_type = file_item.get('content_type', 'image/jpeg')
             filename = file_item.get('filename', 'image.jpg')
+
+            # Validate image size
+            if len(image_data) > MAX_IMAGE_SIZE_MB * 1024 * 1024:
+                return JSONResponse(
+                    content={'success': False, 'message': f'Image exceeds {MAX_IMAGE_SIZE_MB} MB limit.'},
+                    status_code=400
+                )
+
+            # Validate image dimensions
+            try:
+                img_check = PilImage.open(io.BytesIO(image_data))
+                w, h = img_check.size
+                if w > MAX_IMAGE_DIMENSION or h > MAX_IMAGE_DIMENSION:
+                    return JSONResponse(
+                        content={'success': False, 'message': f'Image dimensions exceed {MAX_IMAGE_DIMENSION}px limit.'},
+                        status_code=400
+                    )
+                logger.debug(f"[process_save_message] Image validated: {filename}, {image_media_type}, {w}x{h}, {len(image_data)} bytes, provider={machine}")
+            except Exception as e:
+                return JSONResponse(
+                    content={'success': False, 'message': f'Invalid image file: {filename}'},
+                    status_code=400
+                )
+
             image1_data = base64.b64encode(image_data).decode("utf-8")
 
             image_url_base_256, image_url_token_256, image_url_base_fullsize, image_url_token_fullsize = await save_image_locally(request, image_data, current_user, conversation_id, filename, "user")
             if image_url_base_256 and image_url_token_256 and image_url_base_fullsize and image_url_token_fullsize:
-                if machine == "GPT":
-                    image_content_to_save = {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": image_url_base_256
-                        }
-                    }
-                    image_content_to_send = {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{image1_data}"
-                        }
-                    }
-                elif machine == "Claude":
-                    image_content_to_save = {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": image_url_base_256
-                        }
-                    }
-                    image_content_to_send = {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": image_media_type,
-                            "data": image1_data,
-                        }
-                    }
+                try:
+                    image_content_to_save, image_content_to_send = format_image_for_provider(
+                        machine, image_url_base_fullsize, image1_data, image_media_type
+                    )
+                except ValueError:
+                    return JSONResponse(
+                        content={'success': False, 'message': f'Image upload not supported for provider: {machine}'},
+                        status_code=400
+                    )
                 message_list_to_save.append(image_content_to_save)
                 message_list_to_send.append(image_content_to_send)
             else:
@@ -744,6 +1075,16 @@ async def process_save_message(
                                 "url": item['image_url']['url']
                             }
                         })
+                    elif item['type'] == 'image':
+                        # Claude format — convert to OpenAI format for moderation
+                        source = item.get('source', {})
+                        if source.get('type') == 'base64':
+                            moderation_input.append({
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{source['media_type']};base64,{source['data']}"
+                                }
+                            })
         else:
             # message_list_to_send is text
             moderation_input = [{"type": "text", "text": message_list_to_send}]
@@ -890,7 +1231,8 @@ async def process_save_message(
                     output_tokens,
                     user_message=message_to_save,
                     thinking_budget_tokens=thinking_budget_tokens,
-                    user_api_keys=user_api_keys
+                    user_api_keys=user_api_keys,
+                    llm_id=conversation_llm_id
                 ):
                     yield chunk
             except asyncio.CancelledError:
@@ -910,12 +1252,20 @@ async def save_message(
     file: List[Optional[UploadFile]] = File(None),
     full_response: bool = Form(False),
     is_whatsapp: bool = Form(False),
-    thinking_budget_tokens: Optional[int] = Form(None)
+    thinking_budget_tokens: Optional[int] = Form(None),
+    multi_ai_models: Optional[str] = Form(None),
 ):
     """
     FastAPI endpoint that handles HTTP request and delegates to process_save_message.
+    When multi_ai_models is provided (JSON array of LLM IDs), routes to Multi-AI engine.
     """
     logger.info("enters in save_message (wrapper)")
+
+    if current_user is None:
+        return JSONResponse(
+            content={'redirect': '/login'},
+            status_code=401
+        )
 
     # Extract user API keys from header (browser storage modes)
     user_api_keys = None
@@ -970,6 +1320,80 @@ async def save_message(
                 status_code=403
             )
 
+    guard_response = await _validate_message_request(
+        request=request,
+        current_user=current_user,
+        is_whatsapp=is_whatsapp,
+    )
+    if guard_response is not None:
+        return guard_response
+
+    # ===========================================
+    # Multi-AI routing (before normal flow)
+    # ===========================================
+    if multi_ai_models:
+        try:
+            parsed_model_ids = orjson.loads(multi_ai_models)
+            if not isinstance(parsed_model_ids, list) or len(parsed_model_ids) < 2 or len(parsed_model_ids) > 4:
+                return JSONResponse(content={"error": "Multi-AI requires 2-4 model IDs"}, status_code=400)
+            if not all(isinstance(mid, int) for mid in parsed_model_ids):
+                return JSONResponse(content={"error": "Invalid model IDs"}, status_code=400)
+
+            # Block Multi-AI for WhatsApp (client hint + server-side conversation detection)
+            is_whatsapp_conv = bool(is_whatsapp)
+            if not is_whatsapp_conv:
+                try:
+                    is_whatsapp_conv = await is_whatsapp_conversation(conversation_id)
+                except Exception as exc:
+                    logger.warning(
+                        "[save_message] Could not verify WhatsApp status for conversation %s: %s",
+                        conversation_id,
+                        exc,
+                    )
+                    return JSONResponse(
+                        content={"error": "Could not verify conversation channel"},
+                        status_code=503,
+                    )
+            if is_whatsapp_conv:
+                return JSONResponse(content={"error": "Multi-AI is not available via WhatsApp"}, status_code=400)
+
+            # Block file attachments in Multi-AI v1
+            if file and any(f for f in file if f and f.filename):
+                return JSONResponse(content={"error": "File attachments are not supported in Multi-AI mode"}, status_code=400)
+
+            # Decompress message if needed (same pattern as existing code)
+            MAX_DECOMPRESSED_SIZE = 10 * 1024 * 1024
+            MAX_COMPRESSED_SIZE = 1 * 1024 * 1024
+
+            if text_compressed:
+                compressed_bytes = await text_compressed.read()
+                if len(compressed_bytes) > MAX_COMPRESSED_SIZE:
+                    return JSONResponse(content={"error": "Compressed message too large"}, status_code=400)
+                decompressor = zlib.decompressobj()
+                decompressed = decompressor.decompress(compressed_bytes, max_length=MAX_DECOMPRESSED_SIZE)
+                if decompressor.unconsumed_tail:
+                    return JSONResponse(content={"error": "Decompressed message exceeds size limit"}, status_code=400)
+                multi_user_message = decompressed.decode("utf-8")
+            elif text_plain:
+                multi_user_message = text_plain
+            else:
+                return JSONResponse(content={"error": "No message provided"}, status_code=400)
+
+            return StreamingResponse(
+                process_multi_ai_message(
+                    request=request,
+                    conversation_id=conversation_id,
+                    current_user=current_user,
+                    user_message=multi_user_message,
+                    model_ids=parsed_model_ids,
+                    thinking_budget_tokens=thinking_budget_tokens,
+                    user_api_keys=user_api_keys,
+                ),
+                media_type="text/event-stream",
+            )
+        except orjson.JSONDecodeError:
+            return JSONResponse(content={"error": "Invalid multi_ai_models format"}, status_code=400)
+
     # Early lock check before reading files into memory
     async with get_db_connection(readonly=True) as conn:
         lock_cursor = await conn.execute(
@@ -1008,7 +1432,8 @@ async def save_message(
         full_response=full_response,
         is_whatsapp=is_whatsapp,
         thinking_budget_tokens=thinking_budget_tokens,
-        user_api_keys=user_api_keys
+        user_api_keys=user_api_keys,
+        prevalidated=True,
     )
 
 
@@ -1025,7 +1450,9 @@ async def get_ai_response(
     temperature=0.7,
     user_message=None,
     thinking_budget_tokens=None,
-    user_api_keys: Optional[dict] = None
+    user_api_keys: Optional[dict] = None,
+    llm_id=None,
+    save_to_db: bool = True,
 ):
     logger.info(f"*** Enters {machine}")
     logger.debug(f"Parameters received: conversation_id={conversation_id}, model={model}, max_tokens={max_tokens}")
@@ -1033,6 +1460,7 @@ async def get_ai_response(
     
     user_id = current_user.id
     logger.debug(f"User ID: {user_id}")
+    context_messages = flatten_multi_ai_context(context_messages)
 
     try:
         # Use read-only connection for SELECT queries
@@ -1309,20 +1737,64 @@ async def get_ai_response(
                 api_messages = []
 
                 if machine == "Gemini":
-                    # Prepare messages for Gemini API
-                    combined_messages = f"{full_prompt}\n"
-
+                    # Build structured Gemini contents (system prompt sent via config)
+                    gemini_contents = []
                     for msg in context_messages:
-                        role = 'User' if msg['type'] == 'user' else 'Assistant'
-                        content = msg['message']
-                        combined_messages += f"{role}: {content}\n"
+                        role = "user" if msg['type'] == 'user' else "model"
+                        msg_content = msg['message']
+                        if isinstance(msg_content, list):
+                            parts = []
+                            for block in msg_content:
+                                if block.get("type") == "text":
+                                    parts.append(genai_types.Part.from_text(text=block["text"]))
+                                elif block.get("type") == "image_url":
+                                    hydrated_block = await hydrate_image_for_context(block, "Gemini", current_user)
+                                    if hydrated_block is None:
+                                        continue
+                                    token_url = hydrated_block["image_url"]["url"]
+                                    if token_url.startswith("data:"):
+                                        header, b64_data = token_url.split(",", 1)
+                                        mime = header.split(":")[1].split(";")[0]
+                                        parts.append(genai_types.Part.from_bytes(data=base64.b64decode(b64_data), mime_type=mime))
+                                    else:
+                                        base_url = block["image_url"]["url"]
+                                        mime = "image/webp"
+                                        if base_url.lower().endswith(".png"):
+                                            mime = "image/png"
+                                        elif base_url.lower().endswith(".jpg") or base_url.lower().endswith(".jpeg"):
+                                            mime = "image/jpeg"
+                                        parts.append(genai_types.Part.from_uri(file_uri=token_url, mime_type=mime))
+                            if parts:
+                                gemini_contents.append(genai_types.Content(role=role, parts=parts))
+                        else:
+                            gemini_contents.append(genai_types.Content(role=role, parts=[genai_types.Part.from_text(text=str(msg_content))]))
 
                     # Add new user message
-                    user_input = message if isinstance(message, str) else orjson.dumps(message).decode()
-                    combined_messages += f"User: {user_input}\n"
+                    if isinstance(message, list):
+                        parts = []
+                        for block in message:
+                            if block.get("type") == "text":
+                                parts.append(genai_types.Part.from_text(text=block["text"]))
+                            elif block.get("type") == "image_url":
+                                url = block["image_url"]["url"]
+                                if url.startswith("data:"):
+                                    # New message: base64 data URL -> use from_bytes
+                                    header, b64_data = url.split(",", 1)
+                                    mime = header.split(":")[1].split(";")[0]
+                                    parts.append(genai_types.Part.from_bytes(data=base64.b64decode(b64_data), mime_type=mime))
+                                else:
+                                    # Token URL -> use from_uri
+                                    mime = "image/webp"
+                                    if url.lower().endswith(".png"):
+                                        mime = "image/png"
+                                    elif url.lower().endswith(".jpg") or url.lower().endswith(".jpeg"):
+                                        mime = "image/jpeg"
+                                    parts.append(genai_types.Part.from_uri(file_uri=url, mime_type=mime))
+                        gemini_contents.append(genai_types.Content(role="user", parts=parts))
+                    else:
+                        gemini_contents.append(genai_types.Content(role="user", parts=[genai_types.Part.from_text(text=str(message))]))
 
-                    # Set api_messages as a string with combined_messages
-                    api_messages = combined_messages
+                    api_messages = gemini_contents
 
                 elif machine == "O1":
                     # Existing logic for "o1"
@@ -1336,7 +1808,16 @@ async def get_ai_response(
                     for i, msg in enumerate(context_messages):
                         content = msg['message']
                         if isinstance(content, list):
-                            api_messages.append({"role": "user" if msg['type'] == 'user' else "assistant", "content": content})
+                            # Hydrate image blocks with fresh token URLs
+                            hydrated = []
+                            for block in content:
+                                if block.get("type") == "image_url":
+                                    result = await hydrate_image_for_context(block, machine, current_user)
+                                    if result is not None:
+                                        hydrated.append(result)
+                                else:
+                                    hydrated.append(block)
+                            api_messages.append({"role": "user" if msg['type'] == 'user' else "assistant", "content": hydrated})
                         else:
                             if i == len(context_messages) - 2 and msg['type'] == 'user' and machine == "Claude":
                                 content = [{"type": "text", "text": content, "cache_control": {"type": "ephemeral"}}]
@@ -1425,6 +1906,8 @@ async def get_ai_response(
                     "watchdog_config": watchdog_config,
                     "watchdog_hint_active": watchdog_hint_active,
                     "watchdog_hint_eval_id": watchdog_hint_eval_id,
+                    "llm_id": llm_id,
+                    "save_to_db": save_to_db,
                 }
 
                 # Add tools if available for this provider
@@ -1463,9 +1946,63 @@ async def get_ai_response(
                 collected_tool_call = None
                 pre_tool_content = ""  # Text Claude generated before calling the tool
 
-                async for chunk in api_func(**kwargs):
+                _IMAGE_DL_ERROR_PATTERNS = ("unable to download", "could not download", "error downloading", "failed to fetch image")
+                _retried_base64 = False
+
+                # Peek at first chunk to detect image download errors
+                first_chunk = None
+                api_stream = api_func(**kwargs)
+                async for chunk in api_stream:
+                    first_chunk = chunk
+                    break
+
+                # Check if first chunk indicates an image download error
+                if first_chunk and isinstance(first_chunk, str) and first_chunk.startswith("data: "):
+                    try:
+                        data = orjson.loads(first_chunk[6:].strip())
+                        error_msg = str(data.get("error", "")).lower()
+                        if any(p in error_msg for p in _IMAGE_DL_ERROR_PATTERNS):
+                            _retried_base64 = True
+                            logger.warning("[get_ai_response] Image download error detected, retrying with base64")
+                            api_messages_b64 = await _format_messages_for_provider(
+                                context_messages, message, full_prompt, machine,
+                                current_user=current_user, force_base64=True,
+                            )
+                            kwargs["messages"] = api_messages_b64
+                            first_chunk = None
+                            api_stream = api_func(**kwargs)
+                            async for chunk in api_stream:
+                                first_chunk = chunk
+                                break
+                    except (orjson.JSONDecodeError, KeyError):
+                        pass
+
+                # Process first_chunk through the same logic as remaining chunks
+                def _is_tool_call_chunk(c):
+                    return isinstance(c, str) and 'tool_call' in c and 'tool_call_pending' not in c
+
+                def _is_tool_pending_chunk(c):
+                    return isinstance(c, str) and 'tool_call_pending' in c
+
+                for chunk in ([first_chunk] if first_chunk is not None else []):
+                    if _is_tool_call_chunk(chunk):
+                        try:
+                            if chunk.startswith("data: "):
+                                chunk_data = orjson.loads(chunk[6:].strip())
+                                if 'tool_call' in chunk_data:
+                                    collected_tool_call = chunk_data['tool_call']
+                                    pre_tool_content = chunk_data.get('pre_tool_content', '')
+                                    logger.info(f"[get_ai_response] - Collected tool_call: {collected_tool_call['name']}, pre_tool_content length: {len(pre_tool_content)}")
+                                    continue
+                        except (orjson.JSONDecodeError, KeyError) as e:
+                            logger.debug(f"[get_ai_response] - Could not parse chunk as tool_call: {e}")
+                    if _is_tool_pending_chunk(chunk):
+                        continue
+                    yield chunk
+
+                async for chunk in api_stream:
                     # Check if this chunk contains a tool_call
-                    if isinstance(chunk, str) and 'tool_call' in chunk and 'tool_call_pending' not in chunk:
+                    if _is_tool_call_chunk(chunk):
                         try:
                             # Parse the SSE data format
                             if chunk.startswith("data: "):
@@ -1479,7 +2016,7 @@ async def get_ai_response(
                             logger.debug(f"[get_ai_response] - Could not parse chunk as tool_call: {e}")
 
                     # Skip the tool_call_pending marker
-                    if isinstance(chunk, str) and 'tool_call_pending' in chunk:
+                    if _is_tool_pending_chunk(chunk):
                         continue
 
                     # Yield normal content to frontend
@@ -1518,6 +2055,7 @@ async def get_ai_response(
                         watchdog_config=watchdog_config,
                         watchdog_hint_active=watchdog_hint_active,
                         watchdog_hint_eval_id=watchdog_hint_eval_id,
+                        llm_id=llm_id,
                     ):
                         yield chunk                        
 
@@ -1810,34 +2348,10 @@ def tools_for_claude(tools: list) -> list:
 
 
 def tools_for_gemini(tools: list) -> list:
-    """
-    Convert tools from OpenAI format to Google Gemini format.
+    """Convert tools from OpenAI format to Gemini FunctionDeclaration dicts.
 
-    OpenAI format:
-        {
-            "type": "function",
-            "function": {
-                "name": "...",
-                "description": "...",
-                "parameters": {...}
-            }
-        }
-
-    Gemini format (for GenerativeModel):
-        [
-            {
-                "function_declarations": [
-                    {
-                        "name": "...",
-                        "description": "...",
-                        "parameters": {...}
-                    }
-                ]
-            }
-        ]
-
-    Returns:
-        List with single dict containing function_declarations array
+    Returns a flat list of declaration dicts (not wrapped). The caller
+    wraps them via genai_types.Tool(function_declarations=declarations).
     """
     declarations = []
     for tool in tools:
@@ -1849,7 +2363,6 @@ def tools_for_gemini(tools: list) -> list:
             continue
 
         # Gemini doesn't support 'additionalProperties' in parameters
-        # so we need to clean it up
         params = func.get('parameters', {"type": "object", "properties": {}}).copy()
         if 'additionalProperties' in params:
             del params['additionalProperties']
@@ -1860,11 +2373,12 @@ def tools_for_gemini(tools: list) -> list:
             "parameters": params
         })
 
-    return [{"function_declarations": declarations}]
+    return declarations
 
 
 async def call_o1_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, user_api_key=None,
-                      prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None):
+                      prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
+                      llm_id=None, save_to_db: bool = True):
     global stop_signals
     logger.debug("enters call_o1_api")
 
@@ -1938,16 +2452,22 @@ async def call_o1_api(messages, model, temperature, max_tokens, prompt, conversa
     total_tokens += reasoning_tokens
 
     # Save the content to the database using read-write connection
-    user_message_id, bot_message_id = await save_content_to_db(content, input_tokens, output_tokens, total_tokens, conversation_id, user_id, model, user_message=user_message,
-                                                                prompt_id=prompt_id, watchdog_config=watchdog_config, watchdog_hint_active=watchdog_hint_active, watchdog_hint_eval_id=watchdog_hint_eval_id)
-    if user_message_id and bot_message_id:
-        yield f"data: {orjson.dumps({'message_ids': {'user': user_message_id, 'bot': bot_message_id}}).decode()}\n\n"
+    if save_to_db:
+        user_message_id, bot_message_id = await save_content_to_db(content, input_tokens, output_tokens, total_tokens, conversation_id, user_id, model, user_message=user_message,
+                                                                    prompt_id=prompt_id, watchdog_config=watchdog_config, watchdog_hint_active=watchdog_hint_active, watchdog_hint_eval_id=watchdog_hint_eval_id,
+                                                                    llm_id=llm_id)
+        if user_message_id and bot_message_id:
+            yield f"data: {orjson.dumps({'message_ids': {'user': user_message_id, 'bot': bot_message_id}}).decode()}\n\n"
 
-    yield content.strip()
+        yield content.strip()
+    else:
+        yield f"data: {orjson.dumps({'token_info': True, 'input_tokens': input_tokens, 'output_tokens': output_tokens}).decode()}\n\n"
+        yield "data: [DONE]\n\n"
 
 
 async def call_llm_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, api_url, api_key, user_message=None, extra_headers=None, custom_timeout=None, tools=None,
-                       prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None):
+                       prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
+                       llm_id=None, save_to_db: bool = True):
     """
     Generic LLM API call function for OpenAI-compatible APIs.
     Used by GPT, xAI, and OpenRouter.
@@ -2135,7 +2655,8 @@ async def call_llm_api(messages, model, temperature, max_tokens, prompt, convers
 
     # If a tool call was detected, emit it and return without saving to DB
     # The caller (get_ai_response) will handle the tool call and save the result
-    if function_name:
+    # When save_to_db=False (Multi-AI), skip tool handling entirely
+    if function_name and save_to_db:
         try:
             # Parse the accumulated arguments as JSON
             parsed_args = orjson.loads(function_arguments) if function_arguments else {}
@@ -2150,15 +2671,21 @@ async def call_llm_api(messages, model, temperature, max_tokens, prompt, convers
         return  # Don't save to DB - handler will do it
 
     # Normal response - save to database
-    user_message_id, bot_message_id = await save_content_to_db(content, input_tokens, output_tokens, total_tokens, conversation_id, current_user.id, model, user_message=user_message,
-                                                                prompt_id=prompt_id, watchdog_config=watchdog_config, watchdog_hint_active=watchdog_hint_active, watchdog_hint_eval_id=watchdog_hint_eval_id)
-    if user_message_id and bot_message_id:
-        yield f"data: {orjson.dumps({'message_ids': {'user': user_message_id, 'bot': bot_message_id}}).decode()}\n\n"
+    if save_to_db:
+        user_message_id, bot_message_id = await save_content_to_db(content, input_tokens, output_tokens, total_tokens, conversation_id, current_user.id, model, user_message=user_message,
+                                                                    prompt_id=prompt_id, watchdog_config=watchdog_config, watchdog_hint_active=watchdog_hint_active, watchdog_hint_eval_id=watchdog_hint_eval_id,
+                                                                    llm_id=llm_id)
+        if user_message_id and bot_message_id:
+            yield f"data: {orjson.dumps({'message_ids': {'user': user_message_id, 'bot': bot_message_id}}).decode()}\n\n"
 
-    yield content.strip()
+        yield content.strip()
+    else:
+        yield f"data: {orjson.dumps({'token_info': True, 'input_tokens': input_tokens, 'output_tokens': output_tokens}).decode()}\n\n"
+        yield "data: [DONE]\n\n"
 
 async def call_gpt_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, user_api_key=None, tools=None,
-                       prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None):
+                       prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
+                       llm_id=None, save_to_db: bool = True):
     api_url = "https://api.openai.com/v1/chat/completions"
     api_key = user_api_key or openai.api_key  # Use user's key if provided
 
@@ -2179,12 +2706,15 @@ async def call_gpt_api(messages, model, temperature, max_tokens, prompt, convers
         watchdog_config=watchdog_config,
         watchdog_hint_active=watchdog_hint_active,
         watchdog_hint_eval_id=watchdog_hint_eval_id,
+        llm_id=llm_id,
+        save_to_db=save_to_db,
     ):
         yield chunk
 
 
 async def call_xai_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, user_api_key=None, tools=None,
-                       prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None):
+                       prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
+                       llm_id=None, save_to_db: bool = True):
     api_url = "https://api.x.ai/v1/chat/completions"
     api_key = user_api_key or xai_key  # Use user's key if provided
 
@@ -2205,12 +2735,15 @@ async def call_xai_api(messages, model, temperature, max_tokens, prompt, convers
         watchdog_config=watchdog_config,
         watchdog_hint_active=watchdog_hint_active,
         watchdog_hint_eval_id=watchdog_hint_eval_id,
+        llm_id=llm_id,
+        save_to_db=save_to_db,
     ):
         yield chunk
 
 
 async def call_openrouter_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, user_api_key=None, tools=None,
-                              prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None):
+                              prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
+                              llm_id=None, save_to_db: bool = True):
     """
     Call OpenRouter unified API - 100% OpenAI compatible.
 
@@ -2263,12 +2796,15 @@ async def call_openrouter_api(messages, model, temperature, max_tokens, prompt, 
         watchdog_config=watchdog_config,
         watchdog_hint_active=watchdog_hint_active,
         watchdog_hint_eval_id=watchdog_hint_eval_id,
+        llm_id=llm_id,
+        save_to_db=save_to_db,
     ):
         yield chunk
 
 
 async def call_claude_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, thinking_budget_tokens=None, user_api_key=None, tools=None,
-                          prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None):
+                          prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
+                          llm_id=None, save_to_db: bool = True):
     global stop_signals
     logger.debug("Entering call_claude_api")
 
@@ -2284,11 +2820,12 @@ async def call_claude_api(messages, model, temperature, max_tokens, prompt, conv
         "anthropic-version": "2023-06-01"
     }
 
-    # Determine max_tokens based on model name
-    if "3.7" in model:
-        model_max_tokens = 32768
-    else:
-        model_max_tokens = 8192
+    # Determine provider cap, then respect caller-provided max_tokens
+    provider_max_tokens = 32768 if "3.7" in model else 8192
+    requested_max_tokens = int(max_tokens) if isinstance(max_tokens, (int, float)) else provider_max_tokens
+    if requested_max_tokens < 1:
+        requested_max_tokens = 1
+    model_max_tokens = min(provider_max_tokens, requested_max_tokens)
 
     data = {
         "model": model,
@@ -2429,7 +2966,8 @@ async def call_claude_api(messages, model, temperature, max_tokens, prompt, conv
 
     # If a tool use was detected, emit it and return without saving to DB
     # The caller (get_ai_response) will handle the tool call and save the result
-    if tool_use_name and (stop_reason == "tool_use" or tool_use_input_buffer):
+    # When save_to_db=False (Multi-AI), skip tool handling entirely
+    if tool_use_name and (stop_reason == "tool_use" or tool_use_input_buffer) and save_to_db:
         try:
             # Parse the accumulated input as JSON
             parsed_args = orjson.loads(tool_use_input_buffer) if tool_use_input_buffer else {}
@@ -2445,72 +2983,79 @@ async def call_claude_api(messages, model, temperature, max_tokens, prompt, conv
         return  # Don't save to DB - handler will do it
 
     # Normal response - save to database
-    user_message_id, bot_message_id = await save_content_to_db(content, input_tokens, output_tokens, total_tokens, conversation_id, user_id, model, user_message=user_message,
-                                                                prompt_id=prompt_id, watchdog_config=watchdog_config, watchdog_hint_active=watchdog_hint_active, watchdog_hint_eval_id=watchdog_hint_eval_id)
-    if user_message_id and bot_message_id:
-        #logger.info("user_message_id: %s", user_message_id)
-        #logger.info("bot_message_id: %s", bot_message_id)
-        yield f"data: {orjson.dumps({'message_ids': {'user': user_message_id, 'bot': bot_message_id}}).decode()}\n\n"
+    if save_to_db:
+        user_message_id, bot_message_id = await save_content_to_db(content, input_tokens, output_tokens, total_tokens, conversation_id, user_id, model, user_message=user_message,
+                                                                    prompt_id=prompt_id, watchdog_config=watchdog_config, watchdog_hint_active=watchdog_hint_active, watchdog_hint_eval_id=watchdog_hint_eval_id,
+                                                                    llm_id=llm_id)
+        if user_message_id and bot_message_id:
+            #logger.info("user_message_id: %s", user_message_id)
+            #logger.info("bot_message_id: %s", bot_message_id)
+            yield f"data: {orjson.dumps({'message_ids': {'user': user_message_id, 'bot': bot_message_id}}).decode()}\n\n"
 
-    yield content.strip()
+        yield content.strip()
+    else:
+        yield f"data: {orjson.dumps({'token_info': True, 'input_tokens': input_tokens, 'output_tokens': output_tokens}).decode()}\n\n"
+        yield "data: [DONE]\n\n"
 
 async def call_gemini_api(messages, model_name, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, user_api_key=None, tools=None,
-                          prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None):
+                          prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
+                          llm_id=None, save_to_db: bool = True):
     global stop_signals
     logger.info("Entering call_gemini_api")
-
     user_id = current_user.id
 
-    # Combined prompt is already prepared in messages
-    combined_prompt = messages
-    logger.debug(f"Combined prompt for Gemini: {combined_prompt}")
-
-    # If user has custom API key, configure genai with it temporarily
+    # Determine API key: user's custom key or global
+    api_key = user_api_key if user_api_key else gemini_key
+    client = google_genai.Client(api_key=api_key)
     if user_api_key:
-        genai.configure(api_key=user_api_key)
         logger.info("Using user's custom Google AI API key")
 
-    # Initialize Gemini model with tools if provided
+    # Build config
+    config = genai_types.GenerateContentConfig(
+        system_instruction=prompt,
+        temperature=temperature,
+        max_output_tokens=max_tokens,
+    )
+
+    # Add tools if provided
     if tools:
-        model = genai.GenerativeModel(model_name, tools=tools)
-        logger.info(f"[call_gemini_api] - Initialized model with {len(tools[0].get('function_declarations', []))} tools")
-    else:
-        model = genai.GenerativeModel(model_name)
+        config.tools = [genai_types.Tool(function_declarations=tools)]
+        config.automatic_function_calling = genai_types.AutomaticFunctionCallingConfig(disable=True)
+        logger.info(f"[call_gemini_api] - Initialized with {len(tools)} tool declarations")
+
+    # Build contents from messages (can be string or structured Content objects)
+    contents = messages
 
     # Generate response
     content = ""
     input_tokens = output_tokens = total_tokens = 0
-
-    # Tool call tracking
     function_call_detected = None
+    last_chunk = None
 
     try:
-        # Configure generation parameters
-        generation_config = genai.GenerationConfig(
-            temperature=temperature,
-            max_output_tokens=max_tokens,
-        )
+        async for chunk in client.aio.models.generate_content_stream(
+            model=model_name,
+            contents=contents,
+            config=config,
+        ):
+            last_chunk = chunk
 
-        # Make call to Gemini API
-        response = model.generate_content(combined_prompt, generation_config=generation_config, stream=True)
-        for chunk in response:
             if stop_signals.get(conversation_id):
                 logger.info("Stop signal received, exiting Gemini API call loop.")
                 break
 
-            # Check if response was blocked for safety reasons
-            if chunk.prompt_feedback.block_reason:
+            # Check for safety blocks
+            if chunk.prompt_feedback and chunk.prompt_feedback.block_reason:
                 content = "\n\n*Sorry, but I cannot provide a response to that request. Please try rephrasing your question.*"
                 yield f"data: {orjson.dumps({'content': content}).decode()}\n\n"
                 break
 
-            # Check for function calls in the response
-            if hasattr(chunk, 'candidates') and chunk.candidates:
+            # Check for function calls
+            if chunk.candidates:
                 for candidate in chunk.candidates:
-                    if hasattr(candidate, 'content') and candidate.content:
+                    if candidate.content and candidate.content.parts:
                         for part in candidate.content.parts:
-                            # Check for function_call
-                            if hasattr(part, 'function_call') and part.function_call:
+                            if part.function_call:
                                 fc = part.function_call
                                 function_call_detected = {
                                     'name': fc.name,
@@ -2521,53 +3066,51 @@ async def call_gemini_api(messages, model_name, temperature, max_tokens, prompt,
                     if function_call_detected:
                         break
 
-            # If we found a function call, don't process text content
             if function_call_detected:
                 break
 
-            # Process response text if available
+            # Process text
             if chunk.text:
-                content_chunk = chunk.text
-                content += content_chunk
-                yield f"data: {orjson.dumps({'content': content_chunk}).decode()}\n\n"
+                content += chunk.text
+                yield f"data: {orjson.dumps({'content': chunk.text}).decode()}\n\n"
 
-        # Estimate tokens
-        input_tokens = estimate_message_tokens(combined_prompt)
-        output_tokens = estimate_message_tokens(content)
-        total_tokens = input_tokens + output_tokens
+        # Get real token usage from the last chunk if available
+        if last_chunk and last_chunk.usage_metadata:
+            input_tokens = last_chunk.usage_metadata.prompt_token_count or 0
+            output_tokens = last_chunk.usage_metadata.candidates_token_count or 0
+            total_tokens = last_chunk.usage_metadata.total_token_count or 0
+        else:
+            input_tokens = estimate_message_tokens(str(contents))
+            output_tokens = estimate_message_tokens(content)
+            total_tokens = input_tokens + output_tokens
 
     except Exception as e:
         logger.error(f"[call_gemini_api] - Error calling Gemini API: {e}")
         yield f"data: {orjson.dumps({'error': str(e)}).decode()}\n\n"
         return
 
-    # If a function call was detected, emit it and return without saving to DB
-    if function_call_detected:
+    # Handle function calls (skip when save_to_db=False, i.e. Multi-AI mode)
+    if function_call_detected and save_to_db:
         logger.info(f"[call_gemini_api] - Tool call: {function_call_detected['name']} with args: {function_call_detected['arguments']}")
         yield f"data: {orjson.dumps({'tool_call': {'name': function_call_detected['name'], 'arguments': function_call_detected['arguments'], 'id': ''}}).decode()}\n\n"
         yield f"data: {orjson.dumps({'tool_call_pending': True}).decode()}\n\n"
-        # Restore global Gemini API key if we used a user's custom key
-        if user_api_key:
-            genai.configure(api_key=gemini_key)
-        return  # Don't save to DB - handler will do it
+        return
 
-    try:
-        # Save content to database
-        user_message_id, bot_message_id = await save_content_to_db(content, input_tokens, output_tokens, total_tokens, conversation_id, user_id, model_name, user_message=user_message,
-                                                                    prompt_id=prompt_id, watchdog_config=watchdog_config, watchdog_hint_active=watchdog_hint_active, watchdog_hint_eval_id=watchdog_hint_eval_id)
-        if user_message_id and bot_message_id:
-            yield f"data: {orjson.dumps({'message_ids': {'user': user_message_id, 'bot': bot_message_id}}).decode()}\n\n"
+    if save_to_db:
+        try:
+            user_message_id, bot_message_id = await save_content_to_db(content, input_tokens, output_tokens, total_tokens, conversation_id, user_id, model_name, user_message=user_message,
+                                                                        prompt_id=prompt_id, watchdog_config=watchdog_config, watchdog_hint_active=watchdog_hint_active, watchdog_hint_eval_id=watchdog_hint_eval_id,
+                                                                        llm_id=llm_id)
+            if user_message_id and bot_message_id:
+                yield f"data: {orjson.dumps({'message_ids': {'user': user_message_id, 'bot': bot_message_id}}).decode()}\n\n"
+        except Exception as e:
+            logger.error(f"[call_gemini_api] - Error saving content to database: {e}")
+            yield f"data: {orjson.dumps({'error': f'Error saving response: {str(e)}'}).decode()}\n\n"
 
-
-    except Exception as e:
-        logger.error(f"[call_gemini_api] - Error saving content to database: {e}")
-        yield f"data: {orjson.dumps({'error': f'Error saving response: {str(e)}'}).decode()}\n\n"
-
-    # Restore global Gemini API key if we used a user's custom key
-    if user_api_key:
-        genai.configure(api_key=gemini_key)
-
-    yield content.strip()
+        yield content.strip()
+    else:
+        yield f"data: {orjson.dumps({'token_info': True, 'input_tokens': input_tokens, 'output_tokens': output_tokens}).decode()}\n\n"
+        yield "data: [DONE]\n\n"
 
 
 # =============================================================================
@@ -2912,7 +3455,8 @@ def get_directions(origin: str, destination: str, api_key: str, mode: str = "tra
 
 
 async def handle_function_call(function_name, function_arguments, messages, model, temperature, max_tokens, content, conversation_id, current_user, request, input_tokens, output_tokens, total_tokens, message_id, user_id, client, prompt, user_message=None,
-                               prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None):
+                               prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
+                               llm_id=None):
     save_to_db = True
     final_content = ""
     # Initialize with pre-tool content from Claude (if any)
@@ -3174,7 +3718,8 @@ async def handle_function_call(function_name, function_arguments, messages, mode
     #logger.info(f"antes de save_content_to_db, content: {content}")
     if save_to_db:
         user_message_id, bot_message_id = await save_content_to_db(content_to_save, input_tokens, output_tokens, total_tokens, conversation_id, user_id, model, user_message=user_message,
-                                                                    prompt_id=prompt_id, watchdog_config=watchdog_config, watchdog_hint_active=watchdog_hint_active, watchdog_hint_eval_id=watchdog_hint_eval_id)
+                                                                    prompt_id=prompt_id, watchdog_config=watchdog_config, watchdog_hint_active=watchdog_hint_active, watchdog_hint_eval_id=watchdog_hint_eval_id,
+                                                                    llm_id=llm_id)
         if user_message_id and bot_message_id:
             yield f"data: {orjson.dumps({'message_ids': {'user': user_message_id, 'bot': bot_message_id}}).decode()}\n\n"
         
@@ -3183,7 +3728,8 @@ async def handle_function_call(function_name, function_arguments, messages, mode
     
 
 async def save_content_to_db(content, input_tokens, output_tokens, total_tokens, conversation_id, user_id, model, user_message=None,
-                             prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None):
+                             prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
+                             llm_id=None):
     # logger.info(f"Complete AI message:\n {content}")  # Commented to avoid encoding issues with emojis
     logger.info(f"Tokens usados:\ninput_tokens: {input_tokens}\noutput_tokens: {output_tokens}\ntotal_tokens: {total_tokens}")
 
@@ -3216,14 +3762,14 @@ async def save_content_to_db(content, input_tokens, output_tokens, total_tokens,
                         user_message_id = user_row[0] if user_row else None
 
                     bot_insert_query = '''
-                        INSERT INTO messages 
-                        (conversation_id, user_id, message, type, input_tokens_used, output_tokens_used, date) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO messages
+                        (conversation_id, user_id, message, type, input_tokens_used, output_tokens_used, date, llm_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                         RETURNING id
                     '''
                     cursor = await conn.execute(
                         bot_insert_query,
-                        (conversation_id, user_id, content, 'bot', input_tokens, output_tokens, current_time)
+                        (conversation_id, user_id, content, 'bot', input_tokens, output_tokens, current_time, llm_id)
                     )
                     row = await cursor.fetchone()
                     message_id = row[0] if row else None
@@ -3240,8 +3786,15 @@ async def save_content_to_db(content, input_tokens, output_tokens, total_tokens,
                         else:
                             input_token_cost_per_million, output_token_cost_per_million = 0, 0
 
-                    user_input_tokens = estimate_message_tokens(user_message) if user_message else 0
-                    total_input_tokens = user_input_tokens + input_tokens
+                    reported_input_tokens = int(input_tokens or 0)
+                    fallback_user_input_tokens = estimate_message_tokens(user_message) if user_message else 0
+                    # Providers generally report prompt tokens including the user message.
+                    # Use reported tokens when available; only fallback when missing/zero.
+                    billable_input_tokens = (
+                        reported_input_tokens
+                        if reported_input_tokens > 0
+                        else fallback_user_input_tokens
+                    )
 
                     # Get prompt_id from conversation (role_id in CONVERSATIONS is the prompt_id)
                     if prompt_id is None:
@@ -3252,7 +3805,7 @@ async def save_content_to_db(content, input_tokens, output_tokens, total_tokens,
 
                     await consume_token(
                         user_id,
-                        total_input_tokens,
+                        billable_input_tokens,
                         output_tokens,
                         input_token_cost_per_million,
                         output_token_cost_per_million,
@@ -3382,3 +3935,847 @@ async def get_last_message_id(conversation_id: int, current_user: User = Depends
         return {"message_id": result[0]}
     else:
         return {"message_id": None}
+
+
+# =============================================================================
+# MULTI-AI: Parallel execution engine (Fase 2)
+# =============================================================================
+
+def build_multi_ai_message(results: dict, model_ids: list) -> str:
+    """Build the JSON string for a Multi-AI bot message.
+
+    Args:
+        results: dict of llm_id -> {content, input_tokens, output_tokens, error, model, machine}
+        model_ids: ordered list of llm_ids
+
+    Returns:
+        JSON string for storage in MESSAGES.message column
+    """
+    responses = []
+    for llm_id in model_ids:
+        r = results[llm_id]
+        response = {
+            "llm_id": llm_id,
+            "machine": r["machine"],
+            "model": r["model"],
+            "content": r["content"],
+            "input_tokens": r["input_tokens"],
+            "output_tokens": r["output_tokens"],
+        }
+        if r.get("error"):
+            response["error"] = True
+        responses.append(response)
+
+    return orjson.dumps({"multi_ai": True, "responses": responses}).decode()
+
+
+class MultiAiBillingError(RuntimeError):
+    """Raised when Multi-AI billing cannot be completed atomically."""
+
+
+async def save_multi_ai_to_db(
+    combined_json: str,
+    results: dict,
+    model_ids: list,
+    total_input: int,
+    total_output: int,
+    conversation_id: int,
+    user_id: int,
+    user_message: str,
+    prompt_id: int = None,
+    watchdog_config: Optional[dict] = None,
+    watchdog_hint_active: bool = False,
+    watchdog_hint_eval_id: Optional[int] = None,
+) -> tuple:
+    """Save Multi-AI response as a single bot message. Bill each model separately.
+
+    Returns (user_msg_id, bot_msg_id)
+    """
+    last_lock_error = None
+    user_input_tokens = estimate_message_tokens(user_message) if user_message else 0
+
+    for attempt in range(DB_MAX_RETRIES):
+        retry_needed = False
+        wait_time = 0.0
+        async with conversation_write_lock(conversation_id):
+            async with get_db_connection() as conn:
+                conn.row_factory = aiosqlite.Row
+                transaction_started = False
+                try:
+                    await conn.execute("BEGIN IMMEDIATE")
+                    transaction_started = True
+                    current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S.%f")
+
+                    # INSERT user message (type='user', no llm_id)
+                    user_msg_id = None
+                    if user_message is not None:
+                        cursor = await conn.execute(
+                            """INSERT INTO messages (conversation_id, user_id, message, type, date)
+                               VALUES (?, ?, ?, ?, ?)
+                               RETURNING id""",
+                            (conversation_id, user_id, user_message, "user", current_time),
+                        )
+                        user_row = await cursor.fetchone()
+                        user_msg_id = user_row[0] if user_row else None
+
+                    # INSERT bot message with combined_json, total tokens, llm_id=NULL (multi-model)
+                    cursor = await conn.execute(
+                        """INSERT INTO messages
+                           (conversation_id, user_id, message, type, input_tokens_used, output_tokens_used, date, llm_id)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                           RETURNING id""",
+                        (conversation_id, user_id, combined_json, "bot", total_input, total_output, current_time, None),
+                    )
+                    bot_row = await cursor.fetchone()
+                    bot_msg_id = bot_row[0] if bot_row else None
+
+                    # Bill each model separately
+                    for llm_id in model_ids:
+                        r = results[llm_id]
+                        if r.get("error"):
+                            continue  # Skip billing for errored models
+
+                        model_name = r["model"]
+                        input_cost, output_cost = await get_llm_token_costs(model_name, conn=conn)
+
+                        reported_input_tokens = int(r.get("input_tokens") or 0)
+                        # Avoid double-counting user tokens when provider already reports prompt tokens.
+                        billable_input = (
+                            reported_input_tokens
+                            if reported_input_tokens > 0
+                            else user_input_tokens
+                        )
+                        bill_result = await consume_token(
+                            user_id,
+                            billable_input,
+                            r["output_tokens"],
+                            input_cost,
+                            output_cost,
+                            conn,
+                            cursor,
+                            prompt_id=prompt_id,
+                        )
+                        if not bill_result:
+                            raise MultiAiBillingError(
+                                f"Billing failed for user={user_id} model={model_name}"
+                            )
+
+                    await conn.commit()
+
+                    # Keep watchdog state transitions aligned with single-model save flow.
+                    if watchdog_hint_active and watchdog_hint_eval_id is not None:
+                        try:
+                            async with get_db_connection() as wconn:
+                                await wconn.execute(
+                                    """UPDATE WATCHDOG_STATE
+                                       SET pending_hint = NULL, hint_severity = NULL
+                                       WHERE conversation_id = ? AND prompt_id = ? AND last_evaluated_message_id = ?""",
+                                    (conversation_id, prompt_id, watchdog_hint_eval_id),
+                                )
+                                await wconn.commit()
+                        except Exception:
+                            logging.getLogger("watchdog").warning(
+                                "Failed to consume hint for conv=%d (multi-ai), will retry next turn",
+                                conversation_id,
+                                exc_info=True,
+                            )
+
+                    post_watchdog_config = _get_post_watchdog_config(watchdog_config)
+                    if (prompt_id and post_watchdog_config and post_watchdog_config.get("enabled")
+                            and user_msg_id is not None and bot_msg_id is not None):
+                        try:
+                            from tools.watchdog import watchdog_evaluate_task
+                            watchdog_evaluate_task.send(conversation_id, user_msg_id, bot_msg_id, prompt_id)
+                        except Exception:
+                            logging.getLogger("watchdog").error(
+                                "Failed to enqueue watchdog task for conv=%d (multi-ai)",
+                                conversation_id,
+                                exc_info=True,
+                            )
+
+                    return (user_msg_id, bot_msg_id)
+
+                except sqlite3.OperationalError as exc:
+                    if transaction_started:
+                        try:
+                            await conn.rollback()
+                        except Exception:
+                            pass
+                    if is_lock_error(exc) and attempt < DB_MAX_RETRIES - 1:
+                        wait_time = DB_RETRY_DELAY_BASE * (attempt + 1)
+                        logger.warning(
+                            "[save_multi_ai_to_db] Database locked (attempt %s/%s). Retrying in %.2fs",
+                            attempt + 1, DB_MAX_RETRIES, wait_time,
+                        )
+                        last_lock_error = exc
+                        retry_needed = True
+                    else:
+                        logger.error("[save_multi_ai_to_db] Operational error: %s", exc)
+                        raise
+                except Exception as exc:
+                    if transaction_started:
+                        try:
+                            await conn.rollback()
+                        except Exception:
+                            pass
+                    logger.error("[save_multi_ai_to_db] Transaction failed: %s", exc, exc_info=True)
+                    raise
+
+        if retry_needed:
+            await asyncio.sleep(wait_time)
+            continue
+        break
+
+    if last_lock_error:
+        logger.error(
+            "[save_multi_ai_to_db] Could not save after %s retries: %s",
+            DB_MAX_RETRIES, last_lock_error,
+        )
+    return (None, None)
+
+
+async def _run_single_ai(
+    queue: asyncio.Queue,
+    llm_id: int,
+    llm_info: dict,
+    context_messages: list,
+    user_message: str,
+    system_prompt: str,
+    conversation_id: int,
+    current_user,
+    request,
+    max_tokens: int,
+    thinking_budget_tokens: int = None,
+    user_api_key: str = None,
+    prompt_id: int = None,
+    temperature: float = 0.7,
+):
+    """Run a single AI model and put results into the shared queue.
+
+    Does NOT save to DB - the orchestrator handles combined save.
+    Tools are DISABLED for all Multi-AI workers.
+    """
+    machine = llm_info["machine"]
+    model = llm_info["model"]
+    input_tokens_collected = 0
+    output_tokens_collected = 0
+
+    try:
+        # Format messages for the provider
+        api_messages = await _format_messages_for_provider(
+            context_messages, user_message, system_prompt, machine, current_user
+        )
+
+        # Select the appropriate call function based on machine
+        if machine == "Gemini":
+            api_func = call_gemini_api
+        elif machine == "O1":
+            api_func = call_o1_api
+        elif machine == "GPT":
+            api_func = call_gpt_api
+        elif machine == "Claude":
+            api_func = call_claude_api
+        elif machine == "xAI":
+            api_func = call_xai_api
+        elif machine == "OpenRouter":
+            api_func = call_openrouter_api
+        else:
+            raise ValueError(f"Unknown machine type: {machine}")
+
+        # Build kwargs with save_to_db=False, tools disabled
+        kwargs = {
+            "messages": api_messages,
+            "model": model,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "prompt": system_prompt,
+            "conversation_id": conversation_id,
+            "current_user": current_user,
+            "request": request,
+            "user_message": None,  # Don't save user message per-worker
+            "save_to_db": False,
+            "llm_id": llm_id,
+            "prompt_id": prompt_id,
+        }
+
+        # O1 doesn't accept tools parameter - only add for functions that support it
+        if machine != "O1":
+            kwargs["tools"] = None  # Tools disabled for Multi-AI
+
+        if machine == "Claude" and thinking_budget_tokens:
+            kwargs["thinking_budget_tokens"] = thinking_budget_tokens
+
+        if user_api_key:
+            kwargs["user_api_key"] = user_api_key
+
+        # Iterate over the async generator
+        async for chunk in api_func(**kwargs):
+            # Check stop signal
+            if stop_signals.get(conversation_id):
+                break
+
+            if not isinstance(chunk, str):
+                continue
+
+            # Parse SSE lines
+            if chunk.startswith("data: "):
+                data_part = chunk[6:].strip()
+
+                if data_part == "[DONE]":
+                    break
+
+                if data_part.startswith("{"):
+                    try:
+                        chunk_data = orjson.loads(data_part)
+
+                        if "token_info" in chunk_data:
+                            input_tokens_collected = chunk_data.get("input_tokens", 0)
+                            output_tokens_collected = chunk_data.get("output_tokens", 0)
+                        elif "content" in chunk_data:
+                            content_text = chunk_data["content"]
+                            await queue.put({
+                                "type": "chunk",
+                                "llm_id": llm_id,
+                                "model": model,
+                                "content": content_text,
+                            })
+                        elif "error" in chunk_data:
+                            await queue.put({
+                                "type": "error",
+                                "llm_id": llm_id,
+                                "model": model,
+                                "error": str(chunk_data["error"])[:200],
+                            })
+                            return
+                    except orjson.JSONDecodeError:
+                        pass
+
+        # Signal done
+        await queue.put({
+            "type": "done",
+            "llm_id": llm_id,
+            "model": model,
+            "input_tokens": input_tokens_collected,
+            "output_tokens": output_tokens_collected,
+        })
+
+    except Exception as exc:
+        error_id = str(uuid.uuid4())[:8]
+        logger.error(
+            "[_run_single_ai] Error for llm_id=%d model=%s error_id=%s: %s",
+            llm_id, model, error_id, exc, exc_info=True,
+        )
+        await queue.put({
+            "type": "error",
+            "llm_id": llm_id,
+            "model": model,
+            "error": f"Internal error (ref: {error_id})",
+        })
+
+
+async def process_multi_ai_message(
+    request,
+    conversation_id: int,
+    current_user,
+    user_message: str,
+    model_ids: list,
+    thinking_budget_tokens: int = None,
+    user_api_keys: dict = None,
+):
+    """Process a Multi-AI comparison request.
+
+    Sends the same message to multiple AI models in parallel.
+    Yields multiplexed SSE events.
+    """
+    global stop_signals
+
+    # --- 1. Validation ---
+    async with get_db_connection(readonly=True) as conn_ro:
+        cursor = await conn_ro.execute(
+            """SELECT c.locked, c.llm_id, c.user_id, c.chat_name, c.role_id,
+                      COALESCE(p.enable_moderation, 0) AS enable_moderation,
+                      COALESCE(p.forced_llm_id, 0) AS forced_llm_id,
+                      p.allowed_llms
+               FROM CONVERSATIONS c
+               LEFT JOIN PROMPTS p ON c.role_id = p.id
+               WHERE c.id = ?""",
+            (conversation_id,),
+        )
+        conv_row = await cursor.fetchone()
+
+    if not conv_row:
+        yield f"data: {orjson.dumps({'error': 'Conversation not found'}).decode()}\n\n"
+        return
+
+    is_locked, conv_llm_id, conv_user_id, chat_name, prompt_id, enable_moderation, forced_llm_id, allowed_llms_raw = conv_row
+
+    # Verify user owns conversation
+    if current_user.id != conv_user_id:
+        yield f"data: {orjson.dumps({'error': 'Not authorized'}).decode()}\n\n"
+        return
+
+    # Block Multi-AI for WhatsApp conversations (server-side enforcement)
+    try:
+        if await is_whatsapp_conversation(conversation_id):
+            yield f"data: {orjson.dumps({'error': 'Multi-AI is not available via WhatsApp'}).decode()}\n\n"
+            return
+    except Exception as exc:
+        logger.warning(
+            "[process_multi_ai_message] Could not verify WhatsApp status for conversation %s: %s",
+            conversation_id,
+            exc,
+        )
+        yield f"data: {orjson.dumps({'error': 'Could not verify conversation channel'}).decode()}\n\n"
+        return
+
+    # Verify conversation not locked
+    if is_locked:
+        yield f"data: {orjson.dumps({'error': 'Conversation is locked'}).decode()}\n\n"
+        return
+
+    # Deduplicate model_ids preserving order
+    seen = set()
+    unique_model_ids = []
+    for mid in model_ids:
+        if mid not in seen:
+            seen.add(mid)
+            unique_model_ids.append(mid)
+    model_ids = unique_model_ids
+
+    if len(model_ids) < 2 or len(model_ids) > 4:
+        yield f"data: {orjson.dumps({'error': 'Multi-AI requires 2-4 unique model IDs'}).decode()}\n\n"
+        return
+
+    # Reject Multi-AI if prompt has forced_llm_id
+    if forced_llm_id:
+        yield f"data: {orjson.dumps({'error': 'This prompt requires a specific model and cannot use Multi-AI'}).decode()}\n\n"
+        return
+
+    # Enforce allowed_llms strictly if set on prompt
+    if allowed_llms_raw:
+        try:
+            parsed_allowed = orjson.loads(allowed_llms_raw)
+            if not isinstance(parsed_allowed, list):
+                raise ValueError("allowed_llms must be a JSON array")
+
+            allowed_set = set()
+            for allowed_id in parsed_allowed:
+                if isinstance(allowed_id, int):
+                    allowed_set.add(allowed_id)
+                elif isinstance(allowed_id, str) and allowed_id.strip().isdigit():
+                    allowed_set.add(int(allowed_id.strip()))
+                else:
+                    raise ValueError("allowed_llms contains non-integer values")
+        except (orjson.JSONDecodeError, TypeError, ValueError):
+            yield f"data: {orjson.dumps({'error': 'Prompt model restrictions are misconfigured'}).decode()}\n\n"
+            return
+
+        disallowed = [mid for mid in model_ids if mid not in allowed_set]
+        if disallowed:
+            yield f"data: {orjson.dumps({'error': f'Selected models are not allowed for this prompt: {disallowed}'}).decode()}\n\n"
+            return
+
+    # Verify each LLM exists
+    llm_infos = {}
+    for mid in model_ids:
+        info = await get_llm_info(mid)
+        if not info:
+            yield f"data: {orjson.dumps({'error': f'Model ID {mid} not found'}).decode()}\n\n"
+            return
+        llm_infos[mid] = info
+
+    # --- 2. Load context (once) ---
+    context_months = 2
+    start_date = datetime.utcnow() - timedelta(days=context_months * 30)
+    watchdog_config = None
+    watchdog_hint_active = False
+    watchdog_hint_eval_id = None
+
+    async with get_db_connection(readonly=True) as conn_ro:
+        # Load prompt / system prompt
+        cursor = await conn_ro.execute(
+            """SELECT p.prompt,
+                      u.user_info,
+                      ud.current_alter_ego_id,
+                      COALESCE(p.extensions_enabled, 0) AS extensions_enabled,
+                      COALESCE(p.extensions_auto_advance, 0) AS extensions_auto_advance,
+                      c.active_extension_id,
+                      pe.name AS extension_name,
+                      pe.prompt_text AS extension_prompt_text,
+                      p.watchdog_config
+               FROM CONVERSATIONS c
+               LEFT JOIN PROMPTS p ON c.role_id = p.id
+               LEFT JOIN USERS u ON u.id = c.user_id
+               LEFT JOIN USER_DETAILS ud ON ud.user_id = c.user_id
+               LEFT JOIN PROMPT_EXTENSIONS pe ON c.active_extension_id = pe.id
+               WHERE c.id = ?""",
+            (conversation_id,),
+        )
+        prompt_row = await cursor.fetchone()
+        if not prompt_row:
+            yield f"data: {orjson.dumps({'error': 'Could not load prompt'}).decode()}\n\n"
+            return
+
+        (
+            raw_prompt,
+            user_info,
+            current_alter_ego_id,
+            extensions_enabled,
+            extensions_auto_advance,
+            active_extension_id,
+            extension_name,
+            extension_prompt_text,
+            raw_watchdog_config,
+        ) = prompt_row
+
+        # Build system prompt
+        prompt_base = raw_prompt or ""
+
+        # Handle alter-ego
+        if current_alter_ego_id:
+            cursor = await conn_ro.execute(
+                "SELECT name, description FROM USER_ALTER_EGOS WHERE id = ? AND user_id = ?",
+                (current_alter_ego_id, current_user.id),
+            )
+            alter_ego_row = await cursor.fetchone()
+            if alter_ego_row:
+                ae_name, ae_desc = alter_ego_row
+                if ae_desc:
+                    prompt_base = f"User info:\nName: {ae_name}\n{ae_desc}\n\n-----\nSystem info:\n{prompt_base}"
+                else:
+                    prompt_base = f"User info:\nName: {ae_name}\n\n-----\nSystem info:\n{prompt_base}"
+            elif user_info:
+                prompt_base = f"User info:\n{user_info}\n\n-----\nSystem info:\n{prompt_base}"
+        elif user_info:
+            prompt_base = f"User info:\n{user_info}\n\n-----\nSystem info:\n{prompt_base}"
+
+        # Extensions: inject current extension and level context (same behavior as single-model flow).
+        if extensions_enabled and extension_prompt_text:
+            prompt_base = (
+                f"{prompt_base}\n\n"
+                f"--- ACTIVE EXTENSION: {extension_name} ---\n"
+                f"{extension_prompt_text}\n"
+                f"--- END EXTENSION ---"
+            )
+
+        if extensions_enabled and extensions_auto_advance and prompt_id:
+            cursor = await conn_ro.execute(
+                """SELECT id, name, display_order, description
+                   FROM PROMPT_EXTENSIONS
+                   WHERE prompt_id = ?
+                   ORDER BY display_order""",
+                (prompt_id,),
+            )
+            all_extensions = await cursor.fetchall()
+            if all_extensions:
+                ext_list = "\n".join([
+                    f"  - [{e[0]}] {e[1]}{' (CURRENT)' if e[0] == active_extension_id else ''}: {e[3] or 'No description'}"
+                    for e in all_extensions
+                ])
+                extensions_context = (
+                    f"\n\n--- EXTENSION LEVELS ---\n"
+                    f"This conversation has the following levels/phases. You are currently on the one marked (CURRENT).\n"
+                    f"Multi-AI compare mode has tool-calling disabled, so do not attempt to call advanceExtension.\n"
+                    f"Keep responses aligned with the CURRENT level objectives.\n"
+                    f"{ext_list}\n"
+                    f"--- END EXTENSION LEVELS ---"
+                )
+                prompt_base += extensions_context
+
+        # Watchdog: reuse prompt-hint injection in Multi-AI so behavior matches single flow.
+        watchdog_hint_block = ""
+        if raw_watchdog_config:
+            try:
+                parsed_watchdog = orjson.loads(raw_watchdog_config)
+                watchdog_config = extract_post_watchdog_config(parsed_watchdog)
+            except orjson.JSONDecodeError:
+                watchdog_config = None
+
+        watchdog_enabled = bool(watchdog_config and watchdog_config.get("enabled"))
+        if watchdog_enabled and prompt_id:
+            cursor = await conn_ro.execute(
+                """SELECT pending_hint, hint_severity, last_evaluated_message_id, consecutive_hint_count
+                   FROM WATCHDOG_STATE
+                   WHERE conversation_id = ? AND prompt_id = ?
+                   AND pending_hint IS NOT NULL""",
+                (conversation_id, prompt_id),
+            )
+            hint_row = await cursor.fetchone()
+            if hint_row and hint_row[0]:
+                sanitized_hint = _sanitize_watchdog_directive(hint_row[0])
+                hint_severity = hint_row[1]
+                consecutive_count = hint_row[3] or 0
+                watchdog_hint_block = _build_escalated_hint_block(
+                    sanitized_hint, hint_severity, consecutive_count
+                )
+                watchdog_hint_active = True
+                watchdog_hint_eval_id = hint_row[2]
+
+        # Security context
+        if await current_user.is_admin:
+            user_level = "admin"
+        elif await current_user.is_manager:
+            user_level = "manager"
+        else:
+            user_level = "user"
+        security_context = PLATFORM_SECURITY_CONTEXT.format(user_level=user_level)
+        if watchdog_enabled:
+            system_prompt = f"{prompt_base}{WATCHDOG_HIERARCHY_PREAMBLE}{watchdog_hint_block}{AI_WELFARE_MODULE}{security_context}"
+        else:
+            system_prompt = f"{prompt_base}{AI_WELFARE_MODULE}{security_context}"
+
+        # Load context messages
+        cursor = await conn_ro.execute(
+            """SELECT message, type FROM messages
+               WHERE conversation_id = ? AND date >= ?
+               ORDER BY id ASC, date ASC""",
+            (conversation_id, start_date),
+        )
+        context_rows = await cursor.fetchall()
+
+    context_messages_dicts = [{"message": parse_stored_message(custom_unescape(row[0])), "type": row[1]} for row in context_rows]
+    context_messages_dicts = flatten_multi_ai_context(context_messages_dicts)
+
+    # --- 3. Moderation (once) ---
+    if enable_moderation:
+        try:
+            moderation_input = [{"type": "text", "text": user_message}]
+            response = openai.moderations.create(
+                model="omni-moderation-latest",
+                input=moderation_input,
+            )
+            for result in response.results:
+                if result.flagged:
+                    yield f"data: {orjson.dumps({'error': 'Message blocked by moderation'}).decode()}\n\n"
+                    return
+        except Exception as exc:
+            logger.error("[process_multi_ai_message] Moderation error: %s", exc)
+            yield f"data: {orjson.dumps({'error': 'Moderation check failed'}).decode()}\n\n"
+            return
+
+    # --- 4. Chat name generation (once) ---
+    updated_chat_name = None
+    if chat_name is None:
+        message_text = re.sub(r"<[^>]+>", "", user_message)[:25]
+        updated_chat_name = message_text
+        async with conversation_write_lock(conversation_id):
+            async with get_db_connection() as conn_rw:
+                try:
+                    await conn_rw.execute("BEGIN IMMEDIATE")
+                    await conn_rw.execute(
+                        "UPDATE conversations SET chat_name = ? WHERE id = ?",
+                        (updated_chat_name, conversation_id),
+                    )
+                    await conn_rw.commit()
+                except Exception as exc:
+                    try:
+                        await conn_rw.rollback()
+                    except Exception:
+                        pass
+                    logger.warning("[process_multi_ai_message] Could not update chat_name: %s", exc)
+
+    if updated_chat_name:
+        yield f"data: {orjson.dumps({'updated_chat_name': updated_chat_name}).decode()}\n\n"
+
+    # --- 5. BYOK resolution (per model) ---
+    from common import resolve_api_key_for_provider, get_user_api_key_mode
+    api_key_mode = await get_user_api_key_mode(current_user.id)
+
+    resolved_keys = {}
+    excluded_models = []
+    for mid in model_ids:
+        info = llm_infos[mid]
+        resolved_key, use_system = resolve_api_key_for_provider(
+            user_api_keys or {}, api_key_mode, info["machine"]
+        )
+        if resolved_key:
+            resolved_keys[mid] = resolved_key
+        elif use_system:
+            resolved_keys[mid] = None  # Will use system key
+        else:
+            # own_only mode without key for this provider
+            excluded_models.append(mid)
+            yield f"data: {orjson.dumps({'multi_ai_error': True, 'llm_id': mid, 'model': info['model'], 'error': 'API key required for this provider'}).decode()}\n\n"
+
+    # Remove excluded models
+    model_ids = [mid for mid in model_ids if mid not in excluded_models]
+    if len(model_ids) < 2:
+        yield f"data: {orjson.dumps({'error': 'Not enough models with available API keys (minimum 2)'}).decode()}\n\n"
+        return
+
+    # --- 6. Balance check ---
+    current_balance = await get_balance(current_user.id)
+    if current_balance <= 0:
+        yield f"data: {orjson.dumps({'error': 'Insufficient balance'}).decode()}\n\n"
+        return
+
+    # Estimate max_tokens based on the SUM of costs across all selected models.
+    # This is conservative and prevents partial billing failures at commit time.
+    input_tokens_est = estimate_message_tokens(user_message)
+
+    async with get_db_connection(readonly=True) as conn_ro:
+        placeholders = ",".join("?" for _ in model_ids)
+        cursor = await conn_ro.execute(
+            f"SELECT id, input_token_cost, output_token_cost FROM LLM WHERE id IN ({placeholders})",
+            tuple(model_ids),
+        )
+        cost_rows = await cursor.fetchall()
+
+    costs_by_id = {
+        int(row[0]): (float(row[1] or 0.0), float(row[2] or 0.0))
+        for row in cost_rows
+    }
+
+    missing_cost_ids = [mid for mid in model_ids if mid not in costs_by_id]
+    if missing_cost_ids:
+        yield f"data: {orjson.dumps({'error': f'Cost configuration missing for models: {missing_cost_ids}'}).decode()}\n\n"
+        return
+
+    sum_input_cost_per_token = 0.0
+    sum_output_cost_per_token = 0.0
+    for mid in model_ids:
+        input_cost_million, output_cost_million = costs_by_id[mid]
+        if output_cost_million <= 0:
+            model_name = llm_infos[mid]["model"]
+            yield f"data: {orjson.dumps({'error': f'Invalid output token cost for model: {model_name}'}).decode()}\n\n"
+            return
+        if input_cost_million < 0:
+            model_name = llm_infos[mid]["model"]
+            yield f"data: {orjson.dumps({'error': f'Invalid input token cost for model: {model_name}'}).decode()}\n\n"
+            return
+
+        sum_input_cost_per_token += input_cost_million / 1_000_000
+        sum_output_cost_per_token += output_cost_million / 1_000_000
+
+    if sum_output_cost_per_token <= 0:
+        yield f"data: {orjson.dumps({'error': 'Invalid model cost configuration'}).decode()}\n\n"
+        return
+
+    estimated_input_cost = input_tokens_est * sum_input_cost_per_token
+    if estimated_input_cost >= current_balance:
+        yield f"data: {orjson.dumps({'error': 'Insufficient balance'}).decode()}\n\n"
+        return
+
+    available_for_output = current_balance - estimated_input_cost
+    max_affordable_tokens = int(available_for_output / sum_output_cost_per_token)
+    max_tokens = int(min(MAX_TOKENS, max_affordable_tokens))
+
+    while max_tokens > 0:
+        estimated_total_cost = estimated_input_cost + (max_tokens * sum_output_cost_per_token)
+        if estimated_total_cost <= current_balance:
+            break
+        max_tokens -= 1
+
+    if max_tokens < 1:
+        yield f"data: {orjson.dumps({'error': 'Insufficient balance'}).decode()}\n\n"
+        return
+
+    logger.info(
+        "[process_multi_ai_message] Cost pre-check passed: models=%s, est_input_cost=%.6f, "
+        "max_tokens=%d, est_total_cost=%.6f, balance=%.6f",
+        model_ids,
+        estimated_input_cost,
+        max_tokens,
+        estimated_input_cost + (max_tokens * sum_output_cost_per_token),
+        current_balance,
+    )
+
+    # --- 7. Parallel execution ---
+    stop_signals[conversation_id] = False
+
+    queue = asyncio.Queue()
+    tasks = {}
+    results = {}
+
+    for mid in model_ids:
+        info = llm_infos[mid]
+        messages_copy = [msg.copy() for msg in context_messages_dicts]
+
+        task = asyncio.create_task(
+            _run_single_ai(
+                queue=queue,
+                llm_id=mid,
+                llm_info=info,
+                context_messages=messages_copy,
+                user_message=user_message,
+                system_prompt=system_prompt,
+                conversation_id=conversation_id,
+                current_user=current_user,
+                request=request,
+                max_tokens=max_tokens,
+                thinking_budget_tokens=thinking_budget_tokens,
+                user_api_key=resolved_keys.get(mid),
+                prompt_id=prompt_id,
+                temperature=0.7,
+            )
+        )
+        tasks[mid] = task
+        results[mid] = {
+            "content": "",
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "error": False,
+            "model": info["model"],
+            "machine": info["machine"],
+        }
+
+    done_count = 0
+    total = len(model_ids)
+
+    try:
+        while done_count < total:
+            item = await queue.get()
+            item_llm_id = item["llm_id"]
+
+            if item["type"] == "chunk":
+                results[item_llm_id]["content"] += item["content"]
+                yield f"data: {orjson.dumps({'multi_ai': True, 'llm_id': item_llm_id, 'model': item['model'], 'content': item['content']}).decode()}\n\n"
+
+            elif item["type"] == "done":
+                results[item_llm_id]["input_tokens"] = item.get("input_tokens", 0)
+                results[item_llm_id]["output_tokens"] = item.get("output_tokens", 0)
+                done_count += 1
+                yield f"data: {orjson.dumps({'multi_ai_done': True, 'llm_id': item_llm_id, 'model': item['model']}).decode()}\n\n"
+
+            elif item["type"] == "error":
+                results[item_llm_id]["content"] = item.get("error", "Unknown error")
+                results[item_llm_id]["error"] = True
+                done_count += 1
+                yield f"data: {orjson.dumps({'multi_ai_error': True, 'llm_id': item_llm_id, 'model': item['model'], 'error': item['error']}).decode()}\n\n"
+
+    except (asyncio.CancelledError, Exception):
+        stop_signals[conversation_id] = True
+        for task in tasks.values():
+            task.cancel()
+        await asyncio.gather(*tasks.values(), return_exceptions=True)
+        raise
+    finally:
+        for task in tasks.values():
+            if not task.done():
+                task.cancel()
+
+    # --- 8. Save combined result ---
+    combined_message = build_multi_ai_message(results, model_ids)
+    total_input = sum(r["input_tokens"] for r in results.values())
+    total_output = sum(r["output_tokens"] for r in results.values())
+
+    try:
+        user_msg_id, bot_msg_id = await save_multi_ai_to_db(
+            combined_message, results, model_ids,
+            total_input, total_output,
+            conversation_id, current_user.id, user_message,
+            prompt_id=prompt_id,
+            watchdog_config=watchdog_config,
+            watchdog_hint_active=watchdog_hint_active,
+            watchdog_hint_eval_id=watchdog_hint_eval_id,
+        )
+
+        yield f"data: {orjson.dumps({'message_ids': {'user': user_msg_id, 'bot': bot_msg_id}}).decode()}\n\n"
+    except MultiAiBillingError as exc:
+        logger.warning("[process_multi_ai_message] Multi-AI billing failed: %s", exc)
+        yield f"data: {orjson.dumps({'error': 'Insufficient balance to finalize Multi-AI response'}).decode()}\n\n"
+    except Exception as exc:
+        logger.error("[process_multi_ai_message] Failed to save to DB: %s", exc, exc_info=True)
+        yield f"data: {orjson.dumps({'error': 'Failed to save response'}).decode()}\n\n"
+
+    yield "data: [DONE]\n\n"
