@@ -261,15 +261,15 @@ def _validate_tags(tags_input) -> Optional[str]:
 
 def _inject_pack_analytics(html_content: str, pack_id: int) -> str:
     """Inject analytics tracking script into pack landing HTML."""
-    if "_spark_analytics_loaded" in html_content:
+    if "_aurvek_analytics_loaded" in html_content:
         return html_content  # Already injected
 
     analytics_script = f"""
-<!-- Spark Analytics Tracking -->
+<!-- Aurvek Analytics Tracking -->
 <script>
 (function() {{
-    if (window._spark_analytics_loaded) return;
-    window._spark_analytics_loaded = true;
+    if (window._aurvek_analytics_loaded) return;
+    window._aurvek_analytics_loaded = true;
     fetch('/api/analytics/track-visit', {{
         method: 'POST',
         headers: {{'Content-Type': 'application/json'}},

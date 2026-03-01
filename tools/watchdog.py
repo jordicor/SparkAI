@@ -1,5 +1,5 @@
 """
-Watchdog: Generic conversation steering engine for Spark.
+Watchdog: Generic conversation steering engine for Aurvek.
 Activated per-prompt via PROMPTS.watchdog_config JSON field.
 Runs asynchronously via Dramatiq - does NOT block the conversation.
 

@@ -5,7 +5,7 @@
  */
 
 (function() {
-    const STORAGE_KEY = 'spark_user_api_keys';
+    const STORAGE_KEY = 'aurvek_user_api_keys';
 
     // Only initialize if not already defined
     if (window.userCredentials) {
@@ -18,7 +18,7 @@
          * @returns {string} 'session' | 'persistent' | 'server'
          */
         getStorageMode: function() {
-            const savedMode = localStorage.getItem('spark_credentials_storage_mode');
+            const savedMode = localStorage.getItem('aurvek_credentials_storage_mode');
             if (savedMode) {
                 return savedMode;
             }

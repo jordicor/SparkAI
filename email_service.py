@@ -11,13 +11,13 @@ logger = logging.getLogger(__name__)
 
 # Default branding values
 DEFAULT_BRANDING = {
-    'company_name': 'SparkAI',
+    'company_name': 'Aurvek',
     'logo_url': None,
     'brand_color_primary': '#6366f1',
     'brand_color_secondary': '#10B981',
     'footer_text': None,
     'email_signature': None,
-    'hide_spark_branding': False
+    'hide_platform_branding': False
 }
 
 
@@ -62,7 +62,7 @@ class EmailService:
             return False
 
         try:
-            subject = "SparkAI - Ultra Admin+ Verification Code"
+            subject = "Aurvek - Ultra Admin+ Verification Code"
             html_body = f"""
             <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 20px;">
                 <h2 style="color: #333;">Ultra Admin+ Verification</h2>
@@ -183,7 +183,7 @@ class EmailService:
         html_body = self._create_verification_email_template(verification_url, is_manager, prompt_name, b)
 
         # Use branding company name for subject
-        company_name = b.get('company_name') or 'SparkAI'
+        company_name = b.get('company_name') or 'Aurvek'
         if is_manager:
             subject = f"Verify your {company_name} account"
         else:
@@ -217,12 +217,12 @@ class EmailService:
         """Create HTML email template for verification with branding support"""
         b = branding or DEFAULT_BRANDING
 
-        company_name = b.get('company_name') or 'SparkAI'
+        company_name = b.get('company_name') or 'Aurvek'
         primary_color = b.get('brand_color_primary') or '#6366f1'
         logo_url = b.get('logo_url')
         footer_text = b.get('footer_text') or ''
         email_signature = b.get('email_signature') or ''
-        hide_spark_branding = b.get('hide_spark_branding', False)
+        hide_platform_branding = b.get('hide_platform_branding', False)
 
         if is_manager:
             title = f"Welcome to {company_name}"
@@ -251,8 +251,8 @@ class EmailService:
             footer_content += f"<p style='margin-top: 10px;'>{email_signature}</p>"
 
         powered_by = ''
-        if not hide_spark_branding:
-            powered_by = '<p style="font-size: 10px; color: #999; margin-top: 15px;">Powered by SparkAI</p>'
+        if not hide_platform_branding:
+            powered_by = '<p style="font-size: 10px; color: #999; margin-top: 15px;">Powered by Aurvek</p>'
 
         return f"""
         <!DOCTYPE html>
@@ -344,7 +344,7 @@ class EmailService:
 
         b = self._get_branding(branding)
         html_body = self._create_email_template(magic_link, username, b)
-        company_name = b.get('company_name') or 'SparkAI'
+        company_name = b.get('company_name') or 'Aurvek'
 
         data = {
             "From": self.from_email,
@@ -372,12 +372,12 @@ class EmailService:
         """Create HTML email template with branding support"""
         b = branding or DEFAULT_BRANDING
 
-        company_name = b.get('company_name') or 'SparkAI'
+        company_name = b.get('company_name') or 'Aurvek'
         primary_color = b.get('brand_color_primary') or '#6366f1'
         logo_url = b.get('logo_url')
         footer_text = b.get('footer_text') or ''
         email_signature = b.get('email_signature') or ''
-        hide_spark_branding = b.get('hide_spark_branding', False)
+        hide_platform_branding = b.get('hide_platform_branding', False)
 
         # Logo HTML
         logo_html = ''
@@ -396,8 +396,8 @@ class EmailService:
             footer_content += f"<p style='margin-top: 10px;'>{email_signature}</p>"
 
         powered_by = ''
-        if not hide_spark_branding:
-            powered_by = '<p style="font-size: 10px; color: #999; margin-top: 15px;">Powered by SparkAI</p>'
+        if not hide_platform_branding:
+            powered_by = '<p style="font-size: 10px; color: #999; margin-top: 15px;">Powered by Aurvek</p>'
 
         return f"""
         <!DOCTYPE html>
@@ -481,7 +481,7 @@ class EmailService:
         b = self._get_branding(branding)
         html_body = self._create_claim_entitlement_email_template(claim_url, product_name, b)
 
-        company_name = b.get('company_name') or 'SparkAI'
+        company_name = b.get('company_name') or 'Aurvek'
         display_name = product_name or company_name
         subject = f"Claim your access to {display_name}"
 
@@ -512,12 +512,12 @@ class EmailService:
         """Create HTML email template for entitlement claim with branding support"""
         b = branding or DEFAULT_BRANDING
 
-        company_name = b.get('company_name') or 'SparkAI'
+        company_name = b.get('company_name') or 'Aurvek'
         primary_color = b.get('brand_color_primary') or '#6366f1'
         logo_url = b.get('logo_url')
         footer_text = b.get('footer_text') or ''
         email_signature = b.get('email_signature') or ''
-        hide_spark_branding = b.get('hide_spark_branding', False)
+        hide_platform_branding = b.get('hide_platform_branding', False)
 
         display_name = product_name or company_name
         title = "Claim Your Access"
@@ -537,8 +537,8 @@ class EmailService:
             footer_content += f"<p style='margin-top: 10px;'>{email_signature}</p>"
 
         powered_by = ''
-        if not hide_spark_branding:
-            powered_by = '<p style="font-size: 10px; color: #999; margin-top: 15px;">Powered by SparkAI</p>'
+        if not hide_platform_branding:
+            powered_by = '<p style="font-size: 10px; color: #999; margin-top: 15px;">Powered by Aurvek</p>'
 
         return f"""
         <!DOCTYPE html>

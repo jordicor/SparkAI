@@ -1,7 +1,7 @@
 """
-SparkAI Database Seed Script
+Aurvek Database Seed Script
 
-This script initializes a fresh SparkAI installation with:
+This script initializes a fresh Aurvek installation with:
 - User roles (admin, manager, user)
 - Services (TTS, STT, Images)
 - Voices (ElevenLabs, OpenAI)
@@ -30,7 +30,7 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # Configuration
-DATABASE_PATH = PROJECT_ROOT / "data" / "Spark.db"
+DATABASE_PATH = PROJECT_ROOT / "data" / "Aurvek.db"
 SEED_DIR = SCRIPT_DIR
 SEED_IMAGES_DIR = SEED_DIR / "images"
 SEED_PROMPTS_DIR = SEED_DIR / "prompts"
@@ -39,11 +39,11 @@ SEED_WELCOMES_DIR = SEED_DIR / "welcomes"
 
 # Admin user configuration
 ADMIN_USERNAME = "admin"
-ADMIN_EMAIL = "admin@sparkai.local"
+ADMIN_EMAIL = "admin@aurvek.local"
 ADMIN_PASSWORD_HASH = None  # Will use magic link only by default
 
 # Pepper for user hash (should match common.py)
-USER_HASH_PEPPER = "SparkAI_User_Hash_Pepper_2024"
+USER_HASH_PEPPER = "Aurvek_User_Hash_Pepper_2024"
 
 
 def get_user_hash(username: str) -> str:
@@ -143,12 +143,12 @@ LLM_MODELS = [
 PROMPTS = [
     {
         "id": 1,
-        "name": "Spark",
-        "description": "Default general-purpose AI assistant for the SparkAI platform.",
+        "name": "Aurvek",
+        "description": "Default general-purpose AI assistant for the Aurvek platform.",
         "voice_id": 34,  # Aitana
         "public": True,
-        "prompt_file": "spark.txt",
-        "image_folder": "spark",
+        "prompt_file": "aurvek.txt",
+        "image_folder": "aurvek",
     },
     {
         "id": 2,
@@ -247,7 +247,7 @@ PACKS = [
         "name": "Productivity Suite",
         "slug": "productivity-suite",
         "description": "Your essential AI toolkit for getting things done. Three specialized assistants that cover your daily professional needs.",
-        "prompt_ids": [1, 2, 3],  # Spark, Writer, Coder
+        "prompt_ids": [1, 2, 3],  # Aurvek, Writer, Coder
         "welcome_folder": "pack_productivity_suite",
     },
     {
@@ -523,7 +523,7 @@ def seed_packs(conn, admin_id):
 def run_seed(force=False):
     """Run the database seed."""
     print("\n" + "=" * 60)
-    print("SparkAI Database Seed")
+    print("Aurvek Database Seed")
     print("=" * 60)
 
     # Check database
@@ -563,7 +563,7 @@ def run_seed(force=False):
         print(f"  Username: {ADMIN_USERNAME}")
         print(f"  Email: {ADMIN_EMAIL}")
         print(f"  Auth mode: Magic link only")
-        print(f"\nDefault prompt: Spark (ID: 1)")
+        print(f"\nDefault prompt: Aurvek (ID: 1)")
         print(f"Total prompts: {len(PROMPTS)}")
 
     except Exception as e:

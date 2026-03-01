@@ -16,7 +16,7 @@ from prompts import get_prompt_info, get_prompt_path, get_pack_path
 logger = logging.getLogger(__name__)
 
 _NAVBAR_TEMPLATE_PATH = os.path.join(
-    os.path.dirname(__file__), "templates", "spark_world_navbar.html"
+    os.path.dirname(__file__), "templates", "aurvek_world_navbar.html"
 )
 
 
@@ -221,7 +221,7 @@ async def _get_prompt_parent_pack(user_id: int, prompt_id: int) -> dict | None:
 
 async def serve_welcome_world(request, user, world: dict) -> HTMLResponse:
     """
-    Serve a welcome world page with the floating Spark navbar injected.
+    Serve a welcome world page with the floating Aurvek navbar injected.
 
     Returns an HTMLResponse with the welcome HTML enriched with the
     product switcher data and navbar overlay.
@@ -238,12 +238,12 @@ async def serve_welcome_world(request, user, world: dict) -> HTMLResponse:
     html = html.replace("/home/static/", f"/home/static/{world_tag}/")
 
     # Build navbar HTML
-    navbar_html = render_spark_world_navbar(world)
+    navbar_html = render_aurvek_world_navbar(world)
 
     # Build switcher data
     switcher_data = await get_world_switcher_data(user, world)
     switcher_script = (
-        f"<script>window.__sparkWorlds = {json.dumps(switcher_data)};</script>"
+        f"<script>window.__aurvekWorlds = {json.dumps(switcher_data)};</script>"
     )
 
     # Inject before </head> and </body>
@@ -253,7 +253,7 @@ async def serve_welcome_world(request, user, world: dict) -> HTMLResponse:
     return HTMLResponse(html)
 
 
-def render_spark_world_navbar(world: dict) -> str:
+def render_aurvek_world_navbar(world: dict) -> str:
     """
     Read and return the static navbar template HTML.
 

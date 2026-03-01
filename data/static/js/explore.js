@@ -908,7 +908,7 @@ async function purchasePack(packId, landingUrl) {
 
 async function sharePrompt(name, landingUrl) {
     const shareUrl = landingUrl || window.location.href;
-    const shareText = `Check out "${name}" on Spark AI!`;
+    const shareText = `Check out "${name}" on Aurvek AI!`;
 
     if (navigator.share) {
         try {

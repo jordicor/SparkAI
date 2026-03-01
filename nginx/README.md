@@ -1,6 +1,6 @@
-# SPARK Nginx Configuration Examples
+# AURVEK Nginx Configuration Examples
 
-This directory contains example Nginx configurations for running SPARK with a reverse proxy setup that provides:
+This directory contains example Nginx configurations for running AURVEK with a reverse proxy setup that provides:
 
 - **Authenticated file serving** (images, videos, PDFs, MP3s)
 - **Rate limiting** by content type
@@ -40,7 +40,7 @@ This directory contains example Nginx configurations for running SPARK with a re
 
 ## File Descriptions
 
-### `spark-main.conf`
+### `aurvek-main.conf`
 Main configuration (default_server) with:
 - **Explicit FastAPI routes** (no fallback - protects from scanner attacks)
 - JWT token extraction from URL parameters
@@ -49,9 +49,9 @@ Main configuration (default_server) with:
 - Rate limiting zones
 - Security headers
 
-### `spark-custom-domains.conf`
+### `aurvek-custom-domains.conf`
 Catch-all server block for custom domain landing pages:
-- Handles any domain NOT matched by `spark-main.conf`
+- Handles any domain NOT matched by `aurvek-main.conf`
 - Routes all requests to FastAPI's CustomDomainMiddleware
 - Middleware validates domain ownership and serves landing page or 404
 - SSL handled by Cloudflare Proxy (user configures CNAME)
@@ -59,7 +59,7 @@ Catch-all server block for custom domain landing pages:
 ### `snippets/fastapi-proxy.conf`
 Reusable proxy configuration included by route locations. Avoids code duplication.
 
-### `spark-cdn.conf`
+### `aurvek-cdn.conf`
 Static content CDN configuration for serving CSS, JS, and public assets with long cache times.
 
 ### `rate_limiting.conf`
@@ -89,7 +89,7 @@ Replace these placeholders with your actual values:
 
 | Placeholder | Description | Example |
 |------------|-------------|---------|
-| `{{SPARK_ROOT}}` | SPARK installation directory | `/var/www/spark` or `D:/AcertingAI/SPARK` |
+| `{{AURVEK_ROOT}}` | AURVEK installation directory | `/var/www/aurvek` or `D:/AcertingAI/AURVEK` |
 | `{{FASTAPI_PORT}}` | FastAPI port | `7789` |
 | `{{SSL_CERT}}` | Path to SSL certificate | `/etc/letsencrypt/live/domain/fullchain.pem` |
 | `{{SSL_KEY}}` | Path to SSL private key | `/etc/letsencrypt/live/domain/privkey.pem` |
@@ -113,10 +113,10 @@ nginx -s reload
 
 ## Custom Domain Flow
 
-1. User configures custom domain in SPARK (e.g., `my-chatbot.com`)
+1. User configures custom domain in AURVEK (e.g., `my-chatbot.com`)
 2. User sets up CNAME in their DNS pointing to your server
 3. User enables Cloudflare Proxy (orange cloud) for SSL
-4. User clicks "Verify" - SPARK checks DNS configuration
+4. User clicks "Verify" - AURVEK checks DNS configuration
 5. User pays activation fee (or admin activates for free)
 6. Requests to `my-chatbot.com` hit the catch-all server block
 7. FastAPI's CustomDomainMiddleware validates and serves landing page

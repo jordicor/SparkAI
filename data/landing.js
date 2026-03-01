@@ -1,5 +1,5 @@
 /* ============================================
-   SparkAI Landing Pages - Shared JavaScript
+   Aurvek Landing Pages - Shared JavaScript
    Engine: NuriAI
    ============================================ */
 
@@ -419,6 +419,6 @@
     // Initialize
     // ============================================
 
-    console.log('SparkAI Landing initialized - Powered by NuriAI');
+    console.log('Aurvek Landing initialized - Powered by NuriAI');
 
 })();

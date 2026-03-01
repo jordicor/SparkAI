@@ -194,8 +194,8 @@
             </div>
             <div class="toggle-switch">
                 <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" id="hideSparkBranding">
-                    <label class="form-check-label" for="hideSparkBranding">Hide "Powered by SparkAI" branding</label>
+                    <input class="form-check-input" type="checkbox" id="hidePlatformBranding">
+                    <label class="form-check-label" for="hidePlatformBranding">Hide "Powered by Aurvek" branding</label>
                 </div>
             </div>
         </div>
@@ -285,7 +285,7 @@
                 <div class="email-footer">
                     <p id="footerPreview"></p>
                     <p id="signaturePreview"></p>
-                    <p class="powered-by" id="poweredByPreview">Powered by SparkAI</p>
+                    <p class="powered-by" id="poweredByPreview">Powered by Aurvek</p>
                 </div>
             </div>
         </div>
@@ -320,7 +320,7 @@
             document.getElementById('colorSecondaryText').value = branding.brand_color_secondary || '#10B981';
             document.getElementById('footerText').value = branding.footer_text || '';
             document.getElementById('emailSignature').value = branding.email_signature || '';
-            document.getElementById('hideSparkBranding').checked = branding.hide_spark_branding || false;
+            document.getElementById('hidePlatformBranding').checked = branding.hide_platform_branding || false;
             document.getElementById('disableThemeSelector').checked = branding.disable_theme_selector || false;
 
             if (branding.forced_theme) {
@@ -349,7 +349,7 @@
                 brand_color_secondary: document.getElementById('colorSecondaryText').value,
                 footer_text: document.getElementById('footerText').value || null,
                 email_signature: document.getElementById('emailSignature').value || null,
-                hide_spark_branding: document.getElementById('hideSparkBranding').checked,
+                hide_platform_branding: document.getElementById('hidePlatformBranding').checked,
                 forced_theme: document.getElementById('disableThemeSelector').checked ? selectedTheme : null,
                 disable_theme_selector: document.getElementById('disableThemeSelector').checked
             };
@@ -417,7 +417,7 @@
         const logoUrl = document.getElementById('logoUrl').value;
         const footerText = document.getElementById('footerText').value;
         const signature = document.getElementById('emailSignature').value;
-        const hidePowered = document.getElementById('hideSparkBranding').checked;
+        const hidePowered = document.getElementById('hidePlatformBranding').checked;
 
         // Update CSS variables
         document.documentElement.style.setProperty('--preview-primary', primary);

@@ -1,6 +1,6 @@
-# SparkAI Database Seed
+# Aurvek Database Seed
 
-This directory contains the seed data for initializing a fresh SparkAI installation.
+This directory contains the seed data for initializing a fresh Aurvek installation.
 
 ## Contents
 
@@ -10,7 +10,7 @@ data/seed/
 ├── seed_data.py         # Main seed script
 ├── README.md            # This file
 ├── prompts/             # Prompt text files (system prompts)
-│   ├── spark.txt
+│   ├── aurvek.txt
 │   ├── writer.txt
 │   ├── coder.txt
 │   ├── tutor.txt
@@ -22,12 +22,12 @@ data/seed/
 │   ├── discursoman.txt
 │   └── agente_chillon.txt
 ├── images/              # Prompt avatar images (4 sizes each)
-│   ├── spark/
+│   ├── aurvek/
 │   ├── writer/
 │   ├── ...
 │   └── agente_chillon/
 └── landings/            # Landing page templates for each prompt
-    ├── spark/
+    ├── aurvek/
     │   ├── home.html    # Main landing page
     │   └── static/      # CSS, JS, additional images
     ├── writer/
@@ -104,12 +104,12 @@ The seed script creates:
 
 5. **Admin User**
    - Username: `admin`
-   - Email: `admin@sparkai.local`
+   - Email: `admin@aurvek.local`
    - Auth: Magic link only (no password)
    - Full access to all features
 
 6. **Prompts** (11) - Each with avatar images AND landing pages
-   - Spark (general assistant)
+   - Aurvek (general assistant)
    - Writer (writing assistant)
    - Coder (coding assistant)
    - Tutor (teaching assistant)

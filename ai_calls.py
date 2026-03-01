@@ -3667,8 +3667,8 @@ async def call_openrouter_api(messages, model, temperature, max_tokens, prompt, 
 
     # OpenRouter recommended headers for tracking
     extra_headers = {
-        "HTTP-Referer": "https://spark.app",
-        "X-Title": "SPARK AI Chat"
+        "HTTP-Referer": "https://aurvek.com",
+        "X-Title": "AURVEK AI Chat"
     }
 
     async for chunk in call_llm_api(

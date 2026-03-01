@@ -1,5 +1,5 @@
 """
-SparkAI Database Seed Module
+Aurvek Database Seed Module
 
 Run the seed with:
     python -m data.seed.seed_data

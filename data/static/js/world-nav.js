@@ -1,7 +1,7 @@
 (function() {
     'use strict';
 
-    var nav = document.getElementById('spark-world-nav');
+    var nav = document.getElementById('aurvek-world-nav');
     if (!nav) return;
 
     // =========================================================================
@@ -15,9 +15,9 @@
             requestAnimationFrame(function() {
                 var currentScrollY = window.scrollY;
                 if (currentScrollY > lastScrollY && currentScrollY > 80) {
-                    nav.classList.add('spark-world-nav--hidden');
+                    nav.classList.add('aurvek-world-nav--hidden');
                 } else {
-                    nav.classList.remove('spark-world-nav--hidden');
+                    nav.classList.remove('aurvek-world-nav--hidden');
                 }
                 lastScrollY = currentScrollY;
                 ticking = false;
@@ -30,16 +30,16 @@
     // Crossfade page transitions
     // =========================================================================
     // Fade-in on load
-    document.body.classList.add('spark-world-page');
+    document.body.classList.add('aurvek-world-page');
 
     // Re-trigger fade-in on BFCache restore (browser back)
     window.addEventListener('pageshow', function(e) {
         if (e.persisted) {
-            document.body.classList.remove('spark-world-fade-out');
-            document.body.classList.remove('spark-world-page');
+            document.body.classList.remove('aurvek-world-fade-out');
+            document.body.classList.remove('aurvek-world-page');
             // Force reflow to restart animation
             void document.body.offsetWidth;
-            document.body.classList.add('spark-world-page');
+            document.body.classList.add('aurvek-world-page');
         }
     });
 
@@ -49,7 +49,7 @@
         if (!link) return;
         e.preventDefault();
         var href = link.href;
-        document.body.classList.add('spark-world-fade-out');
+        document.body.classList.add('aurvek-world-fade-out');
         setTimeout(function() { window.location.href = href; }, 250);
     });
 
@@ -65,9 +65,9 @@
     var settingsDropdown = document.getElementById('world-settings-dropdown');
 
     function closeAllDropdowns() {
-        if (dropdown) dropdown.classList.remove('spark-world-nav-dropdown--open');
-        if (chevron) chevron.classList.remove('spark-world-nav-chevron--open');
-        if (settingsDropdown) settingsDropdown.classList.remove('spark-world-nav-dropdown--open');
+        if (dropdown) dropdown.classList.remove('aurvek-world-nav-dropdown--open');
+        if (chevron) chevron.classList.remove('aurvek-world-nav-chevron--open');
+        if (settingsDropdown) settingsDropdown.classList.remove('aurvek-world-nav-dropdown--open');
     }
 
     // =========================================================================
@@ -76,11 +76,11 @@
     if (switcherBtn) {
         switcherBtn.addEventListener('click', function(e) {
             e.stopPropagation();
-            var isOpen = dropdown.classList.contains('spark-world-nav-dropdown--open');
+            var isOpen = dropdown.classList.contains('aurvek-world-nav-dropdown--open');
             closeAllDropdowns();
             if (!isOpen) {
-                dropdown.classList.add('spark-world-nav-dropdown--open');
-                chevron.classList.add('spark-world-nav-chevron--open');
+                dropdown.classList.add('aurvek-world-nav-dropdown--open');
+                chevron.classList.add('aurvek-world-nav-chevron--open');
             }
         });
     }
@@ -91,10 +91,10 @@
     if (settingsBtn) {
         settingsBtn.addEventListener('click', function(e) {
             e.stopPropagation();
-            var isOpen = settingsDropdown.classList.contains('spark-world-nav-dropdown--open');
+            var isOpen = settingsDropdown.classList.contains('aurvek-world-nav-dropdown--open');
             closeAllDropdowns();
             if (!isOpen) {
-                settingsDropdown.classList.add('spark-world-nav-dropdown--open');
+                settingsDropdown.classList.add('aurvek-world-nav-dropdown--open');
             }
         });
     }
@@ -116,9 +116,9 @@
     }
 
     // =========================================================================
-    // Populate from window.__sparkWorlds
+    // Populate from window.__aurvekWorlds
     // =========================================================================
-    var worldsData = window.__sparkWorlds || {};
+    var worldsData = window.__aurvekWorlds || {};
 
     // Set current product name
     if (worldsData.current && currentName) {
@@ -142,34 +142,34 @@
 
             var item = document.createElement('a');
             item.href = '/welcome/' + product.type + '/' + product.id;
-            item.className = 'spark-world-nav-dropdown-item';
+            item.className = 'aurvek-world-nav-dropdown-item';
 
             // Mark active item
             if (worldsData.current &&
                 product.type === worldsData.current.type &&
                 String(product.id) === String(worldsData.current.id)) {
-                item.classList.add('spark-world-nav-dropdown-item--active');
+                item.classList.add('aurvek-world-nav-dropdown-item--active');
             }
 
             // Avatar or placeholder
             if (product.avatar_url) {
                 var avatar = document.createElement('img');
                 avatar.src = product.avatar_url;
-                avatar.className = 'spark-world-nav-dropdown-avatar';
+                avatar.className = 'aurvek-world-nav-dropdown-avatar';
                 avatar.alt = '';
                 avatar.loading = 'lazy';
                 avatar.onerror = function() { this.style.display = 'none'; };
                 item.appendChild(avatar);
             } else {
                 var placeholder = document.createElement('div');
-                placeholder.className = 'spark-world-nav-dropdown-avatar-placeholder';
+                placeholder.className = 'aurvek-world-nav-dropdown-avatar-placeholder';
                 placeholder.textContent = (product.name || '?')[0].toUpperCase();
                 item.appendChild(placeholder);
             }
 
             // Product name
             var name = document.createElement('span');
-            name.className = 'spark-world-nav-dropdown-name';
+            name.className = 'aurvek-world-nav-dropdown-name';
             name.textContent = product.name;
             item.appendChild(name);
 

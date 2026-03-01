@@ -127,12 +127,12 @@ class CloudflareGeoClient:
             return data.get("result", {"id": None, "rules": []})
 
     async def update_ruleset(self, rules: list[dict]) -> dict:
-        """Merge spark-managed rules with existing non-spark rules and push to CF.
+        """Merge aurvek-managed rules with existing non-aurvek rules and push to CF.
 
         This is the key method:
         1. GET the current ruleset to get its ID and all existing rules
-        2. Filter out rules whose description starts with '[spark-geo-'
-        3. Merge in the new rules list (spark rules FIRST for priority)
+        2. Filter out rules whose description starts with '[aurvek-geo-'
+        3. Merge in the new rules list (aurvek rules FIRST for priority)
         4. PUT the merged ruleset (or POST to create if none exists)
         """
         async with httpx.AsyncClient(timeout=15) as client:
@@ -142,13 +142,13 @@ class CloudflareGeoClient:
             existing_rules = current.get("rules", [])
 
             # Step 2: Filter out our managed rules
-            non_spark_rules = [
+            non_aurvek_rules = [
                 r for r in existing_rules
-                if not (r.get("description", "").startswith("[spark-geo-"))
+                if not (r.get("description", "").startswith("[aurvek-geo-"))
             ]
 
-            # Step 3: Merge - spark rules first (global before landing) for priority
-            merged_rules = rules + non_spark_rules
+            # Step 3: Merge - aurvek rules first (global before landing) for priority
+            merged_rules = rules + non_aurvek_rules
 
             # Strip 'id', 'ref', 'version', 'last_updated' from rules before PUT
             # (CF rejects these in the request body)
@@ -174,7 +174,7 @@ class CloudflareGeoClient:
                 # Step 4b: POST to create new ruleset
                 url = f"{self.CF_API_BASE}/zones/{self._zone_id}/rulesets"
                 payload = {
-                    "name": "Spark Geo-Fencing Rules",
+                    "name": "Aurvek Geo-Fencing Rules",
                     "kind": "zone",
                     "phase": "http_request_firewall_custom",
                     "rules": cleaned_rules,
@@ -188,7 +188,7 @@ class CloudflareGeoClient:
                 raise RuntimeError(f"CF API error updating ruleset: {errors}")
 
             result = data.get("result", {})
-            logger.info("CF ruleset updated: %d total rules (%d spark-managed)",
+            logger.info("CF ruleset updated: %d total rules (%d aurvek-managed)",
                         len(result.get("rules", [])), len(rules))
             return result
 
@@ -273,7 +273,7 @@ class CloudflareGeoClient:
                 'and http.request.uri.query contains "token=" '
                 'and http.request.uri.path contains "/img/")'
             ),
-            "description": "[spark-img-skip] Allow AI providers to download authenticated images",
+            "description": "[aurvek-img-skip] Allow AI providers to download authenticated images",
             "enabled": True,
         }
 
@@ -286,10 +286,10 @@ class CloudflareGeoClient:
             if not ruleset_id:
                 raise RuntimeError("No existing WAF ruleset found - run a geo sync first to create one")
 
-            # Step 2: Filter out any existing spark-img rules to avoid duplicates
+            # Step 2: Filter out any existing aurvek-img rules to avoid duplicates
             other_rules = [
                 r for r in existing_rules
-                if not r.get("description", "").startswith("[spark-img-")
+                if not r.get("description", "").startswith("[aurvek-img-")
             ]
 
             # Step 3: Prepend skip rule (skip rules must come before block rules)
@@ -505,7 +505,7 @@ class GeoSyncEngine:
                 geo_enabled = config.get("geo_enabled", "0") == "1"
 
             if not geo_enabled:
-                # Remove all spark-managed rules
+                # Remove all aurvek-managed rules
                 result = await self.remove_all_rules()
                 result["reason"] = "geo_enabled is false - all rules removed"
                 return result
@@ -542,7 +542,7 @@ class GeoSyncEngine:
             }
 
     async def remove_all_rules(self) -> dict:
-        """Remove all spark geo rules from Cloudflare."""
+        """Remove all aurvek geo rules from Cloudflare."""
         if not self._client.is_configured():
             return {
                 "success": False,
@@ -550,7 +550,7 @@ class GeoSyncEngine:
                 "rules_removed": 0,
             }
 
-        logger.info("Removing all spark geo rules from Cloudflare")
+        logger.info("Removing all aurvek geo rules from Cloudflare")
         cf_result = await self._client.update_ruleset([])
 
         # Clear tracked rule IDs
@@ -608,7 +608,7 @@ class GeoSyncEngine:
         rule = {
             "action": "block",
             "expression": expression,
-            "description": f"[spark-geo-global] Platform-wide geo-block ({len(country_codes)} countries, mode={mode})",
+            "description": f"[aurvek-geo-global] Platform-wide geo-block ({len(country_codes)} countries, mode={mode})",
             "enabled": True,
             "action_parameters": {
                 "response": {
@@ -685,7 +685,7 @@ class GeoSyncEngine:
             rule = {
                 "action": "block",
                 "expression": expression,
-                "description": f"[spark-geo-landing] Per-landing geo-block (batch {i}/{total_batches})",
+                "description": f"[aurvek-geo-landing] Per-landing geo-block (batch {i}/{total_batches})",
                 "enabled": True,
                 "action_parameters": {
                     "response": {
@@ -710,9 +710,9 @@ class GeoSyncEngine:
         for rule in rules:
             desc = rule.get("description", "")
             rule_id = rule.get("id", "")
-            if desc.startswith("[spark-geo-global]"):
+            if desc.startswith("[aurvek-geo-global]"):
                 global_rule_id = rule_id
-            elif desc.startswith("[spark-geo-landing]"):
+            elif desc.startswith("[aurvek-geo-landing]"):
                 landing_rule_ids.append(rule_id)
 
         async with get_db_connection() as conn:

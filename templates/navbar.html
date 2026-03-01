@@ -3,18 +3,18 @@
   <div class="container-fluid">
     <!-- Brand + Nav links -->
     <div class="d-flex align-items-center">
-      {% if branding is defined and branding.hide_spark_branding and branding.is_custom_domain %}
+      {% if branding is defined and branding.hide_platform_branding and branding.is_custom_domain %}
       <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="/">
         {% if branding.logo_url %}<img src="{{ branding.logo_url }}" alt="{{ branding.company_name }}" height="28">{% endif %}
         {{ branding.company_name }}
       </a>
       {% elif branding is defined and branding.context_type == 'storefront' %}
       <a class="navbar-brand fw-bold" href="/home">
-        {{ branding.company_name or 'Spark' }}
-        <small class="text-muted" style="font-size: 0.6em; vertical-align: middle;">on Spark</small>
+        {{ branding.company_name or 'Aurvek' }}
+        <small class="text-muted" style="font-size: 0.6em; vertical-align: middle;">on Aurvek</small>
       </a>
       {% else %}
-      <a class="navbar-brand fw-bold" href="/home">Spark</a>
+      <a class="navbar-brand fw-bold" href="/home">Aurvek</a>
       {% endif %}
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavDropdown" aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
         <span class="navbar-toggler-icon"></span>

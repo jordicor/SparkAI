@@ -1,27 +1,27 @@
-# SPARK Platform -- Screenshot Gallery
+# AURVEK Platform -- Screenshot Gallery
 
-A visual tour of SPARK's features, from its AI chat interface with 13 fully-themed UIs to its admin dashboard, creator tools, and prompt marketplace.
+A visual tour of AURVEK's features, from its AI chat interface with 13 fully-themed UIs to its admin dashboard, creator tools, and prompt marketplace.
 
 ---
 
 ## Chat Interface
 
-SPARK's chat interface supports rich AI conversations with file uploads, multimedia generation, personality avatars, folder organization, and real-time streaming responses.
+AURVEK's chat interface supports rich AI conversations with file uploads, multimedia generation, personality avatars, folder organization, and real-time streaming responses.
 
 <p align="center">
-  <img src="chat-default-theme.png" alt="SPARK Chat - Default Dark Theme" width="800" />
+  <img src="chat-default-theme.png" alt="AURVEK Chat - Default Dark Theme" width="800" />
   <br />
   <em>Default dark theme with folder-organized sidebar, conversation list, and clean message area</em>
 </p>
 
 <p align="center">
-  <img src="chat-default-theme-expanded.png" alt="SPARK Chat - Expanded Conversation" width="800" />
+  <img src="chat-default-theme-expanded.png" alt="AURVEK Chat - Expanded Conversation" width="800" />
   <br />
   <em>Expanded conversation view showing AI personality avatar and personality card</em>
 </p>
 
 <p align="center">
-  <img src="ai-analysis-code-blocks.png" alt="SPARK Chat - Rich AI Analysis" width="800" />
+  <img src="ai-analysis-code-blocks.png" alt="AURVEK Chat - Rich AI Analysis" width="800" />
   <br />
   <em>Rich AI response with comparison tables, code blocks, and formatted analysis</em>
 </p>
@@ -113,19 +113,19 @@ Every theme is fully custom-designed and WCAG AA compliant. Users can switch the
 
 ## Prompt Marketplace
 
-The Spark Selector is the central marketplace where users discover AI personalities. Each prompt is a standalone product with its own avatar, description, category tags, and landing page.
+The Aurvek Selector is the central marketplace where users discover AI personalities. Each prompt is a standalone product with its own avatar, description, category tags, and landing page.
 
 <p align="center">
-  <img src="explore-marketplace.png" alt="SPARK Prompt Marketplace" width="800" />
+  <img src="explore-marketplace.png" alt="AURVEK Prompt Marketplace" width="800" />
   <br />
-  <em>Spark Selector: browseable grid of AI personalities with search, categories, and favorites</em>
+  <em>Aurvek Selector: browseable grid of AI personalities with search, categories, and favorites</em>
 </p>
 
 ---
 
 ## AI Multimedia Generation
 
-SPARK integrates image and video generation directly into chat conversations. Users can generate, preview, and iterate on multimedia content without leaving the conversation.
+AURVEK integrates image and video generation directly into chat conversations. Users can generate, preview, and iterate on multimedia content without leaving the conversation.
 
 <p align="center">
   <img src="multimedia-image-video-generation.png" alt="Image and Video Generation" width="800" />
@@ -245,5 +245,5 @@ Creators can track their earnings with Stripe Connect integration and customize 
 ---
 
 <p align="center">
-  <strong>SPARK</strong> -- Open-source AI platform with multi-model chat, prompt marketplace, multimedia generation, and full admin tooling.
+  <strong>AURVEK</strong> -- Open-source AI platform with multi-model chat, prompt marketplace, multimedia generation, and full admin tooling.
 </p>

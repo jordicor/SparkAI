@@ -1,5 +1,5 @@
 """
-Rate Limiter Module for SparkAI
+Rate Limiter Module for Aurvek
 
 In-memory rate limiter with multiple strategies:
 - By IP (all attempts)

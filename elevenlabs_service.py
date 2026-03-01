@@ -1,4 +1,4 @@
-"""Utility helpers to integrate ElevenLabs realtime call flows with Spark."""
+"""Utility helpers to integrate ElevenLabs realtime call flows with Aurvek."""
 
 import orjson
 import os

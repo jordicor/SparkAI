@@ -1,4 +1,4 @@
-# SPARK
+# AURVEK
 
 **A production-grade SaaS platform for AI-powered products: multi-provider chat, prompt marketplace, real-time voice, video generation, and white-label infrastructure.**
 
@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 <p align="center">
-  <img src="docs/screenshots/chat-default-theme.png" alt="SPARK - AI Chat Interface" width="800">
+  <img src="docs/screenshots/chat-default-theme.png" alt="AURVEK - AI Chat Interface" width="800">
 </p>
 
 <table>
@@ -24,9 +24,9 @@
 
 ---
 
-## What is SPARK?
+## What is AURVEK?
 
-SPARK is an open-source AI platform that combines **multi-provider chat**, a **prompt marketplace**, **real-time voice calls**, **WhatsApp integration**, **AI video/image generation**, and a **complete white-label infrastructure** into a single deployable application.
+AURVEK is an open-source AI platform that combines **multi-provider chat**, a **prompt marketplace**, **real-time voice calls**, **WhatsApp integration**, **AI video/image generation**, and a **complete white-label infrastructure** into a single deployable application.
 
 Think of it as **Poe + Shopify for AI prompts + white-label** -- all in one codebase.
 
@@ -44,7 +44,7 @@ Each mode has its own billing logic, user relationships, and access controls -- 
 > **Note**: These modes are architectural configurations, not user-facing labels. The platform adapts automatically based on how each creator configures their prompts and billing.
 
 <p align="center">
-  <img src="docs/screenshots/explore-marketplace.png" alt="SPARK Prompt Marketplace" width="700">
+  <img src="docs/screenshots/explore-marketplace.png" alt="AURVEK Prompt Marketplace" width="700">
   <br><em>Prompt Marketplace -- browse AI personalities with custom avatars and descriptions</em>
 </p>
 
@@ -54,7 +54,7 @@ Each mode has its own billing logic, user relationships, and access controls -- 
 
 ### AI Providers & Models
 
-SPARK integrates 6 providers through a unified streaming interface with native tool calling:
+AURVEK integrates 6 providers through a unified streaming interface with native tool calling:
 
 | Provider | Models | Capabilities |
 |----------|--------|-------------|
@@ -121,7 +121,7 @@ Configurable per prompt with presets for interview, coaching, education, and cus
 
 ### Security
 
-SPARK implements defense-in-depth security with multiple independent layers:
+AURVEK implements defense-in-depth security with multiple independent layers:
 
 **Security Middleware** (1,600+ lines)
 - 236+ instant-block patterns (scanners, shells, exploit paths, AWS metadata probes, IoT exploits)
@@ -153,7 +153,7 @@ SPARK implements defense-in-depth security with multiple independent layers:
 
 ### Prompt Marketplace
 
-Every prompt in SPARK is a product with its own identity:
+Every prompt in AURVEK is a product with its own identity:
 
 - **Custom Landing Pages**: Full HTML/CSS/JS per prompt with static assets (images, audio, styles)
 - **AI Landing Page Wizard**: Generate and iterate on landing pages using Claude Code CLI (4 visual styles, multi-language, brand colors)
@@ -167,10 +167,10 @@ Every prompt in SPARK is a product with its own identity:
 
 ### Creator Storefronts
 
-Creators get their own public storefront page within SPARK:
+Creators get their own public storefront page within AURVEK:
 
 - **Creator Profiles**: Public bio, avatar, social links, and verified status (`/store/{slug}`)
-- **Contextual Branding**: Navbar and theme adapt when viewing a creator's storefront -- creator's logo and brand appear naturally, reverting to SPARK when navigating away
+- **Contextual Branding**: Navbar and theme adapt when viewing a creator's storefront -- creator's logo and brand appear naturally, reverting to AURVEK when navigating away
 - **Individual Prompt Purchase**: Buy single prompts via Stripe Checkout or claim free prompts directly from the Explore page
 - **Explore Ranking**: Algorithmic scoring based on engagement signals (access count, purchases, chatters, favorites) with configurable weights and admin dashboard. Prompts with landing pages receive a ranking boost
 - **Landing Preview**: Fullscreen iframe overlay in `/explore` with keyboard navigation between landings -- browse creator pitches without leaving the page
@@ -261,7 +261,7 @@ AI chat via WhatsApp through Twilio:
 Full white-label infrastructure for Curator Mode:
 
 - Custom logo and brand colors
-- Complete SPARK branding removal
+- Complete AURVEK branding removal
 - Forced theme for sub-users
 - Branded transactional emails
 - Custom domain attachment ($25 one-time)
@@ -360,7 +360,7 @@ Multi-modal authentication system:
 
 ## Architecture
 
-SPARK uses a **FastAPI + Flask hybrid** architecture:
+AURVEK uses a **FastAPI + Flask hybrid** architecture:
 
 ```
                     +-------------------------------------+
@@ -403,7 +403,7 @@ SPARK uses a **FastAPI + Flask hybrid** architecture:
 ### Project Structure
 
 ```
-SPARK/
+AURVEK/
 ├── app.py                  # Main application (FastAPI + Flask routing)
 ├── auth.py                 # Authentication (JWT, magic links, OAuth, rate limiting)
 ├── database.py             # Async SQLite with connection pooling
@@ -459,8 +459,8 @@ SPARK/
 
 ```bash
 # Clone the repository
-git clone https://github.com/jordicor/sparkAI.git
-cd sparkAI
+git clone https://github.com/jordicor/aurvekAI.git
+cd aurvekAI
 
 # Create virtual environment
 python -m venv venv
@@ -538,7 +538,7 @@ When available, Redis powers:
 - Background task queues (Dramatiq)
 - Security middleware IP tracking (multi-worker safe)
 
-Without Redis, SPARK falls back to in-memory stores (single-process only).
+Without Redis, AURVEK falls back to in-memory stores (single-process only).
 
 ### Themes
 
@@ -552,7 +552,7 @@ Configure per prompt via the admin panel. Presets available for common use cases
 
 ## Background & Philosophy
 
-SPARK started as **TestMyPrompt** (2024) -- a tool for testing AI prompt security, born from building a [Santa Claus AI chatbot](https://github.com/jordicor/santa-claus-is-calling) that needed to never break character. The need for forensic logging of where prompts failed evolved into a full platform.
+AURVEK started as **TestMyPrompt** (2024) -- a tool for testing AI prompt security, born from building a [Santa Claus AI chatbot](https://github.com/jordicor/santa-claus-is-calling) that needed to never break character. The need for forensic logging of where prompts failed evolved into a full platform.
 
 The codebase has areas of intentional over-engineering -- exploring patterns, testing architectural limits, and learning by building. This is a deliberate choice: some systems (like the multi-layer security stack or the watchdog escalation chain) are more complex than strictly necessary because building them was part of the learning process.
 

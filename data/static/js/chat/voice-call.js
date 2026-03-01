@@ -259,7 +259,7 @@
             }
 
             // Add personality template (will replace {{personality_template}} in agent template)
-            // This is the actual prompt text from SPARK's database
+            // This is the actual prompt text from AURVEK's database
             if (configData.prompt_text) {
                 dynamicVariables.personality_template = configData.prompt_text;
             } else {
@@ -271,7 +271,7 @@
             dynamicVariables.prev_persona = "";
             dynamicVariables.persona_transition_instruction = "Continue the previous conversation naturally, picking up exactly where it left off.";
             dynamicVariables.persona_name = configData.prompt_name || "";
-            dynamicVariables.conversation_chain_id = `spark_${configData.conversation_id}_${Date.now()}`;
+            dynamicVariables.conversation_chain_id = `aurvek_${configData.conversation_id}_${Date.now()}`;
             dynamicVariables.accumulated_context = "";
             dynamicVariables.voice_id = configData.voice_id || "";
             if (configData.voice_id) {
@@ -279,9 +279,9 @@
             }
 
             // Add conversation metadata
-            dynamicVariables.spark_conversation_id = String(configData.conversation_id);
+            dynamicVariables.aurvek_conversation_id = String(configData.conversation_id);
             if (configData.prompt_id) {
-                dynamicVariables.spark_prompt_id = String(configData.prompt_id);
+                dynamicVariables.aurvek_prompt_id = String(configData.prompt_id);
             }
 
             // Add user ID for ElevenLabs agent tracking
@@ -300,9 +300,9 @@
                 agentId: configData.agent_id,
                 dynamicVariables,
                 clientData: {
-                    spark_conversation_id: String(configData.conversation_id),
-                    spark_prompt_name: configData.prompt_name || '',
-                    spark_user_id: configData.user_id ? String(configData.user_id) : ''
+                    aurvek_conversation_id: String(configData.conversation_id),
+                    aurvek_prompt_name: configData.prompt_name || '',
+                    aurvek_user_id: configData.user_id ? String(configData.user_id) : ''
                 },
                 onConnect: handleConnected,
                 onDisconnect: handleDisconnected,

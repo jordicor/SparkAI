@@ -2,7 +2,7 @@
 """
 Standalone CLI for image generation.
 
-This script can be called independently without the full SPARK application context.
+This script can be called independently without the full AURVEK application context.
 Useful for testing, scripting, and integration with other tools like Claude Code.
 
 Examples:

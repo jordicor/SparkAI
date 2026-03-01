@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SPARK Tools Testing Suite
+AURVEK Tools Testing Suite
 =========================
 
 Tests ALL registered tools to verify they work correctly.
@@ -558,7 +558,7 @@ def show_fixes(issues):
 async def run_all_tests(quick=False):
     """Run all tool tests."""
     print("\n" + "=" * 60)
-    print("SPARK TOOLS TEST SUITE")
+    print("AURVEK TOOLS TEST SUITE")
     print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 60)
 
@@ -617,7 +617,7 @@ async def run_all_tests(quick=False):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Test all SPARK tools")
+    parser = argparse.ArgumentParser(description="Test all AURVEK tools")
     parser.add_argument("--quick", "-q", action="store_true", help="Quick mode: skip API tests")
     parser.add_argument("--tool", "-t", help="Test specific tool only")
     parser.add_argument("--fix", "-f", action="store_true", help="Show fixes for issues")

@@ -1,56 +1,56 @@
 /* ============================================
-   SparkAI Landing Pages - Base Styles
-   SPARK Visual Identity System v1.0
+   Aurvek Landing Pages - Base Styles
+   AURVEK Visual Identity System v1.0
    ============================================ */
 
 /* CSS Variables */
 :root {
     /* ============================================
-       SPARK BRAND DNA - Volcanic Amber Signature
+       AURVEK BRAND DNA - Volcanic Amber Signature
        Appears across ALL pages as unifying element
        ============================================ */
-    --spark-amber: #D97706;
-    --spark-amber-50: #FFFBEB;
-    --spark-amber-100: #FEF3C7;
-    --spark-amber-200: #FDE68A;
-    --spark-amber-300: #FCD34D;
-    --spark-amber-400: #FBBF24;
-    --spark-amber-500: #F59E0B;
-    --spark-amber-600: #D97706;
-    --spark-amber-700: #B45309;
-    --spark-amber-800: #92400E;
-    --spark-amber-900: #78350F;
+    --aurvek-amber: #D97706;
+    --aurvek-amber-50: #FFFBEB;
+    --aurvek-amber-100: #FEF3C7;
+    --aurvek-amber-200: #FDE68A;
+    --aurvek-amber-300: #FCD34D;
+    --aurvek-amber-400: #FBBF24;
+    --aurvek-amber-500: #F59E0B;
+    --aurvek-amber-600: #D97706;
+    --aurvek-amber-700: #B45309;
+    --aurvek-amber-800: #92400E;
+    --aurvek-amber-900: #78350F;
 
     /* Primary color uses amber signature */
-    --spark-primary: var(--spark-amber-600);
-    --spark-primary-dark: var(--spark-amber-700);
-    --spark-primary-light: var(--spark-amber-500);
-    --spark-secondary: #0ea5e9;
-    --spark-secondary-dark: #0284c7;
-    --spark-accent: var(--spark-amber-600);
+    --aurvek-primary: var(--aurvek-amber-600);
+    --aurvek-primary-dark: var(--aurvek-amber-700);
+    --aurvek-primary-light: var(--aurvek-amber-500);
+    --aurvek-secondary: #0ea5e9;
+    --aurvek-secondary-dark: #0284c7;
+    --aurvek-accent: var(--aurvek-amber-600);
 
     /* Neutrals - Zinc scale for sophistication */
-    --spark-black: #09090B;
-    --spark-dark: #18181B;
-    --spark-gray-900: #27272A;
-    --spark-gray-800: #3F3F46;
-    --spark-gray-700: #52525B;
-    --spark-gray-600: #71717A;
-    --spark-gray-500: #A1A1AA;
-    --spark-gray-400: #D4D4D8;
-    --spark-gray-300: #E4E4E7;
-    --spark-gray-200: #F4F4F5;
-    --spark-gray-100: #FAFAFA;
-    --spark-white: #ffffff;
+    --aurvek-black: #09090B;
+    --aurvek-dark: #18181B;
+    --aurvek-gray-900: #27272A;
+    --aurvek-gray-800: #3F3F46;
+    --aurvek-gray-700: #52525B;
+    --aurvek-gray-600: #71717A;
+    --aurvek-gray-500: #A1A1AA;
+    --aurvek-gray-400: #D4D4D8;
+    --aurvek-gray-300: #E4E4E7;
+    --aurvek-gray-200: #F4F4F5;
+    --aurvek-gray-100: #FAFAFA;
+    --aurvek-white: #ffffff;
 
     /* Semantic */
-    --spark-success: #22C55E;
-    --spark-danger: #EF4444;
-    --spark-warning: #F59E0B;
-    --spark-info: #3B82F6;
+    --aurvek-success: #22C55E;
+    --aurvek-danger: #EF4444;
+    --aurvek-warning: #F59E0B;
+    --aurvek-info: #3B82F6;
 
     /* Gradients - Amber-based */
-    --gradient-primary: linear-gradient(135deg, var(--spark-amber-500) 0%, var(--spark-amber-600) 100%);
+    --gradient-primary: linear-gradient(135deg, var(--aurvek-amber-500) 0%, var(--aurvek-amber-600) 100%);
     --gradient-dark: linear-gradient(180deg, #0C1220 0%, #1A2332 100%);
     --gradient-glow: radial-gradient(ellipse at center, rgba(217, 119, 6, 0.1) 0%, transparent 70%);
 
@@ -124,8 +124,8 @@ body {
     font-family: var(--font-sans);
     font-size: 1rem;
     line-height: 1.6;
-    color: var(--spark-gray-700);
-    background-color: var(--spark-white);
+    color: var(--aurvek-gray-700);
+    background-color: var(--aurvek-white);
 }
 
 /* Typography */
@@ -133,7 +133,7 @@ h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display);
     font-weight: 700;
     line-height: 1.2;
-    color: var(--spark-black);
+    color: var(--aurvek-black);
 }
 
 h1 { font-size: clamp(2.5rem, 5vw, 4rem); }
@@ -146,13 +146,13 @@ p {
 }
 
 a {
-    color: var(--spark-primary);
+    color: var(--aurvek-primary);
     text-decoration: none;
     transition: color var(--transition-fast);
 }
 
 a:hover {
-    color: var(--spark-primary-dark);
+    color: var(--aurvek-primary-dark);
 }
 
 /* Container */
@@ -187,34 +187,34 @@ a:hover {
 
 .btn--primary {
     background: var(--gradient-primary);
-    color: var(--spark-white);
+    color: var(--aurvek-white);
     border-color: transparent;
 }
 
 .btn--primary:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-glow);
-    color: var(--spark-white);
+    color: var(--aurvek-white);
 }
 
 .btn--secondary {
     background: transparent;
-    color: var(--spark-primary);
-    border-color: var(--spark-primary);
+    color: var(--aurvek-primary);
+    border-color: var(--aurvek-primary);
 }
 
 .btn--secondary:hover {
-    background: var(--spark-primary);
-    color: var(--spark-white);
+    background: var(--aurvek-primary);
+    color: var(--aurvek-white);
 }
 
 .btn--dark {
-    background: var(--spark-black);
-    color: var(--spark-white);
+    background: var(--aurvek-black);
+    color: var(--aurvek-white);
 }
 
 .btn--dark:hover {
-    background: var(--spark-dark);
+    background: var(--aurvek-dark);
     transform: translateY(-2px);
 }
 
@@ -237,7 +237,7 @@ a:hover {
     z-index: 1000;
     background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(10px);
-    border-bottom: 1px solid var(--spark-gray-100);
+    border-bottom: 1px solid var(--aurvek-gray-100);
     transition: all var(--transition-base);
 }
 
@@ -259,13 +259,13 @@ a:hover {
     font-family: var(--font-display);
     font-size: 1.5rem;
     font-weight: 800;
-    color: var(--spark-black);
+    color: var(--aurvek-black);
 }
 
 .nav__logo-icon {
     width: 36px;
     height: 36px;
-    background: linear-gradient(135deg, var(--spark-amber-500) 0%, var(--spark-amber-600) 100%);
+    background: linear-gradient(135deg, var(--aurvek-amber-500) 0%, var(--aurvek-amber-600) 100%);
     border-radius: var(--radius-md);
     display: flex;
     align-items: center;
@@ -288,12 +288,12 @@ a:hover {
 
 .nav__link {
     font-weight: 500;
-    color: var(--spark-gray-700);
+    color: var(--aurvek-gray-700);
     transition: color var(--transition-fast);
 }
 
 .nav__link:hover {
-    color: var(--spark-primary);
+    color: var(--aurvek-primary);
 }
 
 .nav__actions {
@@ -315,7 +315,7 @@ a:hover {
     display: block;
     width: 24px;
     height: 2px;
-    background: var(--spark-black);
+    background: var(--aurvek-black);
     margin: 6px 0;
     transition: var(--transition-fast);
 }
@@ -332,17 +332,17 @@ a:hover {
 
 .hero--dark {
     background: var(--gradient-dark);
-    color: var(--spark-white);
+    color: var(--aurvek-white);
 }
 
 .hero--dark h1,
 .hero--dark h2,
 .hero--dark h3 {
-    color: var(--spark-white);
+    color: var(--aurvek-white);
 }
 
 .hero--dark p {
-    color: var(--spark-gray-300);
+    color: var(--aurvek-gray-300);
 }
 
 .hero__background {
@@ -378,7 +378,7 @@ a:hover {
     border-radius: var(--radius-full);
     font-size: 0.875rem;
     font-weight: 500;
-    color: var(--spark-primary);
+    color: var(--aurvek-primary);
     margin-bottom: var(--space-lg);
 }
 
@@ -409,7 +409,7 @@ a:hover {
     width: 100%;
     margin-top: var(--space-sm);
     font-size: 0.875rem;
-    color: var(--spark-gray-300);
+    color: var(--aurvek-gray-300);
     opacity: 0.9;
 }
 
@@ -429,17 +429,17 @@ a:hover {
 }
 
 .section--gray {
-    background: var(--spark-gray-100);
+    background: var(--aurvek-gray-100);
 }
 
 .section--dark {
     background: var(--gradient-dark);
-    color: var(--spark-white);
+    color: var(--aurvek-white);
 }
 
 .section--dark h2,
 .section--dark h3 {
-    color: var(--spark-white);
+    color: var(--aurvek-white);
 }
 
 .section__header {
@@ -454,7 +454,7 @@ a:hover {
 
 .section__subtitle {
     font-size: 1.125rem;
-    color: var(--spark-gray-500);
+    color: var(--aurvek-gray-500);
 }
 
 /* Features Grid */
@@ -466,7 +466,7 @@ a:hover {
 
 .feature {
     padding: var(--space-xl);
-    background: var(--spark-white);
+    background: var(--aurvek-white);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-md);
     transition: all var(--transition-base);
@@ -495,7 +495,7 @@ a:hover {
 }
 
 .feature__text {
-    color: var(--spark-gray-500);
+    color: var(--aurvek-gray-500);
     margin-bottom: 0;
 }
 
@@ -519,7 +519,7 @@ a:hover {
 
 .stat__label {
     font-size: 1rem;
-    color: var(--spark-gray-500);
+    color: var(--aurvek-gray-500);
 }
 
 /* How It Works */
@@ -561,21 +561,21 @@ a:hover {
 }
 
 .step__text {
-    color: var(--spark-gray-500);
+    color: var(--aurvek-gray-500);
     margin-bottom: 0;
 }
 
 /* Pricing / Economics */
 .pricing-card {
     padding: var(--space-2xl);
-    background: var(--spark-white);
+    background: var(--aurvek-white);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-lg);
     text-align: center;
 }
 
 .pricing-card--featured {
-    border: 2px solid var(--spark-primary);
+    border: 2px solid var(--aurvek-primary);
     position: relative;
 }
 
@@ -602,13 +602,13 @@ a:hover {
     font-family: var(--font-display);
     font-size: 3rem;
     font-weight: 800;
-    color: var(--spark-black);
+    color: var(--aurvek-black);
 }
 
 .pricing-card__price span {
     font-size: 1rem;
     font-weight: 400;
-    color: var(--spark-gray-500);
+    color: var(--aurvek-gray-500);
 }
 
 /* Objections / FAQ */
@@ -619,19 +619,19 @@ a:hover {
 
 .objection {
     padding: var(--space-xl);
-    background: var(--spark-white);
+    background: var(--aurvek-white);
     border-radius: var(--radius-lg);
-    border-left: 4px solid var(--spark-primary);
+    border-left: 4px solid var(--aurvek-primary);
 }
 
 .objection__question {
     font-weight: 600;
-    color: var(--spark-black);
+    color: var(--aurvek-black);
     margin-bottom: var(--space-sm);
 }
 
 .objection__answer {
-    color: var(--spark-gray-500);
+    color: var(--aurvek-gray-500);
     margin-bottom: 0;
 }
 
@@ -656,18 +656,18 @@ a:hover {
 
 .cta .btn--primary {
     background: white;
-    color: var(--spark-primary);
+    color: var(--aurvek-primary);
 }
 
 .cta .btn--primary:hover {
-    background: var(--spark-gray-100);
+    background: var(--aurvek-gray-100);
 }
 
 /* Footer */
 .footer {
     padding: var(--space-3xl) 0 var(--space-xl);
-    background: var(--spark-black);
-    color: var(--spark-gray-300);
+    background: var(--aurvek-black);
+    color: var(--aurvek-gray-300);
 }
 
 .footer__grid {
@@ -688,19 +688,19 @@ a:hover {
     font-family: var(--font-display);
     font-size: 1.5rem;
     font-weight: 800;
-    color: var(--spark-white);
+    color: var(--aurvek-white);
     margin-bottom: var(--space-md);
 }
 
 .footer__tagline {
     font-size: 0.875rem;
-    color: var(--spark-gray-500);
+    color: var(--aurvek-gray-500);
 }
 
 .footer__title {
     font-size: 0.875rem;
     font-weight: 600;
-    color: var(--spark-white);
+    color: var(--aurvek-white);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin-bottom: var(--space-md);
@@ -715,13 +715,13 @@ a:hover {
 }
 
 .footer__links a {
-    color: var(--spark-gray-500);
+    color: var(--aurvek-gray-500);
     font-size: 0.875rem;
     transition: color var(--transition-fast);
 }
 
 .footer__links a:hover {
-    color: var(--spark-white);
+    color: var(--aurvek-white);
 }
 
 .footer__bottom {
@@ -729,7 +729,7 @@ a:hover {
     justify-content: space-between;
     align-items: center;
     padding-top: var(--space-xl);
-    border-top: 1px solid var(--spark-gray-900);
+    border-top: 1px solid var(--aurvek-gray-900);
     font-size: 0.875rem;
 }
 
@@ -742,7 +742,7 @@ a:hover {
 .comparison {
     width: 100%;
     border-collapse: collapse;
-    background: var(--spark-white);
+    background: var(--aurvek-white);
     border-radius: var(--radius-xl);
     overflow: hidden;
     box-shadow: var(--shadow-lg);
@@ -752,27 +752,27 @@ a:hover {
 .comparison td {
     padding: var(--space-md) var(--space-lg);
     text-align: left;
-    border-bottom: 1px solid var(--spark-gray-100);
+    border-bottom: 1px solid var(--aurvek-gray-100);
 }
 
 .comparison th {
-    background: var(--spark-gray-100);
+    background: var(--aurvek-gray-100);
     font-weight: 600;
-    color: var(--spark-black);
+    color: var(--aurvek-black);
 }
 
 .comparison td:first-child {
     font-weight: 500;
-    color: var(--spark-black);
+    color: var(--aurvek-black);
 }
 
 .comparison__check {
-    color: var(--spark-success);
+    color: var(--aurvek-success);
     font-weight: 600;
 }
 
 .comparison__cross {
-    color: var(--spark-gray-300);
+    color: var(--aurvek-gray-300);
 }
 
 /* Use Cases Grid */
@@ -784,7 +784,7 @@ a:hover {
 
 .use-case {
     padding: var(--space-xl);
-    background: var(--spark-white);
+    background: var(--aurvek-white);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-md);
 }
@@ -800,7 +800,7 @@ a:hover {
 }
 
 .use-case__text {
-    color: var(--spark-gray-500);
+    color: var(--aurvek-gray-500);
     font-size: 0.9375rem;
     margin-bottom: 0;
 }
@@ -808,7 +808,7 @@ a:hover {
 /* Calculator */
 .calculator {
     padding: var(--space-2xl);
-    background: var(--spark-white);
+    background: var(--aurvek-white);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-lg);
 }
@@ -827,7 +827,7 @@ a:hover {
     width: 100%;
     height: 8px;
     -webkit-appearance: none;
-    background: var(--spark-gray-100);
+    background: var(--aurvek-gray-100);
     border-radius: var(--radius-full);
     outline: none;
 }
@@ -844,7 +844,7 @@ a:hover {
 .calculator__result {
     text-align: center;
     padding: var(--space-xl);
-    background: var(--spark-gray-100);
+    background: var(--aurvek-gray-100);
     border-radius: var(--radius-lg);
 }
 
@@ -894,7 +894,7 @@ a:hover {
         top: 72px;
         left: 0;
         right: 0;
-        background: var(--spark-white);
+        background: var(--aurvek-white);
         padding: var(--space-lg);
         box-shadow: var(--shadow-lg);
     }
@@ -998,7 +998,7 @@ a:hover {
 body[data-theme="corporate"] {
     --page-bg-dark: #0C1220;
     --page-bg-secondary: #1A2332;
-    --page-accent: var(--spark-amber-600);
+    --page-accent: var(--aurvek-amber-600);
     --page-accent-muted: #B8860B;
     --page-bg-light: #FAFAF9;
     --page-text-primary: #18181B;
@@ -1011,7 +1011,7 @@ body[data-theme="corporate"] {
 body[data-theme="creators"] {
     --page-bg-dark: #1C1917;
     --page-bg-secondary: #292524;
-    --page-accent: var(--spark-amber-500);
+    --page-accent: var(--aurvek-amber-500);
     --page-accent-light: #FBBF24;
     --page-bg-light: #FFFBEB;
     --page-text-primary: #1C1917;
@@ -1024,7 +1024,7 @@ body[data-theme="creators"] {
 body[data-theme="agencies"] {
     --page-bg-dark: #0B1121;
     --page-bg-secondary: #131C2E;
-    --page-accent: var(--spark-amber-700);
+    --page-accent: var(--aurvek-amber-700);
     --page-accent-muted: #A16207;
     --page-bg-light: #F8FAFC;
     --page-text-primary: #0F172A;
@@ -1037,7 +1037,7 @@ body[data-theme="agencies"] {
 body[data-theme="teams"] {
     --page-bg-dark: #0A1929;
     --page-bg-secondary: #102A43;
-    --page-accent: var(--spark-amber-600);
+    --page-accent: var(--aurvek-amber-600);
     --page-accent-muted: #EAB308;
     --page-bg-light: #F8FAFC;
     --page-text-primary: #1E293B;
@@ -1063,8 +1063,8 @@ body[data-theme="explore"] {
    Duotone icons with brand accent
    ============================================ */
 .ph-duotone {
-    --ph-duotone-base: var(--spark-gray-400);
-    --ph-duotone-accent: var(--spark-amber-600);
+    --ph-duotone-base: var(--aurvek-gray-400);
+    --ph-duotone-accent: var(--aurvek-amber-600);
 }
 
 /* Icon sizing in different contexts */

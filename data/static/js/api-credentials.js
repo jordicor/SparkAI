@@ -5,7 +5,7 @@
 
 class UserCredentialsManager {
     constructor() {
-        this.STORAGE_KEY = 'spark_user_api_keys';
+        this.STORAGE_KEY = 'aurvek_user_api_keys';
         this.storageMode = 'session'; // 'session' | 'persistent' | 'server'
         this.providers = ['openai', 'anthropic', 'google', 'xai', 'elevenlabs'];
         this.init();
@@ -16,7 +16,7 @@ class UserCredentialsManager {
      */
     init() {
         // Load storage mode preference
-        const savedMode = localStorage.getItem('spark_credentials_storage_mode');
+        const savedMode = localStorage.getItem('aurvek_credentials_storage_mode');
         if (savedMode) {
             this.storageMode = savedMode;
         }
@@ -51,7 +51,7 @@ class UserCredentialsManager {
         this.storageMode = mode;
 
         // Save mode preference
-        localStorage.setItem('spark_credentials_storage_mode', mode);
+        localStorage.setItem('aurvek_credentials_storage_mode', mode);
 
         // If switching away from server mode, we might want to keep server keys
         // If switching to server mode, we might want to migrate local keys

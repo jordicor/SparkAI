@@ -313,7 +313,7 @@ class SecurityConfig:
     CF_ESCALATION_ENABLED: bool = os.getenv("SECURITY_CF_ESCALATION_ENABLED", "0") == "1"
     CF_ESCALATION_THRESHOLD: int = int(os.getenv("SECURITY_CF_ESCALATION_THRESHOLD", "3"))
     CF_ESCALATION_TIMEOUT_SECONDS: float = float(os.getenv("SECURITY_CF_ESCALATION_TIMEOUT_SECONDS", "5"))
-    CF_ESCALATION_NOTES_PREFIX: str = os.getenv("SECURITY_CF_ESCALATION_NOTES_PREFIX", "spark-security-auto")
+    CF_ESCALATION_NOTES_PREFIX: str = os.getenv("SECURITY_CF_ESCALATION_NOTES_PREFIX", "aurvek-security-auto")
     CF_ACCOUNT_ID: str = os.getenv("SECURITY_CF_ACCOUNT_ID", "").strip()
     CF_EMAIL: str = os.getenv("CLOUDFLARE_EMAIL", "").strip().strip('"').strip("'")
     CF_API_KEY: str = os.getenv("CLOUDFLARE_API_KEY", "").strip().strip('"').strip("'")

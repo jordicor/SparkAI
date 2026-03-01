@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Aurvek - Your intelligent AI assistant. Experience the future of AI-powered conversations with cutting-edge technology designed to help, inform, and inspire.">
+    <meta name="robots" content="index, follow">
+    <meta name="author" content="Aurvek">
+
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="Aurvek - Intelligent AI Assistant">
+    <meta property="og:description" content="Experience the future of AI-powered conversations. Aurvek delivers intelligent, honest, and helpful assistance for all your tasks.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="static/img/og-image.png">
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="./">
+
+    <title>Aurvek - Intelligent AI Assistant | Aurvek Platform</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="static/css/custom.css">
+
+    <!-- Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Aurvek",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "description": "Intelligent AI assistant for conversations, problem-solving, writing, and more",
+      "provider": {
+        "@type": "Organization",
+        "name": "Aurvek"
+      }
+    }
+    </script>
+</head>
+<body class="bg-gray-900 text-gray-100 overflow-x-hidden">
+
+    <!-- Cyberpunk Grid Background -->
+    <div class="fixed inset-0 pointer-events-none opacity-20 z-0" id="grid-bg"></div>
+
+    <!-- Navigation -->
+    <nav class="relative z-20 border-b border-cyan-500/20 bg-gray-900/80 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <span class="text-2xl font-bold bg-gradient-to-r from-blue-500 to-cyan-400 text-transparent bg-clip-text cyber-glow">AURVEK</span>
+                </div>
+                <div class="hidden md:flex space-x-8">
+                    <a href="#features" class="text-gray-300 hover:text-cyan-400 transition-colors duration-300">Features</a>
+                    <a href="#capabilities" class="text-gray-300 hover:text-cyan-400 transition-colors duration-300">Capabilities</a>
+                    <a href="#testimonials" class="text-gray-300 hover:text-cyan-400 transition-colors duration-300">Testimonials</a>
+                </div>
+                <div>
+                    <a href="register" class="cyber-button px-6 py-2 bg-gradient-to-r from-blue-500 to-cyan-400 text-gray-900 font-semibold rounded-lg hover:shadow-lg hover:shadow-cyan-500/50 transition-all duration-300 inline-block">
+                        Get Started
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="relative z-10 pt-20 pb-32 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid lg:grid-cols-2 gap-12 items-center">
+                <div class="space-y-8">
+                    <div class="space-y-4">
+                        <div class="inline-block">
+                            <span class="px-4 py-2 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-cyan-400 text-sm font-semibold tracking-wide cyber-glow-text">
+                                NEXT-GEN AI ASSISTANT
+                            </span>
+                        </div>
+                        <h1 class="text-5xl md:text-6xl lg:text-7xl font-bold leading-tight">
+                            <span class="bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-500 text-transparent bg-clip-text cyber-glow">
+                                Intelligence
+                            </span>
+                            <br>
+                            <span class="text-white">Redefined</span>
+                        </h1>
+                        <p class="text-xl text-gray-400 leading-relaxed">
+                            Experience the future of AI-powered conversations. Aurvek delivers intelligent, honest, and helpful assistance that adapts to your needs in real-time.
+                        </p>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <a href="register" class="cyber-button-primary px-8 py-4 bg-gradient-to-r from-blue-500 to-cyan-400 text-gray-900 font-bold rounded-lg hover:shadow-2xl hover:shadow-cyan-500/50 transition-all duration-300 text-center text-lg">
+                            Launch Aurvek
+                        </a>
+                        <a href="#features" class="cyber-button-secondary px-8 py-4 bg-transparent border-2 border-cyan-500/50 text-cyan-400 font-bold rounded-lg hover:bg-cyan-500/10 hover:border-cyan-400 transition-all duration-300 text-center text-lg">
+                            Explore Features
+                        </a>
+                    </div>
+
+                    <div class="flex items-center space-x-8 pt-4">
+                        <div class="text-center">
+                            <div class="text-3xl font-bold text-cyan-400 cyber-glow-text">24/7</div>
+                            <div class="text-sm text-gray-500">Available</div>
+                        </div>
+                        <div class="h-12 w-px bg-cyan-500/30"></div>
+                        <div class="text-center">
+                            <div class="text-3xl font-bold text-cyan-400 cyber-glow-text">∞</div>
+                            <div class="text-sm text-gray-500">Possibilities</div>
+                        </div>
+                        <div class="h-12 w-px bg-cyan-500/30"></div>
+                        <div class="text-center">
+                            <div class="text-3xl font-bold text-cyan-400 cyber-glow-text">100%</div>
+                            <div class="text-sm text-gray-500">Secure</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="relative lg:block hidden">
+                    <div class="cyber-card relative">
+                        <div class="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-cyan-400/20 rounded-2xl blur-3xl"></div>
+                        <div class="relative bg-gray-800/50 border border-cyan-500/30 rounded-2xl p-8 backdrop-blur-sm">
+                            <div class="space-y-4">
+                                <div class="flex items-start space-x-4 cyber-message-user">
+                                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center flex-shrink-0">
+                                        <svg class="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                        </svg>
+                                    </div>
+                                    <div class="bg-gray-700/50 rounded-lg p-4 flex-1 border border-gray-600/50">
+                                        <p class="text-gray-300">Help me optimize my workflow and boost productivity</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-start space-x-4 cyber-message-ai">
+                                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center flex-shrink-0">
+                                        <svg class="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                        </svg>
+                                    </div>
+                                    <div class="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 rounded-lg p-4 flex-1 border border-cyan-500/30">
+                                        <p class="text-gray-200">I'll analyze your current workflow and provide personalized optimization strategies. Let's start by identifying your key tasks...</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center space-x-2 text-cyan-400">
+                                    <div class="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
+                                    <span class="text-sm">Aurvek is typing...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Features Section -->
+    <section id="features" class="relative z-10 py-20 px-4 sm:px-6 lg:px-8 bg-gray-900/50">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl md:text-5xl font-bold mb-4">
+                    <span class="bg-gradient-to-r from-blue-400 to-cyan-400 text-transparent bg-clip-text">Powered by Advanced AI</span>
+                </h2>
+                <p class="text-xl text-gray-400 max-w-3xl mx-auto">
+                    Experience next-generation intelligence designed to understand, assist, and evolve with your needs
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+                <!-- Feature 1 -->
+                <article class="cyber-card-feature group">
+                    <div class="bg-gray-800/50 border border-cyan-500/30 rounded-xl p-6 hover:border-cyan-400 transition-all duration-300 h-full backdrop-blur-sm">
+                        <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                            <svg class="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-bold mb-2 text-cyan-400">Intelligent Understanding</h3>
+                        <p class="text-gray-400">
+                            Advanced natural language processing that truly comprehends context, nuance, and intent behind every conversation
+                        </p>
+                    </div>
+                </article>
+
+                <!-- Feature 2 -->
+                <article class="cyber-card-feature group">
+                    <div class="bg-gray-800/50 border border-cyan-500/30 rounded-xl p-6 hover:border-cyan-400 transition-all duration-300 h-full backdrop-blur-sm">
+                        <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                            <svg class="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-bold mb-2 text-cyan-400">Privacy First</h3>
+                        <p class="text-gray-400">
+                            Enterprise-grade security with end-to-end encryption. Your conversations remain private and secure at all times
+                        </p>
+                    </div>
+                </article>
+
+                <!-- Feature 3 -->
+                <article class="cyber-card-feature group">
+                    <div class="bg-gray-800/50 border border-cyan-500/30 rounded-xl p-6 hover:border-cyan-400 transition-all duration-300 h-full backdrop-blur-sm">
+                        <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                            <svg class="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-bold mb-2 text-cyan-400">Lightning Fast</h3>
+                        <p class="text-gray-400">
+                            Instant responses powered by optimized AI infrastructure. No waiting, just seamless real-time interactions
+                        </p>
+                    </div>
+                </article>
+
+                <!-- Feature 4 -->
+                <article class="cyber-card-feature group">
+                    <div class="bg-gray-800/50 border border-cyan-500/30 rounded-xl p-6 hover:border-cyan-400 transition-all duration-300 h-full backdrop-blur-sm">
+                        <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                            <svg class="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-bold mb-2 text-cyan-400">Multi-Purpose</h3>
+                        <p class="text-gray-400">
+                            From writing and coding to analysis and brainstorming, Aurvek adapts to handle any task you throw at it
+                        </p>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <!-- Capabilities Section -->
+    <section id="capabilities" class="relative z-10 py-20 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid lg:grid-cols-2 gap-12 items-center">
+                <div class="space-y-8">
+                    <h2 class="text-4xl md:text-5xl font-bold">
+                        <span class="text-white">Limitless</span>
+                        <br>
+                        <span class="bg-gradient-to-r from-blue-400 to-cyan-400 text-transparent bg-clip-text">Capabilities</span>
+                    </h2>
+
+                    <div class="space-y-6">
+                        <div class="flex items-start space-x-4 capability-item">
+                            <div class="w-8 h-8 bg-cyan-500/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
+                                <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-semibold text-white mb-2">Creative Writing & Editing</h3>
+                                <p class="text-gray-400">Generate, refine, and polish any type of content from blog posts to technical documentation with professional quality</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start space-x-4 capability-item">
+                            <div class="w-8 h-8 bg-cyan-500/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
+                                <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-semibold text-white mb-2">Code & Technical Support</h3>
+                                <p class="text-gray-400">Debug, optimize, and write code across multiple programming languages with intelligent suggestions and best practices</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start space-x-4 capability-item">
+                            <div class="w-8 h-8 bg-cyan-500/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
+                                <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-semibold text-white mb-2">Research & Analysis</h3>
+                                <p class="text-gray-400">Synthesize complex information, analyze data patterns, and deliver actionable insights for better decision-making</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start space-x-4 capability-item">
+                            <div class="w-8 h-8 bg-cyan-500/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
+                                <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-semibold text-white mb-2">Learning & Education</h3>
+                                <p class="text-gray-400">Master new concepts with personalized explanations, examples, and step-by-step guidance tailored to your learning style</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cyber-stats-panel">
+                    <div class="bg-gradient-to-br from-gray-800/80 to-gray-900/80 border border-cyan-500/30 rounded-2xl p-8 backdrop-blur-sm">
+                        <div class="space-y-6">
+                            <div class="text-center pb-6 border-b border-cyan-500/20">
+                                <h3 class="text-2xl font-bold text-white mb-2">Performance Metrics</h3>
+                                <p class="text-gray-400">Real-time AI capabilities</p>
+                            </div>
+
+                            <div class="space-y-4">
+                                <div>
+                                    <div class="flex justify-between mb-2">
+                                        <span class="text-gray-300">Response Accuracy</span>
+                                        <span class="text-cyan-400 font-bold">98%</span>
+                                    </div>
+                                    <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
+                                        <div class="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full cyber-bar" style="width: 98%"></div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="flex justify-between mb-2">
+                                        <span class="text-gray-300">Language Understanding</span>
+                                        <span class="text-cyan-400 font-bold">99%</span>
+                                    </div>
+                                    <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
+                                        <div class="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full cyber-bar" style="width: 99%"></div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="flex justify-between mb-2">
+                                        <span class="text-gray-300">Task Completion</span>
+                                        <span class="text-cyan-400 font-bold">97%</span>
+                                    </div>
+                                    <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
+                                        <div class="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full cyber-bar" style="width: 97%"></div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="flex justify-between mb-2">
+                                        <span class="text-gray-300">User Satisfaction</span>
+                                        <span class="text-cyan-400 font-bold">96%</span>
+                                    </div>
+                                    <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
+                                        <div class="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full cyber-bar" style="width: 96%"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-3 gap-4 pt-6 border-t border-cyan-500/20">
+                                <div class="text-center">
+                                    <div class="text-2xl font-bold text-cyan-400">1M+</div>
+                                    <div class="text-xs text-gray-500">Conversations</div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="text-2xl font-bold text-cyan-400">50+</div>
+                                    <div class="text-xs text-gray-500">Languages</div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="text-2xl font-bold text-cyan-400">24/7</div>
+                                    <div class="text-xs text-gray-500">Uptime</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials Section -->
+    <section id="testimonials" class="relative z-10 py-20 px-4 sm:px-6 lg:px-8 bg-gray-900/50">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl md:text-5xl font-bold mb-4">
+                    <span class="bg-gradient-to-r from-blue-400 to-cyan-400 text-transparent bg-clip-text">Trusted by Innovators</span>
+                </h2>
+                <p class="text-xl text-gray-400 max-w-3xl mx-auto">
+                    Join thousands of users who have transformed their workflow with Aurvek
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8">
+                <!-- Testimonial 1 -->
+                <article class="cyber-testimonial">
+                    <div class="bg-gray-800/50 border border-cyan-500/30 rounded-xl p-6 backdrop-blur-sm h-full">
+                        <div class="flex items-center mb-4">
+                            <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-full flex items-center justify-center text-gray-900 font-bold">
+                                SK
+                            </div>
+                            <div class="ml-4">
+                                <div class="font-semibold text-white">Sarah Kim</div>
+                                <div class="text-sm text-gray-400">Software Engineer</div>
+                            </div>
+                        </div>
+                        <div class="flex mb-3">
+                            <svg class="w-5 h-5 text-cyan-400" fill="currentColor" viewBox="0 0 20 20" aria-label="5 star rating">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+                            </svg>
+                            <svg class="w-5 h-5 text-cyan-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+                            </svg>
+                            <svg class="w-5 h-5 text-cyan-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+                            </svg>
+                            <svg class="w-5 h-5 text-cyan-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+                            </svg>
+                            <svg class="w-5 h-5 text-cyan-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+                            </svg>
+                        </div>
+                        <p class="text-gray-300 leading-relaxed">
+                            "Aurvek has completely transformed how I approach coding challenges. The AI understands context better than any tool I've used before. It's like having a senior developer available 24/7."
+                        </p>
+                    </div>
+                </article>
+
+                <!-- Testimonial 2 -->
+                <article class="cyber-testimonial">
+                    <div class="bg-gray-800/50 border border-cyan-500/30 rounded-xl p-6 backdrop-blur-sm h-full">
+                        <div class="flex items-center mb-4">
+                            <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-full flex items-center justify-center text-gray-900 font-bold">
+                                MR
+                            </div>
+                            <div class="ml-4">
+                                <div class="font-semibold text-white">Marcus Rodriguez</div>
+                                <div class="text-sm text-gray-400">Content Creator</div>
+                            </div>
+                        </div>
+                        <div class="flex mb-3">
+                            <svg class="w-5 h-5 text-cyan-400" fill="currentColor" viewBox="0 0 20 20" aria-label="5 star rating">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+                            </svg>
+                            <svg class="w-5 h-5 text-cyan-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+                            </svg>
+                            <svg class="w-5 h-5 text-cyan-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+                            </svg>
+                            <svg class="w-5 h-5 text-cyan-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+                            </svg>
+                            <svg class="w-5 h-5 text-cyan-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+                            </svg>
+                        </div>
+                        <p class="text-gray-300 leading-relaxed">
+                            "As a content creator, I need to produce quality material consistently. Aurvek helps me brainstorm ideas, refine my writing, and maintain my creative flow. It's an indispensable part of my workflow."
+                        </p>
+                    </div>
+                </article>
+
+                <!-- Testimonial 3 -->
+                <article class="cyber-testimonial">
+                    <div class="bg-gray-800/50 border border-cyan-500/30 rounded-xl p-6 backdrop-blur-sm h-full">
+                        <div class="flex items-center mb-4">
+                            <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-full flex items-center justify-center text-gray-900 font-bold">
+                                EP
+                            </div>
+                            <div class="ml-4">
+                                <div class="font-semibold text-white">Emily Patel</div>
+                                <div class="text-sm text-gray-400">Data Analyst</div>
+                            </div>
+                        </div>
+                        <div class="flex mb-3">
+                            <svg class="w-5 h-5 text-cyan-400" fill="currentColor" viewBox="0 0 20 20" aria-label="5 star rating">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+                            </svg>
+                            <svg class="w-5 h-5 text-cyan-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+                            </svg>
+                            <svg class="w-5 h-5 text-cyan-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+                            </svg>
+                            <svg class="w-5 h-5 text-cyan-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+                            </svg>
+                            <svg class="w-5 h-5 text-cyan-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+                            </svg>
+                        </div>
+                        <p class="text-gray-300 leading-relaxed">
+                            "The analytical capabilities are impressive. Aurvek helps me interpret complex datasets and present findings in ways that stakeholders actually understand. It's saved me countless hours."
+                        </p>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="relative z-10 py-20 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-4xl mx-auto text-center">
+            <div class="cyber-cta-panel">
+                <div class="bg-gradient-to-br from-gray-800/80 to-gray-900/80 border border-cyan-500/30 rounded-2xl p-12 backdrop-blur-sm relative overflow-hidden">
+                    <div class="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-cyan-400/10"></div>
+                    <div class="relative z-10">
+                        <h2 class="text-4xl md:text-5xl font-bold mb-6">
+                            <span class="text-white">Ready to Experience</span>
+                            <br>
+                            <span class="bg-gradient-to-r from-blue-400 to-cyan-400 text-transparent bg-clip-text">The Future of AI?</span>
+                        </h2>
+                        <p class="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
+                            Join thousands of professionals already using Aurvek to transform how they work, create, and innovate.
+                        </p>
+                        <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                            <a href="register" class="cyber-button-primary px-10 py-4 bg-gradient-to-r from-blue-500 to-cyan-400 text-gray-900 font-bold rounded-lg hover:shadow-2xl hover:shadow-cyan-500/50 transition-all duration-300 text-lg inline-block">
+                                Start Free Trial
+                            </a>
+                            <a href="#features" class="cyber-button-secondary px-10 py-4 bg-transparent border-2 border-cyan-500/50 text-cyan-400 font-bold rounded-lg hover:bg-cyan-500/10 hover:border-cyan-400 transition-all duration-300 text-lg inline-block">
+                                Learn More
+                            </a>
+                        </div>
+                        <p class="text-sm text-gray-500 mt-6">
+                            No credit card required • Free plan available • Cancel anytime
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="relative z-10 border-t border-cyan-500/20 bg-gray-900/80 backdrop-blur-md py-12 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid md:grid-cols-4 gap-8 mb-8">
+                <div>
+                    <h3 class="text-xl font-bold bg-gradient-to-r from-blue-500 to-cyan-400 text-transparent bg-clip-text mb-4">AURVEK</h3>
+                    <p class="text-gray-400 text-sm">
+                        Intelligent AI assistant powered by Aurvek. Transforming how people interact with artificial intelligence.
+                    </p>
+                </div>
+
+                <div>
+                    <h4 class="font-semibold text-white mb-4">Product</h4>
+                    <ul class="space-y-2">
+                        <li><a href="#features" class="text-gray-400 hover:text-cyan-400 transition-colors text-sm">Features</a></li>
+                        <li><a href="#capabilities" class="text-gray-400 hover:text-cyan-400 transition-colors text-sm">Capabilities</a></li>
+                        <li><a href="register" class="text-gray-400 hover:text-cyan-400 transition-colors text-sm">Pricing</a></li>
+                        <li><a href="#testimonials" class="text-gray-400 hover:text-cyan-400 transition-colors text-sm">Testimonials</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="font-semibold text-white mb-4">Company</h4>
+                    <ul class="space-y-2">
+                        <li><a href="#" class="text-gray-400 hover:text-cyan-400 transition-colors text-sm">About Us</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-cyan-400 transition-colors text-sm">Blog</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-cyan-400 transition-colors text-sm">Careers</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-cyan-400 transition-colors text-sm">Contact</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="font-semibold text-white mb-4">Legal</h4>
+                    <ul class="space-y-2">
+                        <li><a href="#" class="text-gray-400 hover:text-cyan-400 transition-colors text-sm">Privacy Policy</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-cyan-400 transition-colors text-sm">Terms of Service</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-cyan-400 transition-colors text-sm">Security</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-cyan-400 transition-colors text-sm">Cookie Policy</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="border-t border-cyan-500/20 pt-8 flex flex-col md:flex-row justify-between items-center">
+                <p class="text-gray-500 text-sm">
+                    &copy; 2024 Aurvek. All rights reserved.
+                </p>
+                <div class="flex space-x-6 mt-4 md:mt-0">
+                    <a href="#" class="text-gray-400 hover:text-cyan-400 transition-colors" aria-label="Visit our Twitter page">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84"></path>
+                        </svg>
+                    </a>
+                    <a href="#" class="text-gray-400 hover:text-cyan-400 transition-colors" aria-label="Visit our GitHub page">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"></path>
+                        </svg>
+                    </a>
+                    <a href="#" class="text-gray-400 hover:text-cyan-400 transition-colors" aria-label="Visit our LinkedIn page">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"></path>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Custom JavaScript -->
+    <script src="static/js/custom.js"></script>
+</body>
+</html>

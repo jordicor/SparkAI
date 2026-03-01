@@ -246,7 +246,7 @@ async def lifespan(app: FastAPI):
     # and run parallel scheduled loops, wasting DB writes.
     import tempfile as _tempfile
     _ranking_lock = os.path.join(
-        _tempfile.gettempdir(), f"spark_ranking_{os.getppid()}.lock"
+        _tempfile.gettempdir(), f"aurvek_ranking_{os.getppid()}.lock"
     )
     _is_ranking_leader = False
 
@@ -1904,7 +1904,7 @@ async def update_my_branding(request: Request, current_user: User = Depends(get_
                     brand_color_secondary = ?,
                     footer_text = ?,
                     email_signature = ?,
-                    hide_spark_branding = ?,
+                    hide_platform_branding = ?,
                     forced_theme = ?,
                     disable_theme_selector = ?,
                     updated_at = CURRENT_TIMESTAMP
@@ -1916,7 +1916,7 @@ async def update_my_branding(request: Request, current_user: User = Depends(get_
                 brand_color_secondary,
                 data.get('footer_text'),
                 data.get('email_signature'),
-                1 if data.get('hide_spark_branding') else 0,
+                1 if data.get('hide_platform_branding') else 0,
                 forced_theme,
                 1 if data.get('disable_theme_selector') else 0,
                 current_user.id
@@ -1926,7 +1926,7 @@ async def update_my_branding(request: Request, current_user: User = Depends(get_
             await cursor.execute('''
                 INSERT INTO MANAGER_BRANDING
                 (manager_id, company_name, logo_url, brand_color_primary, brand_color_secondary,
-                 footer_text, email_signature, hide_spark_branding, forced_theme, disable_theme_selector)
+                 footer_text, email_signature, hide_platform_branding, forced_theme, disable_theme_selector)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 current_user.id,
@@ -1936,7 +1936,7 @@ async def update_my_branding(request: Request, current_user: User = Depends(get_
                 brand_color_secondary,
                 data.get('footer_text'),
                 data.get('email_signature'),
-                1 if data.get('hide_spark_branding') else 0,
+                1 if data.get('hide_platform_branding') else 0,
                 forced_theme,
                 1 if data.get('disable_theme_selector') else 0
             ))
@@ -2387,13 +2387,13 @@ async def track_landing_visit(request: Request):
         return JSONResponse(content={"error": "prompt_id or pack_id required"}, status_code=400)
 
     # Generate anonymous visitor ID from cookies or create new
-    visitor_id = request.cookies.get('_spark_visitor')
+    visitor_id = request.cookies.get('_aurvek_visitor')
     if not visitor_id:
         visitor_id = secrets.token_urlsafe(16)
 
     # Hash IP for privacy
     client_ip = get_client_ip(request)
-    ip_hash = hashlib.sha256((client_ip + os.getenv('PEPPER', 'spark')).encode()).hexdigest()[:16]
+    ip_hash = hashlib.sha256((client_ip + os.getenv('PEPPER', 'aurvek')).encode()).hexdigest()[:16]
 
     page_path = data.get('page_path', '/')
     referrer = data.get('referrer', '')
@@ -2454,9 +2454,9 @@ async def track_landing_visit(request: Request):
             response = JSONResponse(content={"status": "tracked"})
 
     # Set visitor cookie if not already set (1 year expiry)
-    if not request.cookies.get('_spark_visitor'):
+    if not request.cookies.get('_aurvek_visitor'):
         response.set_cookie(
-            key='_spark_visitor',
+            key='_aurvek_visitor',
             value=visitor_id,
             max_age=365 * 24 * 60 * 60,
             httponly=True,
@@ -2479,7 +2479,7 @@ async def mark_analytics_conversion(request: Request):
     prompt_id = data.get('prompt_id')
     pack_id = data.get('pack_id')
     user_id = data.get('user_id')
-    visitor_id = request.cookies.get('_spark_visitor')
+    visitor_id = request.cookies.get('_aurvek_visitor')
 
     if (not prompt_id and not pack_id) or not visitor_id:
         return JSONResponse(content={"status": "skip", "reason": "missing_data"})
@@ -4719,13 +4719,13 @@ async def home(request: Request, current_user: User = Depends(get_current_user))
                 html_content = html_path.read_text(encoding='utf-8')
 
                 # Inject analytics tracking script
-                if '_spark_analytics_loaded' not in html_content:
+                if '_aurvek_analytics_loaded' not in html_content:
                     tracking_script = f'''
-<!-- Spark Analytics Tracking -->
+<!-- Aurvek Analytics Tracking -->
 <script>
 (function() {{
-    if (window._spark_analytics_loaded) return;
-    window._spark_analytics_loaded = true;
+    if (window._aurvek_analytics_loaded) return;
+    window._aurvek_analytics_loaded = true;
     fetch('/api/analytics/track-visit', {{
         method: 'POST',
         headers: {{'Content-Type': 'application/json'}},
@@ -4950,7 +4950,7 @@ async def _handle_login_request(
 
 @app.route("/login", methods=["GET", "POST"])
 async def login(request: Request):
-    """Login page for managers/admins - from SparkAI main site."""
+    """Login page for managers/admins - from Aurvek main site."""
     return await _handle_login_request(
         request,
         prompt_context=None,
@@ -10925,8 +10925,8 @@ async def create_stripe_checkout_session(
                     'currency': 'usd',
                     'unit_amount': int(final_amount * 100),  # Stripe uses cents
                     'product_data': {
-                        'name': f'SPARK Balance - ${final_amount:.2f}',
-                        'description': f'Add ${original_amount:.2f} to your SPARK account balance',
+                        'name': f'AURVEK Balance - ${final_amount:.2f}',
+                        'description': f'Add ${original_amount:.2f} to your AURVEK account balance',
                     },
                 },
                 'quantity': 1,
@@ -14279,13 +14279,13 @@ async def public_landing_page(
 
         # Phase 5: Inject analytics tracking script before </body>
         # Skip in preview mode (iframe from /explore) — no tracking, no CORS issues
-        if not is_preview and '_spark_analytics_loaded' not in html_content:
+        if not is_preview and '_aurvek_analytics_loaded' not in html_content:
             tracking_script = f'''
-<!-- Spark Analytics Tracking -->
+<!-- Aurvek Analytics Tracking -->
 <script>
 (function() {{
-    if (window._spark_analytics_loaded) return;
-    window._spark_analytics_loaded = true;
+    if (window._aurvek_analytics_loaded) return;
+    window._aurvek_analytics_loaded = true;
     fetch('/api/analytics/track-visit', {{
         method: 'POST',
         headers: {{'Content-Type': 'application/json'}},
@@ -14297,7 +14297,7 @@ async def public_landing_page(
         credentials: 'include'
     }}).catch(function(e) {{ console.log('Analytics:', e); }});
 }})();
-window.SparkPurchase = function(promptId) {{
+window.AurvekPurchase = function(promptId) {{
     if (!promptId) promptId = {landing_data["prompt_id"]};
     fetch('/api/prompts/' + promptId + '/purchase', {{
         method: 'POST',
@@ -14996,7 +14996,7 @@ async def auth_google_callback(request: Request, code: str = None, state: str = 
                 logger.error(f"Failed to grant pack access via Google OAuth: {pack_err}")
 
         # Analytics conversion tracking
-        visitor_id = request.cookies.get('_spark_visitor')
+        visitor_id = request.cookies.get('_aurvek_visitor')
         if visitor_id and analytics_pack_id:
             try:
                 async with get_db_connection() as conv_conn:
@@ -15327,7 +15327,7 @@ async def verify_email(request: Request, token: str):
             # Phase 5: Mark analytics conversion if this was a landing page registration
             # Pack registrations attribute the conversion to the pack, not the prompt
             # Use analytics_pack_id to track paid pack registrations even after pack_id is cleared
-            visitor_id = request.cookies.get('_spark_visitor')
+            visitor_id = request.cookies.get('_aurvek_visitor')
             if visitor_id and (analytics_pack_id or prompt_id):
                 try:
                     async with get_db_connection() as conv_conn:
@@ -20151,7 +20151,7 @@ async def enable_geo_transforms(request: Request, current_user: User = Depends(g
 
 @app.delete("/api/admin/geo/rules")
 async def remove_geo_rules(request: Request, current_user: User = Depends(get_current_user)):
-    """Remove all spark geo-blocking rules from Cloudflare."""
+    """Remove all aurvek geo-blocking rules from Cloudflare."""
     if current_user is None:
         return unauthenticated_response()
 
@@ -20667,7 +20667,7 @@ async def get_home_data(request: Request, current_user: User = Depends(get_curre
         branding = None
         await cursor.execute('''
             SELECT mb.company_name, mb.logo_url, mb.brand_color_primary, mb.brand_color_secondary,
-                   mb.footer_text, mb.forced_theme, mb.disable_theme_selector, mb.hide_spark_branding
+                   mb.footer_text, mb.forced_theme, mb.disable_theme_selector, mb.hide_platform_branding
             FROM USER_CREATOR_RELATIONSHIPS ucr
             JOIN MANAGER_BRANDING mb ON mb.manager_id = ucr.creator_id
             WHERE ucr.user_id = ? AND ucr.is_primary = 1
@@ -21242,13 +21242,13 @@ async def custom_domain_landing(
         html_content = html_path.read_text(encoding='utf-8')
 
         # Phase 5: Inject analytics tracking script before </body>
-        if '_spark_analytics_loaded' not in html_content:
+        if '_aurvek_analytics_loaded' not in html_content:
             tracking_script = f'''
-<!-- Spark Analytics Tracking -->
+<!-- Aurvek Analytics Tracking -->
 <script>
 (function() {{
-    if (window._spark_analytics_loaded) return;
-    window._spark_analytics_loaded = true;
+    if (window._aurvek_analytics_loaded) return;
+    window._aurvek_analytics_loaded = true;
     fetch('/api/analytics/track-visit', {{
         method: 'POST',
         headers: {{'Content-Type': 'application/json'}},

@@ -249,7 +249,7 @@ async def get_template_context(request, current_user, branding_context=None):
     branding = await get_branding_for_context(context=branding_context)
     branding["is_custom_domain"] = getattr(request.state, "custom_domain", False)
     if not branding["is_custom_domain"]:
-        branding["hide_spark_branding"] = False
+        branding["hide_platform_branding"] = False
 
     return {
         "request": request,
@@ -1108,7 +1108,7 @@ def get_public_profile_url(
         Full URL string
 
     Example:
-        https://spark.ai/p/k9F3aZ2p/ava/
+        https://aurvek.com/p/k9F3aZ2p/ava/
     """
     domain = PUBLIC_PROFILE_DOMAIN
     protocol = "http" if "localhost" in domain else "https"
@@ -1819,7 +1819,7 @@ async def get_manager_branding(manager_id: int, conn=None) -> dict:
     """
     query = '''
         SELECT company_name, logo_url, brand_color_primary, brand_color_secondary,
-               footer_text, email_signature, hide_spark_branding, forced_theme,
+               footer_text, email_signature, hide_platform_branding, forced_theme,
                disable_theme_selector
         FROM MANAGER_BRANDING
         WHERE manager_id = ?
@@ -1841,7 +1841,7 @@ async def get_manager_branding(manager_id: int, conn=None) -> dict:
             'brand_color_secondary': '#10B981',
             'footer_text': None,
             'email_signature': None,
-            'hide_spark_branding': False,
+            'hide_platform_branding': False,
             'forced_theme': None,
             'disable_theme_selector': False
         }
@@ -1853,7 +1853,7 @@ async def get_manager_branding(manager_id: int, conn=None) -> dict:
         'brand_color_secondary': row[3] or '#10B981',
         'footer_text': row[4],
         'email_signature': row[5],
-        'hide_spark_branding': bool(row[6]),
+        'hide_platform_branding': bool(row[6]),
         'forced_theme': row[7],
         'disable_theme_selector': bool(row[8])
     }
@@ -1889,13 +1889,13 @@ async def get_branding_for_user(user_id: int, conn=None) -> dict:
 
     # Return default branding
     return {
-        'company_name': 'Spark',
+        'company_name': 'Aurvek',
         'logo_url': None,
         'brand_color_primary': '#6366f1',
         'brand_color_secondary': '#10B981',
         'footer_text': None,
         'email_signature': None,
-        'hide_spark_branding': False,
+        'hide_platform_branding': False,
         'forced_theme': None,
         'disable_theme_selector': False
     }
@@ -1911,20 +1911,20 @@ def _safe_color(value, fallback='#6366f1'):
 async def get_branding_for_context(context=None, conn=None) -> dict:
     """
     Resolve branding based on navigation context.
-    - context=None -> SPARK platform defaults (0 queries)
+    - context=None -> AURVEK platform defaults (0 queries)
     - context={"creator_id": X} -> that creator's branding
     - context={"storefront_slug": "john"} -> lookup creator by slug -> branding
     - context={"prompt_id": X} -> lookup creator by prompt -> branding
     - context={"pack_id": X} -> lookup creator by pack -> branding
     """
     PLATFORM_DEFAULTS = {
-        'company_name': 'Spark',
+        'company_name': 'Aurvek',
         'logo_url': None,
         'brand_color_primary': '#6366f1',
         'brand_color_secondary': '#10B981',
         'footer_text': None,
         'email_signature': None,
-        'hide_spark_branding': False,
+        'hide_platform_branding': False,
         'forced_theme': None,
         'disable_theme_selector': False,
         'context_type': 'platform',

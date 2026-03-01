@@ -1,5 +1,5 @@
 """
-Email validation module for SparkAI registration system.
+Email validation module for Aurvek registration system.
 
 Provides robust email validation including:
 - Format validation (RFC 5322 simplified)

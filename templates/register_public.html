@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}{% if prompt %}Register - {{ prompt.name }}{% else %}Create Account - SparkAI{% endif %}{% endblock %}
+{% block title %}{% if prompt %}Register - {{ prompt.name }}{% else %}Create Account - Aurvek{% endif %}{% endblock %}
 
 {% block styles %}
 {# Theme CSS loaded by theme-loader.js #}
@@ -32,7 +32,7 @@
         border: 3px solid white;
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
-    .prompt-name, .sparkai-title {
+    .prompt-name, .aurvek-title {
         color: white;
         font-weight: 600;
     }
@@ -40,7 +40,7 @@
         color: rgba(255,255,255,0.85);
         font-size: 0.9rem;
     }
-    .sparkai-logo {
+    .aurvek-logo {
         display: inline-block;
     }
     .btn-primary {
@@ -134,15 +134,15 @@
             {% endif %}
         </div>
         {% else %}
-        <!-- Manager registration from SparkAI main -->
-        <div class="sparkai-header text-center mb-4">
-            <div class="sparkai-logo mb-3">
+        <!-- Manager registration from Aurvek main -->
+        <div class="aurvek-header text-center mb-4">
+            <div class="aurvek-logo mb-3">
                 <svg width="56" height="56" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <circle cx="24" cy="24" r="24" fill="white"/>
                     <path d="M24 12L28 20L36 22L30 28L31 36L24 32L17 36L18 28L12 22L20 20L24 12Z" fill="#6366f1"/>
                 </svg>
             </div>
-            <h2 class="sparkai-title">Create Your Account</h2>
+            <h2 class="aurvek-title">Create Your Account</h2>
             <p class="text-white-50">Start creating AI-powered experiences</p>
         </div>
         {% endif %}
