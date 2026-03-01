@@ -2979,32 +2979,3 @@ input[type="range"] {
 }
 
 
-
-/* =============================================
-   Web Search Toggle
-   ============================================= */
-
-#web-search-control {
-    display: none;
-}
-
-#web-search-control.visible {
-    position: relative;
-    display: flex;
-    align-items: center;
-    color: var(--text-muted);
-    cursor: pointer;
-}
-
-#web-search-control i {
-    font-size: 14px;
-    line-height: 1;
-}
-
-#web-search-control:hover {
-    color: var(--text-primary);
-}
-
-#web-search-control i.active {
-    color: var(--accent);
-}

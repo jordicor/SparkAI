@@ -274,6 +274,30 @@
     /* --- Tab layout --- */
     .settings-tabs { margin-bottom: 0; }
     .tab-pane { padding-top: 0.5rem; }
+
+    /* --- Web Search section --- */
+    .ws-engine-options { display: flex; flex-direction: column; gap: 8px; }
+    .ws-engine-option {
+        display: flex; align-items: center; gap: 12px;
+        padding: 10px 14px; border-radius: 8px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-tertiary);
+        cursor: pointer; transition: all 0.15s ease;
+    }
+    .ws-engine-option:hover { border-color: var(--accent); }
+    .ws-engine-option.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--bg-tertiary)); }
+    .ws-engine-option.disabled {
+        opacity: 0.5; cursor: not-allowed;
+        pointer-events: none;
+    }
+    .ws-engine-option input[type="radio"] { accent-color: var(--accent); margin: 0; }
+    .ws-engine-label { font-weight: 500; color: var(--text-primary); }
+    .ws-engine-desc { font-size: 0.82rem; color: var(--text-muted); margin-top: 2px; }
+    .ws-badge-rec {
+        font-size: 0.7rem; font-weight: 600; padding: 2px 7px;
+        border-radius: 4px; background: var(--accent); color: #fff;
+        margin-left: 6px; vertical-align: middle;
+    }
 </style>
 {% endblock %}
 
@@ -495,6 +519,36 @@
                         </label>
                     </div>
                 </div>
+            </div>
+
+            <!-- Web Search -->
+            <div class="section-container" id="webSearchSection">
+                <div class="section-title">
+                    <i class="fas fa-search me-2"></i>Web Search
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Search engine</label>
+                    <div class="ws-engine-options">
+                        <label class="ws-engine-option" id="wsEngineNative">
+                            <input type="radio" name="wsEngine" value="native">
+                            <div>
+                                <div class="ws-engine-label">Native <span class="ws-badge-rec">Recommended</span></div>
+                                <div class="ws-engine-desc">Uses the AI model's built-in web search. Faster and more integrated with the conversation.</div>
+                            </div>
+                        </label>
+                        <label class="ws-engine-option" id="wsEnginePerplexity">
+                            <input type="radio" name="wsEngine" value="perplexity">
+                            <div>
+                                <div class="ws-engine-label">Perplexity</div>
+                                <div class="ws-engine-desc">Uses Perplexity as external search engine. Separate service.</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+
+
             </div>
 
             {% if can_change_password %}
@@ -1077,5 +1131,47 @@
         }
     });
     {% endif %}
+
+    // --- Web Search settings (load + UI interactions, save triggered by edit_profile.js on form submit) ---
+    (async function initWebSearchSettings() {
+        const engineNative = document.getElementById('wsEngineNative');
+        const enginePerplexity = document.getElementById('wsEnginePerplexity');
+        const radioNative = engineNative?.querySelector('input[type="radio"]');
+        const radioPerplexity = enginePerplexity?.querySelector('input[type="radio"]');
+
+        if (!radioNative) return;
+
+        // Load current settings from API
+        try {
+            const res = await fetch('/api/user/web-search-settings');
+            if (res.ok) {
+                const data = await res.json();
+                if (data.web_search_mode === 'native') {
+                    radioNative.checked = true;
+                    engineNative.classList.add('active');
+                } else {
+                    radioPerplexity.checked = true;
+                    enginePerplexity.classList.add('active');
+                }
+                if (!data.perplexity_available) {
+                    enginePerplexity.classList.add('disabled');
+                    enginePerplexity.querySelector('.ws-engine-desc').textContent = 'Not available on this server.';
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load web search settings', e);
+        }
+
+        // Engine selection (visual toggle only, saved on form submit)
+        [radioNative, radioPerplexity].forEach(radio => {
+            radio.addEventListener('change', function() {
+                engineNative.classList.toggle('active', radioNative.checked);
+                enginePerplexity.classList.toggle('active', radioPerplexity.checked);
+            });
+        });
+        enginePerplexity.addEventListener('click', function(e) {
+            if (this.classList.contains('disabled')) e.preventDefault();
+        });
+    })();
 </script>
 {% endblock %}

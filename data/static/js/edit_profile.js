@@ -369,8 +369,8 @@ async function handleFormSubmit(event) {
             currentUserVoiceId = formData.get('sample_voice_id');
             originalPhoneNumber = fullPhoneNumber;
             currentAlterEgoId = formData.get('alter_ego_id');
-            // Save after-login preference alongside profile
-            saveAfterLoginPreference()
+            // Save after-login and web search preferences alongside profile
+            Promise.all([saveAfterLoginPreference(), saveWebSearchSettings()])
                 .then(() => NotificationModal.success('Success', 'Profile updated successfully'))
                 .catch(() => NotificationModal.success('Success', 'Profile updated successfully'));
         } else {
@@ -1032,6 +1032,24 @@ function saveAfterLoginPreference() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ after_login: selectedRadio.value })
+    })
+    .then(response => {
+        if (!response) return null;
+        return response.json();
+    });
+}
+
+function saveWebSearchSettings() {
+    const engineRadio = document.querySelector('input[name="wsEngine"]:checked');
+
+    if (!engineRadio) return Promise.resolve();
+
+    return secureFetch('/api/user/web-search-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            web_search_mode: engineRadio.value
+        })
     })
     .then(response => {
         if (!response) return null;

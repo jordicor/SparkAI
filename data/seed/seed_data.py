@@ -352,8 +352,9 @@ def seed_admin_user(conn):
         INSERT INTO USER_DETAILS (
             user_id, llm_id, balance, current_prompt_id,
             all_prompts_access, allow_file_upload, allow_image_generation,
-            public_prompts_access, authentication_mode, can_change_password
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            public_prompts_access, authentication_mode, can_change_password,
+            web_search_mode
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'native')
     """, (admin_id, 1, 100.0, 1, True, True, True, True, "magic_link_only", True))
 
     conn.commit()

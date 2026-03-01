@@ -2635,22 +2635,6 @@ input[type="range"] {
 }
 
 
-/* =============================================
-   Web Search Toggle
-   ============================================= */
-
-#web-search-control {
-    display: none;
-}
-
-#web-search-control.visible {
-    display: contents;
-}
-
-#web-search-control i.active {
-    color: var(--fa-accent-blue);
-}
-
 /* Sidebar User Area - Frutiger Aero overrides */
 .sidebar-user {
     border-top: 1px solid var(--fa-border-color-light);

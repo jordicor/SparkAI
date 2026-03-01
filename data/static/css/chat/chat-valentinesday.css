@@ -2586,38 +2586,6 @@ input[type="range"]::-webkit-slider-thumb {
 
 
 
-/* =============================================
-   Web Search Toggle
-   ============================================= */
-
-#web-search-control {
-    display: none;
-}
-
-#web-search-control.visible {
-    position: relative;
-    display: flex;
-    align-items: center;
-    color: var(--text-muted);
-    cursor: pointer;
-    margin-right: 8px;
-}
-
-#web-search-control i {
-    font-size: 14px;
-    line-height: 1;
-    transition: color 0.3s ease;
-}
-
-#web-search-control:hover {
-    color: var(--text-primary);
-}
-
-#web-search-control i.active {
-    color: var(--accent);
-    filter: drop-shadow(0 0 4px rgba(var(--accent-rgb), 0.5));
-}
-
 /* Sidebar User Area - Valentine's Day overrides */
 .sidebar-user {
     border-top: 2px solid var(--border-color);

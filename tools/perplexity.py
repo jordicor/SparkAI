@@ -55,6 +55,59 @@ async def query_perplexity(query, publish_func):
                     except Exception as e:
                         print(f"Error in query_perplexity: {e}")
 
+
+async def get_perplexity_result(query: str) -> str:
+    """Call Perplexity API non-streaming and return the full text result.
+
+    Used by the second-pass flow: the AI calls query_perplexity as a tool,
+    we fetch the search results here, then feed them back to the original AI
+    so it can formulate its own answer with personality and context.
+    """
+    if not PERPLEXITY_API_KEY:
+        raise RuntimeError("PERPLEXITY_API_KEY not configured")
+
+    url = "https://api.perplexity.ai/chat/completions"
+    payload = {
+        "messages": [
+            {
+                "content": (
+                    "You are a research assistant. Provide comprehensive, factual search results "
+                    "with sources and citations. The user's AI assistant will use your output to "
+                    "formulate a final answer. Be thorough and include all relevant data."
+                ),
+                "role": "system"
+            },
+            {
+                "content": query,
+                "role": "user"
+            }
+        ],
+        "model": "sonar-pro",
+        "stream": False,
+        "return_citations": True,
+        "return_images": False,
+        "return_related_questions": False,
+        "temperature": 0.7
+    }
+    headers = {
+        "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    timeout = aiohttp.ClientTimeout(total=30)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with session.post(url, json=payload, headers=headers) as response:
+            if response.status != 200:
+                error_text = await response.text()
+                raise RuntimeError(f"Perplexity API error {response.status}: {error_text}")
+
+            data = await response.json()
+            choices = data.get('choices', [])
+            if not choices or 'message' not in choices[0] or not choices[0]['message'].get('content'):
+                raise RuntimeError("Perplexity returned empty or malformed response")
+            return choices[0]['message']['content']
+
+
 @dramatiq.actor
 def query_perplexity_task(channel_name: str, query: str):
     asyncio.run(perform_perplexity_query(channel_name, query))

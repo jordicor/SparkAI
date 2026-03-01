@@ -274,6 +274,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.getElementById('form-message').onsubmit = function(e) {
         e.preventDefault();
+        // Prevent sending while AI is streaming
+        const sendButton = document.getElementById('send-button');
+        if (sendButton.innerText === 'Stop') return;
         var messageText = document.getElementById('message-text').value;
         /*messageText = encodeForHTML(messageText);*/
         

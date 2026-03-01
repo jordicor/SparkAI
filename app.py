@@ -620,8 +620,9 @@ async def add_user(username, prompt_id, all_prompts_access, public_prompts_acces
                             billing_limit,
                             billing_limit_action,
                             billing_auto_refill_amount,
-                            billing_max_limit
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            billing_max_limit,
+                            web_search_mode
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'native')
                     """, (
                         user_id,
                         prompt_id,
@@ -8427,7 +8428,8 @@ async def get_messages(
             await cursor.execute('''
                 SELECT m.id AS message_id, m.conversation_id, m.user_id, u.username,
                        m.message, m.type, strftime('%Y-%m-%d %H:%M:%S', m.date) as date_utc,
-                       m.is_bookmarked, m.llm_id, l.machine AS llm_machine, l.model AS llm_model
+                       m.is_bookmarked, m.llm_id, l.machine AS llm_machine, l.model AS llm_model,
+                       m.citations_json
                 FROM MESSAGES m
                 LEFT JOIN USERS u ON m.user_id = u.id
                 LEFT JOIN LLM l ON m.llm_id = l.id
@@ -8439,7 +8441,8 @@ async def get_messages(
             await cursor.execute('''
                 SELECT m.id AS message_id, m.conversation_id, m.user_id, u.username,
                        m.message, m.type, strftime('%Y-%m-%d %H:%M:%S', m.date) as date_utc,
-                       m.is_bookmarked, m.llm_id, l.machine AS llm_machine, l.model AS llm_model
+                       m.is_bookmarked, m.llm_id, l.machine AS llm_machine, l.model AS llm_model,
+                       m.citations_json
                 FROM MESSAGES m
                 LEFT JOIN USERS u ON m.user_id = u.id
                 LEFT JOIN LLM l ON m.llm_id = l.id
@@ -8525,7 +8528,7 @@ async def get_messages(
     for row in rows:
         if row['message_id'] is not None:
             processed_message = await process_message(custom_unescape(row['message']), request, current_user)
-            messages_list.append({
+            msg_data = {
                 "id": row['message_id'],
                 "conversation_id": conversation_id,
                 "user_id": row['user_id'],
@@ -8537,7 +8540,13 @@ async def get_messages(
                 "llm_id": row['llm_id'],
                 "llm_machine": row['llm_machine'],
                 "llm_model": row['llm_model']
-            })
+            }
+            if row['citations_json']:
+                try:
+                    msg_data["citations"] = orjson.loads(row['citations_json'])
+                except (orjson.JSONDecodeError, Exception):
+                    pass
+            messages_list.append(msg_data)
 
     messages_list.reverse()
     return JSONResponse(content={
@@ -9486,11 +9495,14 @@ async def get_web_search_status(conversation_id: int, current_user: User = Depen
     if current_user is None:
         return unauthenticated_response()
 
+    perplexity_available = bool(os.getenv('PERPLEXITY_API_KEY'))
+
     async with get_db_connection(readonly=True) as conn:
         cursor = await conn.execute("""
             SELECT
                 COALESCE(p.disable_web_search, 0) as prompt_disabled,
-                COALESCE(ud.web_search_enabled, 1) as user_enabled
+                COALESCE(ud.web_search_enabled, 1) as user_enabled,
+                COALESCE(ud.web_search_mode, 'native') as web_search_mode
             FROM CONVERSATIONS c
             LEFT JOIN PROMPTS p ON c.role_id = p.id
             LEFT JOIN USER_DETAILS ud ON ud.user_id = c.user_id
@@ -9498,12 +9510,19 @@ async def get_web_search_status(conversation_id: int, current_user: User = Depen
         """, (conversation_id, current_user.id))
         row = await cursor.fetchone()
         if row:
-            prompt_disabled, user_enabled = row
+            prompt_disabled, user_enabled, web_search_mode = row
             return JSONResponse(content={
                 "allowed_by_prompt": not bool(prompt_disabled),
-                "user_enabled": bool(user_enabled)
+                "user_enabled": bool(user_enabled),
+                "web_search_mode": web_search_mode,
+                "perplexity_available": perplexity_available
             })
-        return JSONResponse(content={"allowed_by_prompt": True, "user_enabled": True})
+        return JSONResponse(content={
+            "allowed_by_prompt": True,
+            "user_enabled": True,
+            "web_search_mode": "native",
+            "perplexity_available": perplexity_available
+        })
 
 
 @app.post("/api/user/web-search-toggle")
@@ -9530,6 +9549,114 @@ async def toggle_web_search(current_user: User = Depends(get_current_user)):
         await conn.commit()
 
         return JSONResponse(content={"web_search_enabled": bool(new_value)})
+
+
+@app.post("/api/user/web-search-mode")
+async def set_web_search_mode(request: Request, current_user: User = Depends(get_current_user)):
+    """Set user's preferred web search mode (native or perplexity)"""
+    if current_user is None:
+        return unauthenticated_response()
+
+    try:
+        data = await request.json()
+    except Exception:
+        return JSONResponse(content={"error": "Invalid request body"}, status_code=400)
+
+    mode = data.get("mode")
+
+    if mode not in ("native", "perplexity"):
+        return JSONResponse(content={"error": "Invalid mode. Must be 'native' or 'perplexity'"}, status_code=400)
+
+    async with get_db_connection() as conn:
+        await conn.execute(
+            "UPDATE USER_DETAILS SET web_search_mode = ? WHERE user_id = ?",
+            (mode, current_user.id)
+        )
+        await conn.commit()
+
+        return JSONResponse(content={"web_search_mode": mode})
+
+
+@app.get("/api/user/web-search-settings")
+async def get_web_search_settings(current_user: User = Depends(get_current_user)):
+    """Get all web search user preferences"""
+    if current_user is None:
+        return unauthenticated_response()
+
+    perplexity_available = bool(os.getenv('PERPLEXITY_API_KEY'))
+
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.execute("""
+            SELECT
+                COALESCE(web_search_mode, 'native') as web_search_mode,
+                COALESCE(web_search_enabled, 1) as web_search_enabled,
+                COALESCE(web_search_show_sources, 1) as web_search_show_sources,
+                COALESCE(web_search_inline_citations, 0) as web_search_inline_citations
+            FROM USER_DETAILS WHERE user_id = ?
+        """, (current_user.id,))
+        row = await cursor.fetchone()
+
+    if row:
+        return JSONResponse(content={
+            "web_search_mode": row[0],
+            "web_search_enabled": bool(row[1]),
+            "web_search_show_sources": bool(row[2]),
+            "web_search_inline_citations": bool(row[3]),
+            "perplexity_available": perplexity_available
+        })
+    return JSONResponse(content={
+        "web_search_mode": "native",
+        "web_search_enabled": True,
+        "web_search_show_sources": True,
+        "web_search_inline_citations": False,
+        "perplexity_available": perplexity_available
+    })
+
+
+@app.post("/api/user/web-search-settings")
+async def update_web_search_settings(request: Request, current_user: User = Depends(get_current_user)):
+    """Update web search preferences: mode, show_sources, inline_citations"""
+    if current_user is None:
+        return unauthenticated_response()
+
+    try:
+        data = await request.json()
+    except Exception:
+        return JSONResponse(content={"error": "Invalid request body"}, status_code=400)
+
+    updates = []
+    params = []
+
+    mode = data.get("web_search_mode")
+    if mode is not None:
+        if mode not in ("native", "perplexity"):
+            return JSONResponse(content={"error": "Invalid mode. Must be 'native' or 'perplexity'"}, status_code=400)
+        updates.append("web_search_mode = ?")
+        params.append(mode)
+
+    show_sources = data.get("web_search_show_sources")
+    if show_sources is not None:
+        updates.append("web_search_show_sources = ?")
+        params.append(1 if show_sources else 0)
+
+    inline_citations = data.get("web_search_inline_citations")
+    if inline_citations is not None:
+        updates.append("web_search_inline_citations = ?")
+        params.append(1 if inline_citations else 0)
+
+    if not updates:
+        return JSONResponse(content={"error": "No valid fields to update"}, status_code=400)
+
+    params.append(current_user.id)
+
+    async with get_db_connection() as conn:
+        await conn.execute(
+            f"UPDATE USER_DETAILS SET {', '.join(updates)} WHERE user_id = ?",
+            tuple(params)
+        )
+        await conn.commit()
+
+    return JSONResponse(content={"updated": True})
 
 
 def strip_html(text):

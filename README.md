@@ -58,14 +58,38 @@ SPARK integrates 6 providers through a unified streaming interface with native t
 
 | Provider | Models | Capabilities |
 |----------|--------|-------------|
-| **OpenAI** | GPT-4o, GPT-5, O1 | Chat, images (DALL-E 3, gpt-image), TTS |
-| **Anthropic** | Claude 3.5/4 Sonnet, Haiku | Chat, thinking tokens, prompt caching |
-| **Google** | Gemini 2.5 | Chat, images, video (VEO-3) |
-| **xAI** | Grok-2, Grok-4 | Chat |
+| **OpenAI** | GPT-4o, GPT-5, O1 | Chat, images (DALL-E 3, gpt-image), TTS, web search |
+| **Anthropic** | Claude 3.5/4 Sonnet, Haiku | Chat, thinking tokens, prompt caching, web search |
+| **Google** | Gemini 2.5 | Chat, images, video (VEO-3), web search |
+| **xAI** | Grok-2, Grok-4 | Chat, web search |
 | **OpenRouter** | 300+ models | Multi-provider gateway |
 | **ElevenLabs** | ConvAI, TTS, Scribe | Real-time voice, speech synthesis & recognition |
 
-**Native Tool Calling** across all providers: 8+ built-in tools including image generation, video generation, maps, consciousness analysis, and self-protection mechanisms.
+**Native Tool Calling** across all providers: 8+ built-in tools including web search, image generation, video generation, maps, consciousness analysis, and self-protection mechanisms.
+
+---
+
+### Multi-AI Comparison
+
+Send the same message to **2-4 AI models simultaneously** and compare their responses side by side:
+
+- **Parallel execution engine**: All models run concurrently via `asyncio` with SSE multiplexing -- no waiting for one to finish before the next starts
+- **Carousel UI**: Swipe or keyboard-navigate between responses, each labeled with the model name
+- **Independent billing**: Each model's token usage is tracked and billed separately
+- **Per-message model tracking**: Every message records which LLM generated it (`llm_id` in database)
+- **Context-aware**: Respects prompt-level LLM restrictions (allowed models, forced model)
+
+---
+
+### Web Search & Citations
+
+AI models can search the web in real time and cite their sources:
+
+- **Dual engine**: Native provider search (OpenAI, Claude, Gemini, xAI) or Perplexity -- selectable per user in settings
+- **Native search**: Each provider uses its own search tool (OpenAI `web_search`, Claude `web_search`, Gemini `google_search`, xAI `x_search`) for grounded, up-to-date responses
+- **Perplexity second pass**: Search results are fed back to the original AI for a personality-aware response instead of raw Perplexity output
+- **Inline citations**: Collapsible "Sources" block with favicons rendered below bot messages, persisted in database
+- **Streaming indicator**: "Searching the web..." pulse animation while the search runs
 
 ---
 

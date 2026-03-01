@@ -173,6 +173,68 @@ function applyCollapsibleCodeBlocks(container) {
     });
 }
 
+function buildSourcesBlock(citations) {
+    const list = document.createElement('div');
+    list.className = 'sources-list';
+
+    const seen = new Set();
+    let count = 0;
+    citations.forEach(function(c) {
+        if (!c.url || seen.has(c.url) || !/^https?:\/\//i.test(c.url)) return;
+        seen.add(c.url);
+        count++;
+
+        const item = document.createElement('a');
+        item.className = 'source-item';
+        item.href = c.url;
+        item.target = '_blank';
+        item.rel = 'noopener noreferrer';
+
+        let domain = '';
+        try { domain = new URL(c.url).hostname.replace('www.', ''); } catch(e) {}
+
+        const favicon = document.createElement('img');
+        favicon.className = 'source-favicon';
+        favicon.src = 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(domain) + '&sz=16';
+        favicon.alt = '';
+        favicon.loading = 'lazy';
+        favicon.onerror = function() { this.style.display = 'none'; };
+
+        const info = document.createElement('div');
+        info.className = 'source-info';
+
+        const title = document.createElement('div');
+        title.className = 'source-title';
+        title.textContent = c.title || domain;
+
+        const domainEl = document.createElement('div');
+        domainEl.className = 'source-domain';
+        domainEl.textContent = domain;
+
+        info.appendChild(title);
+        info.appendChild(domainEl);
+        item.appendChild(favicon);
+        item.appendChild(info);
+        list.appendChild(item);
+    });
+
+    if (count === 0) return null;
+
+    const block = document.createElement('div');
+    block.className = 'sources-block';
+
+    const header = document.createElement('div');
+    header.className = 'sources-header';
+    header.innerHTML = '<i class="fas fa-chevron-right sources-chevron"></i> ' + count + ' source' + (count !== 1 ? 's' : '');
+    header.addEventListener('click', function() {
+        block.classList.toggle('expanded');
+    });
+
+    block.appendChild(header);
+    block.appendChild(list);
+    return block;
+}
+
 function renderMarkdownIntoElement(targetElement, markdownText) {
     const text = typeof markdownText === 'string' ? markdownText : String(markdownText || '');
     let processedHTML = DOMPurify.sanitize(marked.parse(text));
@@ -415,7 +477,7 @@ function createMultiAiCarousel(models = []) {
     return carousel;
 }
 
-function addMessage(author, message, timestampInfo = null, isTemporary = false, messageObj = null, prepend = false, container = null, messageId = null) {
+function addMessage(author, message, timestampInfo = null, isTemporary = false, messageObj = null, prepend = false, container = null, messageId = null, citations = null) {
     var divMessage = document.createElement('div');
     divMessage.classList.add('message', 'text-white', author === 'user' ? 'user' : 'bot');
     if (messageId) {
@@ -690,6 +752,13 @@ function addMessage(author, message, timestampInfo = null, isTemporary = false, 
     
         infoContainer.appendChild(iconContainer);
         infoContainer.appendChild(timeSpan);
+
+        // Render citations block for historical messages
+        if (citations && citations.length > 0) {
+            const sourcesBlock = buildSourcesBlock(citations);
+            if (sourcesBlock) messageContent.appendChild(sourcesBlock);
+        }
+
         messageContent.appendChild(infoContainer);
     }
 
@@ -872,19 +941,12 @@ function sendMessage(messageText) {
 
     let timestamp = new Date().toISOString();
 
-    let userMessageElement;
-    addMessage(
+    let userMessageElement = addMessage(
         'user',
         messageText_raw,
         { timestamp: convertToLocalTime(timestamp), isNewMessage: true },
         false,
-        { type: 'text', text: messageText_raw },
-        false,
-        null,
-        null,
-        (element) => {
-            userMessageElement = element;
-        }
+        { type: 'text', text: messageText_raw }
     );
 
     // Get the user message ID
@@ -895,7 +957,6 @@ function sendMessage(messageText) {
         : '';
 
     addLoadingIndicator(multiAiLoadingText);
-    document.getElementById('message-text').disabled = true;
 
     var files = document.getElementById('image-files').files;
     var formData = new FormData();
@@ -1041,6 +1102,7 @@ function sendMessage(messageText) {
         let newMessageId = null;
         let newUserMessageId = null;
         let updatedChatName = null;
+        let streamCitations = null;
 
         // Create the bot message element before starting to read the stream
         const botMessageElement = document.createElement('div');
@@ -1237,6 +1299,19 @@ function sendMessage(messageText) {
                                     console.error('Error parsing video content:', e);
                                 }
                                 scrollToBottomIfNeeded();
+                            } else if (parsedData.searching === true && botMessageParagraph) {
+                                // Show pulsing "Searching the web..." indicator while Perplexity searches
+                                const indicator = document.createElement('span');
+                                indicator.className = 'searching-indicator';
+                                indicator.innerHTML = '<i class="fas fa-search"></i> Searching the web...';
+                                botMessageParagraph.innerHTML = '';
+                                botMessageParagraph.appendChild(indicator);
+                                scrollToBottomIfNeeded();
+                            } else if (parsedData.searching === false && botMessageParagraph) {
+                                // Remove searching indicator so content streaming starts clean
+                                const indicator = botMessageParagraph.querySelector('.searching-indicator');
+                                if (indicator) indicator.remove();
+                                botMessageText = '';
                             } else if (parsedData.content && !parsedData.multi_ai && botMessageParagraph) {
                                 // Handle replace_last for progress updates
                                 if (parsedData.replace_last) {
@@ -1255,7 +1330,9 @@ function sendMessage(messageText) {
                                 if (parsedData.message_ids.user) {
                                     newUserMessageId = parsedData.message_ids.user;
                                 }
-							}
+							} else if (parsedData.type === 'web_search_citations') {
+                                streamCitations = parsedData.citations || [];
+                            }
 
                             // Handle extension level change from server
                             if (parsedData.extension_changed && window.extensionSelector) {
@@ -1317,6 +1394,16 @@ function sendMessage(messageText) {
             }
 
             applyCollapsibleCodeBlocks(botMessageElement);
+
+            // Render web search citations if any were collected
+            if (streamCitations && streamCitations.length > 0) {
+                const sourcesBlock = buildSourcesBlock(streamCitations);
+                if (sourcesBlock) {
+                    const msgContent = botMessageElement.querySelector('.message-content');
+                    const msgInfo = msgContent.querySelector('.message-info');
+                    msgContent.insertBefore(sourcesBlock, msgInfo);
+                }
+            }
 
             // Multi-AI: reset state after message completes
             if (window.multiAiManager) {
@@ -2426,7 +2513,8 @@ function processMessage(message, container, prepend = false) {
                 messageObj,
                 prepend,
                 container,
-                message.id
+                message.id,
+                message.citations
             );
             processedMessageIds.add(message.id);
             return;
@@ -2476,7 +2564,8 @@ function processMessage(message, container, prepend = false) {
                     messageObj,
                     prepend,
                     container,
-                    message.id
+                    message.id,
+                    message.citations
                 );
             });
         } else {
@@ -2494,7 +2583,8 @@ function processMessage(message, container, prepend = false) {
                 messageObj,
                 prepend,
                 container,
-                message.id
+                message.id,
+                message.citations
             );
         }
     } catch (e) {
@@ -2512,7 +2602,8 @@ function processMessage(message, container, prepend = false) {
             messageObj,
             prepend,
             container,
-            message.id
+            message.id,
+            message.citations
         );
     }
 
@@ -2704,7 +2795,6 @@ function enableInputControls() {
 }
 
 function disableInputControls() {
-    document.getElementById('message-text').disabled = true;
     document.querySelector('#form-message button[type="submit"]').disabled = true;
     document.getElementById('image-files').disabled = true;
     const plusBtn = document.getElementById('plus-menu-btn');
@@ -2810,8 +2900,6 @@ function stopReceivingStream(event) {
 
     toggleSendButton();
     removeLoadingIndicator();
-    document.getElementById('message-text').disabled = true;
-    document.getElementById('message-text').value = '';
 }
 
 function toggleBookmark(messageId, conversationId, bookmarkIcon) {

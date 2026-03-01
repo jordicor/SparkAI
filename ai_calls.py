@@ -90,6 +90,10 @@ stop_signals = {}
 conversation_locks = {}
 conversation_locks_guard = asyncio.Lock()
 
+# Providers that have native web search implemented.
+# Updated as each provider phase lands (Phase 2: Claude, Phase 3: Gemini, etc.)
+NATIVE_SEARCH_PROVIDERS = {"Claude", "GPT", "xAI"}  # Phase 2: Claude, Phase 4: GPT, Phase 5: xAI (Responses API). Gemini excluded: Google API doesn't support combining google_search with function_declarations (server-side limitation). Revisit when Google lifts this restriction.
+
 # AI Welfare Module - Self-protection instructions injected into all prompts
 AI_WELFARE_MODULE = """
 ---
@@ -556,11 +560,11 @@ async def watchdog_takeover_response(
     elif wd_machine == "O1":
         api_func = call_o1_api
     elif wd_machine == "GPT":
-        api_func = call_gpt_api
+        api_func = call_gpt_responses_api
     elif wd_machine == "Claude":
         api_func = call_claude_api
     elif wd_machine == "xAI":
-        api_func = call_xai_api
+        api_func = call_xai_responses_api
     elif wd_machine == "OpenRouter":
         api_func = call_openrouter_api
     else:
@@ -702,8 +706,9 @@ async def conversation_write_lock(conversation_id: int):
     finally:
         lock.release()
 
-# GPT-5 models set for optimized performance (2.22x faster than startswith)
-GPT5_MODELS = {"gpt-5", "gpt-5-mini", "gpt-5-nano"}
+def _is_gpt5_model(model: str) -> bool:
+    """Check if a model is GPT-5 family (requires max_completion_tokens, no custom temperature)."""
+    return model.startswith("gpt-5")
 
 router = APIRouter()
 
@@ -1479,6 +1484,7 @@ async def get_ai_response(
                         ud.current_alter_ego_id,
                         COALESCE(p.disable_web_search, 0) AS disable_web_search,
                         COALESCE(ud.web_search_enabled, 1) AS user_web_search_enabled,
+                        COALESCE(ud.web_search_mode, 'native') AS web_search_mode,
                         COALESCE(p.extensions_enabled, 0) AS extensions_enabled,
                         COALESCE(p.extensions_auto_advance, 0) AS extensions_auto_advance,
                         COALESCE(p.extensions_free_selection, 1) AS extensions_free_selection,
@@ -1498,8 +1504,9 @@ async def get_ai_response(
                 if result:
                     (conversation_role_id, prompt, effective_role_id, user_info,
                      current_alter_ego_id, disable_web_search, user_web_search_enabled,
-                     extensions_enabled, extensions_auto_advance, extensions_free_selection,
-                     active_extension_id, extension_name, extension_prompt_text) = result
+                     web_search_mode, extensions_enabled, extensions_auto_advance,
+                     extensions_free_selection, active_extension_id, extension_name,
+                     extension_prompt_text) = result
                     
                     if conversation_role_id is None and effective_role_id:
                         # Update conversation role_id if needed
@@ -1860,11 +1867,20 @@ async def get_ai_response(
                 # (generateImage, generateVideo, QR codes, perplexity, time, etc.)
 
                 # Filter tools based on web search settings
-                # Priority: prompt restriction > user preference
-                # If prompt disables web search, it's always disabled regardless of user preference
+                # Priority: prompt restriction > user preference > mode selection
                 filtered_tools = tools
                 if disable_web_search or not user_web_search_enabled:
+                    # Web search fully disabled - remove perplexity tool
                     filtered_tools = [t for t in tools if t['function']['name'] != 'query_perplexity']
+                    web_search_mode = None  # Signal to providers: no search at all
+                elif web_search_mode == 'native':
+                    if machine in NATIVE_SEARCH_PROVIDERS:
+                        # This provider has native search - remove perplexity, provider adds its own tool
+                        filtered_tools = [t for t in tools if t['function']['name'] != 'query_perplexity']
+                    else:
+                        # This provider doesn't have native search - keep perplexity as fallback
+                        web_search_mode = 'perplexity'  # Override so provider doesn't try native
+                # else: 'perplexity' mode - keep query_perplexity (current behavior)
 
                 # Filter advanceExtension tool: only include when extensions + auto_advance are active
                 if not (extensions_enabled and extensions_auto_advance and has_extensions):
@@ -1877,14 +1893,14 @@ async def get_ai_response(
                     api_func = call_o1_api
                     provider_tools = None  # O1 models don't support tools yet
                 elif machine == "GPT":
-                    api_func = call_gpt_api
-                    provider_tools = tools_for_openai(filtered_tools)
+                    api_func = call_gpt_responses_api
+                    provider_tools = tools_for_openai_responses(filtered_tools, web_search_mode)
                 elif machine == "Claude":
                     api_func = call_claude_api
                     provider_tools = tools_for_claude(filtered_tools)
                 elif machine == "xAI":
-                    api_func = call_xai_api
-                    provider_tools = tools_for_openai(filtered_tools)
+                    api_func = call_xai_responses_api
+                    provider_tools = tools_for_xai_responses(filtered_tools, web_search_mode)
                 elif machine == "OpenRouter":
                     api_func = call_openrouter_api
                     provider_tools = tools_for_openai(filtered_tools)
@@ -1908,6 +1924,7 @@ async def get_ai_response(
                     "watchdog_hint_eval_id": watchdog_hint_eval_id,
                     "llm_id": llm_id,
                     "save_to_db": save_to_db,
+                    "web_search_mode": web_search_mode,
                 }
 
                 # Add tools if available for this provider
@@ -2029,35 +2046,92 @@ async def get_ai_response(
 
                     logger.info(f"[get_ai_response] - Processing tool call: {function_name}")
 
-                    input_tokens = estimate_message_tokens(message)
-                    total_tokens = input_tokens + max_tokens
+                    if function_name == "query_perplexity":
+                        # === SECOND PASS FLOW ===
+                        # The AI decided to search the web. We call Perplexity silently,
+                        # feed the results back to the AI, and let it formulate its own answer.
+                        from tools.perplexity import get_perplexity_result
 
-                    async for chunk in handle_function_call(
-                        function_name,
-                        function_arguments,
-                        api_messages,
-                        model,
-                        temperature,
-                        max_tokens,
-                        pre_tool_content,  # Text Claude generated before tool call
-                        conversation_id,
-                        current_user,
-                        request,
-                        input_tokens,
-                        max_tokens,
-                        total_tokens,
-                        None,
-                        user_id,
-                        machine,
-                        full_prompt,
-                        user_message,
-                        prompt_id=prompt_id,
-                        watchdog_config=watchdog_config,
-                        watchdog_hint_active=watchdog_hint_active,
-                        watchdog_hint_eval_id=watchdog_hint_eval_id,
-                        llm_id=llm_id,
-                    ):
-                        yield chunk                        
+                        query = function_arguments.get('query', '') if isinstance(function_arguments, dict) else str(function_arguments)
+
+                        if not query.strip():
+                            logger.warning("[get_ai_response] - Perplexity second pass: empty query")
+                            yield f"data: {orjson.dumps({'error': 'Web search query was empty'}).decode()}\n\n"
+                            return
+
+                        logger.info(f"[get_ai_response] - Perplexity second pass for query: {query[:100]}")
+
+                        # 1. Tell the frontend we're searching
+                        yield f"data: {orjson.dumps({'searching': True}).decode()}\n\n"
+
+                        try:
+                            # 2. Get Perplexity results (non-streaming)
+                            perplexity_result = await get_perplexity_result(query)
+                            logger.info(f"[get_ai_response] - Perplexity result length: {len(perplexity_result)}")
+                        except Exception as e:
+                            logger.error(f"[get_ai_response] - Perplexity second pass failed: {e}")
+                            yield f"data: {orjson.dumps({'searching': False}).decode()}\n\n"
+                            yield f"data: {orjson.dumps({'error': f'Web search failed: {e}'}).decode()}\n\n"
+                            return
+
+                        # 3. Build tool response messages (appends to api_messages in-place)
+                        _build_tool_response_messages(api_messages, collected_tool_call, perplexity_result, machine)
+
+                        # 4. Build second_kwargs: same as kwargs but without tools (prevent loops)
+                        #    Also clear web_search_mode so provider functions don't add native search tools
+                        second_kwargs = dict(kwargs)
+                        second_kwargs.pop("tools", None)
+                        second_kwargs["web_search_mode"] = None
+                        second_kwargs["messages"] = api_messages
+
+                        # System prompt dedup for Chat Completions providers:
+                        # call_llm_api does messages.insert(0, {"role": "system", ...}) mutating the list.
+                        # The first call already inserted it, so pop it before the second call.
+                        # GPT and xAI excluded: their Responses API functions don't mutate the caller's message list.
+                        if machine == "OpenRouter":
+                            if api_messages and isinstance(api_messages[0], dict) and api_messages[0].get("role") == "system":
+                                api_messages.pop(0)
+
+                        # 5. Tell frontend search is done, AI response about to stream
+                        yield f"data: {orjson.dumps({'searching': False}).decode()}\n\n"
+
+                        # 6. Stream the second pass response from the original AI
+                        async for chunk in api_func(**second_kwargs):
+                            yield chunk
+                        # api_func handles save_to_db internally
+                        return
+
+                    else:
+                        # === EXISTING FLOW for all other tools ===
+                        input_tokens = estimate_message_tokens(message)
+                        total_tokens = input_tokens + max_tokens
+
+                        async for chunk in handle_function_call(
+                            function_name,
+                            function_arguments,
+                            api_messages,
+                            model,
+                            temperature,
+                            max_tokens,
+                            pre_tool_content,  # Text Claude generated before tool call
+                            conversation_id,
+                            current_user,
+                            request,
+                            input_tokens,
+                            max_tokens,
+                            total_tokens,
+                            None,
+                            user_id,
+                            machine,
+                            full_prompt,
+                            user_message,
+                            prompt_id=prompt_id,
+                            watchdog_config=watchdog_config,
+                            watchdog_hint_active=watchdog_hint_active,
+                            watchdog_hint_eval_id=watchdog_hint_eval_id,
+                            llm_id=llm_id,
+                        ):
+                            yield chunk
 
     except ValueError as ve:
         logger.error(f"[get_ai_response] - Database connection error: {ve}")
@@ -2304,6 +2378,72 @@ def tools_for_openai(tools: list) -> list:
     return [t for t in tools if t['function']['name'] != 'sendToAI']
 
 
+def tools_for_openai_responses(tools: list, web_search_mode: str = None) -> list:
+    """
+    Convert tools from OpenAI Chat Completions format to Responses API format.
+
+    Chat Completions: {type: "function", function: {name, description, parameters}, strict: true}
+    Responses API:    {type: "function", name, description, parameters, strict: true}
+
+    Also prepends the web_search tool when native search is active.
+    web_search_mode is already filtered upstream (set to None when search is disabled).
+    """
+    result = []
+
+    # Add native web search tool if enabled (upstream already set mode to None when disabled)
+    if web_search_mode == 'native':
+        result.append({
+            "type": "web_search",
+            "search_context_size": "medium",
+        })
+
+    # Flatten function tools from Chat Completions format to Responses API format
+    for t in tools:
+        fn = t.get('function', {})
+        if fn.get('name') == 'sendToAI':
+            continue
+        flat = {
+            "type": "function",
+            "name": fn.get('name'),
+            "description": fn.get('description', ''),
+            "parameters": fn.get('parameters', {}),
+        }
+        # Don't propagate strict: true — Responses API enforces that ALL properties
+        # must be in 'required' when strict is enabled, which many of our tool schemas
+        # don't comply with. Not needed for our use case (no structured outputs).
+        result.append(flat)
+
+    return result
+
+
+def tools_for_xai_responses(tools: list, web_search_mode: str = None) -> list:
+    """
+    Convert tools from OpenAI Chat Completions format to xAI Responses API format.
+
+    Same flat format as OpenAI Responses API, plus xAI-specific search tools
+    (web_search and x_search) when native search mode is active.
+    """
+    result = []
+
+    if web_search_mode == 'native':
+        result.append({"type": "web_search"})
+        result.append({"type": "x_search"})
+
+    for t in tools:
+        fn = t.get('function', {})
+        if fn.get('name') == 'sendToAI':
+            continue
+        flat = {
+            "type": "function",
+            "name": fn.get('name'),
+            "description": fn.get('description', ''),
+            "parameters": fn.get('parameters', {}),
+        }
+        result.append(flat)
+
+    return result
+
+
 def tools_for_claude(tools: list) -> list:
     """
     Convert tools from OpenAI format to Anthropic Claude format.
@@ -2347,6 +2487,37 @@ def tools_for_claude(tools: list) -> list:
     return result
 
 
+def _sanitize_schema_for_gemini(schema: dict) -> dict:
+    """Recursively sanitize a JSON Schema dict for Gemini compatibility.
+
+    Gemini's SDK (Pydantic) only accepts single-string type values
+    (e.g. 'STRING', 'ARRAY'), not union arrays like ['array', 'null'].
+    Also strips unsupported keys like 'additionalProperties'.
+    """
+    schema = schema.copy()
+
+    # Fix union types: ["array", "null"] -> "array"
+    if isinstance(schema.get("type"), list):
+        non_null = [t for t in schema["type"] if t != "null"]
+        schema["type"] = non_null[0] if non_null else "string"
+
+    # Remove unsupported keys
+    schema.pop("additionalProperties", None)
+
+    # Recurse into properties
+    if "properties" in schema and isinstance(schema["properties"], dict):
+        schema["properties"] = {
+            k: _sanitize_schema_for_gemini(v)
+            for k, v in schema["properties"].items()
+        }
+
+    # Recurse into items (for array types)
+    if "items" in schema and isinstance(schema["items"], dict):
+        schema["items"] = _sanitize_schema_for_gemini(schema["items"])
+
+    return schema
+
+
 def tools_for_gemini(tools: list) -> list:
     """Convert tools from OpenAI format to Gemini FunctionDeclaration dicts.
 
@@ -2362,10 +2533,8 @@ def tools_for_gemini(tools: list) -> list:
         if name == 'sendToAI':
             continue
 
-        # Gemini doesn't support 'additionalProperties' in parameters
-        params = func.get('parameters', {"type": "object", "properties": {}}).copy()
-        if 'additionalProperties' in params:
-            del params['additionalProperties']
+        params = func.get('parameters', {"type": "object", "properties": {}})
+        params = _sanitize_schema_for_gemini(params)
 
         declarations.append({
             "name": name,
@@ -2376,9 +2545,142 @@ def tools_for_gemini(tools: list) -> list:
     return declarations
 
 
+# =============================================================================
+# Native Web Search - Unified Citation Format
+# =============================================================================
+
+def build_citation_event(citations: list, search_queries: list = None,
+                         google_widget_html: str = None) -> str:
+    """
+    Build a unified citation SSE event from any provider's native web search results.
+
+    Each provider (Claude, Gemini, OpenAI, xAI) normalizes its citations into
+    the standard format before calling this function.
+
+    Args:
+        citations: List of dicts, each with:
+            - url (str, required): Source URL
+            - title (str, required): Source page title
+            - cited_text (str, optional): The quoted/referenced text
+            - start_index (int, optional): Character position in response text
+            - end_index (int, optional): Character position in response text
+        search_queries: List of search queries the model executed (optional)
+        google_widget_html: Gemini searchEntryPoint HTML (mandatory per Google ToS when present)
+
+    Returns:
+        SSE-formatted string: "data: {json}\n\n"
+    """
+    event = {
+        "type": "web_search_citations",
+        "citations": citations,
+    }
+    if search_queries:
+        event["search_queries"] = search_queries
+    if google_widget_html:
+        event["google_search_widget_html"] = google_widget_html
+    return f"data: {orjson.dumps(event).decode()}\n\n"
+
+
+def _build_tool_response_messages(api_messages: list, tool_call: dict, tool_result: str, machine: str):
+    """Append the assistant tool-call + tool-result messages to api_messages.
+
+    Formats correctly per provider so the second-pass API call sees the
+    complete tool round-trip in its conversation history.
+    """
+    function_name = tool_call['name']
+    arguments = tool_call['arguments']
+
+    # Normalize arguments to dict for all providers
+    if isinstance(arguments, str):
+        try:
+            arguments = orjson.loads(arguments)
+        except (orjson.JSONDecodeError, ValueError):
+            arguments = {"query": arguments}
+    elif not isinstance(arguments, dict):
+        arguments = {}
+
+    if machine in ("GPT", "xAI"):
+        # Responses API format (both OpenAI and xAI use this now)
+        tool_call_id = tool_call.get('id', f'call_{function_name}')
+        api_messages.append({
+            "type": "function_call",
+            "call_id": tool_call_id,
+            "name": function_name,
+            "arguments": orjson.dumps(arguments).decode(),
+        })
+        api_messages.append({
+            "type": "function_call_output",
+            "call_id": tool_call_id,
+            "output": tool_result,
+        })
+
+    elif machine == "OpenRouter":
+        # OpenAI Chat Completions compatible format
+        tool_call_id = tool_call.get('id', f'call_{function_name}')
+        api_messages.append({
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [{
+                "id": tool_call_id,
+                "type": "function",
+                "function": {
+                    "name": function_name,
+                    "arguments": orjson.dumps(arguments).decode()
+                }
+            }]
+        })
+        api_messages.append({
+            "role": "tool",
+            "content": tool_result,
+            "tool_call_id": tool_call_id
+        })
+
+    elif machine == "Claude":
+        # Anthropic format: tool_use block + tool_result block
+        tool_use_id = tool_call.get('id', f'toolu_{function_name}')
+        api_messages.append({
+            "role": "assistant",
+            "content": [{
+                "type": "tool_use",
+                "id": tool_use_id,
+                "name": function_name,
+                "input": arguments
+            }]
+        })
+        api_messages.append({
+            "role": "user",
+            "content": [{
+                "type": "tool_result",
+                "tool_use_id": tool_use_id,
+                "content": tool_result
+            }]
+        })
+
+    elif machine == "Gemini":
+        # Gemini requires thought_signature in function_call parts (which is an opaque
+        # token from the original response we don't have after SSE serialization).
+        # Use plain text messages instead to pass the tool results cleanly.
+        api_messages.append(
+            genai_types.Content(
+                role="model",
+                parts=[genai_types.Part.from_text(
+                    text=f"I called the {function_name} tool."
+                )]
+            )
+        )
+        api_messages.append(
+            genai_types.Content(
+                role="user",
+                parts=[genai_types.Part.from_text(
+                    text=f"Tool result:\n\n{tool_result}"
+                )]
+            )
+        )
+
+
 async def call_o1_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, user_api_key=None,
                       prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
-                      llm_id=None, save_to_db: bool = True):
+                      llm_id=None, save_to_db: bool = True, web_search_mode=None):
     global stop_signals
     logger.debug("enters call_o1_api")
 
@@ -2467,7 +2769,7 @@ async def call_o1_api(messages, model, temperature, max_tokens, prompt, conversa
 
 async def call_llm_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, api_url, api_key, user_message=None, extra_headers=None, custom_timeout=None, tools=None,
                        prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
-                       llm_id=None, save_to_db: bool = True):
+                       llm_id=None, save_to_db: bool = True, web_search_mode=None):
     """
     Generic LLM API call function for OpenAI-compatible APIs.
     Used by GPT, xAI, and OpenRouter.
@@ -2493,9 +2795,9 @@ async def call_llm_api(messages, model, temperature, max_tokens, prompt, convers
     if extra_headers:
         headers.update(extra_headers)
     
-    # GPT-5 models require max_completion_tokens instead of max_tokens
+    # GPT-5+ models require max_completion_tokens instead of max_tokens
     # and don't support custom temperature values (only default 1.0)
-    if model in GPT5_MODELS:
+    if _is_gpt5_model(model):
         data = {
             "model": model,
             "max_completion_tokens": max_tokens,
@@ -2685,7 +2987,7 @@ async def call_llm_api(messages, model, temperature, max_tokens, prompt, convers
 
 async def call_gpt_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, user_api_key=None, tools=None,
                        prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
-                       llm_id=None, save_to_db: bool = True):
+                       llm_id=None, save_to_db: bool = True, web_search_mode=None):
     api_url = "https://api.openai.com/v1/chat/completions"
     api_key = user_api_key or openai.api_key  # Use user's key if provided
 
@@ -2708,13 +3010,346 @@ async def call_gpt_api(messages, model, temperature, max_tokens, prompt, convers
         watchdog_hint_eval_id=watchdog_hint_eval_id,
         llm_id=llm_id,
         save_to_db=save_to_db,
+        web_search_mode=web_search_mode,
     ):
         yield chunk
 
 
+def _convert_messages_for_responses_api(messages: list) -> list:
+    """Convert Chat Completions message content blocks to Responses API format.
+
+    Chat Completions uses: type: "text", type: "image_url"
+    Responses API uses:    type: "input_text", type: "input_image", type: "output_text"
+
+    String content and non-dict items (e.g. Responses API function_call items) pass through unchanged.
+    """
+    converted = []
+    for msg in messages:
+        if not isinstance(msg, dict):
+            converted.append(msg)
+            continue
+
+        # Responses API native items (function_call, function_call_output) pass through
+        if "type" in msg and "role" not in msg:
+            converted.append(msg)
+            continue
+
+        role = msg.get("role", "user")
+        content = msg.get("content")
+
+        # String content or None: works as-is in Responses API
+        if content is None or isinstance(content, str):
+            converted.append(msg)
+            continue
+
+        if isinstance(content, list):
+            new_content = []
+            for block in content:
+                if not isinstance(block, dict):
+                    new_content.append(block)
+                    continue
+                btype = block.get("type")
+                if btype == "text":
+                    new_block = {
+                        "type": "output_text" if role == "assistant" else "input_text",
+                        "text": block.get("text", ""),
+                    }
+                    new_content.append(new_block)
+                elif btype == "image_url":
+                    if role == "assistant":
+                        # Assistant messages only support output_text/refusal in Responses API.
+                        # Replace with placeholder so the AI knows it generated an image
+                        # (prevents confusion / hallucinated URLs in follow-up turns).
+                        new_content.append({
+                            "type": "output_text",
+                            "text": "[An image was generated and displayed to the user]",
+                        })
+                        continue
+                    img_data = block.get("image_url", {})
+                    url = img_data.get("url", "") if isinstance(img_data, dict) else str(img_data)
+                    new_content.append({"type": "input_image", "image_url": url})
+                else:
+                    # Unknown block type, pass through
+                    new_content.append(block)
+            converted.append({**msg, "content": new_content})
+        else:
+            converted.append(msg)
+
+    return converted
+
+
+async def call_gpt_responses_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, user_api_key=None, tools=None,
+                                  prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
+                                  llm_id=None, save_to_db: bool = True, web_search_mode=None):
+    """
+    OpenAI Responses API call function. Replaces call_gpt_api for all OpenAI calls.
+    Uses /v1/responses endpoint with semantic SSE events instead of Chat Completions.
+
+    Emits the same SSE format as call_llm_api() for frontend compatibility:
+    - data: {"content": "chunk"}
+    - data: {"tool_call": {...}, "tool_call_pending": true}
+    - data: {"searching": true/false}
+    - data: {"web_search_citations": {...}}
+    - data: {"message_ids": {...}}
+    - data: {"token_info": true, ...}
+    - data: {"error": "..."}
+    - data: [DONE]
+    """
+    global stop_signals
+    logger.info("enters call_gpt_responses_api")
+
+    api_url = "https://api.openai.com/v1/responses"
+    api_key = user_api_key or openai_key
+
+    user_id = current_user.id
+
+    # Convert Chat Completions message format to Responses API format
+    # (type: "text" -> "input_text"/"output_text", type: "image_url" -> "input_image")
+    messages = _convert_messages_for_responses_api(messages)
+
+    # Build request body (Responses API format)
+    data = {
+        "model": model,
+        "input": messages,
+        "stream": True,
+        "store": False,
+    }
+
+    # System prompt goes in 'instructions' (top-level, not in input array)
+    if prompt:
+        data["instructions"] = prompt
+
+    # GPT-5+ models don't support custom temperature
+    if not _is_gpt5_model(model):
+        data["temperature"] = temperature
+
+    # Responses API uses max_output_tokens
+    if max_tokens:
+        data["max_output_tokens"] = max_tokens
+
+    # Add tools if provided (already in Responses API format from tools_for_openai_responses)
+    if tools:
+        data["tools"] = tools
+        data["tool_choice"] = "auto"
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}",
+    }
+
+    content = ""
+    function_name = ""
+    function_arguments = ""
+    tool_call_id = ""
+    input_tokens = output_tokens = total_tokens = 0
+    citations = []
+
+    logger.info(f"call_gpt_responses_api -> model: {model}, tools: {len(tools) if tools else 0}")
+
+    # GPT-5+ are reasoning models and may need more time
+    timeout_seconds = 300 if _is_gpt5_model(model) else 120
+    timeout = aiohttp.ClientTimeout(total=timeout_seconds, connect=10)
+
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        try:
+            async with session.post(api_url, headers=headers, json=data) as response:
+                if response.status == 200:
+                    buffer = ""
+                    raw_remainder = b""  # Holds incomplete UTF-8 bytes across chunks
+
+                    async for chunk in response.content.iter_any():
+                        if stop_signals.get(conversation_id):
+                            logger.info("Stop signal received, exiting Responses API call loop.")
+                            break
+
+                        # Buffer raw bytes to handle multi-byte UTF-8 chars split across reads
+                        raw_remainder += chunk
+                        try:
+                            chunk_str = raw_remainder.decode("utf-8")
+                            raw_remainder = b""
+                        except UnicodeDecodeError:
+                            # Incomplete multi-byte char at the end — keep buffering
+                            # Try to decode all but the last 1-3 bytes
+                            for trim in range(1, 4):
+                                try:
+                                    chunk_str = raw_remainder[:-trim].decode("utf-8")
+                                    raw_remainder = raw_remainder[-trim:]
+                                    break
+                                except UnicodeDecodeError:
+                                    continue
+                            else:
+                                continue  # Can't decode anything yet, wait for more data
+
+                        buffer += chunk_str
+
+                        # Process complete SSE events (separated by double newline)
+                        while "\n\n" in buffer:
+                            event_block, buffer = buffer.split("\n\n", 1)
+
+                            # Parse event type and data from SSE block
+                            event_type = None
+                            data_str = None
+                            for line in event_block.split("\n"):
+                                line = line.strip()
+                                if line.startswith("event: "):
+                                    event_type = line[7:]
+                                elif line.startswith("data: "):
+                                    data_str = line[6:]
+
+                            if not data_str or data_str == "[DONE]":
+                                continue
+
+                            try:
+                                event_data = orjson.loads(data_str)
+                            except orjson.JSONDecodeError as e:
+                                logger.warning(f"[call_gpt_responses_api] JSON decode warning: {e}")
+                                continue
+
+                            # Use event_type from SSE 'event:' line (more reliable)
+                            # Fall back to data.type if event line is missing
+                            etype = event_type or event_data.get("type", "")
+
+                            # --- Text streaming ---
+                            if etype == "response.output_text.delta":
+                                delta = event_data.get("delta", "")
+                                if delta:
+                                    content += delta
+                                    yield f"data: {orjson.dumps({'content': delta}).decode()}\n\n"
+
+                            # --- Web search status ---
+                            elif etype == "response.web_search_call.in_progress":
+                                yield f"data: {orjson.dumps({'searching': True}).decode()}\n\n"
+
+                            elif etype == "response.web_search_call.searching":
+                                pass  # Intermediate search status, no action needed
+
+                            elif etype == "response.web_search_call.completed":
+                                yield f"data: {orjson.dumps({'searching': False}).decode()}\n\n"
+
+                            # --- Function call handling ---
+                            elif etype == "response.output_item.added":
+                                item = event_data.get("item", {})
+                                if item.get("type") == "function_call":
+                                    function_name = item.get("name", "")
+                                    tool_call_id = item.get("call_id", "")
+                                    function_arguments = ""
+
+                            elif etype == "response.function_call_arguments.delta":
+                                function_arguments += event_data.get("delta", "")
+
+                            elif etype == "response.function_call_arguments.done":
+                                # Function call arguments are complete
+                                # Will be processed after the stream loop
+                                pass
+
+                            # --- Citations ---
+                            elif etype == "response.output_text.annotation.added":
+                                annotation = event_data.get("annotation", {})
+                                if annotation.get("type") == "url_citation":
+                                    citations.append({
+                                        "url": annotation.get("url", ""),
+                                        "title": annotation.get("title", ""),
+                                        "start_index": annotation.get("start_index"),
+                                        "end_index": annotation.get("end_index"),
+                                    })
+
+                            # --- Completion ---
+                            elif etype == "response.completed":
+                                resp = event_data.get("response", {})
+
+                                # Extract usage
+                                usage = resp.get("usage", {})
+                                input_tokens = usage.get("input_tokens", 0)
+                                output_tokens = usage.get("output_tokens", 0)
+                                total_tokens = input_tokens + output_tokens
+
+                                # Extract any remaining citations from completed response
+                                for output_item in resp.get("output", []):
+                                    if output_item.get("type") == "message":
+                                        for part in output_item.get("content", []):
+                                            for ann in part.get("annotations", []):
+                                                if ann.get("type") == "url_citation":
+                                                    url = ann.get("url", "")
+                                                    # Avoid duplicates
+                                                    if not any(c["url"] == url and c.get("start_index") == ann.get("start_index") for c in citations):
+                                                        citations.append({
+                                                            "url": url,
+                                                            "title": ann.get("title", ""),
+                                                            "start_index": ann.get("start_index"),
+                                                            "end_index": ann.get("end_index"),
+                                                        })
+
+                            # --- Errors ---
+                            elif etype == "response.failed":
+                                error_info = event_data.get("response", {}).get("error", {})
+                                error_msg = error_info.get("message", "Unknown API error")
+                                logger.error(f"[call_gpt_responses_api] Response failed: {error_msg}")
+                                yield f"data: {orjson.dumps({'error': f'OpenAI API error: {error_msg}'}).decode()}\n\n"
+
+                            # --- Refusal ---
+                            elif etype == "response.refusal.delta":
+                                delta = event_data.get("delta", "")
+                                if delta:
+                                    content += delta
+                                    yield f"data: {orjson.dumps({'content': delta}).decode()}\n\n"
+
+                else:
+                    error_body = await response.text()
+                    error_message = f"[call_gpt_responses_api] Error: status {response.status}. Body: {error_body}"
+                    logger.error(error_message)
+                    yield f"data: {orjson.dumps({'error': error_message}).decode()}\n\n"
+
+        except asyncio.TimeoutError:
+            error_message = f"[call_gpt_responses_api] Request timed out after {timeout_seconds}s for model {model}"
+            logger.error(error_message)
+            yield f"data: {orjson.dumps({'error': error_message}).decode()}\n\n"
+
+        except aiohttp.ClientError as e:
+            error_message = f"[call_gpt_responses_api] Network error: {str(e)}"
+            logger.error(error_message)
+            yield f"data: {orjson.dumps({'error': error_message}).decode()}\n\n"
+
+        except Exception as e:
+            error_message = f"[call_gpt_responses_api] Unexpected error: {str(e)}"
+            logger.error(error_message)
+            yield f"data: {orjson.dumps({'error': error_message}).decode()}\n\n"
+
+    # Emit citations if any were collected (native web search)
+    if citations:
+        yield f"data: {orjson.dumps({'type': 'web_search_citations', 'citations': citations}).decode()}\n\n"
+
+    # If a tool call was detected, emit it and return without saving to DB
+    if function_name and save_to_db:
+        try:
+            parsed_args = orjson.loads(function_arguments) if function_arguments else {}
+        except orjson.JSONDecodeError:
+            logger.error(f"[call_gpt_responses_api] Failed to parse tool arguments: {function_arguments}")
+            parsed_args = {}
+
+        logger.info(f"[call_gpt_responses_api] Tool call detected: {function_name} with args: {parsed_args}")
+
+        yield f"data: {orjson.dumps({'tool_call': {'name': function_name, 'arguments': parsed_args, 'id': tool_call_id}}).decode()}\n\n"
+        yield f"data: {orjson.dumps({'tool_call_pending': True}).decode()}\n\n"
+        return
+
+    # Normal response - save to database
+    if save_to_db:
+        citations_data = orjson.dumps(citations).decode() if citations else None
+        user_message_id, bot_message_id = await save_content_to_db(content, input_tokens, output_tokens, total_tokens, conversation_id, current_user.id, model, user_message=user_message,
+                                                                    prompt_id=prompt_id, watchdog_config=watchdog_config, watchdog_hint_active=watchdog_hint_active, watchdog_hint_eval_id=watchdog_hint_eval_id,
+                                                                    llm_id=llm_id, citations_json=citations_data)
+        if user_message_id and bot_message_id:
+            yield f"data: {orjson.dumps({'message_ids': {'user': user_message_id, 'bot': bot_message_id}}).decode()}\n\n"
+
+        yield content.strip()
+    else:
+        yield f"data: {orjson.dumps({'token_info': True, 'input_tokens': input_tokens, 'output_tokens': output_tokens}).decode()}\n\n"
+        yield "data: [DONE]\n\n"
+
+
 async def call_xai_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, user_api_key=None, tools=None,
                        prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
-                       llm_id=None, save_to_db: bool = True):
+                       llm_id=None, save_to_db: bool = True, web_search_mode=None):
     api_url = "https://api.x.ai/v1/chat/completions"
     api_key = user_api_key or xai_key  # Use user's key if provided
 
@@ -2737,13 +3372,272 @@ async def call_xai_api(messages, model, temperature, max_tokens, prompt, convers
         watchdog_hint_eval_id=watchdog_hint_eval_id,
         llm_id=llm_id,
         save_to_db=save_to_db,
+        web_search_mode=web_search_mode,
     ):
         yield chunk
 
 
+async def call_xai_responses_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, user_api_key=None, tools=None,
+                                  prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
+                                  llm_id=None, save_to_db: bool = True, web_search_mode=None):
+    """
+    xAI Responses API call function. Replaces call_xai_api for all xAI/Grok calls.
+    Uses /v1/responses endpoint with semantic SSE events instead of Chat Completions.
+
+    Key differences from OpenAI's call_gpt_responses_api:
+    - System prompt goes as first item in input array (no 'instructions' parameter)
+    - Citations come as response.citations (flat URL list) + inline [[N]](url) markdown
+    - x_search tool available for X/Twitter search alongside web_search
+
+    Emits the same SSE format as other providers for frontend compatibility.
+    """
+    global stop_signals
+    logger.info("enters call_xai_responses_api")
+
+    api_url = "https://api.x.ai/v1/responses"
+    api_key = user_api_key or xai_key
+
+    user_id = current_user.id
+
+    # Convert Chat Completions message format to Responses API format
+    messages = _convert_messages_for_responses_api(messages)
+
+    # Build request body
+    data = {
+        "model": model,
+        "input": messages,
+        "stream": True,
+        "store": False,
+    }
+
+    # xAI does NOT support 'instructions' — system prompt goes as first item in input
+    if prompt:
+        data["input"].insert(0, {"role": "system", "content": prompt})
+
+    data["temperature"] = temperature
+
+    if max_tokens:
+        data["max_output_tokens"] = max_tokens
+
+    if tools:
+        data["tools"] = tools
+        data["tool_choice"] = "auto"
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}",
+    }
+
+    content = ""
+    function_name = ""
+    function_arguments = ""
+    tool_call_id = ""
+    input_tokens = output_tokens = total_tokens = 0
+    citations = []
+
+    logger.info(f"call_xai_responses_api -> model: {model}, tools: {len(tools) if tools else 0}")
+
+    # Grok models may need extra time for reasoning
+    timeout_seconds = 300
+    timeout = aiohttp.ClientTimeout(total=timeout_seconds, connect=10)
+
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        try:
+            async with session.post(api_url, headers=headers, json=data) as response:
+                if response.status == 200:
+                    buffer = ""
+                    raw_remainder = b""
+
+                    async for chunk in response.content.iter_any():
+                        if stop_signals.get(conversation_id):
+                            logger.info("Stop signal received, exiting xAI Responses API call loop.")
+                            break
+
+                        raw_remainder += chunk
+                        try:
+                            chunk_str = raw_remainder.decode("utf-8")
+                            raw_remainder = b""
+                        except UnicodeDecodeError:
+                            for trim in range(1, 4):
+                                try:
+                                    chunk_str = raw_remainder[:-trim].decode("utf-8")
+                                    raw_remainder = raw_remainder[-trim:]
+                                    break
+                                except UnicodeDecodeError:
+                                    continue
+                            else:
+                                continue
+
+                        buffer += chunk_str
+
+                        while "\n\n" in buffer:
+                            event_block, buffer = buffer.split("\n\n", 1)
+
+                            event_type = None
+                            data_str = None
+                            for line in event_block.split("\n"):
+                                line = line.strip()
+                                if line.startswith("event: "):
+                                    event_type = line[7:]
+                                elif line.startswith("data: "):
+                                    data_str = line[6:]
+
+                            if not data_str or data_str == "[DONE]":
+                                continue
+
+                            try:
+                                event_data = orjson.loads(data_str)
+                            except orjson.JSONDecodeError as e:
+                                logger.warning(f"[call_xai_responses_api] JSON decode warning: {e}")
+                                continue
+
+                            etype = event_type or event_data.get("type", "")
+
+                            # --- Text streaming ---
+                            if etype == "response.output_text.delta":
+                                delta = event_data.get("delta", "")
+                                if delta:
+                                    content += delta
+                                    yield f"data: {orjson.dumps({'content': delta}).decode()}\n\n"
+
+                            # --- Web search status ---
+                            elif etype == "response.web_search_call.in_progress":
+                                yield f"data: {orjson.dumps({'searching': True}).decode()}\n\n"
+
+                            elif etype == "response.web_search_call.searching":
+                                pass
+
+                            elif etype == "response.web_search_call.completed":
+                                yield f"data: {orjson.dumps({'searching': False}).decode()}\n\n"
+
+                            # --- Function call handling ---
+                            elif etype == "response.output_item.added":
+                                item = event_data.get("item", {})
+                                if item.get("type") == "function_call":
+                                    function_name = item.get("name", "")
+                                    tool_call_id = item.get("call_id", "")
+                                    function_arguments = ""
+                                    # xAI may send complete arguments in one chunk
+                                    if item.get("arguments"):
+                                        function_arguments = item["arguments"]
+
+                            elif etype == "response.function_call_arguments.delta":
+                                function_arguments += event_data.get("delta", "")
+
+                            elif etype == "response.function_call_arguments.done":
+                                pass
+
+                            # --- Citations (xAI sends url_citation annotations like OpenAI) ---
+                            elif etype == "response.output_text.annotation.added":
+                                annotation = event_data.get("annotation", {})
+                                if annotation.get("type") == "url_citation":
+                                    citations.append({
+                                        "url": annotation.get("url", ""),
+                                        "title": annotation.get("title", ""),
+                                        "start_index": annotation.get("start_index"),
+                                        "end_index": annotation.get("end_index"),
+                                    })
+
+                            # --- Completion ---
+                            elif etype == "response.completed":
+                                resp = event_data.get("response", {})
+                                usage = resp.get("usage", {})
+                                input_tokens = usage.get("input_tokens", 0)
+                                output_tokens = usage.get("output_tokens", 0)
+                                total_tokens = input_tokens + output_tokens
+
+                                # Extract citations from response.citations (flat URL list)
+                                flat_citations = resp.get("citations", [])
+                                for url in flat_citations:
+                                    if not any(c["url"] == url for c in citations):
+                                        citations.append({"url": url, "title": ""})
+
+                                # Also extract structured annotations from output items
+                                for output_item in resp.get("output", []):
+                                    if output_item.get("type") == "message":
+                                        for part in output_item.get("content", []):
+                                            for ann in part.get("annotations", []):
+                                                if ann.get("type") == "url_citation":
+                                                    url = ann.get("url", "")
+                                                    if not any(c["url"] == url and c.get("start_index") == ann.get("start_index") for c in citations):
+                                                        citations.append({
+                                                            "url": url,
+                                                            "title": ann.get("title", ""),
+                                                            "start_index": ann.get("start_index"),
+                                                            "end_index": ann.get("end_index"),
+                                                        })
+
+                            # --- Errors ---
+                            elif etype == "response.failed":
+                                error_info = event_data.get("response", {}).get("error", {})
+                                error_msg = error_info.get("message", "Unknown API error")
+                                logger.error(f"[call_xai_responses_api] Response failed: {error_msg}")
+                                yield f"data: {orjson.dumps({'error': f'xAI API error: {error_msg}'}).decode()}\n\n"
+
+                            # --- Refusal ---
+                            elif etype == "response.refusal.delta":
+                                delta = event_data.get("delta", "")
+                                if delta:
+                                    content += delta
+                                    yield f"data: {orjson.dumps({'content': delta}).decode()}\n\n"
+
+                else:
+                    error_body = await response.text()
+                    error_message = f"[call_xai_responses_api] Error: status {response.status}. Body: {error_body}"
+                    logger.error(error_message)
+                    yield f"data: {orjson.dumps({'error': error_message}).decode()}\n\n"
+
+        except asyncio.TimeoutError:
+            error_message = f"[call_xai_responses_api] Request timed out after {timeout_seconds}s for model {model}"
+            logger.error(error_message)
+            yield f"data: {orjson.dumps({'error': error_message}).decode()}\n\n"
+
+        except aiohttp.ClientError as e:
+            error_message = f"[call_xai_responses_api] Network error: {str(e)}"
+            logger.error(error_message)
+            yield f"data: {orjson.dumps({'error': error_message}).decode()}\n\n"
+
+        except Exception as e:
+            error_message = f"[call_xai_responses_api] Unexpected error: {str(e)}"
+            logger.error(error_message)
+            yield f"data: {orjson.dumps({'error': error_message}).decode()}\n\n"
+
+    # Emit citations if any were collected
+    if citations:
+        yield f"data: {orjson.dumps({'type': 'web_search_citations', 'citations': citations}).decode()}\n\n"
+
+    # If a tool call was detected, emit it and return without saving to DB
+    if function_name and save_to_db:
+        try:
+            parsed_args = orjson.loads(function_arguments) if function_arguments else {}
+        except orjson.JSONDecodeError:
+            logger.error(f"[call_xai_responses_api] Failed to parse tool arguments: {function_arguments}")
+            parsed_args = {}
+
+        logger.info(f"[call_xai_responses_api] Tool call detected: {function_name} with args: {parsed_args}")
+
+        yield f"data: {orjson.dumps({'tool_call': {'name': function_name, 'arguments': parsed_args, 'id': tool_call_id}}).decode()}\n\n"
+        yield f"data: {orjson.dumps({'tool_call_pending': True}).decode()}\n\n"
+        return
+
+    # Normal response - save to database
+    if save_to_db:
+        citations_data = orjson.dumps(citations).decode() if citations else None
+        user_message_id, bot_message_id = await save_content_to_db(content, input_tokens, output_tokens, total_tokens, conversation_id, current_user.id, model, user_message=user_message,
+                                                                    prompt_id=prompt_id, watchdog_config=watchdog_config, watchdog_hint_active=watchdog_hint_active, watchdog_hint_eval_id=watchdog_hint_eval_id,
+                                                                    llm_id=llm_id, citations_json=citations_data)
+        if user_message_id and bot_message_id:
+            yield f"data: {orjson.dumps({'message_ids': {'user': user_message_id, 'bot': bot_message_id}}).decode()}\n\n"
+
+        yield content.strip()
+    else:
+        yield f"data: {orjson.dumps({'token_info': True, 'input_tokens': input_tokens, 'output_tokens': output_tokens}).decode()}\n\n"
+        yield "data: [DONE]\n\n"
+
+
 async def call_openrouter_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, user_api_key=None, tools=None,
                               prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
-                              llm_id=None, save_to_db: bool = True):
+                              llm_id=None, save_to_db: bool = True, web_search_mode=None):
     """
     Call OpenRouter unified API - 100% OpenAI compatible.
 
@@ -2798,13 +3692,14 @@ async def call_openrouter_api(messages, model, temperature, max_tokens, prompt, 
         watchdog_hint_eval_id=watchdog_hint_eval_id,
         llm_id=llm_id,
         save_to_db=save_to_db,
+        web_search_mode=web_search_mode,
     ):
         yield chunk
 
 
 async def call_claude_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, thinking_budget_tokens=None, user_api_key=None, tools=None,
                           prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
-                          llm_id=None, save_to_db: bool = True):
+                          llm_id=None, save_to_db: bool = True, web_search_mode=None):
     global stop_signals
     logger.debug("Entering call_claude_api")
 
@@ -2844,6 +3739,16 @@ async def call_claude_api(messages, model, temperature, max_tokens, prompt, conv
     if tools:
         data["tools"] = tools
 
+    # Add native web search server tool when in native mode
+    if web_search_mode == 'native':
+        if "tools" not in data:
+            data["tools"] = []
+        data["tools"].append({
+            "type": "web_search_20250305",
+            "name": "web_search",
+            "max_uses": 5
+        })
+
     # Add thinking mode for Claude models that support it (Claude 3.7, Claude 4)
     if thinking_budget_tokens:
         thinking_models = [
@@ -2873,92 +3778,215 @@ async def call_claude_api(messages, model, temperature, max_tokens, prompt, conv
     tool_use_input_buffer = ""
     stop_reason = ""
 
+    # Native web search tracking
+    block_types = {}  # Maps block index -> block type string
+    search_citations = []  # Accumulated citations from web search
+    search_queries = []  # Queries Claude executed
+    search_source_urls = []  # Source URLs from web_search_tool_result blocks
+    all_citations = []  # Final merged citations for persistence
+    server_tool_input_buffer = ""  # Buffer for server tool use input (search query)
+    response_content_blocks = []  # Full content blocks for pause_turn continuation
+    current_block = None  # Currently open content block being streamed
+
+    max_continuations = 3
+    continuation_count = 0
+    continuation_messages = list(messages)  # Don't mutate original
+
     async with aiohttp.ClientSession() as session:
-        async with session.post(url, headers=headers, json=data) as response:
-            if response.status == 200:
-                async for line in response.content:
-                    if stop_signals.get(conversation_id):
-                        logger.info("Stop signal received, exiting Claude API call loop.")
-                        break
-                    
-                    if line:
-                        #logger.debug(f"line-> {line}")
-                        line = line.decode("utf-8").strip()
-                        if line[:7] == "data: {":                        
-                            json_data = line[6:]
-                            try:
-                                event = orjson.loads(json_data)
-                                event_type = event["type"]
+        while True:
+            # Update messages for continuation calls
+            data["messages"] = continuation_messages
 
-                                if event_type == "content_block_delta":
-                                    delta = event.get("delta", {})
-                                    delta_type = delta.get("type", "")
+            async with session.post(url, headers=headers, json=data) as response:
+                if response.status == 200:
+                    async for line in response.content:
+                        if stop_signals.get(conversation_id):
+                            logger.info("Stop signal received, exiting Claude API call loop.")
+                            break
 
-                                    # Handle tool use input (JSON chunks)
-                                    if delta_type == "input_json_delta":
-                                        partial_json = delta.get("partial_json", "")
-                                        tool_use_input_buffer += partial_json
-                                    # Handle thinking tokens
-                                    elif delta_type == "thinking_delta" and "thinking" in delta:
-                                        thinking_chunk = delta["thinking"]
-                                        # Send thinking content with special type identifier
-                                        yield f"data: {orjson.dumps({'thinking': thinking_chunk, 'type': 'thinking'}).decode()}\n\n"
-                                    # Handle regular text content
-                                    elif "text" in delta or delta_type == "text_delta":
-                                        content_chunk = delta.get("text", "")
-                                        if content_chunk:
-                                            content += content_chunk
-                                            yield f"data: {orjson.dumps({'content': content_chunk}).decode()}\n\n"
+                        if line:
+                            #logger.debug(f"line-> {line}")
+                            line = line.decode("utf-8").strip()
+                            if line[:7] == "data: {":
+                                json_data = line[6:]
+                                try:
+                                    event = orjson.loads(json_data)
+                                    event_type = event["type"]
 
-                                elif event_type == "message_start":
-                                    usage_info = event.get("message", {}).get("usage", {})
-                                    input_tokens = usage_info.get("input_tokens", 0)
-                                    cache_creation_tokens = usage_info.get("cache_creation_input_tokens", 0)
-                                    cache_read_tokens = usage_info.get("cache_read_input_tokens", 0)
+                                    if event_type == "content_block_delta":
+                                        delta = event.get("delta", {})
+                                        delta_type = delta.get("type", "")
+                                        block_index = event.get("index")
+                                        current_block_type = block_types.get(block_index, "")
 
-                                elif event_type == "message_stop":
-                                    break
+                                        if delta_type == "input_json_delta":
+                                            partial_json = delta.get("partial_json", "")
+                                            if current_block_type == "tool_use":
+                                                # Regular function-call tool input
+                                                tool_use_input_buffer += partial_json
+                                            elif current_block_type == "server_tool_use":
+                                                # Server tool input (search query) - accumulate to extract query
+                                                server_tool_input_buffer += partial_json
+                                        # Handle thinking tokens
+                                        elif delta_type == "thinking_delta" and "thinking" in delta:
+                                            thinking_chunk = delta["thinking"]
+                                            if current_block and current_block.get("type") == "thinking":
+                                                current_block["thinking"] += thinking_chunk
+                                            yield f"data: {orjson.dumps({'thinking': thinking_chunk, 'type': 'thinking'}).decode()}\n\n"
+                                        # Handle regular text content
+                                        elif delta_type == "text_delta" or "text" in delta:
+                                            content_chunk = delta.get("text", "")
+                                            if content_chunk:
+                                                content += content_chunk
+                                                if current_block and current_block.get("type") == "text":
+                                                    current_block["text"] += content_chunk
+                                                yield f"data: {orjson.dumps({'content': content_chunk}).decode()}\n\n"
+                                        elif delta_type == "citations_delta":
+                                            # Citation attached to text during web search
+                                            citation = delta.get("citation", {})
+                                            if citation.get("type") == "web_search_result_location":
+                                                search_citations.append({
+                                                    "url": citation.get("url", ""),
+                                                    "title": citation.get("title", ""),
+                                                    "cited_text": citation.get("cited_text", ""),
+                                                })
 
-                                elif event_type == "message_delta":
-                                    usage = event.get("usage", {})
-                                    output_tokens = usage.get("output_tokens", output_tokens)
-                                    # Check stop_reason for tool_use
-                                    delta = event.get("delta", {})
-                                    stop_reason = delta.get("stop_reason", "")
+                                    elif event_type == "message_start":
+                                        usage_info = event.get("message", {}).get("usage", {})
+                                        # Accumulate input tokens across continuations
+                                        input_tokens += usage_info.get("input_tokens", 0)
+                                        cache_creation_tokens += usage_info.get("cache_creation_input_tokens", 0)
+                                        cache_read_tokens += usage_info.get("cache_read_input_tokens", 0)
 
-                                elif event_type == "content_block_start":
-                                    content_block = event.get("content_block", {})
-                                    block_type = content_block.get("type", "")
+                                    elif event_type == "message_stop":
+                                        break
 
-                                    if block_type == "tool_use":
-                                        # Start of tool use - capture name and id
-                                        tool_use_name = content_block.get("name", "")
-                                        tool_use_id = content_block.get("id", "")
-                                        tool_use_input_buffer = ""  # Reset buffer
-                                        logger.info(f"[call_claude_api] - Tool use started: {tool_use_name}")
-                                    elif block_type == "thinking":
-                                        # Signal start of thinking
-                                        yield f"data: {orjson.dumps({'type': 'thinking_start'}).decode()}\n\n"
+                                    elif event_type == "message_delta":
+                                        usage = event.get("usage", {})
+                                        # Accumulate output tokens across continuations
+                                        output_tokens += usage.get("output_tokens", 0)
+                                        # Check stop_reason for tool_use
+                                        delta = event.get("delta", {})
+                                        stop_reason = delta.get("stop_reason", "")
+
+                                    elif event_type == "content_block_start":
+                                        content_block = event.get("content_block", {})
+                                        block_type = content_block.get("type", "")
+                                        block_index = event.get("index")
+                                        block_types[block_index] = block_type
+
+                                        # Initialize current_block for pause_turn continuation tracking
+                                        if block_type == "text":
+                                            current_block = {"type": "text", "text": ""}
+                                        elif block_type == "thinking":
+                                            current_block = {"type": "thinking", "thinking": ""}
+                                            yield f"data: {orjson.dumps({'type': 'thinking_start'}).decode()}\n\n"
+                                        elif block_type == "tool_use":
+                                            # Regular function-call tool (generateImage, etc.)
+                                            tool_use_name = content_block.get("name", "")
+                                            tool_use_id = content_block.get("id", "")
+                                            tool_use_input_buffer = ""
+                                            current_block = {
+                                                "type": "tool_use",
+                                                "id": tool_use_id,
+                                                "name": tool_use_name,
+                                                "input": {}
+                                            }
+                                            logger.info(f"[call_claude_api] - Tool use started: {tool_use_name}")
+                                        elif block_type == "server_tool_use":
+                                            # Claude decided to search the web (server-side)
+                                            server_tool_input_buffer = ""
+                                            current_block = {
+                                                "type": "server_tool_use",
+                                                "id": content_block.get("id", ""),
+                                                "name": content_block.get("name", ""),
+                                                "input": {}
+                                            }
+                                            logger.info(f"[call_claude_api] - Server tool use started: {current_block['name']}")
+                                        elif block_type == "web_search_tool_result":
+                                            # Search results arrived - extract source URLs and preserve raw block
+                                            search_content = content_block.get("content", [])
+                                            for item in search_content:
+                                                if item.get("type") == "web_search_result":
+                                                    search_source_urls.append({
+                                                        "url": item.get("url", ""),
+                                                        "title": item.get("title", ""),
+                                                        "page_age": item.get("page_age", "")
+                                                    })
+                                            # Preserve the full block for continuation (includes encrypted_content)
+                                            current_block = {
+                                                "type": "web_search_tool_result",
+                                                "tool_use_id": content_block.get("tool_use_id", ""),
+                                                "content": search_content
+                                            }
+                                            logger.info(f"[call_claude_api] - Web search results: {len(search_source_urls)} sources")
+                                        continue
+
+                                    elif event_type == "content_block_stop":
+                                        block_index = event.get("index")
+                                        stopped_block_type = block_types.get(block_index, "")
+                                        if stopped_block_type == "thinking":
+                                            yield f"data: {orjson.dumps({'type': 'thinking_end'}).decode()}\n\n"
+                                        elif stopped_block_type == "tool_use":
+                                            # Finalize regular tool block with parsed input
+                                            if current_block and tool_use_input_buffer:
+                                                try:
+                                                    current_block["input"] = orjson.loads(tool_use_input_buffer)
+                                                except orjson.JSONDecodeError:
+                                                    pass
+                                        elif stopped_block_type == "server_tool_use":
+                                            # Extract search query from accumulated input
+                                            if server_tool_input_buffer:
+                                                try:
+                                                    search_input = orjson.loads(server_tool_input_buffer)
+                                                    if current_block:
+                                                        current_block["input"] = search_input
+                                                    query = search_input.get("query", "")
+                                                    if query:
+                                                        search_queries.append(query)
+                                                        logger.info(f"[call_claude_api] - Web search query: {query}")
+                                                except orjson.JSONDecodeError:
+                                                    logger.warning(f"[call_claude_api] - Failed to parse search query: {server_tool_input_buffer}")
+                                            yield f"data: {orjson.dumps({'content': '', 'searching': True}).decode()}\n\n"
+                                            server_tool_input_buffer = ""
+                                        # Save completed block for pause_turn continuation
+                                        if current_block:
+                                            response_content_blocks.append(current_block)
+                                            current_block = None
+                                        continue
+
+                                except orjson.JSONDecodeError as e:
+                                    logger.error(f"[call_claude_api] - Error decoding JSON: {e}")
+                                    logger.debug(f"[call_claude_api] - JSON data: {json_data}")
                                     continue
+                else:
+                    error_body = await response.text()
+                    error_message = f"[call_claude_api] - Error: Received status code {response.status}. Response body: {error_body}"
+                    logger.error(error_message)
+                    logger.error(f"Request headers: {headers}")
+                    logger.error(f"Request data: {data}")
+                    yield f"data: {orjson.dumps({'error': error_message}).decode()}\n\n"
+                    break  # Don't continue on error
 
-                                elif event_type == "content_block_stop":
-                                    # Handle content block stop events
-                                    if event.get("index") == 0:  # First block is usually thinking
-                                        # Signal end of thinking
-                                        yield f"data: {orjson.dumps({'type': 'thinking_end'}).decode()}\n\n"
-                                    continue
-
-                            except orjson.JSONDecodeError as e:
-                                logger.error(f"[call_claude_api] - Error decoding JSON: {e}")
-                                logger.debug(f"[call_claude_api] - JSON data: {json_data}")
-                                continue
+            # Check if we need to continue (pause_turn = Claude needs more turns)
+            if stop_reason == "pause_turn" and continuation_count < max_continuations:
+                continuation_count += 1
+                # Append full content blocks as assistant message (required for proper continuation)
+                continuation_messages.append({
+                    "role": "assistant",
+                    "content": response_content_blocks
+                })
+                # Reset per-iteration state (keep accumulated content, tokens, citations)
+                stop_reason = ""
+                block_types = {}
+                response_content_blocks = []
+                current_block = None
+                logger.info(f"[call_claude_api] - pause_turn continuation {continuation_count}/{max_continuations}")
+                continue
             else:
-                error_body = await response.text()
-                error_message = f"[call_claude_api] - Error: Received status code {response.status}. Response body: {error_body}"
-                logger.error(error_message)
-                logger.error(f"Request headers: {headers}")
-                logger.error(f"Request data: {data}")
-                yield f"data: {orjson.dumps({'error': error_message}).decode()}\n\n"
+                if stop_reason == "pause_turn":
+                    logger.warning(f"[call_claude_api] - Max continuations ({max_continuations}) reached, stopping")
+                break
 
     total_tokens = input_tokens + output_tokens
     logger.info(f"Tokens used Claude:\ninput_tokens: {input_tokens}\noutput_tokens: {output_tokens}\ntotal_tokens: {total_tokens}")
@@ -2982,14 +4010,27 @@ async def call_claude_api(messages, model, temperature, max_tokens, prompt, conv
         yield f"data: {orjson.dumps({'tool_call_pending': True}).decode()}\n\n"
         return  # Don't save to DB - handler will do it
 
+    # Emit native web search citations if any were collected
+    if search_citations or search_source_urls:
+        # Merge source URLs with citations - some sources may not have been cited inline
+        all_citations = list(search_citations)  # Citations with position info
+        # Add source URLs that weren't already in citations
+        cited_urls = {c["url"] for c in all_citations}
+        for source in search_source_urls:
+            if source["url"] not in cited_urls:
+                all_citations.append({
+                    "url": source["url"],
+                    "title": source["title"],
+                })
+        yield build_citation_event(all_citations, search_queries if search_queries else None)
+
     # Normal response - save to database
     if save_to_db:
+        citations_data = orjson.dumps(all_citations).decode() if all_citations else None
         user_message_id, bot_message_id = await save_content_to_db(content, input_tokens, output_tokens, total_tokens, conversation_id, user_id, model, user_message=user_message,
                                                                     prompt_id=prompt_id, watchdog_config=watchdog_config, watchdog_hint_active=watchdog_hint_active, watchdog_hint_eval_id=watchdog_hint_eval_id,
-                                                                    llm_id=llm_id)
+                                                                    llm_id=llm_id, citations_json=citations_data)
         if user_message_id and bot_message_id:
-            #logger.info("user_message_id: %s", user_message_id)
-            #logger.info("bot_message_id: %s", bot_message_id)
             yield f"data: {orjson.dumps({'message_ids': {'user': user_message_id, 'bot': bot_message_id}}).decode()}\n\n"
 
         yield content.strip()
@@ -2997,9 +4038,9 @@ async def call_claude_api(messages, model, temperature, max_tokens, prompt, conv
         yield f"data: {orjson.dumps({'token_info': True, 'input_tokens': input_tokens, 'output_tokens': output_tokens}).decode()}\n\n"
         yield "data: [DONE]\n\n"
 
-async def call_gemini_api(messages, model_name, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, user_api_key=None, tools=None,
+async def call_gemini_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, user_api_key=None, tools=None,
                           prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
-                          llm_id=None, save_to_db: bool = True):
+                          llm_id=None, save_to_db: bool = True, web_search_mode=None):
     global stop_signals
     logger.info("Entering call_gemini_api")
     user_id = current_user.id
@@ -3017,8 +4058,15 @@ async def call_gemini_api(messages, model_name, temperature, max_tokens, prompt,
         max_output_tokens=max_tokens,
     )
 
-    # Add tools if provided
-    if tools:
+    # Add tools: google_search (native web search) and/or function declarations
+    if web_search_mode == 'native':
+        tools_list = [genai_types.Tool(google_search=genai_types.GoogleSearch())]
+        if tools:
+            tools_list.append(genai_types.Tool(function_declarations=tools))
+            config.automatic_function_calling = genai_types.AutomaticFunctionCallingConfig(disable=True)
+        config.tools = tools_list
+        logger.info(f"[call_gemini_api] - Native web search enabled with google_search tool{f' + {len(tools)} function declarations' if tools else ''}")
+    elif tools:
         config.tools = [genai_types.Tool(function_declarations=tools)]
         config.automatic_function_calling = genai_types.AutomaticFunctionCallingConfig(disable=True)
         logger.info(f"[call_gemini_api] - Initialized with {len(tools)} tool declarations")
@@ -3031,10 +4079,11 @@ async def call_gemini_api(messages, model_name, temperature, max_tokens, prompt,
     input_tokens = output_tokens = total_tokens = 0
     function_call_detected = None
     last_chunk = None
+    citations = []
 
     try:
-        async for chunk in client.aio.models.generate_content_stream(
-            model=model_name,
+        async for chunk in await client.aio.models.generate_content_stream(
+            model=model,
             contents=contents,
             config=config,
         ):
@@ -3084,6 +4133,46 @@ async def call_gemini_api(messages, model_name, temperature, max_tokens, prompt,
             output_tokens = estimate_message_tokens(content)
             total_tokens = input_tokens + output_tokens
 
+        # Extract grounding metadata for native web search (Phase 3)
+        if web_search_mode == 'native' and last_chunk and last_chunk.candidates:
+            candidate = last_chunk.candidates[0]
+            grounding_meta = getattr(candidate, 'grounding_metadata', None)
+            if grounding_meta:
+                citations = []
+                search_queries = grounding_meta.web_search_queries or []
+                chunks = grounding_meta.grounding_chunks or []
+                supports = grounding_meta.grounding_supports or []
+
+                # Map grounding_supports (cited text segments) to their source chunks
+                for support in supports:
+                    seg = support.segment
+                    chunk_indices = support.grounding_chunk_indices or []
+                    for idx in chunk_indices:
+                        if idx < len(chunks) and chunks[idx].web:
+                            citations.append({
+                                "url": chunks[idx].web.uri or "",
+                                "title": chunks[idx].web.title or "",
+                                "cited_text": seg.text or "",
+                                "start_index": seg.start_index,
+                                "end_index": seg.end_index,
+                            })
+
+                # Add source chunks not already cited inline
+                cited_urls = {c["url"] for c in citations}
+                for chunk in chunks:
+                    if chunk.web and chunk.web.uri and chunk.web.uri not in cited_urls:
+                        citations.append({"url": chunk.web.uri, "title": chunk.web.title or ""})
+
+                # Google Search widget HTML (mandatory per ToS)
+                widget_html = None
+                sep = getattr(grounding_meta, 'search_entry_point', None)
+                if sep:
+                    widget_html = getattr(sep, 'rendered_content', None)
+
+                if citations:
+                    yield build_citation_event(citations, search_queries or None, widget_html)
+                    logger.info(f"[call_gemini_api] - Native search: {len(citations)} citations from {len(search_queries)} queries")
+
     except Exception as e:
         logger.error(f"[call_gemini_api] - Error calling Gemini API: {e}")
         yield f"data: {orjson.dumps({'error': str(e)}).decode()}\n\n"
@@ -3098,9 +4187,10 @@ async def call_gemini_api(messages, model_name, temperature, max_tokens, prompt,
 
     if save_to_db:
         try:
-            user_message_id, bot_message_id = await save_content_to_db(content, input_tokens, output_tokens, total_tokens, conversation_id, user_id, model_name, user_message=user_message,
+            citations_data = orjson.dumps(citations).decode() if citations else None
+            user_message_id, bot_message_id = await save_content_to_db(content, input_tokens, output_tokens, total_tokens, conversation_id, user_id, model, user_message=user_message,
                                                                         prompt_id=prompt_id, watchdog_config=watchdog_config, watchdog_hint_active=watchdog_hint_active, watchdog_hint_eval_id=watchdog_hint_eval_id,
-                                                                        llm_id=llm_id)
+                                                                        llm_id=llm_id, citations_json=citations_data)
             if user_message_id and bot_message_id:
                 yield f"data: {orjson.dumps({'message_ids': {'user': user_message_id, 'bot': bot_message_id}}).decode()}\n\n"
         except Exception as e:
@@ -3464,10 +4554,15 @@ async def handle_function_call(function_name, function_arguments, messages, mode
 
     if function_name in function_handlers:
         handler = function_handlers[function_name]
+        tool_error_message = None
         async for chunk in handler(function_arguments, messages, model, temperature, max_tokens, content, conversation_id, current_user, request, input_tokens, output_tokens, total_tokens, message_id, user_id, client, prompt, user_message):
             try:
                 chunk_data = orjson.loads(chunk.split("data: ")[1])
                 if 'content' in chunk_data:
+                    if chunk_data.get('is_error'):
+                        # Tool reported an error — collect it for second-pass instead of showing raw
+                        tool_error_message = chunk_data['content']
+                        continue
                     if chunk_data.get('save_to_db', True):
                         content_to_save += chunk_data['content']
                     if chunk_data.get('yield', True):
@@ -3479,7 +4574,65 @@ async def handle_function_call(function_name, function_arguments, messages, mode
                         yield chunk
             except orjson.JSONDecodeError:
                 yield chunk
-                
+
+        # If the tool reported an error, do a second-pass to the AI so it can
+        # respond naturally instead of showing the raw error to the user.
+        if tool_error_message:
+            logger.info(f"[handle_function_call] Tool '{function_name}' error, triggering AI second-pass: {tool_error_message[:200]}")
+
+            # Build tool response messages: the AI sees its own tool call + the error result
+            _build_tool_response_messages(
+                messages,
+                {"name": function_name, "arguments": function_arguments, "id": f"call_{function_name}"},
+                f"Error: {tool_error_message}",
+                client,
+            )
+
+            # Select the right API function and configure for second-pass
+            if client == "Gemini":
+                api_func = call_gemini_api
+            elif client == "O1":
+                api_func = call_o1_api
+            elif client == "GPT":
+                api_func = call_gpt_responses_api
+            elif client == "Claude":
+                api_func = call_claude_api
+            elif client == "xAI":
+                api_func = call_xai_responses_api
+            elif client == "OpenRouter":
+                api_func = call_openrouter_api
+            else:
+                # Fallback: just show the error if we can't do a second-pass
+                yield f"data: {orjson.dumps({'content': tool_error_message}).decode()}\n\n"
+                return
+
+            second_kwargs = {
+                "messages": messages,
+                "model": model,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "prompt": prompt,
+                "conversation_id": conversation_id,
+                "current_user": current_user,
+                "request": request,
+                "user_message": user_message,
+                "prompt_id": prompt_id,
+                "watchdog_config": watchdog_config,
+                "watchdog_hint_active": watchdog_hint_active,
+                "watchdog_hint_eval_id": watchdog_hint_eval_id,
+                "llm_id": llm_id,
+            }
+
+            # System prompt dedup for Chat Completions providers
+            if client == "OpenRouter":
+                if messages and isinstance(messages[0], dict) and messages[0].get("role") == "system":
+                    messages.pop(0)
+
+            async for chunk in api_func(**second_kwargs):
+                yield chunk
+            # api_func handles save_to_db internally
+            return
+
     else:
     
         if function_name == "dream_of_consciousness":
@@ -3729,7 +4882,7 @@ async def handle_function_call(function_name, function_arguments, messages, mode
 
 async def save_content_to_db(content, input_tokens, output_tokens, total_tokens, conversation_id, user_id, model, user_message=None,
                              prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
-                             llm_id=None):
+                             llm_id=None, citations_json=None):
     # logger.info(f"Complete AI message:\n {content}")  # Commented to avoid encoding issues with emojis
     logger.info(f"Tokens usados:\ninput_tokens: {input_tokens}\noutput_tokens: {output_tokens}\ntotal_tokens: {total_tokens}")
 
@@ -3763,13 +4916,13 @@ async def save_content_to_db(content, input_tokens, output_tokens, total_tokens,
 
                     bot_insert_query = '''
                         INSERT INTO messages
-                        (conversation_id, user_id, message, type, input_tokens_used, output_tokens_used, date, llm_id)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        (conversation_id, user_id, message, type, input_tokens_used, output_tokens_used, date, llm_id, citations_json)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                         RETURNING id
                     '''
                     cursor = await conn.execute(
                         bot_insert_query,
-                        (conversation_id, user_id, content, 'bot', input_tokens, output_tokens, current_time, llm_id)
+                        (conversation_id, user_id, content, 'bot', input_tokens, output_tokens, current_time, llm_id, citations_json)
                     )
                     row = await cursor.fetchone()
                     message_id = row[0] if row else None
@@ -4172,11 +5325,11 @@ async def _run_single_ai(
         elif machine == "O1":
             api_func = call_o1_api
         elif machine == "GPT":
-            api_func = call_gpt_api
+            api_func = call_gpt_responses_api
         elif machine == "Claude":
             api_func = call_claude_api
         elif machine == "xAI":
-            api_func = call_xai_api
+            api_func = call_xai_responses_api
         elif machine == "OpenRouter":
             api_func = call_openrouter_api
         else:

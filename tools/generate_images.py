@@ -768,19 +768,20 @@ async def handle_generate_image(function_arguments, messages, model, temperature
         request_url = str(request.url)
 
         if not await has_sufficient_balance(user_id, Cost.IMAGE_GENERATION_COST):
-            yield f"data: {orjson.dumps({'content': 'Insufficient balance to generate image.', 'save_to_db': True, 'yield': True}).decode()}\n\n"
+            yield f"data: {orjson.dumps({'content': 'Insufficient balance to generate image.', 'save_to_db': True, 'yield': True, 'is_error': True}).decode()}\n\n"
             return
 
         generate_image_task_actor.send(channel_name, image_prompt, conversation_id, user_id, is_whatsapp, request_url)
 
         yield f"data: {orjson.dumps({'content': 'Generating image...', 'save_to_db': False, 'yield': True}).decode()}\n\n"
 
+        image_success = False
         async with redis_client.pubsub() as pubsub:
             await pubsub.subscribe(channel_name)
             start_time = time.time()
             while True:
                 if time.time() - start_time > IMAGE_GENERATION_TIMEOUT:
-                    yield f"data: {orjson.dumps({'content': 'Image generation timed out. Please try again.', 'save_to_db': True, 'yield': True}).decode()}\n\n"
+                    yield f"data: {orjson.dumps({'content': 'Image generation timed out. Please try again.', 'save_to_db': True, 'yield': True, 'is_error': True}).decode()}\n\n"
                     break
 
                 message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
@@ -792,26 +793,29 @@ async def handle_generate_image(function_arguments, messages, model, temperature
                         break
                     json_data = orjson.loads(data)
                     if 'error' in json_data:
-                        yield f"data: {orjson.dumps({'content': json_data['error'], 'save_to_db': True, 'yield': True}).decode()}\n\n"
+                        yield f"data: {orjson.dumps({'content': json_data['error'], 'save_to_db': True, 'yield': True, 'is_error': True}).decode()}\n\n"
                     elif 'content_to_show' in json_data and 'content_to_save' in json_data:
+                        image_success = True
                         yield f"data: {orjson.dumps({'content': json_data['content_to_show'], 'save_to_db': False, 'yield': True}).decode()}\n\n"
                         yield f"data: {orjson.dumps({'content': json_data['content_to_save'], 'save_to_db': True, 'yield': False}).decode()}\n\n"
                 else:
                     await asyncio.sleep(0.1)
 
-        deducted = await deduct_balance(user_id, Cost.IMAGE_GENERATION_COST)
-        if not deducted:
-            print(f"WARNING: Failed to deduct image generation cost for user {user_id} - insufficient balance")
-        await record_daily_usage(
-            user_id=user_id,
-            usage_type='image',
-            cost=Cost.IMAGE_GENERATION_COST,
-            units=1
-        )
+        # Only charge when image was successfully generated
+        if image_success:
+            deducted = await deduct_balance(user_id, Cost.IMAGE_GENERATION_COST)
+            if not deducted:
+                print(f"WARNING: Failed to deduct image generation cost for user {user_id} - insufficient balance")
+            await record_daily_usage(
+                user_id=user_id,
+                usage_type='image',
+                cost=Cost.IMAGE_GENERATION_COST,
+                units=1
+            )
 
     except Exception as e:
         print(f"Error in handle_generate_image: {e}")
-        yield f"data: {orjson.dumps({'content': f'Error generating image: {str(e)}', 'save_to_db': True, 'yield': True}).decode()}\n\n"
+        yield f"data: {orjson.dumps({'content': f'Error generating image: {str(e)}', 'save_to_db': True, 'yield': True, 'is_error': True}).decode()}\n\n"
 
 # Tool definition for the semantic router
 register_tool({
