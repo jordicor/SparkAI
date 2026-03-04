@@ -426,6 +426,8 @@ def run_job(task_id, job_type, prompt_dir, params):
             if TARGET == "welcome":
                 kwargs["avatar_path"] = params.get("avatar_path", "")
                 kwargs["chat_url"] = params.get("chat_url", "/chat")
+            else:
+                kwargs["landing_url"] = params.get("landing_url", "")
             result = modify_fn(**kwargs)
 
         if result.get("success"):

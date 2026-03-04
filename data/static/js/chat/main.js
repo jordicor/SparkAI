@@ -83,7 +83,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function checkBalanceAndHideInput() {
-        if (userBalance === 0) {
+        var hasByok = hasOwnKeys && apiKeyMode !== 'system_only';
+        if (userBalance === 0 && !hasByok) {
             messageInputContainer.style.display = 'none';
             insufficientBalanceMessage.style.display = 'block';
         }

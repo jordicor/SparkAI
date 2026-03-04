@@ -38,7 +38,7 @@ Disallow: /payment
 Disallow: /payment-success
 Disallow: /pack-purchase-success
 Disallow: /prompt-purchase-success
-Disallow: /payment-success-simulated
+Disallow: /api/payment/free-credit
 Disallow: /media-gallery
 Disallow: /landing/
 Disallow: /welcome/

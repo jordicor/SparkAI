@@ -319,7 +319,7 @@
     // Process free purchase (100% discount)
     async function processFreePurchase(discountCode) {
         try {
-            const response = await fetch('/payment-success-simulated', {
+            const response = await fetch('/api/payment/free-credit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

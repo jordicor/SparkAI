@@ -35,6 +35,7 @@ function scrollToBottomIfNeeded() {
 // Web Search Toggle state
 let webSearchEnabled = true;   // User preference (default ON)
 let webSearchAllowed = true;   // Prompt allows web search
+let webSearchForced = false;   // Prompt forces web search always on
 
 // =============================================
 // API Key Mode Manager
@@ -1580,6 +1581,7 @@ function addConversationElement(conversation, chatName, currentConversationId, i
     conversationElement.dataset.llmModel = conversation.llm_model || '';
     conversationElement.dataset.locked = conversation.locked ? 'true' : 'false';
     conversationElement.dataset.webSearchAllowed = conversation.web_search_allowed !== false ? 'true' : 'false';
+    conversationElement.dataset.webSearchForced = conversation.web_search_forced === true ? 'true' : 'false';
     if (conversation.forced_llm_id) {
         conversationElement.dataset.forcedLlmId = conversation.forced_llm_id;
     }
@@ -1589,6 +1591,7 @@ function addConversationElement(conversation, chatName, currentConversationId, i
     if (conversation.allowed_llms) {
         conversationElement.dataset.allowedLlms = JSON.stringify(conversation.allowed_llms);
     }
+    conversationElement.dataset.isPaid = conversation.is_paid ? '1' : '0';
     if (conversation.locked) {
         conversationElement.classList.add('conversation-locked');
     }
@@ -2374,7 +2377,32 @@ function continueConversation(conversationId, chatName, machine, isInit = false,
                 messageText.placeholder = 'Type a message...';
                 messageText.disabled = false;
             }
-            
+
+            // Balance-based input visibility (runs after locked check)
+            if (!isCurrentConversationLocked) {
+                const isPaid = conversationData != null
+                    ? !!conversationData.is_paid
+                    : (selectedChat?.dataset?.isPaid === '1');
+                const hasByok = typeof hasOwnKeys !== 'undefined' && hasOwnKeys && apiKeyMode !== 'system_only';
+                const userBal = parseFloat(document.getElementById('user-balance')?.getAttribute('data-balance') || '0');
+                const formMessageEl = document.getElementById('form-message');
+                const insufficientEl = document.getElementById('insufficient-balance-message');
+
+                if (userBal === 0 && !hasByok) {
+                    // Non-BYOK user with zero balance - always hide input
+                    formMessageEl.style.display = 'none';
+                    insufficientEl.style.display = 'block';
+                } else if (hasByok && isPaid && userBal < 0.10) {
+                    // BYOK user on paid prompt with insufficient balance for creator markup
+                    formMessageEl.style.display = 'none';
+                    insufficientEl.style.display = 'block';
+                } else {
+                    // Sufficient balance or free prompt - ensure input visible
+                    formMessageEl.style.display = 'flex';
+                    insufficientEl.style.display = 'none';
+                }
+            }
+
             showPromptInfo();
 
             // Initialize web search toggle control with data from conversation element or passed data
@@ -2384,7 +2412,13 @@ function continueConversation(conversationId, chatName, machine, isInit = false,
             } else if (conversationData?.web_search_allowed !== undefined) {
                 webSearchAllowedByPrompt = conversationData.web_search_allowed;
             }
-            initWebSearchControl(conversationId, webSearchAllowedByPrompt);
+            let webSearchForcedByPrompt = false;
+            if (selectedChat?.dataset?.webSearchForced !== undefined) {
+                webSearchForcedByPrompt = selectedChat.dataset.webSearchForced === 'true';
+            } else if (conversationData?.web_search_forced !== undefined) {
+                webSearchForcedByPrompt = conversationData.web_search_forced;
+            }
+            initWebSearchControl(conversationId, webSearchAllowedByPrompt, webSearchForcedByPrompt);
 
             resolve();
         });
@@ -2662,6 +2696,12 @@ async function loadMessages(conversationId, prepend = false, targetMessageId = n
 
         // Update the bot's profile picture
         botProfilePicture = conversationInfo.bot_profile_picture;
+
+        // Sync is_paid flag to sidebar element so continueConversation() can read it
+        const sidebarEl = document.querySelector(`[data-conversation-id="${conversationId}"]`);
+        if (sidebarEl) {
+            sidebarEl.dataset.isPaid = conversationInfo.is_paid ? '1' : '0';
+        }
 
         // Initialize extension selector from message endpoint data
         if (conversationInfo.extensions_enabled && window.extensionSelector) {
@@ -3886,6 +3926,12 @@ class MultiAiManager {
             return;
         }
 
+        // Hide Multi-AI when prompt forces web search (Multi-AI disables all tools)
+        if (webSearchForced) {
+            section.style.display = 'none';
+            return;
+        }
+
         const allowedLlms = window.modelSelector?.allowedLlms;
         if (allowedLlms && allowedLlms.length < 2) {
             section.style.display = 'none';
@@ -4224,7 +4270,7 @@ function initializeThinkingTokensControl() {
 // Web Search Toggle (Plus Menu Item)
 // =============================================
 
-function initWebSearchControl(conversationId, webSearchAllowedByPrompt = null) {
+function initWebSearchControl(conversationId, webSearchAllowedByPrompt = null, webSearchForcedByPrompt = false) {
     const menuItem = document.getElementById('plus-web-search');
     if (!menuItem) return;
 
@@ -4236,13 +4282,33 @@ function initWebSearchControl(conversationId, webSearchAllowedByPrompt = null) {
     }
 
     webSearchAllowed = webSearchAllowedByPrompt !== null ? webSearchAllowedByPrompt : true;
+    webSearchForced = webSearchForcedByPrompt;
     webSearchEnabled = typeof webSearchUserEnabled !== 'undefined' ? webSearchUserEnabled : true;
 
-    if (webSearchAllowed) {
+    if (webSearchForced) {
+        // Prompt forces web search ON - show toggle as active but disabled
         menuItem.style.display = '';
+        webSearchEnabled = true;
+        updateWebSearchButtonState();
+        menuItem.classList.add('forced-active');
+        menuItem.style.pointerEvents = 'none';
+        menuItem.style.opacity = '0.7';
+        menuItem.title = 'Web search is always active for this prompt';
+    } else if (webSearchAllowed) {
+        // Normal: user can toggle
+        menuItem.style.display = '';
+        menuItem.classList.remove('forced-active');
+        menuItem.style.pointerEvents = '';
+        menuItem.style.opacity = '';
+        menuItem.title = '';
         updateWebSearchButtonState();
     } else {
+        // Prompt disables web search - hide toggle
         menuItem.style.display = 'none';
+        menuItem.classList.remove('forced-active');
+        menuItem.style.pointerEvents = '';
+        menuItem.style.opacity = '';
+        menuItem.title = '';
     }
     updateAiSectionVisibility();
     updatePlusMenuIndicator();
@@ -4257,7 +4323,7 @@ function updateWebSearchButtonState() {
 }
 
 async function toggleWebSearch() {
-    if (!webSearchAllowed) return;
+    if (!webSearchAllowed || webSearchForced) return;
     try {
         const response = await secureFetch('/api/user/web-search-toggle', {
             method: 'POST'

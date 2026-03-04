@@ -282,6 +282,7 @@ async def run_watchdog_evaluation(
                 model=llm_info["model"],
                 input_tokens=response.input_tokens,
                 output_tokens=response.output_tokens,
+                byok=resolved_key is not None,
             )
         except Exception:
             logger.error(
@@ -499,6 +500,7 @@ async def _consume_watchdog_tokens(
     model: str,
     input_tokens: int,
     output_tokens: int,
+    byok: bool = False,
 ):
     # Some providers may omit usage. In that case billing is best-effort with zeroes.
     input_tokens = int(input_tokens or 0)
@@ -518,6 +520,7 @@ async def _consume_watchdog_tokens(
                 conn=conn,
                 cursor=cursor,
                 prompt_id=prompt_id,
+                byok=byok,
             )
             if not billed:
                 logger.warning(
@@ -1002,6 +1005,7 @@ async def run_pre_watchdog_evaluation(
             model=llm_info["model"],
             input_tokens=response.input_tokens,
             output_tokens=response.output_tokens,
+            byok=resolved_key is not None,
         )
     except Exception:
         logger.error(

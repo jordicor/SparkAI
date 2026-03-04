@@ -163,6 +163,13 @@
                     <small class="form-text text-muted d-block">Prevent AI from searching the internet when using this prompt</small>
                 </div>
                 <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="forceWebSearch" name="force_web_search">
+                    <label class="form-check-label" for="forceWebSearch">
+                        <i class="fas fa-globe me-1 text-muted"></i>Force Web Search Always On
+                    </label>
+                    <small class="form-text text-muted d-block">Web search will always be active and users cannot disable it for this prompt</small>
+                </div>
+                <div class="mb-3 form-check">
                     <input type="checkbox" class="form-check-input" id="enableModeration" name="enable_moderation">
                     <label class="form-check-label" for="enableModeration">
                         <i class="fas fa-shield-alt me-1 text-muted"></i>Enable Content Moderation
@@ -1108,6 +1115,14 @@
 
         // Initialize extensions panel
         toggleExtensionsPanel();
+
+        // Mutual exclusion: disable_web_search vs force_web_search
+        document.getElementById('disableWebSearch').addEventListener('change', function() {
+            if (this.checked) document.getElementById('forceWebSearch').checked = false;
+        });
+        document.getElementById('forceWebSearch').addEventListener('change', function() {
+            if (this.checked) document.getElementById('disableWebSearch').checked = false;
+        });
 
         // Add validation on public checkbox change
         document.getElementById('isPublic').addEventListener('change', function() {

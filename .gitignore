@@ -1,6 +1,7 @@
 AURVEK.git/
 SPARK.git/
 data/cache/
+# User data (runtime-generated, not tracked)
 data/users/
 __pycache__/
 tst/

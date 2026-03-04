@@ -2,7 +2,10 @@
 
 (function() {
     let homeData = null;
+    let welcomeMessages = null;
     const canManage = window._homeConfig && window._homeConfig.canManage;
+    const minimizedWindows = new Set();
+    let readTimers = {};
 
     document.addEventListener('DOMContentLoaded', init);
 
@@ -15,7 +18,14 @@
             }
             if (!resp.ok) throw new Error('Failed to load home data');
             homeData = await resp.json();
+
+            // Load minimized state from preferences
+            var prefs = homeData.home_preferences || {};
+            var savedMinimized = prefs.minimized_windows || [];
+            savedMinimized.forEach(function(id) { minimizedWindows.add(id); });
+
             render();
+            await loadWelcomeMessages();
         } catch (e) {
             console.error('Home init error:', e);
         }
@@ -29,6 +39,7 @@
         renderLatestPrompts();
         renderMyLibrary('prompts');
         bindEvents();
+        applyMinimizedState();
     }
 
     // ==================== Branding ====================
@@ -67,7 +78,6 @@
         var prompts = homeData.prompts || [];
         var favIds = homeData.favorites || [];
 
-        // Favorites optgroup
         var favPrompts = prompts.filter(function(p) { return favIds.includes(p.id); });
         if (favPrompts.length) {
             var favGroup = document.createElement('optgroup');
@@ -81,7 +91,6 @@
             select.appendChild(favGroup);
         }
 
-        // My Prompts optgroup
         var myPrompts = prompts.filter(function(p) { return !!p.is_mine; });
         if (myPrompts.length) {
             var myGroup = document.createElement('optgroup');
@@ -95,7 +104,6 @@
             select.appendChild(myGroup);
         }
 
-        // All Prompts optgroup
         if (prompts.length) {
             var allGroup = document.createElement('optgroup');
             allGroup.label = 'All Prompts';
@@ -108,7 +116,6 @@
             select.appendChild(allGroup);
         }
 
-        // Packs optgroup
         var activePacks = packs.filter(function(pk) { return pk.prompt_count > 0; });
         if (activePacks.length) {
             var packGroup = document.createElement('optgroup');
@@ -122,7 +129,6 @@
             select.appendChild(packGroup);
         }
 
-        // Auto-select if only one option after the default
         if (select.options.length === 2) {
             select.selectedIndex = 1;
         }
@@ -134,7 +140,6 @@
         if (!favIds.length) return;
 
         var allPrompts = homeData.prompts || [];
-        // Also check packs' prompts if needed - for now just loose prompts
         var favPrompts = allPrompts.filter(function(p) { return favIds.includes(p.id); });
         if (!favPrompts.length) return;
 
@@ -148,16 +153,12 @@
         }).join('');
     }
 
-    // ==================== Latest Prompts (left column) ====================
+    // ==================== Latest Prompts ====================
     function renderLatestPrompts() {
         var items = homeData.latest_prompts || [];
-        if (!items.length) {
-            // Hide left column, make right column full width
-            document.getElementById('home-columns').classList.add('home-columns--single');
-            return;
-        }
+        if (!items.length) return;
 
-        var section = document.getElementById('home-latest');
+        var section = document.getElementById('win-latest');
         section.style.display = '';
 
         var now = new Date();
@@ -172,7 +173,7 @@
             var actions = '';
             if (p.has_welcome) {
                 actions = '<div class="home-item-actions">'
-                    + '<button class="home-item-icon" onclick="event.stopPropagation(); navigateToWelcome(\'prompt\', ' + p.id + ')" title="Visit landing page"><i class="fas fa-globe"></i></button>'
+                    + '<button class="home-item-icon" onclick="event.stopPropagation(); navigateToWelcome(\'prompt\', ' + p.id + ')" title="Visit welcome page"><i class="fas fa-globe"></i></button>'
                     + '</div>';
             }
             return '<div class="home-item" data-prompt-id="' + p.id + '">'
@@ -183,7 +184,7 @@
         }).join('');
     }
 
-    // ==================== My Library (right column) ====================
+    // ==================== My Library ====================
     function renderMyLibrary(tab) {
         var list = document.getElementById('home-library-list');
         var emptyEl = document.getElementById('home-library-empty');
@@ -213,7 +214,7 @@
             var type = tab === 'packs' ? 'pack' : 'prompt';
             var actions = '';
             if (hasWelcome) {
-                actions += '<button class="home-item-icon" onclick="navigateToWelcome(\'' + type + '\', ' + item.id + ')" title="Visit landing page"><i class="fas fa-globe"></i></button>';
+                actions += '<button class="home-item-icon" onclick="navigateToWelcome(\'' + type + '\', ' + item.id + ')" title="Visit welcome page"><i class="fas fa-globe"></i></button>';
             }
             if (tab === 'prompts') {
                 actions += '<button class="home-item-icon" onclick="startChatWithPrompt(' + item.id + ')" title="Start chat"><i class="fas fa-comment-dots"></i></button>';
@@ -232,7 +233,6 @@
         var overlay = document.getElementById('home-modal-overlay');
         overlay.style.display = '';
         renderModalList(tab || 'prompts');
-        // Set active tab
         var tabs = document.querySelectorAll('#home-modal-tabs .home-tab');
         tabs.forEach(function(t) {
             t.classList.toggle('active', t.getAttribute('data-tab') === (tab || 'prompts'));
@@ -251,7 +251,7 @@
             var type = tab === 'packs' ? 'pack' : 'prompt';
             var actions = '';
             if (hasWelcome) {
-                actions += '<button class="home-item-icon" onclick="navigateToWelcome(\'' + type + '\', ' + item.id + ')" title="Visit landing page"><i class="fas fa-globe"></i></button>';
+                actions += '<button class="home-item-icon" onclick="navigateToWelcome(\'' + type + '\', ' + item.id + ')" title="Visit welcome page"><i class="fas fa-globe"></i></button>';
             }
             if (tab === 'prompts') {
                 actions += '<button class="home-item-icon" onclick="startChatWithPrompt(' + item.id + ')" title="Start chat"><i class="fas fa-comment-dots"></i></button>';
@@ -267,9 +267,343 @@
         document.getElementById('home-modal-overlay').style.display = 'none';
     }
 
+    // ==================== Welcome Messages ====================
+
+    async function loadWelcomeMessages() {
+        try {
+            var resp = await fetch('/api/home/welcome-messages');
+            if (!resp.ok) return;
+            var data = await resp.json();
+            welcomeMessages = data.messages || [];
+
+            if (!welcomeMessages.length) {
+                // No messages: hide window, prune from minimized
+                document.getElementById('win-welcome').style.display = 'none';
+                if (minimizedWindows.has('welcome')) {
+                    minimizedWindows.delete('welcome');
+                    saveMinimizedState();
+                }
+                return;
+            }
+
+            // Show welcome window (unless minimized)
+            if (!minimizedWindows.has('welcome')) {
+                document.getElementById('win-welcome').style.display = '';
+            }
+
+            renderWelcomeSelector();
+            updateUnreadBadge();
+
+            // Auto-select first unread, or first message
+            var firstUnread = welcomeMessages.find(function(m) { return !m.is_read && !m.is_muted; });
+            if (firstUnread) {
+                selectWelcomeMessage(firstUnread.id);
+            } else if (welcomeMessages.length) {
+                selectWelcomeMessage(welcomeMessages[0].id);
+            }
+        } catch (e) {
+            console.error('Failed to load welcome messages:', e);
+        }
+    }
+
+    function renderWelcomeSelector() {
+        var layout = document.querySelector('.welcome-layout');
+        var selector = document.getElementById('welcome-selector');
+
+        // If only 1 message, hide selector
+        if (welcomeMessages.length === 1) {
+            layout.classList.add('single-message');
+            selector.style.display = 'none';
+            return;
+        }
+
+        layout.classList.remove('single-message');
+        selector.style.display = '';
+
+        // Sort: unread+unmuted first, then muted last
+        var sorted = welcomeMessages.slice().sort(function(a, b) {
+            var aUnread = !a.is_read && !a.is_muted ? 1 : 0;
+            var bUnread = !b.is_read && !b.is_muted ? 1 : 0;
+            if (bUnread !== aUnread) return bUnread - aUnread;
+            if (a.is_muted !== b.is_muted) return a.is_muted ? 1 : -1;
+            return 0;
+        });
+
+        selector.innerHTML = sorted.map(function(m) {
+            var isUnread = !m.is_read && !m.is_muted;
+            var classes = 'welcome-selector-item';
+            if (isUnread) classes += ' unread';
+            if (m.is_muted) classes += ' muted';
+
+            var avatarContent = m.image_url
+                ? '<img src="' + escapeHtml(m.image_url) + '" alt="">'
+                : escapeHtml(m.initial || '?');
+
+            return '<div class="' + classes + '" data-msg-id="' + m.id + '">'
+                + '<div class="welcome-selector-avatar">' + avatarContent + '</div>'
+                + '<div class="welcome-selector-info">'
+                + '<div class="welcome-selector-name">' + escapeHtml(m.name) + '</div>'
+                + '<div class="welcome-selector-creator">by ' + escapeHtml(m.creator_name || '') + '</div>'
+                + '</div>'
+                + (isUnread ? '<div class="welcome-unread-dot"></div>' : '')
+                + '</div>';
+        }).join('');
+
+        // Bind click events
+        selector.querySelectorAll('.welcome-selector-item').forEach(function(el) {
+            el.addEventListener('click', function() {
+                var msgId = parseInt(el.getAttribute('data-msg-id'));
+                selectWelcomeMessage(msgId);
+            });
+        });
+    }
+
+    function selectWelcomeMessage(id) {
+        var msg = welcomeMessages.find(function(m) { return m.id === id; });
+        if (!msg) return;
+
+        // Clear any pending read timer
+        Object.keys(readTimers).forEach(function(k) { clearTimeout(readTimers[k]); });
+
+        // Highlight active in selector
+        document.querySelectorAll('.welcome-selector-item').forEach(function(el) {
+            el.classList.toggle('active', parseInt(el.getAttribute('data-msg-id')) === id);
+        });
+
+        var display = document.getElementById('welcome-display');
+
+        var avatarHtml = msg.image_url
+            ? '<img src="' + escapeHtml(msg.image_url) + '" alt="">'
+            : escapeHtml(msg.initial || '?');
+
+        // Action buttons depend on entity_type
+        var actionsHtml = '';
+        if (msg.entity_type === 'prompt') {
+            actionsHtml += '<button class="welcome-action-btn primary" data-action="chat" data-id="' + msg.entity_id + '">'
+                + '<i class="fas fa-comment-dots"></i> Start Chat</button>';
+        }
+        if (msg.has_welcome_page) {
+            actionsHtml += '<button class="welcome-action-btn secondary" data-action="welcome-page" data-type="' + msg.entity_type + '" data-id="' + msg.entity_id + '">'
+                + '<i class="fas fa-globe"></i> Welcome Page</button>';
+        }
+        var muteLabel = msg.is_muted ? 'Unmute' : 'Mute';
+        var muteIcon = msg.is_muted ? 'fa-bell' : 'fa-bell-slash';
+        actionsHtml += '<button class="welcome-action-btn mute" data-action="mute-toggle" data-msg-id="' + msg.id + '" title="' + muteLabel + '">'
+            + '<i class="fas ' + muteIcon + '"></i> ' + muteLabel + '</button>';
+
+        display.innerHTML = '<div class="welcome-msg-header">'
+            + '<div class="welcome-msg-avatar">' + avatarHtml + '</div>'
+            + '<div class="welcome-msg-meta">'
+            + '<div class="welcome-msg-name">' + escapeHtml(msg.name) + '</div>'
+            + '<div class="welcome-msg-creator">by ' + escapeHtml(msg.creator_name || '') + '</div>'
+            + '</div></div>'
+            + '<div class="welcome-msg-body">' + msg.content + '</div>'
+            + '<div class="welcome-msg-actions">' + actionsHtml + '</div>';
+
+        // Bind action buttons
+        display.querySelectorAll('[data-action]').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var action = btn.getAttribute('data-action');
+                if (action === 'chat') {
+                    startChatWithPrompt(parseInt(btn.getAttribute('data-id')));
+                } else if (action === 'welcome-page') {
+                    navigateToWelcome(btn.getAttribute('data-type'), parseInt(btn.getAttribute('data-id')));
+                } else if (action === 'mute-toggle') {
+                    toggleMute(parseInt(btn.getAttribute('data-msg-id')));
+                }
+            });
+        });
+
+        // Mark as read after 3 seconds if unread
+        if (!msg.is_read && !msg.is_muted) {
+            readTimers[id] = setTimeout(function() { markAsRead(id); }, 3000);
+        }
+    }
+
+    async function markAsRead(id) {
+        var msg = welcomeMessages.find(function(m) { return m.id === id; });
+        if (!msg || msg.is_read) return;
+
+        try {
+            var resp = await fetch('/api/home/welcome-messages/' + id + '/read', { method: 'PUT' });
+            if (!resp.ok) return;
+            msg.is_read = true;
+
+            // Update selector item
+            var item = document.querySelector('.welcome-selector-item[data-msg-id="' + id + '"]');
+            if (item) {
+                item.classList.remove('unread');
+                var dot = item.querySelector('.welcome-unread-dot');
+                if (dot) dot.remove();
+            }
+            updateUnreadBadge();
+        } catch (e) {
+            console.error('Failed to mark as read:', e);
+        }
+    }
+
+    async function toggleMute(msgId) {
+        var msg = welcomeMessages.find(function(m) { return m.id === msgId; });
+        if (!msg) return;
+
+        var action = msg.is_muted ? 'unmute' : 'mute';
+        try {
+            var resp = await fetch('/api/home/welcome-messages/' + msgId + '/' + action, { method: 'PUT' });
+            if (!resp.ok) return;
+            msg.is_muted = !msg.is_muted;
+
+            renderWelcomeSelector();
+            selectWelcomeMessage(msgId);
+            updateUnreadBadge();
+        } catch (e) {
+            console.error('Failed to ' + action + ':', e);
+        }
+    }
+
+    function updateUnreadBadge() {
+        if (!welcomeMessages) return;
+        var count = welcomeMessages.filter(function(m) { return !m.is_read && !m.is_muted; }).length;
+
+        // Window header badge
+        var badge = document.getElementById('welcome-badge');
+        if (badge) {
+            if (count > 0) {
+                badge.textContent = count;
+                badge.style.display = '';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+
+        // Dock badge
+        var dockBadge = document.querySelector('.dock-item[data-win="welcome"] .dock-item-badge');
+        if (dockBadge) {
+            if (count > 0) {
+                dockBadge.textContent = count;
+                dockBadge.style.display = '';
+            } else {
+                dockBadge.style.display = 'none';
+            }
+        }
+    }
+
+    // ==================== Dock System ====================
+
+    function applyMinimizedState() {
+        minimizedWindows.forEach(function(winId) {
+            var winEl = document.getElementById('win-' + winId);
+            if (winEl) {
+                winEl.style.display = 'none';
+            }
+        });
+
+        // Prune stale: if minimized but window element doesn't exist in DOM
+        var pruned = false;
+        minimizedWindows.forEach(function(winId) {
+            var winEl = document.getElementById('win-' + winId);
+            if (!winEl) {
+                minimizedWindows.delete(winId);
+                pruned = true;
+            }
+        });
+        if (pruned) saveMinimizedState();
+
+        renderDock();
+        checkRowVisibility();
+    }
+
+    window.minimizeWindow = function(winId) {
+        var winEl = document.getElementById('win-' + winId);
+        if (!winEl) return;
+
+        minimizedWindows.add(winId);
+        winEl.classList.add('minimizing');
+        setTimeout(function() {
+            winEl.style.display = 'none';
+            winEl.classList.remove('minimizing');
+            renderDock();
+            checkRowVisibility();
+        }, 400);
+
+        saveMinimizedState();
+    };
+
+    window.restoreWindow = function(winId) {
+        var winEl = document.getElementById('win-' + winId);
+        if (!winEl) return;
+
+        minimizedWindows.delete(winId);
+        winEl.style.display = '';
+        winEl.classList.add('restoring');
+        setTimeout(function() { winEl.classList.remove('restoring'); }, 450);
+
+        renderDock();
+        checkRowVisibility();
+        saveMinimizedState();
+    };
+
+    function renderDock() {
+        var dock = document.getElementById('dock');
+        if (minimizedWindows.size === 0) {
+            dock.classList.remove('visible');
+            document.body.style.paddingBottom = '';
+            return;
+        }
+
+        dock.classList.add('visible');
+        document.body.style.paddingBottom = '80px';
+
+        var items = [];
+
+        if (minimizedWindows.has('welcome')) {
+            var unread = welcomeMessages ? welcomeMessages.filter(function(m) { return !m.is_read && !m.is_muted; }).length : 0;
+            items.push('<div class="dock-item" data-win="welcome" onclick="restoreWindow(\'welcome\')">'
+                + '<div class="dock-item-icon welcome"><i class="fas fa-envelope-open-text"></i></div>'
+                + '<span>Welcome</span>'
+                + (unread > 0 ? '<div class="dock-item-badge">' + unread + '</div>' : '')
+                + '</div>');
+        }
+        if (minimizedWindows.has('latest')) {
+            items.push('<div class="dock-item" data-win="latest" onclick="restoreWindow(\'latest\')">'
+                + '<div class="dock-item-icon latest"><i class="fas fa-bolt"></i></div>'
+                + '<span>Latest</span>'
+                + '</div>');
+        }
+        if (minimizedWindows.has('library')) {
+            items.push('<div class="dock-item" data-win="library" onclick="restoreWindow(\'library\')">'
+                + '<div class="dock-item-icon library"><i class="fas fa-book-open"></i></div>'
+                + '<span>Library</span>'
+                + '</div>');
+        }
+
+        dock.innerHTML = items.join('');
+    }
+
+    function checkRowVisibility() {
+        var row = document.getElementById('windows-row');
+        if (!row) return;
+        var latestHidden = document.getElementById('win-latest').style.display === 'none';
+        var libraryHidden = document.getElementById('win-library').style.display === 'none';
+
+        if (latestHidden && libraryHidden) {
+            row.style.display = 'none';
+        } else {
+            row.style.display = '';
+            row.style.gridTemplateColumns = (latestHidden || libraryHidden) ? '1fr' : '1fr 1fr';
+        }
+    }
+
+    function saveMinimizedState() {
+        var arr = Array.from(minimizedWindows).sort();
+        fetch('/api/home/preferences', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ minimized_windows: arr })
+        }).catch(function() {});
+    }
+
     // ==================== Events ====================
     function bindEvents() {
-        // Chat input: Enter key and send button
         var input = document.getElementById('home-input');
         var sendBtn = document.getElementById('home-send-btn');
 
@@ -285,10 +619,8 @@
                 return;
             }
 
-            // Determine prompt ID (handle pack:id format)
             var promptId = selectedValue;
             if (selectedValue.startsWith('pack:')) {
-                // For packs, we can't start a chat directly - navigate to welcome
                 var packId = selectedValue.split(':')[1];
                 navigateToWelcome('pack', parseInt(packId));
                 return;
@@ -310,26 +642,23 @@
 
         sendBtn.addEventListener('click', handleSend);
 
-        // Favorite chips: click auto-selects in dropdown
+        // Favorite chips
         var favsContainer = document.getElementById('home-favorites');
         favsContainer.addEventListener('click', function(e) {
             var chip = e.target.closest('.home-fav-chip');
             if (!chip) return;
             var promptId = chip.getAttribute('data-prompt-id');
             var select = document.getElementById('home-prompt-select');
-            // Find and select the matching option
             for (var i = 0; i < select.options.length; i++) {
                 if (select.options[i].value === promptId) {
                     select.selectedIndex = i;
                     break;
                 }
             }
-            // Visual feedback on chips
             favsContainer.querySelectorAll('.home-fav-chip').forEach(function(c) {
                 c.classList.remove('active');
             });
             chip.classList.add('active');
-            // Focus the input
             document.getElementById('home-input').focus();
         });
 
@@ -345,12 +674,13 @@
         });
 
         // View All button
-        document.getElementById('home-view-all-btn').addEventListener('click', function() {
+        document.getElementById('home-view-all-btn').addEventListener('click', function(e) {
+            e.preventDefault();
             var activeTab = tabToggle.querySelector('.home-tab.active');
             openViewAllModal(activeTab ? activeTab.getAttribute('data-tab') : 'prompts');
         });
 
-        // Modal close
+        // Modal
         document.getElementById('home-modal-close').addEventListener('click', closeModal);
         document.getElementById('home-modal-overlay').addEventListener('click', function(e) {
             if (e.target === this) closeModal();
@@ -359,7 +689,6 @@
             if (e.key === 'Escape') closeModal();
         });
 
-        // Modal tabs
         var modalTabs = document.getElementById('home-modal-tabs');
         modalTabs.addEventListener('click', function(e) {
             var btn = e.target.closest('.home-tab');
@@ -371,10 +700,20 @@
             if (title) title.textContent = (tab === 'packs') ? 'All Packs' : 'All Prompts';
             renderModalList(tab);
         });
+
+        // Window minimize buttons
+        document.querySelectorAll('.window-minimize-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var win = btn.closest('.window');
+                if (win) {
+                    var dockId = win.getAttribute('data-dock-id');
+                    if (dockId) minimizeWindow(dockId);
+                }
+            });
+        });
     }
 
     // ==================== Navigation ====================
-
     window.startChatWithPrompt = function(promptId) {
         sessionStorage.setItem('home_start_prompt_id', promptId);
         window.location.href = '/chat';
@@ -412,7 +751,6 @@
     };
 
     // ==================== Utility ====================
-
     function escapeHtml(text) {
         if (!text) return '';
         var div = document.createElement('div');

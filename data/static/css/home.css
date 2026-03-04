@@ -508,6 +508,17 @@ a.home-item-name:hover {
         max-width: none;
         flex: 1;
     }
+
+    .windows-row { grid-template-columns: 1fr; }
+    .welcome-layout { grid-template-columns: 1fr; }
+    .welcome-selector {
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+        max-height: 150px;
+    }
+    .dock { bottom: 10px; padding: 6px 10px; border-radius: 14px; }
+    .dock-item span { display: none; }
+    .dock-item { padding: 8px 10px; border-radius: 10px; }
 }
 
 @media (max-width: 480px) {
@@ -519,7 +530,482 @@ a.home-item-name:hover {
 }
 
 /* ---------------------------------------------------------------------------
-   13. Reduced Motion
+   13. Window System
+   --------------------------------------------------------------------------- */
+
+.windows-area {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.window {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: var(--shadow-soft);
+    overflow: hidden;
+    transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity: 1;
+    max-height: 2000px;
+}
+
+.window.minimizing {
+    opacity: 0;
+    max-height: 0;
+    margin: 0;
+    border: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+.window-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-color);
+    cursor: default;
+    user-select: none;
+}
+
+.window-header-icon {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    font-size: 0.82rem;
+}
+
+.window-header-icon.welcome { background: var(--accent, #6366f1); color: #fff; }
+.window-header-icon.latest  { background: #16A085; color: #fff; }
+.window-header-icon.library { background: #2980B9; color: #fff; }
+
+.window-header-title {
+    flex: 1;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.window-header-badge {
+    background: var(--danger, #C0392B);
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 10px;
+    min-width: 20px;
+    text-align: center;
+}
+
+.window-minimize-btn {
+    width: 26px;
+    height: 26px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78rem;
+    transition: background 0.15s ease, color 0.15s ease;
+    opacity: 0;
+}
+
+.window-header:hover .window-minimize-btn { opacity: 1; }
+
+.window-minimize-btn:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.window-body {
+    padding: 0;
+}
+
+/* Library and Latest windows need inner padding (Welcome uses edge-to-edge layout) */
+#win-library > .window-body,
+#win-latest > .window-body {
+    padding: 0.5rem 0.75rem 0.75rem;
+}
+
+.windows-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+/* Tab toggle inside window header */
+.window-header .home-tab-toggle {
+    margin-bottom: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   14. Dock (macOS floating style)
+   --------------------------------------------------------------------------- */
+
+.dock {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%) translateY(calc(100% + 32px));
+    height: auto;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 12px;
+    z-index: 1000;
+    transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1),
+                opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+    opacity: 0;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+}
+
+.dock.visible {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+
+.dock-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    position: relative;
+    color: var(--text-primary);
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.dock-item:hover {
+    background: var(--bg-secondary);
+    border-color: var(--accent, #6366f1);
+    transform: translateY(-4px) scale(1.05);
+    box-shadow: var(--shadow-hover, 0 6px 20px rgba(0,0,0,0.1));
+}
+
+.dock-item:active {
+    transform: translateY(-1px) scale(0.98);
+}
+
+.dock-item-icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+}
+
+.dock-item-icon.welcome { background: var(--accent-light, rgba(99,102,241,0.12)); color: var(--accent, #6366f1); }
+.dock-item-icon.latest  { background: rgba(22,160,133,0.12); color: #16A085; }
+.dock-item-icon.library { background: rgba(41,128,185,0.12); color: #2980B9; }
+
+.dock-item-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: var(--danger, #C0392B);
+    color: #fff;
+    font-size: 0.62rem;
+    font-weight: 700;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    border: 2px solid var(--bg-secondary);
+    box-shadow: 0 2px 6px rgba(192,57,43,0.3);
+    animation: dockPulse 2s infinite;
+}
+
+.dock-item::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    opacity: 0.35;
+}
+
+.dock-item:hover::after { opacity: 0.7; }
+
+@keyframes dockPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+}
+
+/* ---------------------------------------------------------------------------
+   15. Welcome Messages Section
+   --------------------------------------------------------------------------- */
+
+.welcome-layout {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    min-height: 240px;
+}
+
+.welcome-layout.single-message {
+    grid-template-columns: 1fr;
+}
+
+.welcome-selector {
+    border-right: 1px solid var(--border-color);
+    overflow-y: auto;
+    max-height: 350px;
+    scrollbar-width: thin;
+}
+
+.welcome-selector-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-color);
+    transition: background 0.15s ease;
+    position: relative;
+}
+
+.welcome-selector-item:last-child { border-bottom: none; }
+.welcome-selector-item:hover { background: var(--bg-tertiary); }
+
+.welcome-selector-item.active {
+    background: var(--bg-tertiary);
+    border-left: 3px solid var(--accent, #6366f1);
+}
+
+.welcome-selector-item.unread .welcome-selector-name {
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.welcome-selector-item.muted {
+    opacity: 0.5;
+}
+
+.welcome-selector-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: var(--bg-tertiary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.welcome-selector-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.welcome-selector-info { flex: 1; min-width: 0; }
+
+.welcome-selector-name {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.welcome-selector-creator {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+.welcome-unread-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--danger, #C0392B);
+    flex-shrink: 0;
+}
+
+.welcome-display {
+    padding: 20px 24px;
+    overflow-y: auto;
+    max-height: 350px;
+    scrollbar-width: thin;
+}
+
+.welcome-display-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-muted);
+    gap: 8px;
+    padding: 2rem;
+}
+
+.welcome-display-empty i { font-size: 1.5rem; opacity: 0.4; }
+
+.welcome-msg-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.welcome-msg-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--accent, #6366f1);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.9rem;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.welcome-msg-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.welcome-msg-meta { flex: 1; }
+
+.welcome-msg-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+.welcome-msg-creator {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.welcome-msg-body {
+    font-size: 0.92rem;
+    line-height: 1.65;
+    color: var(--text-secondary);
+}
+
+.welcome-msg-body p { margin-bottom: 10px; }
+
+.welcome-msg-body a {
+    color: var(--accent, #6366f1);
+    text-decoration: underline;
+}
+
+.welcome-msg-actions {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.welcome-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    border: none;
+    font-family: inherit;
+}
+
+.welcome-action-btn.primary {
+    background: var(--accent, #6366f1);
+    color: #fff;
+}
+
+.welcome-action-btn.primary:hover { opacity: 0.85; }
+
+.welcome-action-btn.secondary {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.welcome-action-btn.secondary:hover { background: var(--bg-secondary); }
+
+.welcome-action-btn.mute {
+    background: none;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    margin-left: auto;
+}
+
+.welcome-action-btn.mute:hover { color: var(--danger, #C0392B); }
+
+/* List footer for Latest/Library */
+.list-footer {
+    padding: 8px 14px;
+    text-align: center;
+}
+
+.list-footer a {
+    font-size: 0.82rem;
+    color: var(--accent, #6366f1);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.list-footer a:hover { opacity: 0.8; }
+
+/* ---------------------------------------------------------------------------
+   16. Window Restore Animation
+   --------------------------------------------------------------------------- */
+
+@keyframes slideDown {
+    from { opacity: 0; max-height: 0; }
+    to   { opacity: 1; max-height: 2000px; }
+}
+
+.window.restoring {
+    animation: slideDown 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+}
+
+/* ---------------------------------------------------------------------------
+   17. Reduced Motion
    --------------------------------------------------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {

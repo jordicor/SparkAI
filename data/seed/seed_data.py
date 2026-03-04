@@ -9,6 +9,10 @@ This script initializes a fresh Aurvek installation with:
 - Admin user
 - Default prompts with images
 
+IMPORTANT: Production-exclusive prompts must NEVER be added here.
+This file is synced to the public GitHub repo. Production-only prompts
+live in the database and data/users/ filesystem (both excluded from sync).
+
 Usage:
     python -m data.seed.seed_data
 
@@ -255,7 +259,7 @@ PROMPTS = [
     {
         "id": 9,
         "name": "AVA",
-        "description": "Ava es una joven de 25 anos proveniente de otra dimension, combina conocimiento universal con una personalidad radiante.",
+        "description": "Ava is a 25-year-old from another dimension who combines universal knowledge with a radiant personality.",
         "voice_id": 28,  # Hope
         "public": True,
         "prompt_file": "ava.txt",

@@ -107,7 +107,7 @@ from ultra_admin import (
     generate_elevation_code, verify_elevation_code, is_elevated,
     revoke_elevation, get_elevation_ttl, get_active_lock_owner, ELEVATION_TTL
 )
-from common import Cost, generate_user_hash, has_sufficient_balance, cost_tts, cache_directory, users_directory, tts_engine, get_balance, deduct_balance, record_daily_usage, load_service_costs, estimate_message_tokens, custom_unescape, sanitize_name, templates, validate_path_within_directory, slugify, is_internal_ip, generate_public_id, get_template_context
+from common import Cost, generate_user_hash, has_sufficient_balance, cost_tts, cache_directory, users_directory, tts_engine, get_balance, deduct_balance, record_daily_usage, load_service_costs, estimate_message_tokens, custom_unescape, sanitize_name, templates, validate_path_within_directory, slugify, is_internal_ip, generate_public_id, get_template_context, fix_landing_seo_tags
 from common import SCRIPT_DIR, DATA_DIR, CLOUDFLARE_API_KEY, CLOUDFLARE_EMAIL, CLOUDFLARE_ZONE_ID, CLOUDFLARE_API_URL, CLOUDFLARE_FOR_IMAGES, CLOUDFLARE_SECRET, CLOUDFLARE_IMAGE_SUBDOMAIN, CLOUDFLARE_BASE_URL, generate_cloudflare_signature, generate_signed_url_cloudflare, CLOUDFLARE_DOMAIN, CLOUDFLARE_CNAME_TARGET
 from common import ALGORITHM, MAX_TOKENS, MAX_MESSAGE_SIZE, MAX_IMAGE_UPLOAD_SIZE, MAX_IMAGE_PIXELS, PERPLEXITY_API_KEY, elevenlabs_key, openai_key, claude_key, gemini_key, openrouter_key, service_sid, twilio_sid, twilio_auth, twilio_messaging_service_sid, decode_jwt_cached, verify_token_expiration, validate_twilio_media_url, AVATAR_TOKEN_EXPIRE_HOURS, MEDIA_TOKEN_EXPIRE_HOURS
 from common import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
@@ -379,6 +379,10 @@ rol = "santa"
 role_file_path = f"rols/{rol}.txt"
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, session_cookie="_oauth_state")
+
+# Landing page related links (internal linking for SEO)
+LANDING_RELATED_LINKS_ENABLED = os.getenv("LANDING_RELATED_LINKS_ENABLED", "1") == "1"
+LANDING_RELATED_LINKS_MAX = int(os.getenv("LANDING_RELATED_LINKS_MAX", "4"))
 
 # Custom Domain Middleware - configure primary domains that skip DB lookup
 PRIMARY_APP_DOMAIN = os.getenv("PRIMARY_APP_DOMAIN", "")
@@ -885,6 +889,25 @@ async def can_user_access_prompt(user: User, prompt_id: int, cursor) -> bool:
            WHERE pc.prompt_id = ?
            AND pc.category_id IN (SELECT value FROM json_each(?))""",
         (prompt_id, category_access)
+    )
+    return await cursor.fetchone() is not None
+
+
+async def can_user_access_pack(user: User, pack_id: int, cursor) -> bool:
+    """Check if user can access a pack. Returns True for admins, pack owners, or users with active PACK_ACCESS."""
+    if await user.is_admin:
+        return True
+    # Pack owner check
+    await cursor.execute("SELECT created_by_user_id FROM PACKS WHERE id = ?", (pack_id,))
+    pack = await cursor.fetchone()
+    if not pack:
+        return False
+    if pack['created_by_user_id'] == user.id:
+        return True
+    # PACK_ACCESS check with expiry
+    await cursor.execute(
+        "SELECT 1 FROM PACK_ACCESS WHERE pack_id = ? AND user_id = ? AND (expires_at IS NULL OR expires_at > datetime('now'))",
+        (pack_id, user.id)
     )
     return await cursor.fetchone() is not None
 
@@ -5052,22 +5075,7 @@ async def _handle_login_request(
     return templates.TemplateResponse("login.html", template_context)
 
 
-@app.route("/login", methods=["GET", "POST"])
-async def login(request: Request):
-    """Login page for managers/admins - from Aurvek main site."""
-    # If already authenticated, redirect to home
-    if request.method == "GET":
-        current_user = await get_current_user(request)
-        if current_user is not None:
-            return RedirectResponse(url="/home", status_code=302)
-    response = await _handle_login_request(
-        request,
-        prompt_context=None,
-        login_url="/login",
-        register_url="/register"
-    )
-    response.headers["X-Robots-Tag"] = "noindex"
-    return response
+# /login route — consolidated in custom_domain_login() near custom domain routes
 
 @app.route("/magic-link-recovery", methods=["GET", "POST"])
 async def magic_link_recovery(request: Request):
@@ -5573,6 +5581,11 @@ async def update_user(
         
         user_id, role_id = user
 
+        # Get current balance for audit trail
+        await cursor.execute("SELECT balance FROM USER_DETAILS WHERE user_id = ?", (user_id,))
+        balance_row = await cursor.fetchone()
+        previous_balance = balance_row[0] if balance_row else 0.0
+
         # Verify permissions
         if await current_user.is_manager and role_id == 1:  # Assuming role_id 1 is for admin
             raise HTTPException(status_code=403, detail="Managers cannot edit admin accounts.")
@@ -5728,6 +5741,28 @@ async def update_user(
         update_details_params.append(user_id)
 
         await cursor.execute(update_details_query, update_details_params)
+
+        # Record balance change in TRANSACTIONS if balance was modified
+        if abs(balance - previous_balance) > 0.001:
+            balance_diff = balance - previous_balance
+            if balance_diff > 0:
+                tx_description = f"Admin balance adjustment: +${balance_diff:.2f} by {current_user.username}"
+            else:
+                tx_description = f"Admin balance adjustment: -${abs(balance_diff):.2f} by {current_user.username}"
+
+            await cursor.execute('''
+                INSERT INTO TRANSACTIONS
+                (user_id, type, amount, balance_before, balance_after, description, reference_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                user_id,
+                'admin_adjustment',
+                abs(balance_diff),
+                previous_balance,
+                balance,
+                tx_description,
+                f'admin_{current_user.id}_{user_id}_{secrets.token_hex(8)}'
+            ))
 
         await conn.commit()
 
@@ -6047,6 +6082,20 @@ async def delete_user(username, current_user, request_ip=None):
                         
             # Cascade deletion of all related data in database
             async with conn.cursor() as delete_cursor:
+                # Clean welcome messages for this user's prompts and packs before cascade loop
+                await delete_cursor.execute(
+                    "DELETE FROM WELCOME_MESSAGES WHERE entity_type = 'prompt' AND entity_id IN (SELECT id FROM PROMPTS WHERE created_by_user_id = ?)",
+                    (user_id,)
+                )
+                await delete_cursor.execute(
+                    "DELETE FROM WELCOME_MESSAGES WHERE entity_type = 'pack' AND entity_id IN (SELECT id FROM PACKS WHERE created_by_user_id = ?)",
+                    (user_id,)
+                )
+                # Also clean any read tracking for this user
+                await delete_cursor.execute(
+                    "DELETE FROM WELCOME_MESSAGE_READS WHERE user_id = ?",
+                    (user_id,)
+                )
                 # Delete in dependency order (children before parents)
                 cascade_tables = [
                     ("MESSAGES", "user_id"),
@@ -6377,14 +6426,15 @@ async def get_conversation_details(
                 (SELECT p.name FROM PROMPTS p WHERE p.id = ?) AS prompt_name,
                 (SELECT p.forced_llm_id FROM PROMPTS p WHERE p.id = ?) AS forced_llm_id,
                 (SELECT p.hide_llm_name FROM PROMPTS p WHERE p.id = ?) AS hide_llm_name,
-                (SELECT p.allowed_llms FROM PROMPTS p WHERE p.id = ?) AS allowed_llms
-        ''', (llm_id, prompt_id, prompt_id, prompt_id, prompt_id))
-        
+                (SELECT p.allowed_llms FROM PROMPTS p WHERE p.id = ?) AS allowed_llms,
+                (SELECT COALESCE(p.is_paid, 0) FROM PROMPTS p WHERE p.id = ?) AS is_paid
+        ''', (llm_id, prompt_id, prompt_id, prompt_id, prompt_id, prompt_id))
+
         result = await cursor.fetchone()
         if not result:
             raise HTTPException(status_code=404, detail="LLM or Prompt not found")
-        
-        model, prompt_name, forced_llm_id, hide_llm_name, allowed_llms = result
+
+        model, prompt_name, forced_llm_id, hide_llm_name, allowed_llms, is_paid = result
         await conn.close()
 
     return JSONResponse(content={
@@ -6392,7 +6442,8 @@ async def get_conversation_details(
         "prompt_name": prompt_name,
         "forced_llm_id": forced_llm_id,
         "hide_llm_name": bool(hide_llm_name) if hide_llm_name else False,
-        "allowed_llms": orjson.loads(allowed_llms) if allowed_llms else None
+        "allowed_llms": orjson.loads(allowed_llms) if allowed_llms else None,
+        "is_paid": bool(is_paid)
     })
 
 @app.patch("/api/conversations/{conversation_id}/model")
@@ -6623,7 +6674,9 @@ async def handle_get_request(request, user_id, current_user, conn, admin_view=Fa
                    END as external_platform,
                    c.locked, l.model as llm_model,
                    COALESCE(p.disable_web_search, 0) as web_search_disabled,
-                   p.forced_llm_id, p.hide_llm_name, p.allowed_llms
+                   COALESCE(p.force_web_search, 0) as web_search_forced,
+                   p.forced_llm_id, p.hide_llm_name, p.allowed_llms,
+                   COALESCE(p.is_paid, 0) as is_paid
             FROM conversations c
             JOIN user_details u ON c.user_id = u.user_id
             JOIN llm l ON c.llm_id = l.id
@@ -6643,9 +6696,11 @@ async def handle_get_request(request, user_id, current_user, conn, admin_view=Fa
                 "locked": bool(row[5]) if row[5] is not None else False,
                 "llm_model": row[6],
                 "web_search_allowed": not bool(row[7]),
-                "forced_llm_id": row[8],
-                "hide_llm_name": bool(row[9]) if row[9] else False,
-                "allowed_llms": orjson.loads(row[10]) if row[10] else None
+                "web_search_forced": bool(row[8]),
+                "forced_llm_id": row[9],
+                "hide_llm_name": bool(row[10]) if row[10] else False,
+                "allowed_llms": orjson.loads(row[11]) if row[11] else None,
+                "is_paid": bool(row[12])
             }
             for row in conversations_rows
         ]
@@ -8269,7 +8324,9 @@ async def get_conversations(
                     whatsapp_query = f'''
                         SELECT c.id, c.user_id, c.start_date, c.chat_name, 'whatsapp' as external_platform,
                                c.locked, l.model as llm_model, COALESCE(p.disable_web_search, 0) as web_search_disabled,
-                               p.forced_llm_id, p.hide_llm_name, p.allowed_llms
+                               COALESCE(p.force_web_search, 0) as web_search_forced,
+                               p.forced_llm_id, p.hide_llm_name, p.allowed_llms,
+                               COALESCE(p.is_paid, 0) as is_paid
                         FROM conversations c
                         JOIN llm l ON c.llm_id = l.id
                         LEFT JOIN prompts p ON c.role_id = p.id
@@ -8290,7 +8347,9 @@ async def get_conversations(
                          ELSE NULL
                        END as external_platform,
                        c.locked, l.model as llm_model, COALESCE(p.disable_web_search, 0) as web_search_disabled,
-                       p.forced_llm_id, p.hide_llm_name, p.allowed_llms
+                       COALESCE(p.force_web_search, 0) as web_search_forced,
+                       p.forced_llm_id, p.hide_llm_name, p.allowed_llms,
+                       COALESCE(p.is_paid, 0) as is_paid
                 FROM conversations c
                 JOIN user_details u ON c.user_id = u.user_id
                 JOIN llm l ON c.llm_id = l.id
@@ -8325,9 +8384,11 @@ async def get_conversations(
                     "locked": bool(conv[5]) if conv[5] is not None else False,
                     "llm_model": conv[6],
                     "web_search_allowed": not bool(conv[7]),
-                    "forced_llm_id": conv[8],
-                    "hide_llm_name": bool(conv[9]) if conv[9] else False,
-                    "allowed_llms": orjson.loads(conv[10]) if conv[10] else None
+                    "web_search_forced": bool(conv[8]),
+                    "forced_llm_id": conv[9],
+                    "hide_llm_name": bool(conv[10]) if conv[10] else False,
+                    "allowed_llms": orjson.loads(conv[11]) if conv[11] else None,
+                    "is_paid": bool(conv[12])
                 }
                 for conv in all_conversations
             ])
@@ -8532,7 +8593,8 @@ async def get_messages(
             SELECT c.id, c.role_id, c.active_extension_id,
                    p.name AS prompt_name, p.image AS bot_picture, p.description AS prompt_description,
                    p.extensions_enabled, p.extensions_free_selection,
-                   l.machine, l.model
+                   l.machine, l.model,
+                   COALESCE(p.is_paid, 0) AS is_paid
             FROM CONVERSATIONS c
             LEFT JOIN PROMPTS p ON c.role_id = p.id
             LEFT JOIN LLM l ON c.llm_id = l.id
@@ -8632,6 +8694,7 @@ async def get_messages(
         "model": conv_row['model'],
         "bot_profile_picture": bot_profile_picture,
         "prompt_description": conv_row['prompt_description'],
+        "is_paid": bool(conv_row['is_paid']),
         **extensions_data
     }
 
@@ -9107,15 +9170,23 @@ async def start_new_conversation(
 
         # Check if prompt has forced_llm_id or extensions - load prompt config
         extensions_enabled_value = False
+        is_paid_value = False
+        disable_web_search_value = False
+        force_web_search_value = False
         if prompt_id:
             await cursor.execute('''
-                SELECT forced_llm_id, allowed_llms, hide_llm_name, extensions_enabled FROM PROMPTS WHERE id = ?
+                SELECT forced_llm_id, allowed_llms, hide_llm_name, extensions_enabled, COALESCE(is_paid, 0),
+                       COALESCE(disable_web_search, 0), COALESCE(force_web_search, 0)
+                FROM PROMPTS WHERE id = ?
             ''', (prompt_id,))
             prompt_llm = await cursor.fetchone()
             forced_llm_id_value = prompt_llm[0] if prompt_llm else None
             allowed_llms_value = prompt_llm[1] if prompt_llm else None
             hide_llm_name_value = prompt_llm[2] if prompt_llm else None
             extensions_enabled_value = bool(prompt_llm[3]) if prompt_llm else False
+            is_paid_value = bool(prompt_llm[4]) if prompt_llm else False
+            disable_web_search_value = bool(prompt_llm[5]) if prompt_llm else False
+            force_web_search_value = bool(prompt_llm[6]) if prompt_llm else False
             if forced_llm_id_value:
                 llm_id = forced_llm_id_value
                 logger.info(f"[FORCED_LLM] Prompt {prompt_id} has forced_llm_id={llm_id}, overriding user default")
@@ -9225,6 +9296,9 @@ async def start_new_conversation(
             'hide_llm_name': bool(hide_llm_name_value) if hide_llm_name_value else False,
             'allowed_llms': orjson.loads(allowed_llms_value) if allowed_llms_value else None,
             'extensions_enabled': extensions_enabled_value,
+            'is_paid': is_paid_value,
+            'web_search_allowed': not disable_web_search_value,
+            'web_search_forced': force_web_search_value,
         }
         if extensions_enabled_value:
             response_data['active_extension'] = active_extension_data
@@ -9619,6 +9693,7 @@ async def get_web_search_status(conversation_id: int, current_user: User = Depen
         cursor = await conn.execute("""
             SELECT
                 COALESCE(p.disable_web_search, 0) as prompt_disabled,
+                COALESCE(p.force_web_search, 0) as prompt_forced,
                 COALESCE(ud.web_search_enabled, 1) as user_enabled,
                 COALESCE(ud.web_search_mode, 'native') as web_search_mode
             FROM CONVERSATIONS c
@@ -9628,15 +9703,17 @@ async def get_web_search_status(conversation_id: int, current_user: User = Depen
         """, (conversation_id, current_user.id))
         row = await cursor.fetchone()
         if row:
-            prompt_disabled, user_enabled, web_search_mode = row
+            prompt_disabled, prompt_forced, user_enabled, web_search_mode = row
             return JSONResponse(content={
                 "allowed_by_prompt": not bool(prompt_disabled),
+                "web_search_forced": bool(prompt_forced),
                 "user_enabled": bool(user_enabled),
                 "web_search_mode": web_search_mode,
                 "perplexity_available": perplexity_available
             })
         return JSONResponse(content={
             "allowed_by_prompt": True,
+            "web_search_forced": False,
             "user_enabled": True,
             "web_search_mode": "native",
             "perplexity_available": perplexity_available
@@ -11926,28 +12003,38 @@ async def payment_success_page(
 ):
     """
     Success page shown after Stripe payment completion.
+    Requires a valid session_id belonging to the current user.
     """
+    if not current_user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    if not session_id:
+        return RedirectResponse(url="/payment", status_code=302)
+
     new_balance = None
     payment_amount = None
 
-    if session_id and STRIPE_SECRET_KEY:
-        try:
-            # Retrieve session to get payment details
-            session = stripe.checkout.Session.retrieve(session_id)
-            if session and session.metadata.get('user_id') == str(current_user.id):
-                payment_amount = float(session.metadata.get('original_amount', 0))
+    if not STRIPE_SECRET_KEY:
+        return RedirectResponse(url="/payment", status_code=302)
 
-                # Get updated balance
-                async with get_db_connection(readonly=True) as conn:
-                    cursor = await conn.cursor()
-                    await cursor.execute(
-                        'SELECT balance FROM USER_DETAILS WHERE user_id = ?',
-                        (current_user.id,)
-                    )
-                    result = await cursor.fetchone()
-                    new_balance = result[0] if result else 0
-        except Exception as e:
-            logger.error(f"Error retrieving Stripe session: {e}")
+    try:
+        session = stripe.checkout.Session.retrieve(session_id)
+        if session and session.metadata.get('user_id') == str(current_user.id):
+            payment_amount = float(session.metadata.get('original_amount', 0))
+
+            async with get_db_connection(readonly=True) as conn:
+                cursor = await conn.cursor()
+                await cursor.execute(
+                    'SELECT balance FROM USER_DETAILS WHERE user_id = ?',
+                    (current_user.id,)
+                )
+                result = await cursor.fetchone()
+                new_balance = result[0] if result else 0
+        else:
+            return RedirectResponse(url="/payment", status_code=302)
+    except Exception as e:
+        logger.error(f"Error retrieving Stripe session: {e}")
+        return RedirectResponse(url="/payment", status_code=302)
 
     context = await get_template_context(request, current_user)
     context.update({
@@ -12293,9 +12380,9 @@ async def prompt_purchase_success_page(
     return templates.TemplateResponse("prompt_purchase_success.html", context)
 
 
-# Simulated payment for development/testing (100% discounts)
-@app.post("/payment-success-simulated")
-async def payment_success_simulated(request: Request, current_user: dict = Depends(get_current_user)):
+# Free credit: handles 100% discount payments (no Stripe charge needed)
+@app.post("/api/payment/free-credit")
+async def free_credit_payment(request: Request, current_user: dict = Depends(get_current_user)):
     user_id = current_user.id
     try:
         data = await request.json()
@@ -12335,16 +12422,16 @@ async def payment_success_simulated(request: Request, current_user: dict = Depen
                 original_amount,
                 balance_before,
                 balance_after,
-                f'Simulated payment - ${original_amount:.2f} balance credited',
-                f'simulated_{user_id}_{secrets.token_hex(8)}',
+                f'Free credit (100% discount) - ${original_amount:.2f} balance credited',
+                f'free_credit_{user_id}_{secrets.token_hex(8)}',
                 discount_code
             ))
 
             await conn.commit()
-            logger.info(f"Simulated payment: user={user_id}, amount=${original_amount:.2f}")
+            logger.info(f"Free credit payment: user={user_id}, amount=${original_amount:.2f}")
 
             return JSONResponse(content=jsonable_encoder({
-                "message": "Payment simulated successfully",
+                "message": "Free credit applied successfully",
                 "new_balance": balance_after,
                 "redirectUrl": "/"
             }))
@@ -12352,7 +12439,7 @@ async def payment_success_simulated(request: Request, current_user: dict = Depen
             raise
         except Exception as e:
             await conn.rollback()
-            logger.error(f"Error in simulated payment: {e}")
+            logger.error(f"Error in free credit payment: {e}")
             raise HTTPException(status_code=500, detail="Database query error")
 
 @app.get("/admin/create-discount", response_class=HTMLResponse)
@@ -14202,6 +14289,15 @@ async def get_landing_path_cached(public_id: str) -> dict:
     """
     Get landing path with smart LRU caching.
 
+    IMPORTANT — Landing visibility vs directory listing:
+    This query intentionally does NOT filter by p.public. The "public" flag
+    controls whether a prompt appears in /explore and the sitemap, NOT whether
+    its landing page is reachable. Creators can set public=0 to keep their
+    prompt out of the directory while still having a fully accessible landing
+    page for direct sales via social media, email, etc. Filtering by public=1
+    here would break that business model. The file-existence check in the route
+    handler (html_path.is_file()) already prevents serving non-existent pages.
+
     - Cache HIT: O(1), zero DB queries
     - Cache MISS: 1 query, result cached for future requests
     - LRU eviction: Least recently used entries removed when cache is full
@@ -14505,6 +14601,69 @@ async def login_page_user(
     return response
 
 
+async def _get_related_landing_links(prompt_id: int, max_links: int) -> list:
+    """Fetch related public prompt landings for internal linking (SEO).
+    Ranked by: category overlap > same creator > ranking_score > recency."""
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.execute(
+            "SELECT created_by_user_id FROM PROMPTS WHERE id = ?", (prompt_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return []
+        creator_id = row[0]
+
+        cursor = await conn.execute("""
+            WITH current_cats AS (
+                SELECT category_id FROM PROMPT_CATEGORIES WHERE prompt_id = ?
+            )
+            SELECT p.name, p.public_id
+            FROM PROMPTS p
+            LEFT JOIN PROMPT_CATEGORIES pc ON pc.prompt_id = p.id
+            WHERE p.public = 1
+              AND IFNULL(p.is_unlisted, 0) = 0
+              AND p.has_landing_page = 1
+              AND p.public_id IS NOT NULL
+              AND p.id <> ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM PROMPT_CUSTOM_DOMAINS d
+                  WHERE d.prompt_id = p.id AND d.is_active = 1
+                    AND d.verification_status = 1
+              )
+            GROUP BY p.id
+            ORDER BY
+              SUM(CASE WHEN pc.category_id IN (SELECT category_id FROM current_cats)
+                       THEN 1 ELSE 0 END) DESC,
+              CASE WHEN p.created_by_user_id = ? THEN 1 ELSE 0 END DESC,
+              IFNULL(p.ranking_score, 0) DESC,
+              p.id DESC
+            LIMIT ?
+        """, (prompt_id, prompt_id, creator_id, max_links))
+
+        return [
+            {"name": r[0], "url": f"/p/{r[1]}/{slugify(r[0])}/"}
+            for r in await cursor.fetchall()
+        ]
+
+
+def _build_related_links_html(links: list) -> str:
+    """Build a lightweight, self-styled HTML block for related prompt links."""
+    items = ''.join(
+        f'<a href="{lnk["url"]}" style="display:inline-block;padding:0.4rem 0.8rem;'
+        f'background:#f5f5f5;border-radius:6px;color:#333;text-decoration:none;'
+        f'font-size:0.9rem;">{escape(lnk["name"])}</a>'
+        for lnk in links
+    )
+    return (
+        '<section style="max-width:900px;margin:2rem auto;padding:1.5rem 1rem;'
+        'border-top:1px solid #e0e0e0;font-family:system-ui,-apple-system,sans-serif;">'
+        '<h3 style="font-size:1rem;color:#555;margin:0 0 1rem;font-weight:600;">'
+        'Related assistants</h3>'
+        f'<nav style="display:flex;flex-wrap:wrap;gap:0.5rem;">{items}</nav>'
+        '</section>'
+    )
+
+
 @app.get("/p/{public_id}/{slug}/")
 @app.get("/p/{public_id}/{slug}/{page}")
 async def public_landing_page(
@@ -14563,6 +14722,20 @@ async def public_landing_page(
 
         # Read HTML content
         html_content = html_path.read_text(encoding='utf-8')
+
+        # Inject related assistant links for internal SEO linking
+        # Only on home page, non-preview, non-unlisted, with feature flag on
+        if (page == "home" and not is_preview
+                and not landing_data["is_unlisted"]
+                and LANDING_RELATED_LINKS_ENABLED
+                and '</body>' in html_content.lower()):
+            related = await _get_related_landing_links(
+                landing_data["prompt_id"], LANDING_RELATED_LINKS_MAX
+            )
+            if related:
+                related_html = _build_related_links_html(related)
+                html_content = html_content.replace('</body>', related_html + '\n</body>')
+                html_content = html_content.replace('</BODY>', related_html + '\n</BODY>')
 
         # Phase 5: Inject analytics tracking script before </body>
         # Skip in preview mode (iframe from /explore) — no tracking, no CORS issues
@@ -14747,36 +14920,40 @@ async def custom_domain_register(request: Request):
 @app.api_route("/login", methods=["GET", "POST"])
 async def custom_domain_login(request: Request):
     """
-    Login page for custom domains.
-    If request comes from a custom domain, render login for that prompt.
-    Otherwise, fall through to main login.
+    Login page — handles both main site and custom domain requests.
+    Follows the same pattern as custom_domain_register().
     """
-    # Check if this is a custom domain request
-    if not getattr(request.state, 'custom_domain', False):
-        # Not a custom domain - use main login page
-        return await login_page(request)
+    # If already authenticated, redirect to home
+    if request.method == "GET":
+        current_user = await get_current_user(request)
+        if current_user is not None:
+            return RedirectResponse(url="/home", status_code=302)
 
-    # Custom domain - login for this specific prompt
+    if not getattr(request.state, 'custom_domain', False):
+        # Not a custom domain — main site login
+        response = await _handle_login_request(
+            request,
+            prompt_context=None,
+            login_url="/login",
+            register_url="/register"
+        )
+        response.headers["X-Robots-Tag"] = "noindex"
+        return response
+
+    # Custom domain — login for this specific prompt
     try:
-        prompt_id = request.state.prompt_id
         public_id = request.state.public_id
 
-        # Get prompt info for login
         prompt = await _get_prompt_for_registration(public_id)
         if not prompt:
             raise HTTPException(status_code=404, detail="Prompt not found")
 
-        # Handle POST for login submission
-        if request.method == "POST":
-            return await login_submit(request)
-
-        response = templates.TemplateResponse("login.html", {
-            "request": request,
-            "prompt": prompt,
-            "register_url": "/register",
-            "get_static_url": lambda x: x,
-            "google_oauth_available": bool(GOOGLE_CLIENT_ID)
-        })
+        response = await _handle_login_request(
+            request,
+            prompt_context=prompt,
+            login_url="/login",
+            register_url="/register"
+        )
         response.headers["X-Robots-Tag"] = "noindex"
         return response
 
@@ -16518,7 +16695,7 @@ async def generate_landing_with_wizard(
 
         # Build absolute landing URL for SEO meta tags (canonical, og:url, og:image, twitter:image)
         landing_url = ""
-        if public_id:
+        if public_id and PRIMARY_APP_DOMAIN:
             prompt_slug = slugify(prompt_info['name'])
             landing_url = f"https://{PRIMARY_APP_DOMAIN}/p/{public_id}/{prompt_slug}/"
 
@@ -16807,18 +16984,26 @@ async def modify_landing_with_wizard(
                 "message": "No files to modify. Use 'Create new' instead."
             }, status_code=400)
 
-        # Get additional prompt details (system prompt and description) for context
+        # Get additional prompt details (system prompt, description, public_id) for context
         ai_system_prompt = ""
         product_description = ""
+        public_id = ""
         async with get_db_connection(readonly=True) as conn:
             cursor = await conn.execute(
-                "SELECT prompt, description FROM PROMPTS WHERE id = ?",
+                "SELECT prompt, description, public_id FROM PROMPTS WHERE id = ?",
                 (prompt_id,)
             )
             row = await cursor.fetchone()
             if row:
                 ai_system_prompt = row[0] or ""
                 product_description = row[1] or ""
+                public_id = row[2] or ""
+
+        # Build absolute landing URL for SEO meta tag post-processing
+        landing_url = ""
+        if public_id and PRIMARY_APP_DOMAIN:
+            prompt_slug = slugify(prompt_info['name'])
+            landing_url = f"https://{PRIMARY_APP_DOMAIN}/p/{public_id}/{prompt_slug}/"
 
         # Prepare job parameters
         params = {
@@ -16826,7 +17011,8 @@ async def modify_landing_with_wizard(
             "timeout": timeout_seconds,
             "product_name": prompt_info['name'],
             "ai_system_prompt": ai_system_prompt,
-            "product_description": product_description
+            "product_description": product_description,
+            "landing_url": landing_url
         }
 
         # Start background job
@@ -17586,6 +17772,18 @@ async def save_landing_page(
 
         # Create the folder structure if it doesn't exist
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        # Fix SEO metadata with absolute URLs when saving the home page
+        if section == "home" and PRIMARY_APP_DOMAIN:
+            async with get_db_connection(readonly=True) as conn:
+                cursor = await conn.execute(
+                    "SELECT public_id FROM PROMPTS WHERE id = ?", (prompt_id,)
+                )
+                row = await cursor.fetchone()
+            if row and row[0]:
+                prompt_slug = slugify(prompt_info['name'])
+                canonical = f"https://{PRIMARY_APP_DOMAIN}/p/{row[0]}/{prompt_slug}/"
+                content = fix_landing_seo_tags(content, canonical, canonical)
 
         # Write file using UTF-8 encoding
         with open(file_path, "w", encoding="utf-8") as file:
@@ -20783,6 +20981,32 @@ def sanitize_welcome_html(html: str) -> str:
     )
 
 
+# Welcome message sanitizer (restricted -- renders inside Home page DOM, no Shadow DOM)
+WELCOME_MSG_ALLOWED_TAGS = {
+    "p", "br", "hr", "strong", "em", "b", "i", "u", "s",
+    "a", "ul", "ol", "li", "h3", "h4", "h5", "h6",
+    "blockquote", "code", "pre", "small", "span",
+}
+
+WELCOME_MSG_ALLOWED_ATTRIBUTES = {
+    "a": {"href", "title"},
+}
+
+
+def sanitize_welcome_message(html: str) -> str:
+    """Sanitize welcome message HTML for safe injection into Home page DOM.
+    More restrictive than sanitize_welcome_html() because messages are NOT
+    isolated in Shadow DOM -- no style tags, no style attributes, no media,
+    no id/class (prevents DOM clobbering and CSS collisions)."""
+    return nh3.clean(
+        html,
+        tags=WELCOME_MSG_ALLOWED_TAGS,
+        attributes=WELCOME_MSG_ALLOWED_ATTRIBUTES,
+        link_rel="nofollow noopener noreferrer",
+        url_schemes={"http", "https", "mailto"},
+    )
+
+
 async def _get_pack_info_for_path(pack_id: int) -> dict:
     """Get pack info needed for filesystem path resolution."""
     async with get_db_connection(readonly=True) as conn:
@@ -20873,13 +21097,15 @@ async def welcome_page(request: Request, entity_type: str, entity_id: int,
         return RedirectResponse(url="/login")
     if entity_type not in ("prompt", "pack"):
         raise HTTPException(status_code=404)
-    # Validate access
-    if entity_type == "pack":
-        if not await user_has_pack_access(current_user.id, entity_id):
-            raise HTTPException(status_code=403, detail="Access denied")
-    else:
-        if not await user_has_prompt_access(current_user, entity_id):
-            raise HTTPException(status_code=403, detail="Access denied")
+    # Validate access using authoritative helpers
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.cursor()
+        if entity_type == "pack":
+            if not await can_user_access_pack(current_user, entity_id, cursor):
+                raise HTTPException(status_code=403, detail="Access denied")
+        else:
+            if not await can_user_access_prompt(current_user, entity_id, cursor):
+                raise HTTPException(status_code=403, detail="Access denied")
     # Build and serve
     world = await build_world(entity_type, entity_id)
     if not world:
@@ -21043,6 +21269,16 @@ async def get_home_data(request: Request, current_user: User = Depends(get_curre
                 except Exception:
                     pass
 
+        # Fetch home preferences for dock state
+        await cursor.execute("SELECT home_preferences FROM USER_DETAILS WHERE user_id = ?", (user_id,))
+        prefs_row = await cursor.fetchone()
+        home_preferences = {}
+        if prefs_row and prefs_row['home_preferences']:
+            try:
+                home_preferences = json.loads(prefs_row['home_preferences'])
+            except (json.JSONDecodeError, TypeError):
+                pass
+
     return JSONResponse(content={
         "user": {"id": current_user.id, "username": current_user.username},
         "packs": packs,
@@ -21050,6 +21286,7 @@ async def get_home_data(request: Request, current_user: User = Depends(get_curre
         "latest_prompts": latest_prompts,
         "branding": branding,
         "favorites": favorites,
+        "home_preferences": home_preferences,
         "stats": {
             "conversation_count": conv_count,
             "bookmarks_count": bookmarks_count,
@@ -21066,7 +21303,7 @@ async def update_home_preferences(request: Request, current_user: User = Depends
     user_id = current_user.id
 
     # Whitelist valid keys
-    valid_keys = {"pinned_prompt_id", "pinned_pack_id", "show_stats", "after_login"}
+    valid_keys = {"pinned_prompt_id", "pinned_pack_id", "show_stats", "after_login", "minimized_windows"}
     updates = {k: v for k, v in body.items() if k in valid_keys}
 
     # Validate show_stats is boolean
@@ -21078,6 +21315,14 @@ async def update_home_preferences(request: Request, current_user: User = Depends
         allowed_routes = {"/home", "/chat", "/explore", "/dashboard"}
         if updates["after_login"] not in allowed_routes:
             return JSONResponse(content={"error": "Invalid after_login route"}, status_code=400)
+
+    # Validate minimized_windows is a list of known window IDs
+    if "minimized_windows" in updates:
+        mw = updates["minimized_windows"]
+        if not isinstance(mw, list):
+            return JSONResponse(content={"error": "minimized_windows must be a list"}, status_code=400)
+        allowed_windows = {"welcome", "latest", "library"}
+        updates["minimized_windows"] = sorted(set(mw) & allowed_windows)
 
     # Validate pinned_prompt_id
     if "pinned_prompt_id" in updates and updates["pinned_prompt_id"] is not None:
@@ -21262,7 +21507,7 @@ async def get_home_pack(pack_id: int, request: Request, current_user: User = Dep
             try:
                 pi = await get_prompt_info(p['id'])
                 prompt_dir = get_prompt_path(p['id'], pi)
-                p['has_welcome'] = os.path.isfile(os.path.join(prompt_dir, "welcome.html"))
+                p['has_welcome'] = os.path.isfile(os.path.join(prompt_dir, "welcome", "index.html"))
             except Exception:
                 p['has_welcome'] = False
 
@@ -21285,7 +21530,7 @@ async def get_home_pack(pack_id: int, request: Request, current_user: User = Dep
         pack_info_for_path = await _get_pack_info_for_path(pack_id)
         if pack_info_for_path:
             pack_dir = get_pack_path(pack_id, pack_info_for_path)
-            welcome_path = os.path.join(pack_dir, "welcome.html")
+            welcome_path = os.path.join(pack_dir, "welcome", "index.html")
             pack_data['has_welcome'] = os.path.isfile(welcome_path)
         else:
             pack_data['has_welcome'] = False
@@ -21373,7 +21618,7 @@ async def get_home_prompt(prompt_id: int, request: Request, current_user: User =
     try:
         pi = await get_prompt_info(prompt_id)
         prompt_dir = get_prompt_path(prompt_id, pi)
-        has_welcome = os.path.isfile(os.path.join(prompt_dir, "welcome.html"))
+        has_welcome = os.path.isfile(os.path.join(prompt_dir, "welcome", "index.html"))
     except Exception:
         pass
     prompt_data['has_welcome'] = has_welcome
@@ -21398,7 +21643,7 @@ async def get_prompt_welcome(prompt_id: int, current_user: User = Depends(get_cu
     try:
         pi = await get_prompt_info(prompt_id)
         prompt_dir = get_prompt_path(prompt_id, pi)
-        welcome_path = os.path.join(prompt_dir, "welcome.html")
+        welcome_path = os.path.join(prompt_dir, "welcome", "index.html")
         if os.path.isfile(welcome_path):
             with open(welcome_path, 'r', encoding='utf-8') as f:
                 return JSONResponse(content={"html": f.read()})
@@ -21427,7 +21672,7 @@ async def get_pack_welcome(pack_id: int, current_user: User = Depends(get_curren
         pack_info = await _get_pack_info_for_path(pack_id)
         if pack_info:
             pack_dir = get_pack_path(pack_id, pack_info)
-            welcome_path = os.path.join(pack_dir, "welcome.html")
+            welcome_path = os.path.join(pack_dir, "welcome", "index.html")
             if os.path.isfile(welcome_path):
                 with open(welcome_path, 'r', encoding='utf-8') as f:
                     return JSONResponse(content={"html": f.read()})
@@ -21454,10 +21699,11 @@ async def save_prompt_welcome(prompt_id: int, request: Request, current_user: Us
 
     pi = await get_prompt_info(prompt_id)
     prompt_dir = get_prompt_path(prompt_id, pi)
-    welcome_path = os.path.join(prompt_dir, "welcome.html")
+    welcome_path = os.path.join(prompt_dir, "welcome", "index.html")
 
     if html_content.strip():
         clean_html = sanitize_welcome_html(html_content)
+        os.makedirs(os.path.join(prompt_dir, "welcome"), exist_ok=True)
         with open(welcome_path, 'w', encoding='utf-8') as f:
             f.write(clean_html)
     else:
@@ -21497,15 +21743,518 @@ async def save_pack_welcome(pack_id: int, request: Request, current_user: User =
         raise HTTPException(status_code=404, detail="Pack info not found")
 
     pack_dir = get_pack_path(pack_id, pack_info)
-    welcome_path = os.path.join(pack_dir, "welcome.html")
+    welcome_path = os.path.join(pack_dir, "welcome", "index.html")
 
     if html_content.strip():
         clean_html = sanitize_welcome_html(html_content)
+        os.makedirs(os.path.join(pack_dir, "welcome"), exist_ok=True)
         with open(welcome_path, 'w', encoding='utf-8') as f:
             f.write(clean_html)
     else:
         if os.path.isfile(welcome_path):
             os.remove(welcome_path)
+
+    return JSONResponse(content={"success": True})
+
+
+# =============================================================================
+# Welcome Messages API (DB-backed welcome messages, separate from filesystem welcome pages)
+# NOTE: Access logic for the listing endpoint (GET /api/home/welcome-messages) mirrors
+#       /api/home and must be updated if /api/home access logic changes.
+# =============================================================================
+
+@app.put("/api/home/prompt/{prompt_id}/welcome-message")
+async def save_prompt_welcome_message(prompt_id: int, request: Request, current_user: User = Depends(get_current_user)):
+    """Save or update a DB-backed welcome message for a prompt."""
+    if current_user is None:
+        return unauthenticated_response()
+
+    is_admin_user = await is_admin(current_user.id)
+    if not await can_manage_prompt(current_user.id, prompt_id, is_admin_user):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    body = await request.json()
+    content = body.get("message", "")
+    if not isinstance(content, str):
+        raise HTTPException(status_code=400, detail="message must be a string")
+
+    MAX_WELCOME_MSG_SIZE = 10 * 1024  # 10,240 characters
+    if len(content) > MAX_WELCOME_MSG_SIZE:
+        raise HTTPException(status_code=413, detail="Welcome message exceeds maximum size (10 KB)")
+
+    sanitized = sanitize_welcome_message(content)
+    is_active = 1 if sanitized.strip() else 0
+    final_content = sanitized if is_active else ""
+
+    async with get_db_connection(readonly=False) as conn:
+        cursor = await conn.cursor()
+
+        # Fetch existing content for change detection
+        await cursor.execute(
+            "SELECT id, content, last_notified_at FROM WELCOME_MESSAGES WHERE entity_type = 'prompt' AND entity_id = ?",
+            (prompt_id,)
+        )
+        existing = await cursor.fetchone()
+        old_content = existing['content'] if existing else None
+
+        # Upsert (never INSERT OR REPLACE -- preserves WELCOME_MESSAGE_READS FK)
+        await cursor.execute("""
+            INSERT INTO WELCOME_MESSAGES (entity_type, entity_id, content, is_active, updated_at)
+            VALUES ('prompt', ?, ?, ?, datetime('now'))
+            ON CONFLICT(entity_type, entity_id) DO UPDATE SET
+                content = excluded.content,
+                is_active = excluded.is_active,
+                updated_at = excluded.updated_at
+        """, (prompt_id, final_content, is_active))
+
+        # Cooldown-based read reset: if content actually changed and >= 7 days since last notify
+        if old_content is not None and final_content != old_content:
+            last_notified = existing['last_notified_at'] if existing else None
+            reset_reads = False
+            if last_notified is None:
+                reset_reads = True
+            else:
+                try:
+                    notified_dt = datetime.fromisoformat(last_notified)
+                    if (datetime.utcnow() - notified_dt).days >= 7:
+                        reset_reads = True
+                except (ValueError, TypeError):
+                    reset_reads = True
+
+            if reset_reads:
+                # Get the welcome_message_id (may be new or existing)
+                await cursor.execute(
+                    "SELECT id FROM WELCOME_MESSAGES WHERE entity_type = 'prompt' AND entity_id = ?",
+                    (prompt_id,)
+                )
+                wm_row = await cursor.fetchone()
+                if wm_row:
+                    await cursor.execute(
+                        "DELETE FROM WELCOME_MESSAGE_READS WHERE welcome_message_id = ? AND muted = 0",
+                        (wm_row['id'],)
+                    )
+                    await cursor.execute(
+                        "UPDATE WELCOME_MESSAGES SET last_notified_at = datetime('now') WHERE id = ?",
+                        (wm_row['id'],)
+                    )
+
+        await conn.commit()
+
+    return JSONResponse(content={"success": True})
+
+
+@app.put("/api/home/pack/{pack_id}/welcome-message")
+async def save_pack_welcome_message(pack_id: int, request: Request, current_user: User = Depends(get_current_user)):
+    """Save or update a DB-backed welcome message for a pack."""
+    if current_user is None:
+        return unauthenticated_response()
+
+    is_admin_user = await is_admin(current_user.id)
+
+    # Check pack ownership (same pattern as save_pack_welcome)
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.cursor()
+        await cursor.execute("SELECT created_by_user_id FROM PACKS WHERE id = ?", (pack_id,))
+        pack = await cursor.fetchone()
+        if not pack:
+            raise HTTPException(status_code=404, detail="Pack not found")
+        if pack['created_by_user_id'] != current_user.id and not is_admin_user:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+    body = await request.json()
+    content = body.get("message", "")
+    if not isinstance(content, str):
+        raise HTTPException(status_code=400, detail="message must be a string")
+
+    MAX_WELCOME_MSG_SIZE = 10 * 1024  # 10,240 characters
+    if len(content) > MAX_WELCOME_MSG_SIZE:
+        raise HTTPException(status_code=413, detail="Welcome message exceeds maximum size (10 KB)")
+
+    sanitized = sanitize_welcome_message(content)
+    is_active = 1 if sanitized.strip() else 0
+    final_content = sanitized if is_active else ""
+
+    async with get_db_connection(readonly=False) as conn:
+        cursor = await conn.cursor()
+
+        # Fetch existing content for change detection
+        await cursor.execute(
+            "SELECT id, content, last_notified_at FROM WELCOME_MESSAGES WHERE entity_type = 'pack' AND entity_id = ?",
+            (pack_id,)
+        )
+        existing = await cursor.fetchone()
+        old_content = existing['content'] if existing else None
+
+        # Upsert (never INSERT OR REPLACE -- preserves WELCOME_MESSAGE_READS FK)
+        await cursor.execute("""
+            INSERT INTO WELCOME_MESSAGES (entity_type, entity_id, content, is_active, updated_at)
+            VALUES ('pack', ?, ?, ?, datetime('now'))
+            ON CONFLICT(entity_type, entity_id) DO UPDATE SET
+                content = excluded.content,
+                is_active = excluded.is_active,
+                updated_at = excluded.updated_at
+        """, (pack_id, final_content, is_active))
+
+        # Cooldown-based read reset: if content actually changed and >= 7 days since last notify
+        if old_content is not None and final_content != old_content:
+            last_notified = existing['last_notified_at'] if existing else None
+            reset_reads = False
+            if last_notified is None:
+                reset_reads = True
+            else:
+                try:
+                    notified_dt = datetime.fromisoformat(last_notified)
+                    if (datetime.utcnow() - notified_dt).days >= 7:
+                        reset_reads = True
+                except (ValueError, TypeError):
+                    reset_reads = True
+
+            if reset_reads:
+                await cursor.execute(
+                    "SELECT id FROM WELCOME_MESSAGES WHERE entity_type = 'pack' AND entity_id = ?",
+                    (pack_id,)
+                )
+                wm_row = await cursor.fetchone()
+                if wm_row:
+                    await cursor.execute(
+                        "DELETE FROM WELCOME_MESSAGE_READS WHERE welcome_message_id = ? AND muted = 0",
+                        (wm_row['id'],)
+                    )
+                    await cursor.execute(
+                        "UPDATE WELCOME_MESSAGES SET last_notified_at = datetime('now') WHERE id = ?",
+                        (wm_row['id'],)
+                    )
+
+        await conn.commit()
+
+    return JSONResponse(content={"success": True})
+
+
+@app.get("/api/home/prompt/{prompt_id}/welcome-message")
+async def get_prompt_welcome_message(prompt_id: int, current_user: User = Depends(get_current_user)):
+    """Get the active welcome message for a single prompt."""
+    if current_user is None:
+        return unauthenticated_response()
+
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.cursor()
+
+        # Access check (return 404 instead of 403 to prevent enumeration)
+        if not await can_user_access_prompt(current_user, prompt_id, cursor):
+            raise HTTPException(status_code=404, detail="Not found")
+
+        await cursor.execute(
+            "SELECT content, updated_at FROM WELCOME_MESSAGES WHERE entity_type = 'prompt' AND entity_id = ? AND is_active = 1",
+            (prompt_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="No welcome message found")
+
+    return JSONResponse(content={"message": row['content'], "updated_at": row['updated_at']})
+
+
+@app.get("/api/home/pack/{pack_id}/welcome-message")
+async def get_pack_welcome_message(pack_id: int, current_user: User = Depends(get_current_user)):
+    """Get the active welcome message for a single pack."""
+    if current_user is None:
+        return unauthenticated_response()
+
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.cursor()
+
+        # Access check (return 404 instead of 403 to prevent enumeration)
+        if not await can_user_access_pack(current_user, pack_id, cursor):
+            raise HTTPException(status_code=404, detail="Not found")
+
+        await cursor.execute(
+            "SELECT content, updated_at FROM WELCOME_MESSAGES WHERE entity_type = 'pack' AND entity_id = ? AND is_active = 1",
+            (pack_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="No welcome message found")
+
+    return JSONResponse(content={"message": row['content'], "updated_at": row['updated_at']})
+
+
+@app.get("/api/home/welcome-messages")
+async def get_all_welcome_messages(current_user: User = Depends(get_current_user)):
+    """Get all active welcome messages for prompts/packs the current user can access.
+    Access logic mirrors /api/home -- update both if access rules change."""
+    if current_user is None:
+        return unauthenticated_response()
+
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.cursor()
+        user_id = current_user.id
+        is_admin_user = await is_admin(user_id)
+
+        # Get user details for access determination
+        await cursor.execute(
+            "SELECT all_prompts_access FROM USER_DETAILS WHERE user_id = ?",
+            (user_id,)
+        )
+        ud = await cursor.fetchone()
+        all_prompts_access = bool(ud['all_prompts_access']) if ud else False
+
+        # --- Prompt welcome messages ---
+        if is_admin_user or all_prompts_access:
+            # Admin or all_prompts_access: all active prompt welcome messages
+            prompt_query = """
+                SELECT wm.id, wm.entity_type, wm.entity_id, wm.content, wm.updated_at,
+                       p.name, p.image, p.has_welcome_page,
+                       (SELECT u.username FROM USERS u
+                        JOIN PROMPT_PERMISSIONS pp ON pp.user_id = u.id
+                        WHERE pp.prompt_id = p.id AND pp.permission_level = 'owner' LIMIT 1) as creator_name,
+                       wmr.read_at, COALESCE(wmr.muted, 0) as muted
+                FROM WELCOME_MESSAGES wm
+                JOIN PROMPTS p ON wm.entity_id = p.id AND wm.entity_type = 'prompt'
+                LEFT JOIN WELCOME_MESSAGE_READS wmr ON wmr.welcome_message_id = wm.id AND wmr.user_id = ?
+                WHERE wm.is_active = 1
+            """
+            prompt_params = [user_id]
+        else:
+            # Regular user: only prompts with PROMPT_PERMISSIONS or pack-granted access
+            prompt_query = """
+                SELECT wm.id, wm.entity_type, wm.entity_id, wm.content, wm.updated_at,
+                       p.name, p.image, p.has_welcome_page,
+                       (SELECT u.username FROM USERS u
+                        JOIN PROMPT_PERMISSIONS pp2 ON pp2.user_id = u.id
+                        WHERE pp2.prompt_id = p.id AND pp2.permission_level = 'owner' LIMIT 1) as creator_name,
+                       wmr.read_at, COALESCE(wmr.muted, 0) as muted
+                FROM WELCOME_MESSAGES wm
+                JOIN PROMPTS p ON wm.entity_id = p.id AND wm.entity_type = 'prompt'
+                LEFT JOIN WELCOME_MESSAGE_READS wmr ON wmr.welcome_message_id = wm.id AND wmr.user_id = ?
+                WHERE wm.is_active = 1
+                AND (
+                    EXISTS (SELECT 1 FROM PROMPT_PERMISSIONS pp WHERE pp.prompt_id = p.id AND pp.user_id = ?)
+                    OR EXISTS (
+                        SELECT 1 FROM PACK_ACCESS pa
+                        JOIN PACK_ITEMS pi ON pa.pack_id = pi.pack_id
+                        WHERE pa.user_id = ? AND pi.prompt_id = p.id AND pi.is_active = 1
+                        AND (pi.disable_at IS NULL OR pi.disable_at > datetime('now'))
+                        AND (pa.expires_at IS NULL OR pa.expires_at > datetime('now'))
+                    )
+                )
+            """
+            prompt_params = [user_id, user_id, user_id]
+
+        await cursor.execute(prompt_query, prompt_params)
+        prompt_rows = [dict(row) for row in await cursor.fetchall()]
+
+        # --- Pack welcome messages ---
+        if is_admin_user:
+            pack_query = """
+                SELECT wm.id, wm.entity_type, wm.entity_id, wm.content, wm.updated_at,
+                       pk.name, pk.cover_image as image, pk.has_welcome_page,
+                       (SELECT u.username FROM USERS u WHERE u.id = pk.created_by_user_id) as creator_name,
+                       wmr.read_at, COALESCE(wmr.muted, 0) as muted
+                FROM WELCOME_MESSAGES wm
+                JOIN PACKS pk ON wm.entity_id = pk.id AND wm.entity_type = 'pack'
+                LEFT JOIN WELCOME_MESSAGE_READS wmr ON wmr.welcome_message_id = wm.id AND wmr.user_id = ?
+                WHERE wm.is_active = 1
+            """
+            pack_params = [user_id]
+        else:
+            pack_query = """
+                SELECT wm.id, wm.entity_type, wm.entity_id, wm.content, wm.updated_at,
+                       pk.name, pk.cover_image as image, pk.has_welcome_page,
+                       (SELECT u.username FROM USERS u WHERE u.id = pk.created_by_user_id) as creator_name,
+                       wmr.read_at, COALESCE(wmr.muted, 0) as muted
+                FROM WELCOME_MESSAGES wm
+                JOIN PACKS pk ON wm.entity_id = pk.id AND wm.entity_type = 'pack'
+                LEFT JOIN WELCOME_MESSAGE_READS wmr ON wmr.welcome_message_id = wm.id AND wmr.user_id = ?
+                WHERE wm.is_active = 1
+                AND (
+                    pk.created_by_user_id = ?
+                    OR EXISTS (
+                        SELECT 1 FROM PACK_ACCESS pa
+                        WHERE pa.pack_id = pk.id AND pa.user_id = ?
+                        AND (pa.expires_at IS NULL OR pa.expires_at > datetime('now'))
+                    )
+                )
+            """
+            pack_params = [user_id, user_id, user_id]
+
+        await cursor.execute(pack_query, pack_params)
+        pack_rows = [dict(row) for row in await cursor.fetchall()]
+
+    # Build response with signed image URLs
+    new_expiration = datetime.utcnow() + timedelta(hours=MEDIA_TOKEN_EXPIRE_HOURS)
+    messages = []
+
+    for row in prompt_rows:
+        image_url = None
+        if row.get('image'):
+            try:
+                img_path = f"{row['image']}_128.webp"
+                token = generate_img_token(img_path, new_expiration, current_user)
+                image_url = f"{CLOUDFLARE_BASE_URL}{img_path}?token={token}"
+            except Exception:
+                pass
+
+        name = row.get('name') or ""
+        messages.append({
+            "id": row['id'],
+            "entity_type": row['entity_type'],
+            "entity_id": row['entity_id'],
+            "name": name,
+            "creator_name": row.get('creator_name') or "",
+            "initial": name[0].upper() if name else "?",
+            "image_url": image_url,
+            "content": row['content'],
+            "updated_at": row['updated_at'],
+            "is_read": row['read_at'] is not None,
+            "is_muted": bool(row['muted']),
+            "has_welcome_page": bool(row.get('has_welcome_page')),
+        })
+
+    for row in pack_rows:
+        image_url = None
+        if row.get('image'):
+            try:
+                token = generate_img_token(row['image'], new_expiration, current_user)
+                image_url = f"{CLOUDFLARE_BASE_URL}{row['image']}?token={token}"
+            except Exception:
+                pass
+
+        name = row.get('name') or ""
+        messages.append({
+            "id": row['id'],
+            "entity_type": row['entity_type'],
+            "entity_id": row['entity_id'],
+            "name": name,
+            "creator_name": row.get('creator_name') or "",
+            "initial": name[0].upper() if name else "?",
+            "image_url": image_url,
+            "content": row['content'],
+            "updated_at": row['updated_at'],
+            "is_read": row['read_at'] is not None,
+            "is_muted": bool(row['muted']),
+            "has_welcome_page": bool(row.get('has_welcome_page')),
+        })
+
+    # Sort: unread+unmuted first, then by updated_at descending within each group
+    messages.sort(key=lambda m: (
+        0 if (not m['is_read'] and not m['is_muted']) else 1,
+        -(datetime.fromisoformat(m['updated_at']).timestamp() if m['updated_at'] else 0)
+    ))
+
+    unread_count = sum(1 for m in messages if not m['is_read'] and not m['is_muted'])
+
+    return JSONResponse(content={
+        "messages": messages,
+        "unread_count": unread_count,
+    })
+
+
+@app.put("/api/home/welcome-messages/{message_id}/read")
+async def mark_welcome_message_read(message_id: int, current_user: User = Depends(get_current_user)):
+    """Mark a welcome message as read for the current user."""
+    if current_user is None:
+        return unauthenticated_response()
+
+    async with get_db_connection(readonly=False) as conn:
+        cursor = await conn.cursor()
+
+        # Get the welcome message to validate access
+        await cursor.execute(
+            "SELECT entity_type, entity_id FROM WELCOME_MESSAGES WHERE id = ?",
+            (message_id,)
+        )
+        wm = await cursor.fetchone()
+        if not wm:
+            raise HTTPException(status_code=404, detail="Not found")
+
+        # Validate user has access to the underlying entity
+        if wm['entity_type'] == 'prompt':
+            if not await can_user_access_prompt(current_user, wm['entity_id'], cursor):
+                raise HTTPException(status_code=404, detail="Not found")
+        elif wm['entity_type'] == 'pack':
+            if not await can_user_access_pack(current_user, wm['entity_id'], cursor):
+                raise HTTPException(status_code=404, detail="Not found")
+
+        # Upsert read status
+        await cursor.execute("""
+            INSERT INTO WELCOME_MESSAGE_READS (welcome_message_id, user_id, read_at)
+            VALUES (?, ?, datetime('now'))
+            ON CONFLICT(welcome_message_id, user_id) DO UPDATE SET read_at = datetime('now')
+        """, (message_id, current_user.id))
+
+        await conn.commit()
+
+    return JSONResponse(content={"success": True})
+
+
+@app.put("/api/home/welcome-messages/{message_id}/mute")
+async def mute_welcome_message(message_id: int, current_user: User = Depends(get_current_user)):
+    """Mute a welcome message for the current user (stops showing as unread)."""
+    if current_user is None:
+        return unauthenticated_response()
+
+    async with get_db_connection(readonly=False) as conn:
+        cursor = await conn.cursor()
+
+        # Get the welcome message to validate access
+        await cursor.execute(
+            "SELECT entity_type, entity_id FROM WELCOME_MESSAGES WHERE id = ?",
+            (message_id,)
+        )
+        wm = await cursor.fetchone()
+        if not wm:
+            raise HTTPException(status_code=404, detail="Not found")
+
+        if wm['entity_type'] == 'prompt':
+            if not await can_user_access_prompt(current_user, wm['entity_id'], cursor):
+                raise HTTPException(status_code=404, detail="Not found")
+        elif wm['entity_type'] == 'pack':
+            if not await can_user_access_pack(current_user, wm['entity_id'], cursor):
+                raise HTTPException(status_code=404, detail="Not found")
+
+        await cursor.execute("""
+            INSERT INTO WELCOME_MESSAGE_READS (welcome_message_id, user_id, muted)
+            VALUES (?, ?, 1)
+            ON CONFLICT(welcome_message_id, user_id) DO UPDATE SET muted = 1
+        """, (message_id, current_user.id))
+
+        await conn.commit()
+
+    return JSONResponse(content={"success": True})
+
+
+@app.put("/api/home/welcome-messages/{message_id}/unmute")
+async def unmute_welcome_message(message_id: int, current_user: User = Depends(get_current_user)):
+    """Unmute a welcome message for the current user."""
+    if current_user is None:
+        return unauthenticated_response()
+
+    async with get_db_connection(readonly=False) as conn:
+        cursor = await conn.cursor()
+
+        # Get the welcome message to validate access
+        await cursor.execute(
+            "SELECT entity_type, entity_id FROM WELCOME_MESSAGES WHERE id = ?",
+            (message_id,)
+        )
+        wm = await cursor.fetchone()
+        if not wm:
+            raise HTTPException(status_code=404, detail="Not found")
+
+        if wm['entity_type'] == 'prompt':
+            if not await can_user_access_prompt(current_user, wm['entity_id'], cursor):
+                raise HTTPException(status_code=404, detail="Not found")
+        elif wm['entity_type'] == 'pack':
+            if not await can_user_access_pack(current_user, wm['entity_id'], cursor):
+                raise HTTPException(status_code=404, detail="Not found")
+
+        await cursor.execute("""
+            INSERT INTO WELCOME_MESSAGE_READS (welcome_message_id, user_id, muted)
+            VALUES (?, ?, 0)
+            ON CONFLICT(welcome_message_id, user_id) DO UPDATE SET muted = 0
+        """, (message_id, current_user.id))
+
+        await conn.commit()
 
     return JSONResponse(content={"success": True})
 

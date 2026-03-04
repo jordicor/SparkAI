@@ -35,37 +35,75 @@
     <!-- Favorite Chips -->
     <div class="home-favorites" id="home-favorites" style="display:none"></div>
 
-    <!-- Two-Column Section -->
-    <div class="home-columns" id="home-columns">
-        <!-- Left: Latest Prompts (marketplace discovery) -->
-        <div class="home-col home-latest" id="home-latest" style="display:none">
-            <h2 class="home-col-title">Latest Prompts</h2>
-            <div class="home-col-list" id="home-latest-list"></div>
-            <a href="/explore" class="home-col-action">Explore <i class="fas fa-arrow-right"></i></a>
-        </div>
-
-        <!-- Right: My Packs & Prompts (user's library) -->
-        <div class="home-col home-library" id="home-library">
-            <div class="home-col-header">
-                <h2 class="home-col-title">My Packs &amp; Prompts</h2>
-                <div class="home-tab-toggle" id="home-tab-toggle">
-                    <button class="home-tab active" data-tab="prompts">Prompts</button>
-                    <button class="home-tab" data-tab="packs">Packs</button>
+    <!-- Windows Area -->
+    <div class="windows-area" id="windows-area">
+        <!-- Welcome Messages Window (hidden by default, shown if messages exist) -->
+        <div class="window" id="win-welcome" data-dock-id="welcome" style="display:none">
+            <div class="window-header">
+                <div class="window-header-icon welcome"><i class="fas fa-envelope-open-text"></i></div>
+                <div class="window-header-title">Welcome Messages</div>
+                <div class="window-header-badge" id="welcome-badge" style="display:none"></div>
+                <button class="window-minimize-btn" title="Minimize"><i class="fas fa-minus"></i></button>
+            </div>
+            <div class="window-body">
+                <div class="welcome-layout">
+                    <div class="welcome-selector" id="welcome-selector"></div>
+                    <div class="welcome-display" id="welcome-display">
+                        <div class="welcome-display-empty">
+                            <i class="fas fa-envelope-open"></i>
+                            <span>Select a message to read</span>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="home-col-list" id="home-library-list"></div>
-            <button class="home-col-action" id="home-view-all-btn" style="display:none">
-                View All <i class="fas fa-arrow-right"></i>
-            </button>
-            <!-- Empty state -->
-            <div class="home-empty" id="home-library-empty" style="display:none">
-                <i class="fas fa-compass"></i>
-                <p>No prompts yet</p>
-                <a href="/explore" class="home-empty-link">Explore to find your first AI assistant</a>
+        </div>
+
+        <!-- Two Columns: Latest + Library -->
+        <div class="windows-row" id="windows-row">
+            <!-- Latest Prompts Window -->
+            <div class="window" id="win-latest" data-dock-id="latest" style="display:none">
+                <div class="window-header">
+                    <div class="window-header-icon latest"><i class="fas fa-bolt"></i></div>
+                    <div class="window-header-title">Latest Prompts</div>
+                    <button class="window-minimize-btn" title="Minimize"><i class="fas fa-minus"></i></button>
+                </div>
+                <div class="window-body">
+                    <div class="home-col-list" id="home-latest-list"></div>
+                    <div class="list-footer">
+                        <a href="/explore">Explore <i class="fas fa-arrow-right"></i></a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- My Library Window -->
+            <div class="window" id="win-library" data-dock-id="library">
+                <div class="window-header">
+                    <div class="window-header-icon library"><i class="fas fa-book-open"></i></div>
+                    <div class="window-header-title">My Packs &amp; Prompts</div>
+                    <div class="home-tab-toggle" id="home-tab-toggle">
+                        <button class="home-tab active" data-tab="prompts">Prompts</button>
+                        <button class="home-tab" data-tab="packs">Packs</button>
+                    </div>
+                    <button class="window-minimize-btn" title="Minimize"><i class="fas fa-minus"></i></button>
+                </div>
+                <div class="window-body">
+                    <div class="home-col-list" id="home-library-list"></div>
+                    <div class="list-footer" id="home-view-all-btn" style="display:none">
+                        <a href="#" id="home-view-all-link">View All <i class="fas fa-arrow-right"></i></a>
+                    </div>
+                    <div class="home-empty" id="home-library-empty" style="display:none">
+                        <i class="fas fa-compass"></i>
+                        <p>No prompts yet</p>
+                        <a href="/explore" class="home-empty-link">Explore to find your first AI assistant</a>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Dock -->
+<div class="dock" id="dock"></div>
 
 <!-- View All Modal -->
 <div class="home-modal-overlay" id="home-modal-overlay" style="display:none">

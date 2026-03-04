@@ -367,7 +367,7 @@
     {% if pack %}
     <div class="section-container" style="margin-top: 1.5rem;">
         <div class="section-title"><i class="fas fa-hand-wave"></i> Welcome Message</div>
-        <p class="text-muted small mb-2">HTML welcome message shown to users on the home page when they enter this pack.</p>
+        <p class="text-muted small mb-2">Welcome Message (shown on Home page to users who have access)</p>
         <textarea id="pack-welcome-editor" class="form-control" rows="8" placeholder="Write HTML content for your welcome message..."></textarea>
         <div class="mt-2 d-flex gap-2">
             <button type="button" class="btn btn-sm btn-primary" onclick="savePackWelcome()">
@@ -384,7 +384,7 @@
     {% if pack %}
     <div class="section-container" style="margin-top: 1.5rem;">
         <div class="section-title">
-            <i class="fas fa-door-open"></i> Welcome Page
+            <i class="fas fa-door-open"></i> Welcome Page (full landing page at /welcome/...)
             <span id="welcome-status-badge" class="badge bg-secondary ms-2" style="font-size: 0.75rem;">Checking...</span>
         </div>
         <p class="text-muted small mb-3">
@@ -630,17 +630,17 @@
 </script>
 <script src="{{ get_static_url('/static/js/admin-packs.js') }}"></script>
 <script>
-    // Welcome Message Editor
+    // Welcome Message Editor (DB-backed endpoint)
     (function() {
         const packId = document.getElementById('packId')?.value;
         if (!packId) return;
 
-        // Load existing welcome
-        fetch(`/api/home/pack/${packId}/welcome`)
-            .then(r => r.ok ? r.text() : '')
-            .then(html => {
+        // Load existing welcome message from DB
+        fetch(`/api/home/pack/${packId}/welcome-message`)
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
                 const editor = document.getElementById('pack-welcome-editor');
-                if (editor && html) editor.value = html;
+                if (editor && data && data.message) editor.value = data.message;
             })
             .catch(() => {});
     })();
@@ -650,10 +650,10 @@
         if (!packId) return;
         const html = document.getElementById('pack-welcome-editor').value;
         try {
-            const resp = await fetch(`/api/home/pack/${packId}/welcome`, {
+            const resp = await fetch(`/api/home/pack/${packId}/welcome-message`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ html })
+                body: JSON.stringify({ message: html })
             });
             if (resp.ok) {
                 NotificationModal.success('Saved', 'Welcome message saved.');

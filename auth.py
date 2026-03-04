@@ -24,7 +24,7 @@ load_dotenv()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60  # 1 hour for normal users
+ACCESS_TOKEN_EXPIRE_MINUTES = 43200  # 30 days
 
 def hash_password(user_password):
     if isinstance(user_password, bytes):

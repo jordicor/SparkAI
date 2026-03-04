@@ -72,7 +72,10 @@ async def list_prompts(request: Request, current_user: User = Depends(get_curren
             prompts = []
             for row in rows:
                 prompt = dict(row)
-                prompt['created_at'] = datetime.strptime(prompt['created_at'], '%Y-%m-%d %H:%M:%S.%f')
+                try:
+                    prompt['created_at'] = datetime.strptime(prompt['created_at'], '%Y-%m-%d %H:%M:%S.%f')
+                except ValueError:
+                    prompt['created_at'] = datetime.strptime(prompt['created_at'], '%Y-%m-%d %H:%M:%S')
                 prompt['can_edit'] = bool(prompt['can_edit']) or bool(prompt['is_owner']) or await current_user.is_admin
 
                 # Generate image URLs (thumbnail and fullsize)
@@ -261,6 +264,7 @@ async def create_prompt_post(
     hide_llm_name: bool = Form(False),
     allowed_llms: Optional[str] = Form(None),
     disable_web_search: bool = Form(False),
+    force_web_search: bool = Form(False),
     enable_moderation: bool = Form(False),
     watchdog_config: Optional[str] = Form(None),
     # Extension settings
@@ -273,6 +277,10 @@ async def create_prompt_post(
 
     if not await current_user.is_admin and not await current_user.is_manager:
         raise HTTPException(status_code=403, detail="Access denied")
+
+    # Mutual exclusion: disable_web_search takes priority over force_web_search
+    if disable_web_search and force_web_search:
+        force_web_search = False
 
     # Validate prompt name is not forbidden (security)
     if is_forbidden_prompt_name(name) or is_forbidden_prompt_name(slugify(name)):
@@ -355,12 +363,14 @@ async def create_prompt_post(
             # Insert the new prompt with the found voice_id and pricing fields
             cursor = await conn.execute(
                 """INSERT INTO Prompts (name, prompt, description, voice_id, created_by_user_id, created_at, public,
-                   is_paid, markup_per_mtokens, forced_llm_id, hide_llm_name, disable_web_search, enable_moderation,
-                   watchdog_config, allowed_llms, extensions_enabled, extensions_auto_advance, extensions_free_selection)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   is_paid, markup_per_mtokens, forced_llm_id, hide_llm_name, disable_web_search, force_web_search,
+                   enable_moderation, watchdog_config, allowed_llms,
+                   extensions_enabled, extensions_auto_advance, extensions_free_selection)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (name, prompt, description, voice_id, current_user.id, datetime.utcnow(), public,
-                 is_paid_bool, actual_markup, actual_forced_llm_id, actual_hide_llm_name, disable_web_search, enable_moderation,
-                 watchdog_config_json, actual_allowed_llms, extensions_enabled, extensions_auto_advance, extensions_free_selection)
+                 is_paid_bool, actual_markup, actual_forced_llm_id, actual_hide_llm_name, disable_web_search, force_web_search,
+                 enable_moderation, watchdog_config_json, actual_allowed_llms,
+                 extensions_enabled, extensions_auto_advance, extensions_free_selection)
             )
             prompt_id = cursor.lastrowid
 
@@ -407,7 +417,8 @@ async def edit_prompt(request: Request, prompt_id: int, current_user: User = Dep
         # Get prompt information including pricing fields and extensions config
         async with conn.execute("""SELECT name, prompt, description, voice_id, image, created_by_user_id, public,
                                           is_paid, markup_per_mtokens, forced_llm_id, hide_llm_name, disable_web_search,
-                                          enable_moderation, watchdog_config, allow_in_packs, pack_notice_period_days,
+                                          force_web_search, enable_moderation, watchdog_config,
+                                          allow_in_packs, pack_notice_period_days,
                                           allowed_llms, extensions_enabled, extensions_auto_advance, extensions_free_selection,
                                           purchase_price
                                    FROM Prompts WHERE id = ?""", (prompt_id,)) as cursor:
@@ -503,21 +514,22 @@ async def edit_prompt(request: Request, prompt_id: int, current_user: User = Dep
         "hide_llm_name": prompt[10] if prompt[10] else False,
         # Web search control
         "disable_web_search": prompt[11] if prompt[11] else False,
+        "force_web_search": prompt[12] if prompt[12] else False,
         # Content moderation
-        "enable_moderation": prompt[12] if prompt[12] else False,
+        "enable_moderation": prompt[13] if prompt[13] else False,
         # Watchdog config
-        "watchdog_config": _parse_watchdog_config_for_template(prompt[13]),
+        "watchdog_config": _parse_watchdog_config_for_template(prompt[14]),
         # Pack inclusion settings
-        "allow_in_packs": bool(prompt[14]) if prompt[14] else False,
-        "pack_notice_period_days": prompt[15] if prompt[15] else 0,
+        "allow_in_packs": bool(prompt[15]) if prompt[15] else False,
+        "pack_notice_period_days": prompt[16] if prompt[16] else 0,
         # Allowed LLMs (restricted mode)
-        "allowed_llms_json": prompt[16] or "[]",
+        "allowed_llms_json": prompt[17] or "[]",
         # Extensions config
-        "extensions_enabled": bool(prompt[17]) if prompt[17] else False,
-        "extensions_auto_advance": bool(prompt[18]) if prompt[18] else False,
-        "extensions_free_selection": bool(prompt[19]) if prompt[19] is not None else True,
+        "extensions_enabled": bool(prompt[18]) if prompt[18] else False,
+        "extensions_auto_advance": bool(prompt[19]) if prompt[19] else False,
+        "extensions_free_selection": bool(prompt[20]) if prompt[20] is not None else True,
         # Purchase price
-        "purchase_price": prompt[20],
+        "purchase_price": prompt[21],
     })
     return templates.TemplateResponse("prompts/edit_prompt.html", context)
 
@@ -544,6 +556,7 @@ async def update_prompt(
     hide_llm_name: bool = Form(False),
     allowed_llms: Optional[str] = Form(None),
     disable_web_search: bool = Form(False),
+    force_web_search: bool = Form(False),
     enable_moderation: bool = Form(False),
     watchdog_config: Optional[str] = Form(None),
     # Pack inclusion settings
@@ -558,6 +571,10 @@ async def update_prompt(
 ):
     if current_user is None:
         return templates.TemplateResponse("login.html", {"request": request})
+
+    # Mutual exclusion: disable_web_search takes priority over force_web_search
+    if disable_web_search and force_web_search:
+        force_web_search = False
 
     prompt_info = await get_prompt_info(prompt_id)
 
@@ -713,13 +730,15 @@ async def update_prompt(
             await cursor.execute(
                 """UPDATE Prompts SET name = ?, prompt = ?, description = ?, voice_id = ?, public = ?,
                    is_paid = ?, markup_per_mtokens = ?, forced_llm_id = ?, hide_llm_name = ?, disable_web_search = ?,
-                   enable_moderation = ?, watchdog_config = ?, allow_in_packs = ?, pack_notice_period_days = ?,
+                   force_web_search = ?, enable_moderation = ?, watchdog_config = ?,
+                   allow_in_packs = ?, pack_notice_period_days = ?,
                    allowed_llms = ?, extensions_enabled = ?, extensions_auto_advance = ?, extensions_free_selection = ?,
                    purchase_price = ?
                    WHERE id = ?""",
                 (name, prompt, description, voice_id, public,
                  is_paid_bool, actual_markup, actual_forced_llm_id, actual_hide_llm_name, disable_web_search,
-                 enable_moderation, watchdog_config_json, allow_in_packs, pack_notice_period_days,
+                 force_web_search, enable_moderation, watchdog_config_json,
+                 allow_in_packs, pack_notice_period_days,
                  actual_allowed_llms, extensions_enabled, extensions_auto_advance, extensions_free_selection,
                  actual_purchase_price, prompt_id)
             )
@@ -835,6 +854,7 @@ async def delete_prompt(prompt_id: int, current_user: User = Depends(get_current
                 "UPDATE CONVERSATIONS SET active_extension_id = NULL, role_id = NULL WHERE role_id = ?",
                 (prompt_id,)
             )
+            await conn.execute("DELETE FROM WELCOME_MESSAGES WHERE entity_type = 'prompt' AND entity_id = ?", (prompt_id,))
             await conn.execute('DELETE FROM PROMPT_PERMISSIONS WHERE prompt_id = ?', (prompt_id,))
             await conn.execute('DELETE FROM PROMPT_AGENT_MAPPING WHERE prompt_id = ?', (prompt_id,))
             await conn.execute('DELETE FROM PROMPT_SECTION_CONFIGS WHERE prompt_id = ?', (prompt_id,))
@@ -958,6 +978,7 @@ async def delete_prompts_batch(request: Request, current_user: User = Depends(ge
                     "UPDATE CONVERSATIONS SET active_extension_id = NULL, role_id = NULL WHERE role_id = ?",
                     (prompt_id,)
                 )
+                await conn.execute("DELETE FROM WELCOME_MESSAGES WHERE entity_type = 'prompt' AND entity_id = ?", (prompt_id,))
                 await conn.execute('DELETE FROM PROMPT_PERMISSIONS WHERE prompt_id = ?', (prompt_id,))
                 await conn.execute('DELETE FROM PROMPT_AGENT_MAPPING WHERE prompt_id = ?', (prompt_id,))
                 await conn.execute('DELETE FROM PROMPT_SECTION_CONFIGS WHERE prompt_id = ?', (prompt_id,))
@@ -2074,6 +2095,7 @@ async def watchdog_suggest_config(
                 conn=bill_conn,
                 cursor=bill_cursor,
                 prompt_id=None,
+                byok=resolved_key is not None,
             )
             if not billed:
                 logger.warning(

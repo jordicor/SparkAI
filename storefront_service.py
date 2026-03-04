@@ -245,6 +245,7 @@ async def get_creator_storefront_data(
                 'public_id': r[4],
                 'is_paid': bool(r[5]),
                 'markup_per_mtokens': r[6],
+                'slug': slugify(r[1]) if r[1] else '',
             }
             for r in prompt_rows
         ]

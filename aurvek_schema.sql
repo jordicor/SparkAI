@@ -62,6 +62,7 @@ CREATE TABLE PROMPTS (
     hide_llm_name BOOLEAN DEFAULT 0,
     landing_registration_config TEXT DEFAULT NULL,
     disable_web_search BOOLEAN DEFAULT 0,
+    force_web_search BOOLEAN DEFAULT 0,
     enable_moderation BOOLEAN DEFAULT 0,
     watchdog_config TEXT DEFAULT NULL,
     allow_in_packs BOOLEAN DEFAULT 0,
@@ -842,6 +843,35 @@ CREATE INDEX idx_prompt_purchases_prompt ON PROMPT_PURCHASES(prompt_id);
 CREATE UNIQUE INDEX idx_prompt_purchases_reference ON PROMPT_PURCHASES(payment_reference) WHERE payment_reference IS NOT NULL;
 
 -- =============================================================================
+-- WELCOME_MESSAGES (welcome message content per prompt or pack)
+-- =============================================================================
+CREATE TABLE WELCOME_MESSAGES (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_type TEXT NOT NULL CHECK(entity_type IN ('prompt', 'pack')),
+    entity_id INTEGER NOT NULL,
+    content TEXT NOT NULL DEFAULT '',
+    is_active BOOLEAN NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_notified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(entity_type, entity_id)
+);
+
+-- =============================================================================
+-- WELCOME_MESSAGE_READS (per-user read/mute tracking)
+-- =============================================================================
+CREATE TABLE WELCOME_MESSAGE_READS (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    welcome_message_id INTEGER NOT NULL REFERENCES WELCOME_MESSAGES(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES USERS(id) ON DELETE CASCADE,
+    read_at TIMESTAMP DEFAULT NULL,
+    muted BOOLEAN DEFAULT 0,
+    UNIQUE(welcome_message_id, user_id)
+);
+
+CREATE INDEX idx_welcome_reads_user ON WELCOME_MESSAGE_READS(user_id);
+
+-- =============================================================================
 -- PERFORMANCE INDEXES (hot-path queries)
 -- =============================================================================
 CREATE INDEX idx_prompt_permissions_prompt_user ON PROMPT_PERMISSIONS(prompt_id, user_id);
@@ -851,3 +881,4 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_unique ON USERS(phone_number) 
 CREATE INDEX idx_conversations_user_id ON CONVERSATIONS(user_id);
 CREATE INDEX idx_conversations_role_id ON CONVERSATIONS(role_id);
 CREATE INDEX idx_prompts_public_feed ON PROMPTS(public, is_unlisted, created_at DESC);
+CREATE INDEX idx_prompts_landing_candidates ON PROMPTS(public, is_unlisted, has_landing_page);

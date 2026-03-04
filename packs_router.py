@@ -37,6 +37,7 @@ from common import (
     get_template_context, slugify, generate_public_id, generate_user_hash,
     sanitize_name, templates, get_balance, deduct_balance,
     validate_path_within_directory, get_pricing_config,
+    fix_landing_seo_tags,
 )
 from save_images import resize_image_cover
 from security_guard_llm import check_security, is_security_guard_enabled
@@ -637,6 +638,7 @@ async def api_delete_pack(pack_id: int, current_user: User = Depends(get_current
         if pack_row["public_id"]:
             invalidate_pack_landing_cache(pack_row["public_id"])
 
+        await conn.execute("DELETE FROM WELCOME_MESSAGES WHERE entity_type = 'pack' AND entity_id = ?", (pack_id,))
         await delete_pack(conn, pack_id)
 
     return JSONResponse({"message": "Pack deleted"})
@@ -1351,10 +1353,10 @@ async def pack_ai_wizard_generate(
 
     # Build absolute landing URL for SEO meta tags (canonical, og:url, og:image, twitter:image)
     landing_url = ""
+    primary_domain = os.getenv("PRIMARY_APP_DOMAIN", "")
     pack_public_id = pack_row["public_id"] if pack_row["public_id"] else ""
-    if pack_public_id:
+    if primary_domain and pack_public_id:
         pack_slug = pack_row["slug"] if pack_row["slug"] else slugify(pack_row["name"])
-        primary_domain = os.getenv("PRIMARY_APP_DOMAIN", "")
         landing_url = f"https://{primary_domain}/pack/{pack_public_id}/{pack_slug}/"
 
     params = {
@@ -1468,12 +1470,21 @@ async def pack_ai_wizard_modify(
 
     product_description = await _build_pack_product_description(pack_row, pack_id)
 
+    # Build absolute landing URL for SEO meta tags (canonical, og:url, og:image, twitter:image)
+    landing_url = ""
+    primary_domain = os.getenv("PRIMARY_APP_DOMAIN", "")
+    pack_public_id = pack_row["public_id"] if pack_row["public_id"] else ""
+    if primary_domain and pack_public_id:
+        pack_slug = pack_row["slug"] if pack_row["slug"] else slugify(pack_row["name"])
+        landing_url = f"https://{primary_domain}/pack/{pack_public_id}/{pack_slug}/"
+
     params = {
         "instructions": instructions,
         "timeout": timeout_seconds,
         "product_name": pack_row["name"],
         "ai_system_prompt": "",
         "product_description": product_description,
+        "landing_url": landing_url,
     }
 
     logger.info("Starting modify wizard job for pack %s, user %s, timeout=%ss", pack_id, current_user.id, timeout_seconds)
@@ -2207,6 +2218,15 @@ async def pack_landing_save_page(
     content = base64.b64decode(encodedContent).decode("utf-8")
     content = re.sub(r"\n\s*\n", "\n", content.strip())
     content = re.sub(r"\r\n", "\n", content)
+
+    # Fix SEO metadata with absolute URLs when saving the home page
+    if section.lower() == "home":
+        primary_domain = os.getenv("PRIMARY_APP_DOMAIN", "")
+        public_id = pack_row.get("public_id")
+        if primary_domain and public_id:
+            pack_slug = pack_row.get("slug") or slugify(pack_row["name"])
+            canonical = f"https://{primary_domain}/pack/{public_id}/{pack_slug}/"
+            content = fix_landing_seo_tags(content, canonical, canonical)
 
     # Validate path
     validated_path = validate_path_within_directory(f"{section}.html", pack_dir)

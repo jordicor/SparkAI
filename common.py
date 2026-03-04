@@ -122,6 +122,7 @@ MAX_COVER_FULLSIZE_WIDTH = 2560  # Cap fullsize cover output to prevent DoS via 
 
 MODERATION_COST_FIXED = 0.03  # Fixed cost charged to creator per moderation check
 MODERATION_MIN_BALANCE = 0.05  # Minimum balance required to attempt moderation
+BYOK_MIN_BALANCE_PAID_PROMPT = 0.10  # Minimum balance required for BYOK users on paid prompts (creator markup)
 
 PACK_STATUSES = ['draft', 'pending_review', 'published', 'rejected', 'suspended']
 VALID_NOTICE_PERIODS = [0, 90, 180, 365, 730]
@@ -1552,6 +1553,7 @@ async def consume_token(
     cursor,
     reasoning_tokens=0,
     prompt_id=None,
+    byok=False,
 ):
     """
     Consume tokens and apply pricing logic based on prompt configuration.
@@ -1575,6 +1577,12 @@ async def consume_token(
         output_cost_total = (output_tokens + reasoning_tokens) * output_token_cost
         api_cost = input_cost_total + output_cost_total
         total_tokens = input_tokens + output_tokens + reasoning_tokens
+
+        # BYOK: user provides their own API key, so platform incurs no API cost
+        if byok:
+            api_cost = 0
+            input_cost_total = 0
+            output_cost_total = 0
 
         # Get pricing configuration
         pricing_config = await get_pricing_config()
@@ -2023,3 +2031,117 @@ async def upsert_creator_relationship(cursor, user_id: int, creator_id: int, rel
             (user_id, creator_id, relationship_type, source_type, source_id, is_primary)
             VALUES (?, ?, ?, ?, ?, 0)
         """, (user_id, creator_id, rel_type, source_type, source_id))
+
+
+# ---------------------------------------------------------------------------
+# Landing page SEO metadata fixer (save-time)
+# ---------------------------------------------------------------------------
+
+def fix_landing_seo_tags(html: str, canonical_url: str, static_base_url: str) -> str:
+    """
+    Fix/inject core SEO meta tags in landing HTML so files on disk have
+    correct absolute URLs. Call at save-time (editor, AI wizard, migration).
+
+    Handles: canonical, og:url, og:image, twitter:card, twitter:image.
+    Skips files without a <head> tag (not proper HTML documents).
+    """
+    if not re.search(r'<head[\s>]', html, re.IGNORECASE):
+        return html
+
+    def _make_absolute(url):
+        if not url or url.startswith(('https://', 'http://')):
+            return url
+        base = static_base_url.rstrip('/') + '/'
+        # Strip leading ./ or ../ prefixes without being greedy
+        while url.startswith(('./','../')):
+            url = url[2:] if url.startswith('./') else url[3:]
+        return base + url
+
+    # Helper: build regex that matches a <meta> tag regardless of attribute order.
+    # Returns compiled pattern with group(1) capturing the value of `val_attr`.
+    def _meta_pat(key_attr, key_name, val_attr, val_name):
+        # Order A: key="name" val="value"  |  Order B: val="value" key="name"
+        a = rf'<meta\s+{key_attr}=["\']{ re.escape(key_name) }["\']\s+{val_attr}=["\']([^"\']*)["\'][^>]*/?\s*>'
+        b = rf'<meta\s+{val_attr}=["\']([^"\']*)["\'\s]+{key_attr}=["\']{ re.escape(key_name) }["\'][^>]*/?\s*>'
+        return re.compile(f'(?:{a}|{b})', re.IGNORECASE)
+
+    def _meta_match_value(m):
+        """Return the captured value from whichever alternation matched."""
+        return m.group(1) if m.group(1) is not None else m.group(2)
+
+    inject_tags = []
+
+    # 1. Canonical — fix existing or inject (attribute order is fixed for <link>)
+    canon_pat = re.compile(
+        r'<link\s+rel=["\']canonical["\']\s+href=["\']([^"\']*)["\'][^>]*/?\s*>'
+        r'|<link\s+href=["\']([^"\']*)["\'\s]+rel=["\']canonical["\'][^>]*/?\s*>',
+        re.IGNORECASE,
+    )
+    m = canon_pat.search(html)
+    if m:
+        val = m.group(1) if m.group(1) is not None else m.group(2)
+        if not val.startswith('https://'):
+            html = html.replace(m.group(0), f'<link rel="canonical" href="{canonical_url}">', 1)
+    else:
+        inject_tags.append(f'<link rel="canonical" href="{canonical_url}">')
+
+    # 2. og:url — fix existing or inject
+    og_url_pat = _meta_pat('property', 'og:url', 'content', 'content')
+    m = og_url_pat.search(html)
+    if m:
+        val = _meta_match_value(m)
+        if not val.startswith('https://'):
+            html = html.replace(m.group(0), f'<meta property="og:url" content="{canonical_url}">', 1)
+    else:
+        inject_tags.append(f'<meta property="og:url" content="{canonical_url}">')
+
+    # 3. og:image — make relative paths absolute
+    og_image_pat = _meta_pat('property', 'og:image', 'content', 'content')
+    og_image_abs = None
+    m = og_image_pat.search(html)
+    if m:
+        val = _meta_match_value(m)
+        if val:
+            og_image_abs = _make_absolute(val)
+            if og_image_abs != val:
+                html = html.replace(
+                    m.group(0),
+                    f'<meta property="og:image" content="{og_image_abs}">',
+                    1,
+                )
+            else:
+                og_image_abs = val if val.startswith('https://') else None
+
+    # 4. twitter:card — inject if missing
+    tw_card_pat = _meta_pat('name', 'twitter:card', 'content', 'content')
+    if not tw_card_pat.search(html):
+        inject_tags.append('<meta name="twitter:card" content="summary_large_image">')
+
+    # 5. twitter:image — fix existing or inject (mirrors og:image)
+    tw_image_pat = _meta_pat('name', 'twitter:image', 'content', 'content')
+    m = tw_image_pat.search(html)
+    if m:
+        val = _meta_match_value(m)
+        if val:
+            abs_img = _make_absolute(val)
+            if abs_img != val:
+                html = html.replace(
+                    m.group(0),
+                    f'<meta name="twitter:image" content="{abs_img}">',
+                    1,
+                )
+    elif og_image_abs:
+        inject_tags.append(f'<meta name="twitter:image" content="{og_image_abs}">')
+
+    # Inject any missing tags before </head>
+    if inject_tags:
+        inject_block = '\n    '.join(inject_tags)
+        html = re.sub(
+            r'(</head>)',
+            f'    {inject_block}\n\\1',
+            html,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+
+    return html

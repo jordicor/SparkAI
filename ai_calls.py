@@ -588,6 +588,7 @@ async def watchdog_takeover_response(
         "watchdog_hint_active": False,
         "watchdog_hint_eval_id": None,
         "llm_id": wd_llm_id,
+        "byok": resolved_key is not None,
     }
     if resolved_key:
         kwargs["user_api_key"] = resolved_key
@@ -931,7 +932,8 @@ async def process_save_message(
         # Consolidate SQL queries into one
         async with conn_ro.execute('''
             SELECT c.locked, c.llm_id, c.user_id, c.chat_name, L.machine, L.model, L.input_token_cost, L.output_token_cost,
-                   COALESCE(p.enable_moderation, 0) AS enable_moderation
+                   COALESCE(p.enable_moderation, 0) AS enable_moderation,
+                   COALESCE(p.is_paid, 0) AS is_paid
             FROM conversations c
             JOIN LLM L ON c.llm_id = L.id
             LEFT JOIN PROMPTS p ON c.role_id = p.id
@@ -941,7 +943,7 @@ async def process_save_message(
             if not conversation_row:
                 return JSONResponse(content={'success': False, 'message': 'Conversation not found.'}, status_code=404)
 
-            is_locked, conversation_llm_id, conversation_user_id, chat_name, machine, model, input_token_cost, output_token_cost, enable_moderation = conversation_row
+            is_locked, conversation_llm_id, conversation_user_id, chat_name, machine, model, input_token_cost, output_token_cost, enable_moderation, prompt_is_paid = conversation_row
 
         if is_locked:
             logger.info(f"Ignored message to conversation ID {conversation_id}, Locked state: {is_locked}")
@@ -955,22 +957,39 @@ async def process_save_message(
 
         input_tokens = estimate_message_tokens(user_message)
         current_balance = await get_balance(current_user.id)
-        input_cost = (input_tokens / 1000000) * input_token_cost
 
-        # Validate output_token_cost to prevent division by zero
-        if output_token_cost is None or output_token_cost <= 0:
-            logger.error(f"Invalid output_token_cost ({output_token_cost}) for LLM {conversation_llm_id}")
-            return JSONResponse(content={'success': False, 'message': 'LLM configuration error: invalid token cost'}, status_code=500)
+        # Determine if this call will use BYOK (user's own API key)
+        from common import resolve_api_key_for_provider, get_user_api_key_mode, API_KEY_MODE_SYSTEM_ONLY, BYOK_MIN_BALANCE_PAID_PROMPT
+        api_key_mode_preflight = await get_user_api_key_mode(current_user.id)
+        is_byok = False
+        if api_key_mode_preflight != API_KEY_MODE_SYSTEM_ONLY and user_api_keys:
+            preflight_key, _ = resolve_api_key_for_provider(user_api_keys, api_key_mode_preflight, machine)
+            is_byok = preflight_key is not None
 
-        max_affordable_tokens = ((current_balance - input_cost) / output_token_cost) * 1000000
-        output_tokens = min(MAX_TOKENS, max(0, max_affordable_tokens))  # Ensure non-negative
-        output_cost = (output_tokens / 1000000) * output_token_cost
-        total_cost = input_cost + output_cost
+        if is_byok:
+            # BYOK: no API cost to platform. Only need balance for paid prompt markup.
+            if prompt_is_paid and current_balance < BYOK_MIN_BALANCE_PAID_PROMPT:
+                return JSONResponse(content={'success': False, 'message': 'Insufficient balance for creator markup.'}, status_code=402)
+            # For free prompts with BYOK, no balance needed at all
+            output_tokens = MAX_TOKENS
+            logger.debug(f"BYOK mode: max_tokens={output_tokens}, Balance: {current_balance}")
+        else:
+            input_cost = (input_tokens / 1000000) * input_token_cost
 
-        if total_cost >= current_balance:
-            return JSONResponse(content={'success': False, 'message': 'Insufficient balance to send the message.'}, status_code=402)
+            # Validate output_token_cost to prevent division by zero
+            if output_token_cost is None or output_token_cost <= 0:
+                logger.error(f"Invalid output_token_cost ({output_token_cost}) for LLM {conversation_llm_id}")
+                return JSONResponse(content={'success': False, 'message': 'LLM configuration error: invalid token cost'}, status_code=500)
 
-        logger.debug(f"Total cost: {total_cost}, Balance: {current_balance}")
+            max_affordable_tokens = ((current_balance - input_cost) / output_token_cost) * 1000000
+            output_tokens = min(MAX_TOKENS, max(0, max_affordable_tokens))  # Ensure non-negative
+            output_cost = (output_tokens / 1000000) * output_token_cost
+            total_cost = input_cost + output_cost
+
+            if total_cost >= current_balance:
+                return JSONResponse(content={'success': False, 'message': 'Insufficient balance to send the message.'}, status_code=402)
+
+            logger.debug(f"Total cost: {total_cost}, Balance: {current_balance}")
 
         async with conn_ro.execute(
             '''
@@ -1237,7 +1256,8 @@ async def process_save_message(
                     user_message=message_to_save,
                     thinking_budget_tokens=thinking_budget_tokens,
                     user_api_keys=user_api_keys,
-                    llm_id=conversation_llm_id
+                    llm_id=conversation_llm_id,
+                    byok=is_byok,
                 ):
                     yield chunk
             except asyncio.CancelledError:
@@ -1458,6 +1478,7 @@ async def get_ai_response(
     user_api_keys: Optional[dict] = None,
     llm_id=None,
     save_to_db: bool = True,
+    byok: bool = False,
 ):
     logger.info(f"*** Enters {machine}")
     logger.debug(f"Parameters received: conversation_id={conversation_id}, model={model}, max_tokens={max_tokens}")
@@ -1483,6 +1504,7 @@ async def get_ai_response(
                         u.user_info,
                         ud.current_alter_ego_id,
                         COALESCE(p.disable_web_search, 0) AS disable_web_search,
+                        COALESCE(p.force_web_search, 0) AS force_web_search,
                         COALESCE(ud.web_search_enabled, 1) AS user_web_search_enabled,
                         COALESCE(ud.web_search_mode, 'native') AS web_search_mode,
                         COALESCE(p.extensions_enabled, 0) AS extensions_enabled,
@@ -1503,9 +1525,10 @@ async def get_ai_response(
 
                 if result:
                     (conversation_role_id, prompt, effective_role_id, user_info,
-                     current_alter_ego_id, disable_web_search, user_web_search_enabled,
-                     web_search_mode, extensions_enabled, extensions_auto_advance,
-                     extensions_free_selection, active_extension_id, extension_name,
+                     current_alter_ego_id, disable_web_search, force_web_search,
+                     user_web_search_enabled, web_search_mode, extensions_enabled,
+                     extensions_auto_advance, extensions_free_selection,
+                     active_extension_id, extension_name,
                      extension_prompt_text) = result
                     
                     if conversation_role_id is None and effective_role_id:
@@ -1867,19 +1890,30 @@ async def get_ai_response(
                 # (generateImage, generateVideo, QR codes, perplexity, time, etc.)
 
                 # Filter tools based on web search settings
-                # Priority: prompt restriction > user preference > mode selection
+                # Priority: disable_web_search > force_web_search > user preference > mode selection
                 filtered_tools = tools
-                if disable_web_search or not user_web_search_enabled:
-                    # Web search fully disabled - remove perplexity tool
+                if disable_web_search:
+                    # Prompt forces web search OFF - remove all search tools
                     filtered_tools = [t for t in tools if t['function']['name'] != 'query_perplexity']
-                    web_search_mode = None  # Signal to providers: no search at all
+                    web_search_mode = None
+                elif force_web_search:
+                    # Prompt forces web search ON - ensure search is active regardless of user pref
+                    if not web_search_mode or web_search_mode == 'none':
+                        web_search_mode = 'native'
+                    if web_search_mode == 'native':
+                        if machine in NATIVE_SEARCH_PROVIDERS:
+                            filtered_tools = [t for t in tools if t['function']['name'] != 'query_perplexity']
+                        else:
+                            web_search_mode = 'perplexity'
+                elif not user_web_search_enabled:
+                    # User disabled web search - remove all search tools
+                    filtered_tools = [t for t in tools if t['function']['name'] != 'query_perplexity']
+                    web_search_mode = None
                 elif web_search_mode == 'native':
                     if machine in NATIVE_SEARCH_PROVIDERS:
-                        # This provider has native search - remove perplexity, provider adds its own tool
                         filtered_tools = [t for t in tools if t['function']['name'] != 'query_perplexity']
                     else:
-                        # This provider doesn't have native search - keep perplexity as fallback
-                        web_search_mode = 'perplexity'  # Override so provider doesn't try native
+                        web_search_mode = 'perplexity'
                 # else: 'perplexity' mode - keep query_perplexity (current behavior)
 
                 # Filter advanceExtension tool: only include when extensions + auto_advance are active
@@ -1925,6 +1959,7 @@ async def get_ai_response(
                     "llm_id": llm_id,
                     "save_to_db": save_to_db,
                     "web_search_mode": web_search_mode,
+                    "byok": byok,
                 }
 
                 # Add tools if available for this provider
@@ -2130,6 +2165,7 @@ async def get_ai_response(
                             watchdog_hint_active=watchdog_hint_active,
                             watchdog_hint_eval_id=watchdog_hint_eval_id,
                             llm_id=llm_id,
+                            byok=byok,
                         ):
                             yield chunk
 
@@ -2680,7 +2716,7 @@ def _build_tool_response_messages(api_messages: list, tool_call: dict, tool_resu
 
 async def call_o1_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, user_api_key=None,
                       prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
-                      llm_id=None, save_to_db: bool = True, web_search_mode=None):
+                      llm_id=None, save_to_db: bool = True, web_search_mode=None, byok: bool = False):
     global stop_signals
     logger.debug("enters call_o1_api")
 
@@ -2757,7 +2793,7 @@ async def call_o1_api(messages, model, temperature, max_tokens, prompt, conversa
     if save_to_db:
         user_message_id, bot_message_id = await save_content_to_db(content, input_tokens, output_tokens, total_tokens, conversation_id, user_id, model, user_message=user_message,
                                                                     prompt_id=prompt_id, watchdog_config=watchdog_config, watchdog_hint_active=watchdog_hint_active, watchdog_hint_eval_id=watchdog_hint_eval_id,
-                                                                    llm_id=llm_id)
+                                                                    llm_id=llm_id, byok=byok)
         if user_message_id and bot_message_id:
             yield f"data: {orjson.dumps({'message_ids': {'user': user_message_id, 'bot': bot_message_id}}).decode()}\n\n"
 
@@ -2769,7 +2805,7 @@ async def call_o1_api(messages, model, temperature, max_tokens, prompt, conversa
 
 async def call_llm_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, api_url, api_key, user_message=None, extra_headers=None, custom_timeout=None, tools=None,
                        prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
-                       llm_id=None, save_to_db: bool = True, web_search_mode=None):
+                       llm_id=None, save_to_db: bool = True, web_search_mode=None, byok: bool = False):
     """
     Generic LLM API call function for OpenAI-compatible APIs.
     Used by GPT, xAI, and OpenRouter.
@@ -2976,7 +3012,7 @@ async def call_llm_api(messages, model, temperature, max_tokens, prompt, convers
     if save_to_db:
         user_message_id, bot_message_id = await save_content_to_db(content, input_tokens, output_tokens, total_tokens, conversation_id, current_user.id, model, user_message=user_message,
                                                                     prompt_id=prompt_id, watchdog_config=watchdog_config, watchdog_hint_active=watchdog_hint_active, watchdog_hint_eval_id=watchdog_hint_eval_id,
-                                                                    llm_id=llm_id)
+                                                                    llm_id=llm_id, byok=byok)
         if user_message_id and bot_message_id:
             yield f"data: {orjson.dumps({'message_ids': {'user': user_message_id, 'bot': bot_message_id}}).decode()}\n\n"
 
@@ -2987,7 +3023,7 @@ async def call_llm_api(messages, model, temperature, max_tokens, prompt, convers
 
 async def call_gpt_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, user_api_key=None, tools=None,
                        prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
-                       llm_id=None, save_to_db: bool = True, web_search_mode=None):
+                       llm_id=None, save_to_db: bool = True, web_search_mode=None, byok: bool = False):
     api_url = "https://api.openai.com/v1/chat/completions"
     api_key = user_api_key or openai.api_key  # Use user's key if provided
 
@@ -3011,6 +3047,7 @@ async def call_gpt_api(messages, model, temperature, max_tokens, prompt, convers
         llm_id=llm_id,
         save_to_db=save_to_db,
         web_search_mode=web_search_mode,
+        byok=byok,
     ):
         yield chunk
 
@@ -3080,7 +3117,7 @@ def _convert_messages_for_responses_api(messages: list) -> list:
 
 async def call_gpt_responses_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, user_api_key=None, tools=None,
                                   prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
-                                  llm_id=None, save_to_db: bool = True, web_search_mode=None):
+                                  llm_id=None, save_to_db: bool = True, web_search_mode=None, byok: bool = False):
     """
     OpenAI Responses API call function. Replaces call_gpt_api for all OpenAI calls.
     Uses /v1/responses endpoint with semantic SSE events instead of Chat Completions.
@@ -3337,7 +3374,7 @@ async def call_gpt_responses_api(messages, model, temperature, max_tokens, promp
         citations_data = orjson.dumps(citations).decode() if citations else None
         user_message_id, bot_message_id = await save_content_to_db(content, input_tokens, output_tokens, total_tokens, conversation_id, current_user.id, model, user_message=user_message,
                                                                     prompt_id=prompt_id, watchdog_config=watchdog_config, watchdog_hint_active=watchdog_hint_active, watchdog_hint_eval_id=watchdog_hint_eval_id,
-                                                                    llm_id=llm_id, citations_json=citations_data)
+                                                                    llm_id=llm_id, citations_json=citations_data, byok=byok)
         if user_message_id and bot_message_id:
             yield f"data: {orjson.dumps({'message_ids': {'user': user_message_id, 'bot': bot_message_id}}).decode()}\n\n"
 
@@ -3349,7 +3386,7 @@ async def call_gpt_responses_api(messages, model, temperature, max_tokens, promp
 
 async def call_xai_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, user_api_key=None, tools=None,
                        prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
-                       llm_id=None, save_to_db: bool = True, web_search_mode=None):
+                       llm_id=None, save_to_db: bool = True, web_search_mode=None, byok: bool = False):
     api_url = "https://api.x.ai/v1/chat/completions"
     api_key = user_api_key or xai_key  # Use user's key if provided
 
@@ -3373,13 +3410,14 @@ async def call_xai_api(messages, model, temperature, max_tokens, prompt, convers
         llm_id=llm_id,
         save_to_db=save_to_db,
         web_search_mode=web_search_mode,
+        byok=byok,
     ):
         yield chunk
 
 
 async def call_xai_responses_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, user_api_key=None, tools=None,
                                   prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
-                                  llm_id=None, save_to_db: bool = True, web_search_mode=None):
+                                  llm_id=None, save_to_db: bool = True, web_search_mode=None, byok: bool = False):
     """
     xAI Responses API call function. Replaces call_xai_api for all xAI/Grok calls.
     Uses /v1/responses endpoint with semantic SSE events instead of Chat Completions.
@@ -3625,7 +3663,7 @@ async def call_xai_responses_api(messages, model, temperature, max_tokens, promp
         citations_data = orjson.dumps(citations).decode() if citations else None
         user_message_id, bot_message_id = await save_content_to_db(content, input_tokens, output_tokens, total_tokens, conversation_id, current_user.id, model, user_message=user_message,
                                                                     prompt_id=prompt_id, watchdog_config=watchdog_config, watchdog_hint_active=watchdog_hint_active, watchdog_hint_eval_id=watchdog_hint_eval_id,
-                                                                    llm_id=llm_id, citations_json=citations_data)
+                                                                    llm_id=llm_id, citations_json=citations_data, byok=byok)
         if user_message_id and bot_message_id:
             yield f"data: {orjson.dumps({'message_ids': {'user': user_message_id, 'bot': bot_message_id}}).decode()}\n\n"
 
@@ -3637,7 +3675,7 @@ async def call_xai_responses_api(messages, model, temperature, max_tokens, promp
 
 async def call_openrouter_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, user_api_key=None, tools=None,
                               prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
-                              llm_id=None, save_to_db: bool = True, web_search_mode=None):
+                              llm_id=None, save_to_db: bool = True, web_search_mode=None, byok: bool = False):
     """
     Call OpenRouter unified API - 100% OpenAI compatible.
 
@@ -3693,13 +3731,14 @@ async def call_openrouter_api(messages, model, temperature, max_tokens, prompt, 
         llm_id=llm_id,
         save_to_db=save_to_db,
         web_search_mode=web_search_mode,
+        byok=byok,
     ):
         yield chunk
 
 
 async def call_claude_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, thinking_budget_tokens=None, user_api_key=None, tools=None,
                           prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
-                          llm_id=None, save_to_db: bool = True, web_search_mode=None):
+                          llm_id=None, save_to_db: bool = True, web_search_mode=None, byok: bool = False):
     global stop_signals
     logger.debug("Entering call_claude_api")
 
@@ -4029,7 +4068,7 @@ async def call_claude_api(messages, model, temperature, max_tokens, prompt, conv
         citations_data = orjson.dumps(all_citations).decode() if all_citations else None
         user_message_id, bot_message_id = await save_content_to_db(content, input_tokens, output_tokens, total_tokens, conversation_id, user_id, model, user_message=user_message,
                                                                     prompt_id=prompt_id, watchdog_config=watchdog_config, watchdog_hint_active=watchdog_hint_active, watchdog_hint_eval_id=watchdog_hint_eval_id,
-                                                                    llm_id=llm_id, citations_json=citations_data)
+                                                                    llm_id=llm_id, citations_json=citations_data, byok=byok)
         if user_message_id and bot_message_id:
             yield f"data: {orjson.dumps({'message_ids': {'user': user_message_id, 'bot': bot_message_id}}).decode()}\n\n"
 
@@ -4040,7 +4079,7 @@ async def call_claude_api(messages, model, temperature, max_tokens, prompt, conv
 
 async def call_gemini_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, user_api_key=None, tools=None,
                           prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
-                          llm_id=None, save_to_db: bool = True, web_search_mode=None):
+                          llm_id=None, save_to_db: bool = True, web_search_mode=None, byok: bool = False):
     global stop_signals
     logger.info("Entering call_gemini_api")
     user_id = current_user.id
@@ -4190,7 +4229,7 @@ async def call_gemini_api(messages, model, temperature, max_tokens, prompt, conv
             citations_data = orjson.dumps(citations).decode() if citations else None
             user_message_id, bot_message_id = await save_content_to_db(content, input_tokens, output_tokens, total_tokens, conversation_id, user_id, model, user_message=user_message,
                                                                         prompt_id=prompt_id, watchdog_config=watchdog_config, watchdog_hint_active=watchdog_hint_active, watchdog_hint_eval_id=watchdog_hint_eval_id,
-                                                                        llm_id=llm_id, citations_json=citations_data)
+                                                                        llm_id=llm_id, citations_json=citations_data, byok=byok)
             if user_message_id and bot_message_id:
                 yield f"data: {orjson.dumps({'message_ids': {'user': user_message_id, 'bot': bot_message_id}}).decode()}\n\n"
         except Exception as e:
@@ -4546,7 +4585,7 @@ def get_directions(origin: str, destination: str, api_key: str, mode: str = "tra
 
 async def handle_function_call(function_name, function_arguments, messages, model, temperature, max_tokens, content, conversation_id, current_user, request, input_tokens, output_tokens, total_tokens, message_id, user_id, client, prompt, user_message=None,
                                prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
-                               llm_id=None):
+                               llm_id=None, byok: bool = False):
     save_to_db = True
     final_content = ""
     # Initialize with pre-tool content from Claude (if any)
@@ -4621,6 +4660,7 @@ async def handle_function_call(function_name, function_arguments, messages, mode
                 "watchdog_hint_active": watchdog_hint_active,
                 "watchdog_hint_eval_id": watchdog_hint_eval_id,
                 "llm_id": llm_id,
+                "byok": byok,
             }
 
             # System prompt dedup for Chat Completions providers
@@ -4872,7 +4912,7 @@ async def handle_function_call(function_name, function_arguments, messages, mode
     if save_to_db:
         user_message_id, bot_message_id = await save_content_to_db(content_to_save, input_tokens, output_tokens, total_tokens, conversation_id, user_id, model, user_message=user_message,
                                                                     prompt_id=prompt_id, watchdog_config=watchdog_config, watchdog_hint_active=watchdog_hint_active, watchdog_hint_eval_id=watchdog_hint_eval_id,
-                                                                    llm_id=llm_id)
+                                                                    llm_id=llm_id, byok=byok)
         if user_message_id and bot_message_id:
             yield f"data: {orjson.dumps({'message_ids': {'user': user_message_id, 'bot': bot_message_id}}).decode()}\n\n"
         
@@ -4882,7 +4922,7 @@ async def handle_function_call(function_name, function_arguments, messages, mode
 
 async def save_content_to_db(content, input_tokens, output_tokens, total_tokens, conversation_id, user_id, model, user_message=None,
                              prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
-                             llm_id=None, citations_json=None):
+                             llm_id=None, citations_json=None, byok=False):
     # logger.info(f"Complete AI message:\n {content}")  # Commented to avoid encoding issues with emojis
     logger.info(f"Tokens usados:\ninput_tokens: {input_tokens}\noutput_tokens: {output_tokens}\ntotal_tokens: {total_tokens}")
 
@@ -4964,7 +5004,8 @@ async def save_content_to_db(content, input_tokens, output_tokens, total_tokens,
                         output_token_cost_per_million,
                         conn,
                         cursor,
-                        prompt_id=prompt_id
+                        prompt_id=prompt_id,
+                        byok=byok,
                     )
 
                     await conn.commit()
@@ -5122,6 +5163,14 @@ def build_multi_ai_message(results: dict, model_ids: list) -> str:
     return orjson.dumps({"multi_ai": True, "responses": responses}).decode()
 
 
+async def _is_prompt_paid(prompt_id: int) -> bool:
+    """Check if a prompt is a paid prompt."""
+    async with get_db_connection(readonly=True) as conn:
+        cursor = await conn.execute("SELECT is_paid FROM PROMPTS WHERE id = ?", (prompt_id,))
+        row = await cursor.fetchone()
+        return bool(row[0]) if row else False
+
+
 class MultiAiBillingError(RuntimeError):
     """Raised when Multi-AI billing cannot be completed atomically."""
 
@@ -5139,6 +5188,7 @@ async def save_multi_ai_to_db(
     watchdog_config: Optional[dict] = None,
     watchdog_hint_active: bool = False,
     watchdog_hint_eval_id: Optional[int] = None,
+    byok_models: set = None,
 ) -> tuple:
     """Save Multi-AI response as a single bot message. Bill each model separately.
 
@@ -5183,6 +5233,7 @@ async def save_multi_ai_to_db(
                     bot_msg_id = bot_row[0] if bot_row else None
 
                     # Bill each model separately
+                    _byok_set = byok_models or set()
                     for llm_id in model_ids:
                         r = results[llm_id]
                         if r.get("error"):
@@ -5207,6 +5258,7 @@ async def save_multi_ai_to_db(
                             conn,
                             cursor,
                             prompt_id=prompt_id,
+                            byok=llm_id in _byok_set,
                         )
                         if not bill_result:
                             raise MultiAiBillingError(
@@ -5448,7 +5500,8 @@ async def process_multi_ai_message(
             """SELECT c.locked, c.llm_id, c.user_id, c.chat_name, c.role_id,
                       COALESCE(p.enable_moderation, 0) AS enable_moderation,
                       COALESCE(p.forced_llm_id, 0) AS forced_llm_id,
-                      p.allowed_llms
+                      p.allowed_llms,
+                      COALESCE(p.force_web_search, 0) AS force_web_search
                FROM CONVERSATIONS c
                LEFT JOIN PROMPTS p ON c.role_id = p.id
                WHERE c.id = ?""",
@@ -5460,7 +5513,7 @@ async def process_multi_ai_message(
         yield f"data: {orjson.dumps({'error': 'Conversation not found'}).decode()}\n\n"
         return
 
-    is_locked, conv_llm_id, conv_user_id, chat_name, prompt_id, enable_moderation, forced_llm_id, allowed_llms_raw = conv_row
+    is_locked, conv_llm_id, conv_user_id, chat_name, prompt_id, enable_moderation, forced_llm_id, allowed_llms_raw, force_web_search = conv_row
 
     # Verify user owns conversation
     if current_user.id != conv_user_id:
@@ -5502,6 +5555,11 @@ async def process_multi_ai_message(
     # Reject Multi-AI if prompt has forced_llm_id
     if forced_llm_id:
         yield f"data: {orjson.dumps({'error': 'This prompt requires a specific model and cannot use Multi-AI'}).decode()}\n\n"
+        return
+
+    # Reject Multi-AI if prompt forces web search (Multi-AI disables all tools)
+    if force_web_search:
+        yield f"data: {orjson.dumps({'error': 'This prompt requires web search and cannot use Multi-AI'}).decode()}\n\n"
         return
 
     # Enforce allowed_llms strictly if set on prompt
@@ -5757,8 +5815,22 @@ async def process_multi_ai_message(
         return
 
     # --- 6. Balance check ---
+    # Determine which models are BYOK (user's own API key)
+    byok_models = {mid for mid in model_ids if resolved_keys.get(mid) is not None}
+    all_byok = len(byok_models) == len(model_ids)
+    prompt_is_paid = bool(prompt_id) and await _is_prompt_paid(prompt_id)
+
+    from common import BYOK_MIN_BALANCE_PAID_PROMPT
+
     current_balance = await get_balance(current_user.id)
-    if current_balance <= 0:
+
+    if all_byok:
+        # All models use user's keys - no API cost to platform
+        if prompt_is_paid and current_balance < BYOK_MIN_BALANCE_PAID_PROMPT:
+            yield f"data: {orjson.dumps({'error': 'Insufficient balance for creator markup'}).decode()}\n\n"
+            return
+        # For all-BYOK free prompt, no balance needed at all
+    elif current_balance <= 0:
         yield f"data: {orjson.dumps({'error': 'Insufficient balance'}).decode()}\n\n"
         return
 
@@ -5784,6 +5856,7 @@ async def process_multi_ai_message(
         yield f"data: {orjson.dumps({'error': f'Cost configuration missing for models: {missing_cost_ids}'}).decode()}\n\n"
         return
 
+    # Only sum costs for system-key models (BYOK models have zero API cost)
     sum_input_cost_per_token = 0.0
     sum_output_cost_per_token = 0.0
     for mid in model_ids:
@@ -5797,39 +5870,42 @@ async def process_multi_ai_message(
             yield f"data: {orjson.dumps({'error': f'Invalid input token cost for model: {model_name}'}).decode()}\n\n"
             return
 
-        sum_input_cost_per_token += input_cost_million / 1_000_000
-        sum_output_cost_per_token += output_cost_million / 1_000_000
+        if mid not in byok_models:
+            sum_input_cost_per_token += input_cost_million / 1_000_000
+            sum_output_cost_per_token += output_cost_million / 1_000_000
 
-    if sum_output_cost_per_token <= 0:
+    if all_byok:
+        # All BYOK: no API cost constraint on token count
+        max_tokens = MAX_TOKENS
+    elif sum_output_cost_per_token <= 0:
         yield f"data: {orjson.dumps({'error': 'Invalid model cost configuration'}).decode()}\n\n"
         return
+    else:
+        estimated_input_cost = input_tokens_est * sum_input_cost_per_token
+        if estimated_input_cost >= current_balance:
+            yield f"data: {orjson.dumps({'error': 'Insufficient balance'}).decode()}\n\n"
+            return
 
-    estimated_input_cost = input_tokens_est * sum_input_cost_per_token
-    if estimated_input_cost >= current_balance:
-        yield f"data: {orjson.dumps({'error': 'Insufficient balance'}).decode()}\n\n"
-        return
+        available_for_output = current_balance - estimated_input_cost
+        max_affordable_tokens = int(available_for_output / sum_output_cost_per_token)
+        max_tokens = int(min(MAX_TOKENS, max_affordable_tokens))
 
-    available_for_output = current_balance - estimated_input_cost
-    max_affordable_tokens = int(available_for_output / sum_output_cost_per_token)
-    max_tokens = int(min(MAX_TOKENS, max_affordable_tokens))
+        while max_tokens > 0:
+            estimated_total_cost = estimated_input_cost + (max_tokens * sum_output_cost_per_token)
+            if estimated_total_cost <= current_balance:
+                break
+            max_tokens -= 1
 
-    while max_tokens > 0:
-        estimated_total_cost = estimated_input_cost + (max_tokens * sum_output_cost_per_token)
-        if estimated_total_cost <= current_balance:
-            break
-        max_tokens -= 1
-
-    if max_tokens < 1:
-        yield f"data: {orjson.dumps({'error': 'Insufficient balance'}).decode()}\n\n"
-        return
+        if max_tokens < 1:
+            yield f"data: {orjson.dumps({'error': 'Insufficient balance'}).decode()}\n\n"
+            return
 
     logger.info(
-        "[process_multi_ai_message] Cost pre-check passed: models=%s, est_input_cost=%.6f, "
-        "max_tokens=%d, est_total_cost=%.6f, balance=%.6f",
+        "[process_multi_ai_message] Cost pre-check passed: models=%s, byok_models=%s, "
+        "max_tokens=%d, balance=%.6f",
         model_ids,
-        estimated_input_cost,
+        list(byok_models),
         max_tokens,
-        estimated_input_cost + (max_tokens * sum_output_cost_per_token),
         current_balance,
     )
 
@@ -5921,6 +5997,7 @@ async def process_multi_ai_message(
             watchdog_config=watchdog_config,
             watchdog_hint_active=watchdog_hint_active,
             watchdog_hint_eval_id=watchdog_hint_eval_id,
+            byok_models=byok_models,
         )
 
         yield f"data: {orjson.dumps({'message_ids': {'user': user_msg_id, 'bot': bot_msg_id}}).decode()}\n\n"

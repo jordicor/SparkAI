@@ -15,6 +15,8 @@ import shutil
 from pathlib import Path
 from typing import Optional
 
+from common import fix_landing_seo_tags
+
 # Project root directory (where this file lives)
 PROJECT_ROOT = Path(__file__).parent.absolute()
 IMAGE_CLI_PATH = PROJECT_ROOT / "tools" / "generate_images_cli.py"
@@ -95,6 +97,31 @@ def find_claude_executable() -> str:
         "Claude Code CLI not found. Install with: irm https://claude.ai/install.ps1 | iex (PowerShell) "
         "or see: https://code.claude.com/docs/en/setup"
     )
+
+
+def _apply_seo_fix(prompt_dir: Path, landing_url: str) -> None:
+    """
+    Post-process home.html to fix SEO meta tags with absolute URLs.
+
+    Only runs when landing_url is a valid https:// URL (requires PRIMARY_APP_DOMAIN).
+    Reads home.html, applies fix_landing_seo_tags, and writes it back in-place.
+    """
+    if not landing_url or not landing_url.startswith("https://"):
+        return
+
+    home_path = prompt_dir / "home.html"
+    if not home_path.exists():
+        return
+
+    try:
+        html = home_path.read_text(encoding="utf-8")
+        # static_base_url = landing_url so relative assets resolve correctly
+        fixed = fix_landing_seo_tags(html, landing_url, landing_url)
+        if fixed != html:
+            home_path.write_text(fixed, encoding="utf-8")
+    except Exception:
+        # Non-critical: SEO fix failure should not break the wizard result
+        pass
 
 
 WIZARD_PROMPT_TEMPLATE = """
@@ -342,6 +369,9 @@ def generate_landing(
                     created_files.append(f"static/img/{img_file.name}")
 
         if created_files:
+            # Post-process: fix SEO meta tags with absolute URLs
+            _apply_seo_fix(prompt_dir, landing_url)
+
             return {
                 "success": True,
                 "files_created": created_files,
@@ -526,7 +556,8 @@ def modify_landing(
     timeout: int = 180,
     product_name: str = "",
     ai_system_prompt: str = "",
-    product_description: str = ""
+    product_description: str = "",
+    landing_url: str = ""
 ) -> dict:
     """
     Modify an existing landing page using Claude Code.
@@ -538,6 +569,7 @@ def modify_landing(
         product_name: Name of the prompt/product
         ai_system_prompt: The AI's system prompt (for context, not to be role-played)
         product_description: Additional description from the prompt record
+        landing_url: Absolute URL of the landing page (for SEO meta tag post-processing)
 
     Returns:
         dict with success status and details
@@ -611,6 +643,9 @@ def modify_landing(
         # For modify, we consider it successful if Claude ran without error
         # We can't easily detect what changed, so we trust the process
         if result.returncode == 0:
+            # Post-process: fix SEO meta tags with absolute URLs
+            _apply_seo_fix(prompt_dir, landing_url)
+
             return {
                 "success": True,
                 "message": "Modifications applied successfully",

@@ -236,7 +236,7 @@
     <!-- Section: Welcome Message -->
     <div class="section-container">
         <div class="section-title"><i class="fas fa-hand-wave me-2"></i>Welcome Message</div>
-        <p class="text-muted small mb-2">HTML welcome message shown to users on the home page for this prompt.</p>
+        <p class="text-muted small mb-2">Welcome Message (shown on Home page to users who have access)</p>
         <textarea id="prompt-welcome-editor" class="form-control" rows="6" placeholder="Write HTML content for your welcome message..."></textarea>
         <div class="mt-2 d-flex gap-2">
             <button type="button" class="btn btn-sm btn-primary" onclick="savePromptWelcome()">
@@ -251,7 +251,7 @@
     <!-- Section: Welcome Page (AI Wizard) -->
     <div class="section-container">
         <div class="section-title">
-            <i class="fas fa-door-open me-2"></i>Welcome Page
+            <i class="fas fa-door-open me-2"></i>Welcome Page (full landing page at /welcome/...)
             <span id="welcome-status-badge" class="badge bg-secondary ms-2" style="font-size: 0.75rem;">Checking...</span>
         </div>
         <p class="text-muted small mb-3">
@@ -468,6 +468,14 @@
                         <i class="fas fa-globe-americas me-1 text-muted"></i>Disable Web Search
                     </label>
                     <small class="form-text text-muted d-block">Prevent AI from searching the internet when using this prompt</small>
+                </div>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="forceWebSearch" name="force_web_search"
+                           {% if force_web_search %}checked{% endif %}>
+                    <label class="form-check-label" for="forceWebSearch">
+                        <i class="fas fa-globe me-1 text-muted"></i>Force Web Search Always On
+                    </label>
+                    <small class="form-text text-muted d-block">Web search will always be active and users cannot disable it for this prompt</small>
                 </div>
                 <div class="mb-3 form-check">
                     <input type="checkbox" class="form-check-input" id="enableModeration" name="enable_moderation" {% if enable_moderation %}checked{% endif %}>
@@ -1119,15 +1127,15 @@
         }
     }
 
-    // Welcome Message Editor
+    // Welcome Message Editor (DB-backed endpoint)
     async function savePromptWelcome() {
         if (!promptId) return;
         const html = document.getElementById('prompt-welcome-editor').value;
         try {
-            const resp = await fetch(`/api/home/prompt/${promptId}/welcome`, {
+            const resp = await fetch(`/api/home/prompt/${promptId}/welcome-message`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ html })
+                body: JSON.stringify({ message: html })
             });
             if (resp.ok) {
                 NotificationModal.success('Saved', 'Welcome message saved.');
@@ -2025,6 +2033,14 @@
         // Initialize pricing preview
         updateEarningsPreview();
 
+        // Mutual exclusion: disable_web_search vs force_web_search
+        document.getElementById('disableWebSearch').addEventListener('change', function() {
+            if (this.checked) document.getElementById('forceWebSearch').checked = false;
+        });
+        document.getElementById('forceWebSearch').addEventListener('change', function() {
+            if (this.checked) document.getElementById('disableWebSearch').checked = false;
+        });
+
         // Add validation on public checkbox change
         document.getElementById('isPublic').addEventListener('change', function() {
             validateCategories();
@@ -2035,13 +2051,13 @@
         toggleExtensionsPanel();
         if (promptId) loadExtensions();
 
-        // Load welcome message
+        // Load welcome message (DB-backed endpoint)
         if (promptId) {
-            fetch(`/api/home/prompt/${promptId}/welcome`)
+            fetch(`/api/home/prompt/${promptId}/welcome-message`)
                 .then(r => r.ok ? r.json() : null)
                 .then(data => {
                     const editor = document.getElementById('prompt-welcome-editor');
-                    if (editor && data && data.html) editor.value = data.html;
+                    if (editor && data && data.message) editor.value = data.message;
                 })
                 .catch(() => {});
         }
