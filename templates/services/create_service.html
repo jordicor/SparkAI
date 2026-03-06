@@ -14,7 +14,7 @@
 
 {% block content %}
 <div class="section-container">
-    <form action="/admin/services/new" method="post">
+    <form action="/admin/services/new" method="post" data-form-guard>
         <div class="mb-3">
             <label for="name" class="form-label">Service Name</label>
             <input type="text" class="form-control" id="name" name="name" required>

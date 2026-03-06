@@ -362,23 +362,23 @@
                     <div class="flex-column">
                         <div class="mb-3">
                             <label for="voice" class="form-label">
-                                Voice Settings
+                                Your Voice
                                 <span class="info-icon" data-bs-toggle="tooltip" data-bs-html="true" title="
                                     This voice setting serves two purposes:
                                     <ul>
                                         <li>In the webchat: You can listen to your own messages read aloud by clicking the 'speaker' button.</li>
                                         <li>For MP3 exports: This voice will represent you in the exported conversation with the AI.</li>
                                     </ul>
-                                    Choose a voice that best represents you or fits the context of your interactions.
+                                    This does not affect the AI's voice. Choose a voice that best represents you.
                                 ">ℹ️</span>
                             </label>
                             <select class="form-select" id="voice" name="sample_voice_id">
                                 <!-- Options will be loaded dynamically with JavaScript -->
                             </select>
-                            <small class="form-text text-muted">Select the voice that will be used for your messages when listening in the chat or exporting conversations to MP3.</small>
                             <div id="playButtonContainer" class="mt-2">
                                 <!-- Play button and category dropdown will be added here -->
                             </div>
+                            <small class="form-text text-muted d-block mt-2">This does not change the AI's voice.<br>It sets how your messages sound in chat playback and MP3 exports.</small>
                         </div>
                     </div>
                 </div>
@@ -1108,6 +1108,8 @@
                         document.getElementById('password-match-status').textContent = '';
                         document.getElementById('req-length').className = 'invalid';
                         document.getElementById('req-different').className = 'invalid';
+                        // Re-snapshot form after password fields cleared
+                        FormGuard.markClean('#editProfileForm');
                     } else {
                         const data = await response.json();
                         if (response.status === 400 && data.detail === "Current password is incorrect") {

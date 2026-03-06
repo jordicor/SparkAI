@@ -606,7 +606,7 @@
     let audioPlayer = null;
 
     function loadVoices() {
-        fetch('/api/voices')
+        return fetch('/api/voices')
             .then(response => response.json())
             .then(voices => {
                 const voiceSelect = document.getElementById('voiceSelect');
@@ -701,7 +701,7 @@
     let selectedCategories = [];
 
     function loadCategories() {
-        fetch('/api/categories?include_restricted=true')
+        return fetch('/api/categories?include_restricted=true')
             .then(response => response.json())
             .then(categories => {
                 const grid = document.getElementById('categoriesGrid');
@@ -799,7 +799,7 @@
     }
 
     function loadLLMs() {
-        fetch('/api/llms')
+        return fetch('/api/llms')
             .then(response => response.json())
             .then(llms => {
                 const select = document.getElementById('forcedLLM');
@@ -1108,10 +1108,58 @@
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-        loadVoices();
-        loadCategories();
-        loadLLMs();
+        // FormGuard: prompt-main group
+        var promptMainGroup = FormGuard.createGroup('prompt-main');
+
+        var voicesReady = loadVoices();
+        var categoriesReady = loadCategories();
+        var llmsReady = loadLLMs();
         toggleLLMOptions();
+
+        // Snapshot the main form after synchronous fields are rendered
+        var mainFormHandle = promptMainGroup.watchSnapshot(document.getElementById('createPromptForm'), { exclude: [
+            'sample_voice_id',
+            'category_ids',
+            'allowed_llms',
+            'extensions_enabled',
+            'extensions_auto_advance',
+            'extensions_free_selection',
+            'watchdog_config'
+        ] });
+
+        // After each async hydration completes, watch the dynamic container
+        if (voicesReady && typeof voicesReady.then === 'function') {
+            voicesReady.then(function() {
+                var voiceContainer = document.getElementById('voiceSelect');
+                if (voiceContainer) {
+                    var h = promptMainGroup.watchWithListeners(voiceContainer.closest('.voice-section') || voiceContainer.parentElement);
+                    if (h) h.markClean();
+                }
+            });
+        }
+        if (categoriesReady && typeof categoriesReady.then === 'function') {
+            categoriesReady.then(function() {
+                var catContainer = document.getElementById('categoriesGrid');
+                if (catContainer) {
+                    var h = promptMainGroup.watchWithListeners(catContainer);
+                    if (h) h.markClean();
+                }
+            });
+        }
+        if (llmsReady && typeof llmsReady.then === 'function') {
+            llmsReady.then(function() {
+                var llmContainer = document.getElementById('llmCheckboxList');
+                if (llmContainer) {
+                    var h = promptMainGroup.watchWithListeners(llmContainer);
+                    if (h) h.markClean();
+                }
+                var forcedLLMContainer = document.getElementById('forcedLLM');
+                if (forcedLLMContainer) {
+                    var h2 = promptMainGroup.watchWithListeners(forcedLLMContainer.parentElement);
+                    if (h2) h2.markClean();
+                }
+            });
+        }
 
         // Initialize extensions panel
         toggleExtensionsPanel();
@@ -1128,6 +1176,13 @@
         document.getElementById('isPublic').addEventListener('change', function() {
             validateCategories();
             togglePricingSection();
+        });
+
+        // FormGuard: suspend on form POST submit
+        document.getElementById('createPromptForm').addEventListener('submit', function(e) {
+            setTimeout(function() {
+                if (!e.defaultPrevented) promptMainGroup.suspend();
+            }, 0);
         });
 
         // Form validation on submit

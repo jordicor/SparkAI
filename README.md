@@ -459,8 +459,8 @@ AURVEK/
 
 ```bash
 # Clone the repository
-git clone https://github.com/jordicor/SparkAI.git
-cd SparkAI
+git clone https://github.com/jordicor/Aurvek.git
+cd Aurvek
 
 # Create virtual environment
 python -m venv venv

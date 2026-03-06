@@ -247,6 +247,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 updatePreview();
                 updateBioCount();
             }
+
+            // FormGuard: start watching for unsaved changes after data is loaded
+            FormGuard.watchWithListeners(form);
+            FormGuard.markClean(form);
         } catch (e) {
             console.error('Failed to load profile:', e);
         }
@@ -365,6 +369,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             var data = await resp.json();
             if (data.success) {
+                FormGuard.markClean(form);
                 saveBtn.textContent = 'Saved!';
                 if (data.slug) {
                     slugInput.value = data.slug;

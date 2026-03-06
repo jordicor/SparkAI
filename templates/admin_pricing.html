@@ -36,7 +36,7 @@
 <div class="row">
     <!-- Configuration Form -->
     <div class="col-lg-7 mb-4">
-        <form id="pricingForm">
+        <form id="pricingForm" data-form-guard>
             <!-- Margins Section -->
             <div class="section-container">
                 <div class="section-title"><i class="fas fa-percentage me-2"></i>Platform Margins</div>
@@ -299,6 +299,7 @@
             const result = await response.json();
 
             if (result.success) {
+                FormGuard.markClean(document.getElementById('pricingForm'));
                 saveBtn.innerHTML = '<i class="fas fa-check me-1"></i> Saved!';
                 saveBtn.classList.remove('btn-primary');
                 saveBtn.classList.add('btn-success');

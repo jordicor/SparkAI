@@ -2,6 +2,7 @@ import io
 import os
 import orjson
 import shutil
+import sqlite3
 import logging
 from PIL import Image as PilImage
 from datetime import datetime, timedelta
@@ -139,33 +140,31 @@ async def process_prompt_image_upload(
 ):
     # Verify that current_user has permissions
     is_admin = await current_user.is_admin
-    is_owner = prompt_info['created_by_user_id'] == current_user.id
 
     async with get_db_connection(readonly=True) as conn:
         async with conn.cursor() as cursor:
             # Get the prompt owner
             await cursor.execute("""
-                SELECT u.username 
-                FROM Users u 
-                JOIN PROMPT_PERMISSIONS pp ON u.id = pp.user_id 
+                SELECT u.username
+                FROM Users u
+                JOIN PROMPT_PERMISSIONS pp ON u.id = pp.user_id
                 WHERE pp.prompt_id = ? AND pp.permission_level = 'owner'
             """, (prompt_id,))
             owner_result = await cursor.fetchone()
-            
+
             if not owner_result:
                 raise HTTPException(status_code=404, detail="Prompt owner not found")
-            
+
             owner_username = owner_result[0]
 
-            # Verify editing permissions
+            # Check if user has owner or edit permission
             await cursor.execute(
-                "SELECT permission_level FROM PROMPT_PERMISSIONS WHERE prompt_id = ? AND user_id = ?",
+                "SELECT 1 FROM PROMPT_PERMISSIONS WHERE prompt_id = ? AND user_id = ? AND permission_level IN ('owner', 'edit')",
                 (prompt_id, current_user.id)
             )
-            permission = await cursor.fetchone()
-            is_editor = permission and permission[0] == 'edit'
+            has_permission = await cursor.fetchone() is not None
 
-    if not (is_admin or is_owner or is_editor):
+    if not (is_admin or has_permission):
         raise HTTPException(status_code=403, detail="Access denied")
 
     # Prepare the directory and filenames
@@ -775,19 +774,27 @@ async def update_prompt(
                         (new_owner_id, prompt_id)
                     )
                 else:
-                    await cursor.execute(
-                        "INSERT INTO PROMPT_PERMISSIONS (prompt_id, user_id, permission_level) VALUES (?, ?, 'owner')",
-                        (prompt_id, new_owner_id)
-                    )
+                    try:
+                        await cursor.execute(
+                            "INSERT INTO PROMPT_PERMISSIONS (prompt_id, user_id, permission_level) VALUES (?, ?, 'owner')",
+                            (prompt_id, new_owner_id)
+                        )
+                    except sqlite3.IntegrityError:
+                        raise HTTPException(status_code=409, detail="Owner already assigned by another request")
             elif not current_owner_id and is_admin:
                 # If there is no current owner and the user is admin, assign the admin as owner
-                await cursor.execute(
-                    "INSERT INTO PROMPT_PERMISSIONS (prompt_id, user_id, permission_level) VALUES (?, ?, 'owner')",
-                    (prompt_id, current_user.id)
-                )
+                try:
+                    await cursor.execute(
+                        "INSERT INTO PROMPT_PERMISSIONS (prompt_id, user_id, permission_level) VALUES (?, ?, 'owner')",
+                        (prompt_id, current_user.id)
+                    )
+                except sqlite3.IntegrityError:
+                    raise HTTPException(status_code=409, detail="Owner already assigned by another request")
 
             # Update the editors
             await cursor.execute("DELETE FROM PROMPT_PERMISSIONS WHERE prompt_id = ? AND permission_level = 'edit'", (prompt_id,))
+            # Deduplicate editor IDs preserving order
+            editor_ids_list = list(dict.fromkeys(editor_ids_list))
             for editor_id in editor_ids_list:
                 await cursor.execute(
                     "INSERT INTO PROMPT_PERMISSIONS (prompt_id, user_id, permission_level) VALUES (?, ?, 'edit')",
@@ -1052,15 +1059,14 @@ async def delete_prompt_image(prompt_id: int, current_user: User = Depends(get_c
 
         # Verify permissions
         is_admin = await current_user.is_admin
-        is_owner = prompt_info['created_by_user_id'] == current_user.id
-        
+
         async with conn.execute(
-            "SELECT permission_level FROM PROMPT_PERMISSIONS WHERE prompt_id = ? AND user_id = ? AND permission_level IN ('owner', 'edit')", 
+            "SELECT permission_level FROM PROMPT_PERMISSIONS WHERE prompt_id = ? AND user_id = ? AND permission_level IN ('owner', 'edit')",
             (prompt_id, current_user.id)
         ) as cursor:
             has_permission = await cursor.fetchone() is not None
 
-        if not (is_admin or is_owner or has_permission):
+        if not (is_admin or has_permission):
             return JSONResponse(content={"success": False, "message": "Access denied"}, status_code=403)
 
         # Use the owner's username for the directory structure

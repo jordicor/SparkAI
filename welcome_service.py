@@ -143,7 +143,7 @@ async def _get_user_standalone_prompts(user_id: int) -> list[dict]:
     """Return prompts the user has access to that are NOT part of any pack they access."""
     async with get_db_connection(readonly=True) as conn:
         cursor = await conn.execute(
-            """SELECT pp.prompt_id AS id, pr.name
+            """SELECT DISTINCT pp.prompt_id AS id, pr.name
                FROM PROMPT_PERMISSIONS pp
                JOIN PROMPTS pr ON pr.id = pp.prompt_id
                WHERE pp.user_id = ?

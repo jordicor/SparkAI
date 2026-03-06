@@ -482,6 +482,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Clear hasServerKey flag when user edits a key input
+    manager.providers.forEach(function(provider) {
+        var input = document.getElementById('key-' + provider);
+        if (input) {
+            input.addEventListener('input', function() {
+                delete this.dataset.hasServerKey;
+            });
+        }
+    });
+
     // Test individual key
     document.querySelectorAll('.test-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -547,6 +557,8 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.innerHTML = '<i class="fas fa-save"></i> Save All';
 
         if (savedCount > 0) {
+            var credForm = document.getElementById('apiKeysForm');
+            if (credForm) FormGuard.markClean(credForm);
             NotificationModal.toast(`Saved ${savedCount} API key(s)`, 'success');
         } else {
             NotificationModal.toast('No new keys to save', 'info');
@@ -606,6 +618,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 manager.updateStatus(provider, '');
             }
 
+            var credForm = document.getElementById('apiKeysForm');
+            if (credForm) FormGuard.markClean(credForm);
             NotificationModal.toast('All API keys cleared', 'info');
         }, null, { type: 'error', confirmText: 'Clear All' });
     });
@@ -615,5 +629,13 @@ document.addEventListener('DOMContentLoaded', () => {
     tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl, { html: true });
     });
+
+    // FormGuard -- listener mode for API credentials
+    var _fgCredContainer = document.getElementById('apiKeysForm');
+    if (_fgCredContainer) {
+        FormGuard.watchWithListeners(_fgCredContainer);
+        // Mark clean after async key loading completes
+        setTimeout(function() { FormGuard.markClean(_fgCredContainer); }, 500);
+    }
 });
 

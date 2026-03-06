@@ -14183,6 +14183,8 @@ async def select_prompt(
                 SELECT permission_level
                 FROM PROMPT_PERMISSIONS
                 WHERE prompt_id = ? AND user_id = ?
+                ORDER BY CASE permission_level WHEN 'owner' THEN 1 WHEN 'edit' THEN 2 WHEN 'access' THEN 3 END
+                LIMIT 1
             """, (prompt_id, current_user.id))
             permission = await cursor.fetchone()
             is_owner = permission and permission[0] == 'owner'
@@ -20317,11 +20319,11 @@ async def update_prompt_categories(
         # Check permissions
         is_admin = await current_user.is_admin
         async with conn.execute(
-            "SELECT permission_level FROM PROMPT_PERMISSIONS WHERE prompt_id = ? AND user_id = ?",
+            "SELECT 1 FROM PROMPT_PERMISSIONS WHERE prompt_id = ? AND user_id = ? AND permission_level IN ('owner', 'edit')",
             (prompt_id, current_user.id)
         ) as cursor:
             perm = await cursor.fetchone()
-            has_permission = perm and perm[0] in ('owner', 'edit')
+            has_permission = perm is not None
 
         if not is_admin and not has_permission:
             raise HTTPException(status_code=403, detail="Access denied")
@@ -21179,11 +21181,10 @@ async def get_home_data(request: Request, current_user: User = Depends(get_curre
                 SELECT p.id, p.name, p.description, p.image, p.extensions_enabled,
                        (SELECT COUNT(*) FROM PROMPT_EXTENSIONS pe WHERE pe.prompt_id = p.id) as extension_count,
                        CASE WHEN p.created_by_user_id = ? THEN 1
-                            WHEN pp.permission_level = 'owner' THEN 1
+                            WHEN EXISTS (SELECT 1 FROM PROMPT_PERMISSIONS pp2 WHERE pp2.prompt_id = p.id AND pp2.user_id = ? AND pp2.permission_level = 'owner') THEN 1
                             ELSE 0 END as is_mine
                 FROM PROMPTS p
-                JOIN PROMPT_PERMISSIONS pp ON pp.prompt_id = p.id
-                WHERE pp.user_id = ?
+                WHERE EXISTS (SELECT 1 FROM PROMPT_PERMISSIONS pp WHERE pp.prompt_id = p.id AND pp.user_id = ?)
                 AND p.id NOT IN (
                     SELECT pi.prompt_id FROM PACK_ITEMS pi
                     JOIN PACK_ACCESS pa ON pa.pack_id = pi.pack_id
@@ -21191,7 +21192,7 @@ async def get_home_data(request: Request, current_user: User = Depends(get_curre
                 )
                 ORDER BY p.name
                 LIMIT 50
-            ''', (user_id, user_id, user_id))
+            ''', (user_id, user_id, user_id, user_id))
 
         loose_prompts = [dict(row) for row in await cursor.fetchall()]
 

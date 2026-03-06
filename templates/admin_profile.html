@@ -71,7 +71,7 @@
 {% block content %}
 {% if auth_provider in ('google', 'google_linked') and not has_password %}
 {# -- Set Password form for Google OAuth users without a password -- #}
-<form id="set-password-form">
+<form id="set-password-form" data-form-guard>
     <!-- Info Section -->
     <div class="section-container">
         <div class="section-title"><i class="fas fa-info-circle me-2"></i>Account Info</div>
@@ -145,7 +145,7 @@
 </form>
 {% else %}
 {# -- Standard Change Password form -- #}
-<form id="change-password-form">
+<form id="change-password-form" data-form-guard>
     <!-- Current Password Section -->
     <div class="section-container">
         <div class="section-title"><i class="fas fa-lock me-2"></i>Current Password</div>
@@ -315,6 +315,7 @@
             });
 
             if (response.ok) {
+                FormGuard.markClean(document.getElementById('set-password-form'));
                 successText.textContent = 'Password set successfully! Redirecting...';
                 successDiv.style.display = 'block';
                 setTimeout(() => {
@@ -439,6 +440,7 @@
             });
 
             if (response.ok) {
+                FormGuard.markClean(document.getElementById('change-password-form'));
                 successText.textContent = 'Password changed successfully! Redirecting...';
                 successDiv.style.display = 'block';
                 setTimeout(() => {

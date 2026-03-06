@@ -12,7 +12,7 @@
 {% block back_title %}Back to LLM List{% endblock %}
 
 {% block content %}
-<form id="createLlmForm" action="/admin/llm/new" method="post">
+<form id="createLlmForm" action="/admin/llm/new" method="post" data-form-guard>
 
     <!-- Section 1: Model Information -->
     <div class="section-container">

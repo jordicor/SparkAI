@@ -932,6 +932,21 @@
         const activeCustomDomain = null;
         {% endif %}
 
+        // FormGuard: watch the main content area for unsaved changes
+        document.addEventListener('DOMContentLoaded', function() {
+            var _fgContent = document.querySelector('.tab-content');
+            if (_fgContent) {
+                FormGuard.watchWithListeners(_fgContent);
+                FormGuard.markClean(_fgContent);
+            }
+            // Also watch the domain configuration form if present
+            var _fgDomainForm = document.getElementById('configureDomainForm');
+            if (_fgDomainForm) {
+                FormGuard.watchWithListeners(_fgDomainForm);
+                FormGuard.markClean(_fgDomainForm);
+            }
+        });
+
         // === AI Job Polling System ===
         let activeJobTaskId = null;
         let pollingInterval = null;
@@ -1051,7 +1066,7 @@
 
                 const data = await response.json();
                 if (data.success) {
-                    window.location.reload();
+                    FormGuard.reloadIfClean();
                 } else {
                     NotificationModal.error('Page Creation Failed', data.message || 'Error creating page');
                 }
@@ -1075,7 +1090,7 @@
 
                         const data = await response.json();
                         if (data.success) {
-                            window.location.reload();
+                            FormGuard.reloadIfClean();
                         } else {
                             NotificationModal.error('Page Deletion Failed', data.message || 'Error deleting page');
                         }
@@ -1103,7 +1118,7 @@
 
                         const data = await response.json();
                         if (data.success) {
-                            window.location.reload();
+                            FormGuard.reloadIfClean();
                         } else {
                             NotificationModal.error('Component Deletion Failed', data.message || 'Error deleting component');
                         }
@@ -1318,7 +1333,7 @@
                             bootstrap.Modal.getInstance(document.getElementById('wizardModal')).hide();
                             const filesCreated = result.files_created ? result.files_created.join(', ') : 'home.html';
                             NotificationModal.success('Landing Page Generated!', 'Files created: ' + filesCreated);
-                            window.location.reload();
+                            FormGuard.reloadIfClean();
                         },
                         // onError
                         (errorMsg) => {
@@ -1524,7 +1539,7 @@
                         (result) => {
                             bootstrap.Modal.getInstance(document.getElementById('modifyModal')).hide();
                             NotificationModal.success('Modifications Applied!', 'Your changes have been applied successfully.');
-                            window.location.reload();
+                            FormGuard.reloadIfClean();
                         },
                         // onError
                         (errorMsg) => {
@@ -1863,6 +1878,7 @@
                 const data = await response.json();
 
                 if (data.success) {
+                    FormGuard.markClean(document.querySelector('.tab-content'));
                     showRegSuccess();
                     // Update local config
                     regConfig = { ...regConfig, ...formData };
@@ -1931,8 +1947,9 @@
                     const data = await response.json();
 
                     if (response.ok && data.success) {
+                        FormGuard.markClean(document.getElementById('configureDomainForm'));
                         NotificationModal.success('Domain Configured!', `Next step: Point your CNAME to:\n${data.cname_target}`);
-                        window.location.reload();
+                        FormGuard.reloadIfClean();
                     } else {
                         NotificationModal.error('Domain Configuration Failed', data.detail || data.message || 'Error configuring domain');
                     }
@@ -1954,10 +1971,10 @@
 
                 if (data.success) {
                     NotificationModal.success('DNS Verification Successful!', data.message);
-                    window.location.reload();
+                    FormGuard.reloadIfClean();
                 } else {
                     NotificationModal.error('Verification Failed', data.error || data.message || 'Unknown error');
-                    window.location.reload();
+                    FormGuard.reloadIfClean();
                 }
             } catch (err) {
                 console.error('Error:', err);
@@ -1980,7 +1997,7 @@
 
                         if (response.ok && data.success) {
                             NotificationModal.success('Domain Activated!', 'Slots: ' + data.slots.used + '/' + data.slots.purchased + ' in use');
-                            window.location.reload();
+                            FormGuard.reloadIfClean();
                         } else {
                             NotificationModal.error('Activation Failed', data.detail || data.message || 'Error activating domain');
                         }
@@ -2023,10 +2040,10 @@
 
                         if (activateResponse.ok && activateData.success) {
                             NotificationModal.success('Domain Activated!', `Slot purchased: $${SLOT_PRICE.toFixed(2)}\nSlots: ${activateData.slots.used}/${activateData.slots.purchased} in use`);
-                            window.location.reload();
+                            FormGuard.reloadIfClean();
                         } else {
                             NotificationModal.warning('Partial Success', 'Slot purchased but activation failed: ' + (activateData.detail || activateData.message));
-                            window.location.reload();
+                            FormGuard.reloadIfClean();
                         }
                     } catch (err) {
                         console.error('Error:', err);
@@ -2053,7 +2070,7 @@
 
                         if (response.ok && data.success) {
                             NotificationModal.success('Domain Activated!', 'Domain activated successfully (free)!');
-                            window.location.reload();
+                            FormGuard.reloadIfClean();
                         } else {
                             NotificationModal.error('Activation Failed', data.detail || data.message || 'Error activating domain');
                         }
@@ -2082,7 +2099,7 @@
 
                         if (response.ok && data.success) {
                             NotificationModal.success('Domain Deactivated', 'Slots: ' + data.slots.used + '/' + data.slots.purchased + ' in use');
-                            window.location.reload();
+                            FormGuard.reloadIfClean();
                         } else {
                             NotificationModal.error('Deactivation Failed', data.detail || data.message || 'Error deactivating domain');
                         }
@@ -2111,7 +2128,7 @@
 
                         if (response.ok && data.success) {
                             NotificationModal.success('Domain Removed', 'Domain configuration has been removed.');
-                            window.location.reload();
+                            FormGuard.reloadIfClean();
                         } else {
                             NotificationModal.error('Removal Failed', data.detail || data.message || 'Error removing domain');
                         }
@@ -2322,6 +2339,7 @@
                 const data = await response.json();
 
                 if (data.success) {
+                    FormGuard.markClean(document.querySelector('.tab-content'));
                     NotificationModal.success('Geo-Blocking Saved', 'Geo-blocking settings saved and synced to Cloudflare');
                 } else {
                     NotificationModal.error('Geo-Blocking Error', data.message || 'Failed to save geo-blocking settings');

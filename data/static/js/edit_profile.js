@@ -27,6 +27,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     initializeAlterEgoHandlers();
+
+    // FormGuard -- snapshot with excluded async-loaded fields
+    FormGuard.watch('#editProfileForm', {
+        exclude: ['sample_voice_id', 'alter_ego_id']
+    });
 });
 
 // Initialize when DOM is ready
@@ -98,6 +103,8 @@ function loadVoices() {
                 voiceSelect.value = currentUserVoiceId;
             }
             addPlayButton();
+            // Re-snapshot form after voice hydration
+            FormGuard.markClean('#editProfileForm');
         })
         .catch(error => console.error('Error loading voices:', error));
 }
@@ -371,8 +378,13 @@ async function handleFormSubmit(event) {
             currentAlterEgoId = formData.get('alter_ego_id');
             // Save after-login and web search preferences alongside profile
             Promise.all([saveAfterLoginPreference(), saveWebSearchSettings()])
-                .then(() => NotificationModal.success('Success', 'Profile updated successfully'))
-                .catch(() => NotificationModal.success('Success', 'Profile updated successfully'));
+                .then(function() {
+                    FormGuard.markClean('#editProfileForm');
+                    NotificationModal.success('Success', 'Profile updated successfully');
+                })
+                .catch(function(err) {
+                    NotificationModal.error('Error', 'Some preferences failed to save: ' + err.message);
+                });
         } else {
             NotificationModal.error('Error', 'Error updating profile: ' + data.message);
         }
@@ -416,6 +428,8 @@ function loadAlterEgos(currentAlterEgoId) {
             } else {
                 document.getElementById('alterEgoDetails').innerHTML = '';
             }
+            // Re-snapshot form after alter-ego hydration
+            FormGuard.markClean('#editProfileForm');
         } else {
             console.error('Error loading alter-egos:', data.message);
         }
@@ -927,7 +941,7 @@ document.getElementById('deleteAccountBtn').addEventListener('click', (e) => {
 
                         if (!response) return; // Session expired
                         if (response.ok) {
-                            window.location.href = '/logout';
+                            FormGuard.navigate('/logout', { bypass: true });
                         } else {
                             const data = await response.json();
                             throw new Error(data.detail || 'Error deleting account');
@@ -1035,6 +1049,7 @@ function saveAfterLoginPreference() {
     })
     .then(response => {
         if (!response) return null;
+        if (!response.ok) throw new Error('Failed to save login preference');
         return response.json();
     });
 }
@@ -1053,6 +1068,7 @@ function saveWebSearchSettings() {
     })
     .then(response => {
         if (!response) return null;
+        if (!response.ok) throw new Error('Failed to save web search settings');
         return response.json();
     });
 }

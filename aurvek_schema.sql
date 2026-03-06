@@ -187,15 +187,17 @@ CREATE TABLE "PROMPT_PERMISSIONS" (
 
     id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-    prompt_id INTEGER,
+    prompt_id INTEGER NOT NULL,
 
-    user_id INTEGER,
+    user_id INTEGER NOT NULL,
 
-    permission_level TEXT,
+    permission_level TEXT NOT NULL CHECK(permission_level IN ('owner', 'edit', 'access')),
 
     FOREIGN KEY (prompt_id) REFERENCES PROMPTS (id),
 
-    FOREIGN KEY (user_id) REFERENCES USERS(id)
+    FOREIGN KEY (user_id) REFERENCES USERS(id),
+
+    UNIQUE(prompt_id, user_id, permission_level)
 
 );
 
@@ -874,7 +876,9 @@ CREATE INDEX idx_welcome_reads_user ON WELCOME_MESSAGE_READS(user_id);
 -- =============================================================================
 -- PERFORMANCE INDEXES (hot-path queries)
 -- =============================================================================
-CREATE INDEX idx_prompt_permissions_prompt_user ON PROMPT_PERMISSIONS(prompt_id, user_id);
+CREATE UNIQUE INDEX idx_prompt_permissions_single_owner ON PROMPT_PERMISSIONS(prompt_id) WHERE permission_level = 'owner';
+
+CREATE INDEX idx_prompt_permissions_user_prompt ON PROMPT_PERMISSIONS(user_id, prompt_id);
 CREATE INDEX idx_magic_links_token ON MAGIC_LINKS(token);
 CREATE INDEX idx_users_phone_number ON USERS(phone_number);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_unique ON USERS(phone_number) WHERE phone_number IS NOT NULL;

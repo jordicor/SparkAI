@@ -235,11 +235,21 @@
                     btn.classList.add('btn-success');
                     NotificationModal.toast(result.message || 'Pack saved', 'success');
 
+                    // FormGuard: mark groups clean after successful save
+                    if (typeof packMainGroup !== 'undefined') packMainGroup.markClean();
+                    if (typeof packTagsGroup !== 'undefined') packTagsGroup.markClean();
+                    if (typeof packCoverGroup !== 'undefined') {
+                        packCoverGroup._manualDirty = false;
+                        packCoverGroup.markClean();
+                    }
+
                     if (!isEdit && result.id) {
                         // Redirect to edit page after creation
-                        setTimeout(function() {
+                        if (typeof FormGuard !== 'undefined') {
+                            FormGuard.navigate('/admin/packs/edit/' + result.id, { bypass: true });
+                        } else {
                             window.location.href = '/admin/packs/edit/' + result.id;
-                        }, 800);
+                        }
                         return;
                     }
 
@@ -328,6 +338,7 @@
                     const row = document.querySelector('#packItemsBody tr[data-prompt-id="' + promptId + '"]');
                     if (row) row.remove();
                     renumberItems();
+                    if (typeof packItemsGroup !== 'undefined') packItemsGroup.markClean();
                     NotificationModal.toast('Prompt removed', 'success');
                 } else {
                     NotificationModal.toast(result.detail || 'Failed to remove prompt', 'danger');
@@ -501,6 +512,7 @@
                         '</td>';
                     tbody.appendChild(tr);
                 }
+                if (typeof packItemsGroup !== 'undefined') packItemsGroup.markClean();
                 NotificationModal.toast('"' + escapeHtml(prompt.name) + '" added to pack', 'success');
             } else {
                 NotificationModal.toast(result.detail || 'Failed to add prompt', 'danger');

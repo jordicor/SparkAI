@@ -93,7 +93,11 @@
 <script>
   function handleLogout(event) {
     event.preventDefault();
-    window.location.href = '/logout';
+    if (typeof FormGuard !== 'undefined') {
+      FormGuard.navigate('/logout', { bypass: true });
+    } else {
+      window.location.href = '/logout';
+    }
   }
 </script>
 <script src="{{ get_static_url('/static/js/themeManager.js') }}"></script>

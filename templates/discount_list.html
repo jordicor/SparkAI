@@ -63,7 +63,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <form id="editDiscountForm">
+                <form id="editDiscountForm" data-form-guard>
                     <input type="hidden" id="editCode" name="code">
                     <div class="mb-3">
                         <label for="editDiscountValue" class="form-label">Discount Value (%)</label>
@@ -128,6 +128,7 @@
         })
         .then(response => response.json())
         .then(data => {
+            FormGuard.markClean(document.getElementById('editDiscountForm'));
             NotificationModal.info('Discount Updated', data.message);
             $('#editDiscountModal').modal('hide');
             location.reload();

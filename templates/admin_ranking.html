@@ -80,7 +80,7 @@
 <div class="row">
     <!-- Configuration Form -->
     <div class="col-lg-7 mb-4">
-        <form id="rankingForm">
+        <form id="rankingForm" data-form-guard>
             <!-- Recalculation Mode Section -->
             <div class="section-container">
                 <div class="section-title"><i class="fas fa-sync-alt me-2"></i>Recalculation Mode</div>
@@ -424,6 +424,7 @@
             const result = await response.json();
 
             if (result.success) {
+                FormGuard.markClean(document.getElementById('rankingForm'));
                 saveBtn.innerHTML = '<i class="fas fa-check me-1"></i> Saved!';
                 saveBtn.classList.remove('btn-primary');
                 saveBtn.classList.add('btn-success');

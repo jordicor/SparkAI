@@ -89,7 +89,7 @@
     <div class="section-title" id="formCardHeader">
         <i class="fas fa-plus-circle"></i> Add New Category
     </div>
-    <form id="categoryForm">
+    <form id="categoryForm" data-form-guard>
         <input type="hidden" id="editCategoryId" value="">
 
         <div class="flex-row">
@@ -384,6 +384,7 @@
             const result = await response.json();
 
             if (response.ok) {
+                FormGuard.markClean(document.getElementById('categoryForm'));
                 showAlert(result.message || 'Category saved successfully', 'success');
                 setTimeout(() => location.reload(), 1000);
             } else {

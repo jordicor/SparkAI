@@ -464,6 +464,12 @@ body > .chat-menu-content .menu-separator {
     margin: 5px 0;
 }
 
+/* When portaled to body, theme .menu-above rules set bottom: calc(100% + 5px)
+   which collapses the container to 0 height under position:fixed. Reset it. */
+body > .chat-menu-content.menu-above {
+    bottom: auto;
+}
+
 /* =============================================
    Folder Actions - Show on Hover
    ============================================= */

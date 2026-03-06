@@ -331,6 +331,11 @@
             toggleThemeOptions();
             updatePreview();
 
+            // FormGuard: start watching for unsaved changes after data is loaded
+            var _fgBrandingContainer = document.querySelector('.col-lg-7');
+            FormGuard.watchWithListeners(_fgBrandingContainer);
+            FormGuard.markClean(_fgBrandingContainer);
+
         } catch (error) {
             console.error('Error loading branding:', error);
         }
@@ -366,6 +371,7 @@
                 throw new Error(result.error || 'Failed to save branding');
             }
 
+            FormGuard.markClean(document.querySelector('.col-lg-7'));
             btn.innerHTML = '<i class="fas fa-check me-1"></i>Saved!';
             btn.classList.remove('btn-primary');
             btn.classList.add('btn-success');
@@ -469,6 +475,9 @@
         if (selected) {
             selected.classList.add('selected');
         }
+        // Theme selection stores state in a JS variable, not via DOM input events
+        var _fgC = document.querySelector('.col-lg-7');
+        if (_fgC) FormGuard.markDirty(_fgC);
     }
 
     // Auto-update preview on input changes

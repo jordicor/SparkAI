@@ -58,7 +58,7 @@
             <span>Editing: <strong>{{ user_data.username }}</strong></span>
         </div>
 
-        <form id="editUserForm" action="/edit-user" method="post">
+        <form id="editUserForm" action="/edit-user" method="post" data-form-guard>
             <input type="hidden" name="username" value="{{ user_data.username }}">
 
             <!-- Section 1: User Credentials -->

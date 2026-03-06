@@ -627,8 +627,83 @@
 <script>
     const COMMISSION_RATE = {{ commission_rate|default(0.30) }};
     const MAX_FREE_BALANCE = {{ max_free_initial_balance|default(5.0) }};
+
+    // FormGuard: 5 guard groups for pack editing
+    var packMainGroup = FormGuard.createGroup('pack-main');
+    var packTagsGroup = FormGuard.createGroup('pack-tags');
+    var packCoverGroup = FormGuard.createGroup('pack-cover');
+    var packWelcomeGroup = FormGuard.createGroup('pack-welcome');
+    var packItemsGroup = FormGuard.createGroup('pack-items');
 </script>
 <script src="{{ get_static_url('/static/js/admin-packs.js') }}"></script>
+<script>
+    // FormGuard: initialize watchers after admin-packs.js has run
+    (function() {
+        var packForm = document.getElementById('packForm');
+        if (!packForm) return;
+
+        // pack-main: snapshot the main form
+        packMainGroup.watchSnapshot(packForm, { exclude: [] });
+        // Also watch dynamic containers with listeners
+        var lrcSection = document.querySelector('.section-container:has(#lrcBalance)') ||
+                         (document.getElementById('lrcBalance') ? document.getElementById('lrcBalance').closest('.section-container') : null);
+        if (lrcSection) {
+            var lrcHandle = packMainGroup.watchWithListeners(lrcSection);
+            if (lrcHandle) lrcHandle.markClean();
+        }
+
+        // pack-tags: manual dirty via MutationObserver on tagsContainer
+        var tagsContainer = document.getElementById('tagsContainer');
+        if (tagsContainer) {
+            var tagsWatcherHandle = packTagsGroup.watchWithListeners(tagsContainer);
+            if (tagsWatcherHandle) tagsWatcherHandle.markClean();
+            // Also observe DOM mutations for tag add/remove
+            var tagObserver = new MutationObserver(function() {
+                if (tagsWatcherHandle) tagsWatcherHandle.markDirty();
+            });
+            tagObserver.observe(tagsContainer, { childList: true, subtree: true });
+        }
+        var tagInput = document.getElementById('tagInput');
+        if (tagInput) {
+            packTagsGroup.watchWithListeners(tagInput.closest('.input-group') || tagInput.parentElement);
+        }
+
+        // pack-cover: manual dirty on file select
+        var coverInput = document.getElementById('coverImageInput');
+        if (coverInput) {
+            coverInput.addEventListener('change', function() {
+                if (this.files && this.files.length > 0) {
+                    packCoverGroup._manualDirty = true;
+                }
+            });
+            // Patch isDirty for cover group
+            var origCoverIsDirty = packCoverGroup.isDirty.bind(packCoverGroup);
+            packCoverGroup.isDirty = function() {
+                return origCoverIsDirty() || !!packCoverGroup._manualDirty;
+            };
+        }
+
+        // pack-welcome: watch the welcome editor section
+        var welcomeEditor = document.getElementById('pack-welcome-editor');
+        if (welcomeEditor) {
+            var welcomeSection = welcomeEditor.closest('.section-container');
+            if (welcomeSection) {
+                packWelcomeGroup.watchWithListeners(welcomeSection);
+            }
+        }
+
+        // pack-items: watch items table for mutations
+        var itemsBody = document.getElementById('packItemsBody');
+        if (itemsBody) {
+            var itemsHandle = packItemsGroup.watchWithListeners(itemsBody);
+            if (itemsHandle) itemsHandle.markClean();
+            var itemsObserver = new MutationObserver(function() {
+                if (itemsHandle) itemsHandle.markDirty();
+            });
+            itemsObserver.observe(itemsBody, { childList: true, subtree: true });
+        }
+    })();
+</script>
 <script>
     // Welcome Message Editor (DB-backed endpoint)
     (function() {
@@ -641,8 +716,12 @@
             .then(data => {
                 const editor = document.getElementById('pack-welcome-editor');
                 if (editor && data && data.message) editor.value = data.message;
+                // Mark welcome group clean after initial content load
+                if (typeof packWelcomeGroup !== 'undefined') packWelcomeGroup.markClean();
             })
-            .catch(() => {});
+            .catch(() => {
+                if (typeof packWelcomeGroup !== 'undefined') packWelcomeGroup.markClean();
+            });
     })();
 
     async function savePackWelcome() {
@@ -657,6 +736,7 @@
             });
             if (resp.ok) {
                 NotificationModal.success('Saved', 'Welcome message saved.');
+                if (typeof packWelcomeGroup !== 'undefined') packWelcomeGroup.markClean();
             } else {
                 NotificationModal.error('Save Failed', 'Failed to save welcome message.');
             }
@@ -934,26 +1014,28 @@
             }
         };
 
-        window.welcomeDeleteFiles = async function() {
-            const confirmed = await NotificationModal.confirm(
+        window.welcomeDeleteFiles = function() {
+            NotificationModal.confirm(
                 'Delete Welcome Files',
-                'Are you sure you want to delete all welcome page files? This cannot be undone.'
+                'Are you sure you want to delete all welcome page files? This cannot be undone.',
+                async function() {
+                    try {
+                        const resp = await fetch(`/api/welcome/pack/${packId}/files`, { method: 'DELETE' });
+                        const data = await resp.json();
+                        if (data.success || resp.ok) {
+                            NotificationModal.success('Deleted', 'Welcome page files deleted.');
+                            welcomeLoadFiles();
+                        } else {
+                            NotificationModal.error('Delete Failed', data.message || data.detail || 'Failed to delete files.');
+                        }
+                    } catch (e) {
+                        console.error('Welcome delete error:', e);
+                        NotificationModal.error('Error', 'Error deleting welcome page files.');
+                    }
+                },
+                null,
+                { type: 'error', confirmText: 'Delete' }
             );
-            if (!confirmed) return;
-
-            try {
-                const resp = await fetch(`/api/welcome/pack/${packId}/files`, { method: 'DELETE' });
-                const data = await resp.json();
-                if (data.success || resp.ok) {
-                    NotificationModal.success('Deleted', 'Welcome page files deleted.');
-                    welcomeLoadFiles();
-                } else {
-                    NotificationModal.error('Delete Failed', data.message || data.detail || 'Failed to delete files.');
-                }
-            } catch (e) {
-                console.error('Welcome delete error:', e);
-                NotificationModal.error('Error', 'Error deleting welcome page files.');
-            }
         };
 
         // Sync color pickers with text inputs

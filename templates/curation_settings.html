@@ -75,7 +75,7 @@
                 The markup is added on top of the base price and you receive 70% of it (platform takes 30% commission).
             </p>
 
-            <form id="markupForm">
+            <form id="markupForm" data-form-guard>
                 <div class="mb-3">
                     <label for="markup" class="form-label">Your Markup ($ per million tokens)</label>
                     <div class="input-group">
@@ -199,6 +199,7 @@
             const result = await response.json();
 
             if (result.success) {
+                FormGuard.markClean(document.getElementById('markupForm'));
                 saveBtn.innerHTML = '<i class="fas fa-check me-1"></i> Saved!';
                 saveBtn.classList.remove('btn-primary');
                 saveBtn.classList.add('btn-success');

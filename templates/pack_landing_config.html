@@ -555,6 +555,15 @@
         const packId = {{ pack.id }};
         const publicUrl = '{{ public_url }}';
 
+        // FormGuard: watch the main content area for unsaved changes
+        document.addEventListener('DOMContentLoaded', function() {
+            var _fgContent = document.querySelector('.tab-content');
+            if (_fgContent) {
+                FormGuard.watchWithListeners(_fgContent);
+                FormGuard.markClean(_fgContent);
+            }
+        });
+
         // === AI Job Polling System ===
         let activeJobTaskId = null;
         let pollingInterval = null;
@@ -628,7 +637,7 @@
                         data.task_id,
                         () => {
                             NotificationModal.success('Job Completed!', 'The AI wizard has finished. Reloading page...');
-                            setTimeout(() => window.location.reload(), 1500);
+                            setTimeout(() => FormGuard.reloadIfClean(), 1500);
                         },
                         (errorMsg) => {
                             NotificationModal.error('Job Failed', errorMsg);
@@ -674,7 +683,7 @@
 
                 const data = await response.json();
                 if (data.success) {
-                    window.location.reload();
+                    FormGuard.reloadIfClean();
                 } else {
                     NotificationModal.error('Page Creation Failed', data.message || 'Error creating page');
                 }
@@ -697,7 +706,7 @@
 
                         const data = await response.json();
                         if (data.success) {
-                            window.location.reload();
+                            FormGuard.reloadIfClean();
                         } else {
                             NotificationModal.error('Page Deletion Failed', data.message || 'Error deleting page');
                         }
@@ -733,7 +742,7 @@
 
                 const data = await response.json();
                 if (data.success) {
-                    window.location.reload();
+                    FormGuard.reloadIfClean();
                 } else {
                     NotificationModal.error('Component Creation Failed', data.message || 'Error creating component');
                 }
@@ -756,7 +765,7 @@
 
                         const data = await response.json();
                         if (data.success) {
-                            window.location.reload();
+                            FormGuard.reloadIfClean();
                         } else {
                             NotificationModal.error('Component Deletion Failed', data.message || 'Error deleting component');
                         }
@@ -976,7 +985,7 @@
                             bootstrap.Modal.getInstance(document.getElementById('wizardModal')).hide();
                             const filesCreated = result.files_created ? result.files_created.join(', ') : 'home.html';
                             NotificationModal.success('Landing Page Generated!', 'Files created: ' + filesCreated);
-                            window.location.reload();
+                            FormGuard.reloadIfClean();
                         },
                         (errorMsg) => {
                             errorElement.textContent = errorMsg;
@@ -1162,7 +1171,7 @@
                         (result) => {
                             bootstrap.Modal.getInstance(document.getElementById('modifyModal')).hide();
                             NotificationModal.success('Modifications Applied!', 'Your changes have been applied successfully.');
-                            window.location.reload();
+                            FormGuard.reloadIfClean();
                         },
                         (errorMsg) => {
                             errorElement.textContent = errorMsg;

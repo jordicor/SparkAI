@@ -12,7 +12,7 @@
 {% block back_title %}Back to Voices{% endblock %}
 
 {% block content %}
-<form action="/admin/voices/new" method="post">
+<form action="/admin/voices/new" method="post" data-form-guard>
     <!-- Voice Configuration Section -->
     <div class="section-container">
         <div class="section-title"><i class="fas fa-microphone me-2"></i>Voice Configuration</div>

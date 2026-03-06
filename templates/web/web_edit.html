@@ -77,6 +77,19 @@
             {% endif %}
         });
 
+        // FormGuard: watch CodeMirror and optional checkbox
+        var webEditGroup = FormGuard.createGroup('web-edit');
+        var cmContainer = document.querySelector('.CodeMirror');
+        if (cmContainer) {
+            webEditGroup.watchCodeMirror(cmContainer, editor);
+        }
+        {% if not is_pack %}
+        var checkboxContainer = document.getElementById('useDefaultTemplate');
+        if (checkboxContainer) {
+            webEditGroup.watchWithListeners(checkboxContainer.closest('.mb-3') || checkboxContainer.parentElement);
+        }
+        {% endif %}
+
         $("#editForm").submit(function(e) {
             e.preventDefault();
             var content = editor.getValue();
@@ -96,6 +109,7 @@
                 success: function(response) {
                     if (response.success) {
                         $("#message").html('<div class="alert alert-success">' + response.message + '</div>');
+                        webEditGroup.markClean();
                     } else {
                         $("#message").html('<div class="alert alert-danger">' + response.message + '</div>');
                     }

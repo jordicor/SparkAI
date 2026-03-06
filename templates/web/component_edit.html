@@ -70,6 +70,11 @@
         // Update size when window is resized
         window.addEventListener('resize', setEditorSize);
 
+        // FormGuard: watch CodeMirror for unsaved changes
+        var _fgCMContainer = document.querySelector('.editor-container');
+        FormGuard.watchCodeMirror(_fgCMContainer, editor);
+        FormGuard.markClean(_fgCMContainer);
+
         // Handle form submission
         $("#editForm").submit(function(e) {
             e.preventDefault();
@@ -86,6 +91,7 @@
                 },
                 success: function(response) {
                     if (response.success) {
+                        FormGuard.markClean(_fgCMContainer);
                         $("#message").html('<div class="alert alert-success">' + response.message + '</div>');
                     } else {
                         $("#message").html('<div class="alert alert-danger">' + response.message + '</div>');

@@ -1525,10 +1525,17 @@ function updateActiveChatName(newName) {
     
     if (activeChatElement) {
         const chatNameSpan = activeChatElement.querySelector('.chat-name');
-        
+
         if (chatNameSpan) {
-            const oldName = chatNameSpan.textContent;
-            chatNameSpan.textContent = newName;
+            // Preserve icon (WhatsApp, locked) when updating name
+            const icon = chatNameSpan.querySelector('i');
+            chatNameSpan.textContent = '';
+            if (icon) {
+                chatNameSpan.appendChild(icon);
+                chatNameSpan.appendChild(document.createTextNode(` ${newName}`));
+            } else {
+                chatNameSpan.textContent = newName;
+            }
         } else {
             console.error('Element span.chat-name not found within active chat');
         }
@@ -1793,8 +1800,12 @@ const renameConversation = withSession(function(conversationId) {
     nameSpan.replaceWith(input);
     input.focus();
 
-    // Function to cancel editing
-    function cancelEdit() {
+    // Save icon reference before any DOM changes (WhatsApp, locked, etc.)
+    const existingIcon = nameSpan.querySelector('i');
+
+    // Clean up all rename listeners and restore span
+    function exitRenameMode() {
+        document.removeEventListener('click', onClickOutside);
         input.replaceWith(nameSpan);
     }
 
@@ -1812,8 +1823,17 @@ const renameConversation = withSession(function(conversationId) {
                 });
 
                 if (response.ok) {
-                    nameSpan.textContent = newName;
+                    // Preserve icon (WhatsApp, locked) when updating name
+                    nameSpan.textContent = '';
+                    if (existingIcon) {
+                        nameSpan.appendChild(existingIcon);
+                        nameSpan.appendChild(document.createTextNode(` ${newName}`));
+                    } else {
+                        nameSpan.textContent = newName;
+                    }
+                    exitRenameMode();
                     updateActiveChatName(newName);
+                    return;
                 } else {
                     console.error('Error renaming conversation');
                 }
@@ -1821,7 +1841,7 @@ const renameConversation = withSession(function(conversationId) {
                 console.error('Error sending rename request:', error);
             }
         }
-        cancelEdit();
+        exitRenameMode();
     }
 
     // Handle the event of pressing Enter or ESC
@@ -1829,17 +1849,17 @@ const renameConversation = withSession(function(conversationId) {
         if (e.key === 'Enter') {
             saveNewName();
         } else if (e.key === 'Escape') {
-            cancelEdit();
+            exitRenameMode();
         }
     });
 
-    // Handle the event of losing focus
-    document.addEventListener('click', function onClickOutside(e) {
+    // Handle the event of clicking outside the input
+    function onClickOutside(e) {
         if (e.target !== input && !input.contains(e.target)) {
             saveNewName();
-            document.removeEventListener('click', onClickOutside);
         }
-    });
+    }
+    document.addEventListener('click', onClickOutside);
 
     // Prevent the click inside the input from propagating the event
     input.addEventListener('click', (e) => {
@@ -1887,6 +1907,7 @@ function createPlatformLink(platform, conversation) {
         mainLink.innerHTML = `<i class="fab fa-whatsapp"></i> Remove from WhatsApp`;
         mainLink.addEventListener('click', function(e) {
             e.stopPropagation();
+            closeAllChatMenus();
             toggleExternalPlatform(conversation.id, platform, isAssigned);
         });
         
@@ -1901,6 +1922,7 @@ function createPlatformLink(platform, conversation) {
         voiceModeLink.innerHTML = `<i class="fas fa-microphone"></i> <span class="mode-text">Voice Mode</span> <span class="mode-check" style="display: none;">✓</span>`;
         voiceModeLink.addEventListener('click', function(e) {
             e.stopPropagation();
+            closeAllChatMenus();
             changeWhatsAppMode(conversation.id, 'voice');
         });
         
@@ -1911,6 +1933,7 @@ function createPlatformLink(platform, conversation) {
         textModeLink.innerHTML = `<i class="fas fa-keyboard"></i> <span class="mode-text">Text Mode</span> <span class="mode-check" style="display: none;">✓</span>`;
         textModeLink.addEventListener('click', function(e) {
             e.stopPropagation();
+            closeAllChatMenus();
             changeWhatsAppMode(conversation.id, 'text');
         });
         
@@ -1933,6 +1956,7 @@ function createPlatformLink(platform, conversation) {
         link.innerHTML = `<i class="fab ${icon}"></i> ${action} ${platform.charAt(0).toUpperCase() + platform.slice(1)}`;
         link.addEventListener('click', function(e) {
             e.stopPropagation();
+            closeAllChatMenus();
             toggleExternalPlatform(conversation.id, platform, isAssigned);
         });
         return link;
@@ -2026,15 +2050,11 @@ function sortDynamicChats(dynamicChatsContainer) {
 function updateSingleConversation(element, conversationData, externalContainer, dynamicContainer) {
     // Ensure we always have a valid name
     const chatName = conversationData.chat_name || `Chat ${conversationData.id}`;
-    let conversationContent = '';
     let targetContainer;
 
     if (conversationData.external_platform) {
-        const iconClass = getExternalPlatformIcon(conversationData.external_platform);
-        conversationContent = `<i class="${iconClass}"></i> ${chatName}`;
         targetContainer = externalContainer;
     } else {
-        conversationContent = chatName;
         targetContainer = dynamicContainer;
     }
 
@@ -2042,15 +2062,28 @@ function updateSingleConversation(element, conversationData, externalContainer, 
     if (!(element instanceof HTMLElement)) {
         element = document.createElement('a');
     }
+    const wasActive = element.classList.contains('active-chat');
     element.href = '#';
     element.className = 'list-group-item list-group-item-action';
-    if (element.classList.contains('active-chat')) {
+    if (wasActive) {
         element.classList.add('active-chat');
     }
     element.dataset.conversationId = conversationData.id;
     element.dataset.machine = conversationData.machine || 'undefined';
 
-    element.innerHTML = conversationContent;
+    // Wrap name in .chat-name span (matches addConversationElement structure)
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'chat-name';
+    if (conversationData.external_platform) {
+        const iconClass = getExternalPlatformIcon(conversationData.external_platform);
+        nameSpan.innerHTML = `<i class="${iconClass}"></i> ${chatName}`;
+    } else if (conversationData.locked) {
+        nameSpan.innerHTML = `<i class="fas fa-comment-slash" title="This conversation is locked"></i> ${chatName}`;
+    } else {
+        nameSpan.textContent = chatName;
+    }
+    element.innerHTML = '';
+    element.appendChild(nameSpan);
 
     const chatMenu = createChatMenu(conversationData);
     element.appendChild(chatMenu);

@@ -14,7 +14,7 @@
 {% block back_title %}Back to LLM List{% endblock %}
 
 {% block content %}
-<form id="editLlmForm" action="/admin/llm/update/{{ llm_id }}" method="post">
+<form id="editLlmForm" action="/admin/llm/update/{{ llm_id }}" method="post" data-form-guard>
 
     <!-- Section 1: Model Information -->
     <div class="section-container">
