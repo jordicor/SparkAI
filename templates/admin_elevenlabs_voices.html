@@ -503,12 +503,15 @@
                     category: v.category
                 }));
 
+            // Send all API voice IDs so backend knows which voices the user could see
+            const apiVoiceIds = allVoices.map(v => v.voice_id);
+
             const response = await fetch('/api/elevenlabs/sync', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ voices: voicesToSave })
+                body: JSON.stringify({ voices: voicesToSave, api_voice_ids: apiVoiceIds })
             });
 
             const data = await response.json();

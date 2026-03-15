@@ -70,9 +70,14 @@ from common import (
     get_user_api_key_mode,
     resolve_api_key_for_provider,
     users_directory,
+    MAX_PDF_SIZE_MB,
+    MAX_PDF_PAGES,
+    MAX_PDFS_PER_MESSAGE,
+    OPENROUTER_MODEL_MAP,
 )
 from models import User, ConnectionManager
 from save_images import save_image_locally, generate_img_token, resize_image, get_or_generate_img_token
+from save_pdfs import save_pdf_locally, validate_pdf, extract_pdf_text_local
 from whatsapp import is_whatsapp_conversation
 from tasks import generate_pdf_task, generate_mp3_task
 
@@ -406,6 +411,13 @@ async def _format_messages_for_provider(
                             parts.append(genai_types.Part.from_bytes(data=base64.b64decode(b64_data), mime_type=mime))
                         else:
                             parts.append(genai_types.Part.from_uri(file_uri=token_url, mime_type=mime))
+                    elif block.get("type") == "document_url":
+                        hydrated_block = hydrate_pdf_for_context(block, "Gemini")
+                        if hydrated_block is not None:
+                            parts.append(genai_types.Part.from_bytes(
+                                data=base64.b64decode(hydrated_block["data"]),
+                                mime_type="application/pdf"
+                            ))
                 if parts:
                     contents.append(genai_types.Content(role=role, parts=parts))
             else:
@@ -432,6 +444,11 @@ async def _format_messages_for_provider(
                         elif url.lower().endswith(".jpg") or url.lower().endswith(".jpeg"):
                             mime = "image/jpeg"
                         parts.append(genai_types.Part.from_uri(file_uri=url, mime_type=mime))
+                elif block.get("type") == "document_bytes":
+                    parts.append(genai_types.Part.from_bytes(
+                        data=base64.b64decode(block["data"]),
+                        mime_type=block["mime_type"]
+                    ))
             contents.append(genai_types.Content(role="user", parts=parts))
         else:
             contents.append(genai_types.Content(role="user", parts=[genai_types.Part.from_text(text=str(message))]))
@@ -440,9 +457,23 @@ async def _format_messages_for_provider(
     elif machine == "O1":
         combined_message_content = f"{full_prompt}\n\n{message}"
         for msg in context_messages:
+            msg_content = msg["message"]
+            if isinstance(msg_content, list):
+                text_parts = []
+                for block in msg_content:
+                    if isinstance(block, dict):
+                        if block.get("type") == "text":
+                            text_parts.append(block["text"])
+                        elif block.get("type") == "document_url":
+                            hydrated = hydrate_pdf_for_context(block, "O1")
+                            if hydrated is not None:
+                                text_parts.append(hydrated["text"])
+                        elif block.get("type") == "image_url":
+                            text_parts.append("[An image was shared]")
+                msg_content = "\n".join(text_parts) if text_parts else str(msg_content)
             api_messages.append({
                 "role": "user" if msg["type"] == "user" else "assistant",
-                "content": msg["message"],
+                "content": msg_content,
             })
         api_messages.append({"role": "user", "content": combined_message_content})
 
@@ -451,11 +482,15 @@ async def _format_messages_for_provider(
         for i, msg in enumerate(context_messages):
             content = msg["message"]
             if isinstance(content, list):
-                # Hydrate image blocks with fresh token URLs
+                # Hydrate image and PDF blocks with fresh data
                 hydrated = []
                 for block in content:
                     if block.get("type") == "image_url" and current_user:
                         result = await hydrate_image_for_context(block, machine, current_user, force_base64=force_base64)
+                        if result is not None:
+                            hydrated.append(result)
+                    elif block.get("type") == "document_url":
+                        result = hydrate_pdf_for_context(block, machine)
                         if result is not None:
                             hydrated.append(result)
                     else:
@@ -847,6 +882,96 @@ def format_image_for_provider(machine: str, image_url_base: str, image_data_b64:
     return content_to_save, content_to_send
 
 
+def format_pdf_for_provider(machine: str, pdf_url_base: str, pdf_data_b64: str,
+                            filename: str, page_count: int, extracted_text: str = None):
+    """Format a PDF for storage and for sending to the current AI provider."""
+    content_to_save = {
+        "type": "document_url",
+        "document_url": {"url": pdf_url_base, "filename": filename, "pages": page_count}
+    }
+
+    if machine == "Claude":
+        content_to_send = {
+            "type": "document",
+            "source": {"type": "base64", "media_type": "application/pdf", "data": pdf_data_b64}
+        }
+    elif machine == "Gemini":
+        content_to_send = {
+            "type": "document_bytes",
+            "data": pdf_data_b64,
+            "mime_type": "application/pdf"
+        }
+    elif machine in ("OpenRouter", "GPT", "xAI"):
+        content_to_send = {
+            "type": "file",
+            "file": {
+                "filename": filename,
+                "file_data": f"data:application/pdf;base64,{pdf_data_b64}"
+            }
+        }
+    elif machine == "O1":
+        content_to_send = {
+            "type": "text",
+            "text": f"[Content of uploaded PDF: {filename} ({page_count} pages)]\n\n{extracted_text}"
+        }
+    else:
+        raise ValueError(f"Unsupported provider for PDFs: {machine}")
+
+    return content_to_save, content_to_send
+
+
+def hydrate_pdf_for_context(block: dict, machine: str) -> dict | None:
+    """Re-hydrate a stored document_url block for sending to AI provider."""
+    url = block["document_url"]["url"]
+    filename = block["document_url"].get("filename", "document.pdf")
+    page_count = block["document_url"].get("pages", 0)
+
+    # Guard against CLOUDFLARE_BASE_URL being None
+    if CLOUDFLARE_BASE_URL and url.startswith(CLOUDFLARE_BASE_URL):
+        relative_path = url[len(CLOUDFLARE_BASE_URL):]
+    else:
+        relative_path = url
+
+    file_path = os.path.join("data", relative_path)
+
+    try:
+        with open(file_path, 'rb') as f:
+            pdf_data = f.read()
+    except FileNotFoundError:
+        logger.warning(f"PDF file not found: {file_path}")
+        return None
+
+    pdf_b64 = base64.b64encode(pdf_data).decode("utf-8")
+
+    if machine == "Claude":
+        return {
+            "type": "document",
+            "source": {"type": "base64", "media_type": "application/pdf", "data": pdf_b64}
+        }
+    elif machine == "Gemini":
+        return {
+            "type": "document_bytes",
+            "data": pdf_b64,
+            "mime_type": "application/pdf"
+        }
+    elif machine in ("OpenRouter", "GPT", "xAI"):
+        return {
+            "type": "file",
+            "file": {
+                "filename": filename,
+                "file_data": f"data:application/pdf;base64,{pdf_b64}"
+            }
+        }
+    elif machine == "O1":
+        extracted_text = extract_pdf_text_local(pdf_data)
+        return {
+            "type": "text",
+            "text": f"[Content of PDF: {filename} ({page_count} pages)]\n\n{extracted_text}"
+        }
+    else:
+        raise ValueError(f"Unsupported provider for PDF hydration: {machine}")
+
+
 async def process_save_message(
     request: Request,
     conversation_id: int,
@@ -958,6 +1083,27 @@ async def process_save_message(
         input_tokens = estimate_message_tokens(user_message)
         current_balance = await get_balance(current_user.id)
 
+        # Detect if PDF redirect will happen (GPT/xAI + PDFs present)
+        pdf_redirect_will_happen = False
+        if machine in ("GPT", "xAI"):
+            # Check new files for PDFs
+            if files:
+                pdf_redirect_will_happen = any(f['content_type'] == 'application/pdf' for f in files)
+            # Check conversation history for existing PDFs
+            if not pdf_redirect_will_happen:
+                async with get_db_connection(readonly=True) as conn_pdf:
+                    cursor_pdf = await conn_pdf.execute(
+                        "SELECT 1 FROM messages WHERE conversation_id = ? AND message LIKE '%\"document_url\"%' LIMIT 1",
+                        (conversation_id,)
+                    )
+                    pdf_redirect_will_happen = (await cursor_pdf.fetchone()) is not None
+
+        if pdf_redirect_will_happen and not openrouter_key:
+            return JSONResponse(
+                content={'success': False, 'message': 'PDF files with this model require OpenRouter integration. Use Claude, Gemini, or select an OpenRouter model directly.'},
+                status_code=400
+            )
+
         # Determine if this call will use BYOK (user's own API key)
         from common import resolve_api_key_for_provider, get_user_api_key_mode, API_KEY_MODE_SYSTEM_ONLY, BYOK_MIN_BALANCE_PAID_PROMPT
         api_key_mode_preflight = await get_user_api_key_mode(current_user.id)
@@ -965,6 +1111,10 @@ async def process_save_message(
         if api_key_mode_preflight != API_KEY_MODE_SYSTEM_ONLY and user_api_keys:
             preflight_key, _ = resolve_api_key_for_provider(user_api_keys, api_key_mode_preflight, machine)
             is_byok = preflight_key is not None
+
+        # Force non-BYOK when PDF redirect is active (platform pays OpenRouter)
+        if pdf_redirect_will_happen:
+            is_byok = False
 
         if is_byok:
             # BYOK: no API cost to platform. Only need balance for paid prompt markup.
@@ -1006,31 +1156,71 @@ async def process_save_message(
     context_messages_dicts = flatten_multi_ai_context(context_messages_dicts)
 
     if files:
-        logger.debug("Tiene archivos")
+        logger.debug("Has files")
         MAX_IMAGE_SIZE_MB = 5           # Claude is the most restrictive at 5 MB
         MAX_IMAGES_PER_MESSAGE = 10     # Reasonable per-message upload limit
         MAX_IMAGE_DIMENSION = 8000      # Claude's max dimension (<=20 images)
 
-        if len(files) > MAX_IMAGES_PER_MESSAGE:
+        # Classify files by type
+        images = []
+        pdfs = []
+        for f in files:
+            if f['content_type'] == 'application/pdf':
+                pdfs.append(f)
+            elif f['content_type'].startswith('image/'):
+                images.append(f)
+            else:
+                return JSONResponse(
+                    content={'success': False, 'message': f"Unsupported file type: {f['content_type']}"},
+                    status_code=400
+                )
+
+        # Validate and process PDFs
+        if len(pdfs) > MAX_PDFS_PER_MESSAGE:
+            return JSONResponse(
+                content={'success': False, 'message': f'Maximum {MAX_PDFS_PER_MESSAGE} PDFs per message.'},
+                status_code=400
+            )
+
+        for pdf in pdfs:
+            if len(pdf['data']) > MAX_PDF_SIZE_MB * 1024 * 1024:
+                return JSONResponse(
+                    content={'success': False, 'message': f'PDF exceeds {MAX_PDF_SIZE_MB}MB limit.'},
+                    status_code=400
+                )
+            page_count = validate_pdf(pdf['data'])
+            pdf_b64 = base64.b64encode(pdf['data']).decode("utf-8")
+
+            # For O1 only: extract text locally (O1 is text-only, can't receive PDF data)
+            extracted_text = None
+            if machine == "O1":
+                extracted_text = extract_pdf_text_local(pdf['data'])
+
+            base_url, _ = await save_pdf_locally(pdf['data'], pdf['filename'], current_user, conversation_id)
+            content_to_save, content_to_send = format_pdf_for_provider(
+                machine, base_url, pdf_b64, pdf['filename'], page_count, extracted_text
+            )
+            message_list_to_save.append(content_to_save)
+            message_list_to_send.append(content_to_send)
+
+        # Validate and process images (existing logic)
+        if len(images) > MAX_IMAGES_PER_MESSAGE:
             return JSONResponse(
                 content={'success': False, 'message': f'Maximum {MAX_IMAGES_PER_MESSAGE} images per message.'},
                 status_code=400
             )
 
-        for file_item in files:
-            # CHANGE: use dict instead of UploadFile
+        for file_item in images:
             image_data = file_item['data']
             image_media_type = file_item.get('content_type', 'image/jpeg')
             filename = file_item.get('filename', 'image.jpg')
 
-            # Validate image size
             if len(image_data) > MAX_IMAGE_SIZE_MB * 1024 * 1024:
                 return JSONResponse(
                     content={'success': False, 'message': f'Image exceeds {MAX_IMAGE_SIZE_MB} MB limit.'},
                     status_code=400
                 )
 
-            # Validate image dimensions
             try:
                 img_check = PilImage.open(io.BytesIO(image_data))
                 w, h = img_check.size
@@ -1109,6 +1299,8 @@ async def process_save_message(
                                     "url": f"data:{source['media_type']};base64,{source['data']}"
                                 }
                             })
+                    elif item['type'] in ('document_url', 'document', 'document_bytes', 'file'):
+                        pass  # PDF content cannot be moderated via OpenAI moderation API
         else:
             # message_list_to_send is text
             moderation_input = [{"type": "text", "text": message_list_to_send}]
@@ -1766,6 +1958,42 @@ async def get_ai_response(
                     logger.error(f"[get_ai_response] - No conversation found with id {conversation_id} for user {user_id}")
                     return
 
+                # ========================================
+                # PDF redirect: GPT/xAI -> OpenRouter
+                # ========================================
+                # When PDFs are present, redirect GPT/xAI calls through OpenRouter
+                # BEFORE message formatting so the entire pipeline uses OpenRouter format
+                has_pdfs_in_message = any(
+                    isinstance(block, dict) and block.get("type") in ("file", "document_bytes")
+                    for block in (message if isinstance(message, list) else [])
+                )
+                has_pdfs_in_context = any(
+                    isinstance(block, dict) and block.get("type") == "document_url"
+                    for msg in context_messages
+                    for block in (msg.get("message", []) if isinstance(msg.get("message"), list) else [])
+                )
+
+                pdf_redirect_active = False
+
+                if (has_pdfs_in_message or has_pdfs_in_context) and machine in ("GPT", "xAI"):
+                    pdf_redirect_active = True
+                    original_machine = machine
+                    original_model = model
+
+                    machine = "OpenRouter"
+                    openrouter_model_id = OPENROUTER_MODEL_MAP.get(
+                        original_model,
+                        f"openai/{original_model}" if original_machine == "GPT" else f"x-ai/{original_model}"
+                    )
+                    # Keep original model for billing, pass remapped model via api_model
+                    # (api_model is set after kwargs construction below)
+
+                    # Web search: Responses API features not available via OpenRouter
+                    if web_search_mode == 'native':
+                        web_search_mode = None
+
+                    logger.info(f"PDF redirect: {original_machine}/{original_model} -> OpenRouter/{openrouter_model_id}")
+
                 # Prepare messages in correct format for LLM
                 api_messages = []
 
@@ -1797,6 +2025,13 @@ async def get_ai_response(
                                         elif base_url.lower().endswith(".jpg") or base_url.lower().endswith(".jpeg"):
                                             mime = "image/jpeg"
                                         parts.append(genai_types.Part.from_uri(file_uri=token_url, mime_type=mime))
+                                elif block.get("type") == "document_url":
+                                    hydrated = hydrate_pdf_for_context(block, "Gemini")
+                                    if hydrated is not None:
+                                        parts.append(genai_types.Part.from_bytes(
+                                            data=base64.b64decode(hydrated["data"]),
+                                            mime_type="application/pdf"
+                                        ))
                             if parts:
                                 gemini_contents.append(genai_types.Content(role=role, parts=parts))
                         else:
@@ -1823,6 +2058,11 @@ async def get_ai_response(
                                     elif url.lower().endswith(".jpg") or url.lower().endswith(".jpeg"):
                                         mime = "image/jpeg"
                                     parts.append(genai_types.Part.from_uri(file_uri=url, mime_type=mime))
+                            elif block.get("type") == "document_bytes":
+                                parts.append(genai_types.Part.from_bytes(
+                                    data=base64.b64decode(block["data"]),
+                                    mime_type=block["mime_type"]
+                                ))
                         gemini_contents.append(genai_types.Content(role="user", parts=parts))
                     else:
                         gemini_contents.append(genai_types.Content(role="user", parts=[genai_types.Part.from_text(text=str(message))]))
@@ -1830,10 +2070,23 @@ async def get_ai_response(
                     api_messages = gemini_contents
 
                 elif machine == "O1":
-                    # Existing logic for "o1"
                     combined_message_content = f"{full_prompt}\n\n{message}"
                     for msg in context_messages:
-                        api_messages.append({"role": "user" if msg['type'] == 'user' else 'assistant', "content": msg['message']})
+                        msg_content = msg['message']
+                        if isinstance(msg_content, list):
+                            text_parts = []
+                            for block in msg_content:
+                                if isinstance(block, dict):
+                                    if block.get("type") == "text":
+                                        text_parts.append(block["text"])
+                                    elif block.get("type") == "document_url":
+                                        hydrated = hydrate_pdf_for_context(block, "O1")
+                                        if hydrated is not None:
+                                            text_parts.append(hydrated["text"])
+                                    elif block.get("type") == "image_url":
+                                        text_parts.append("[An image was shared]")
+                            msg_content = "\n".join(text_parts) if text_parts else str(msg_content)
+                        api_messages.append({"role": "user" if msg['type'] == 'user' else 'assistant', "content": msg_content})
                     api_messages.append({"role": "user", "content": combined_message_content})
 
                 else:
@@ -1841,11 +2094,15 @@ async def get_ai_response(
                     for i, msg in enumerate(context_messages):
                         content = msg['message']
                         if isinstance(content, list):
-                            # Hydrate image blocks with fresh token URLs
+                            # Hydrate image and PDF blocks with fresh data
                             hydrated = []
                             for block in content:
                                 if block.get("type") == "image_url":
                                     result = await hydrate_image_for_context(block, machine, current_user)
+                                    if result is not None:
+                                        hydrated.append(result)
+                                elif block.get("type") == "document_url":
+                                    result = hydrate_pdf_for_context(block, machine)
                                     if result is not None:
                                         hydrated.append(result)
                                 else:
@@ -1971,6 +2228,11 @@ async def get_ai_response(
 
                 if machine == "Claude" and thinking_budget_tokens:
                     kwargs["thinking_budget_tokens"] = thinking_budget_tokens
+
+                # PDF redirect: pass remapped model and force non-BYOK
+                if pdf_redirect_active:
+                    kwargs["api_model"] = openrouter_model_id
+                    kwargs["byok"] = False
 
                 # ===========================================
                 # Resolve which API key to use based on mode
@@ -2808,7 +3070,7 @@ async def call_o1_api(messages, model, temperature, max_tokens, prompt, conversa
 
 async def call_llm_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, api_url, api_key, user_message=None, extra_headers=None, custom_timeout=None, tools=None,
                        prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
-                       llm_id=None, save_to_db: bool = True, web_search_mode=None, byok: bool = False):
+                       llm_id=None, save_to_db: bool = True, web_search_mode=None, byok: bool = False, api_model=None):
     """
     Generic LLM API call function for OpenAI-compatible APIs.
     Used by GPT, xAI, and OpenRouter.
@@ -2838,7 +3100,7 @@ async def call_llm_api(messages, model, temperature, max_tokens, prompt, convers
     # and don't support custom temperature values (only default 1.0)
     if _is_gpt5_model(model):
         data = {
-            "model": model,
+            "model": api_model or model,
             "max_completion_tokens": max_tokens,
             "messages": messages,
             "stream": True,
@@ -2846,7 +3108,7 @@ async def call_llm_api(messages, model, temperature, max_tokens, prompt, convers
         }
     else:
         data = {
-            "model": model,
+            "model": api_model or model,
             "max_tokens": max_tokens,
             "messages": messages,
             "temperature": temperature,
@@ -3108,6 +3370,12 @@ def _convert_messages_for_responses_api(messages: list) -> list:
                     img_data = block.get("image_url", {})
                     url = img_data.get("url", "") if isinstance(img_data, dict) else str(img_data)
                     new_content.append({"type": "input_image", "image_url": url})
+                elif btype == "document_url":
+                    fn = block.get("document_url", {}).get("filename", "document.pdf")
+                    new_content.append({
+                        "type": "input_text",
+                        "text": f"[PDF document: {fn} -- content unavailable in this format]"
+                    })
                 else:
                     # Unknown block type, pass through
                     new_content.append(block)
@@ -3678,7 +3946,7 @@ async def call_xai_responses_api(messages, model, temperature, max_tokens, promp
 
 async def call_openrouter_api(messages, model, temperature, max_tokens, prompt, conversation_id, current_user, request, user_message=None, user_api_key=None, tools=None,
                               prompt_id=None, watchdog_config=None, watchdog_hint_active=False, watchdog_hint_eval_id=None,
-                              llm_id=None, save_to_db: bool = True, web_search_mode=None, byok: bool = False):
+                              llm_id=None, save_to_db: bool = True, web_search_mode=None, byok: bool = False, api_model=None):
     """
     Call OpenRouter unified API - 100% OpenAI compatible.
 
@@ -3735,6 +4003,7 @@ async def call_openrouter_api(messages, model, temperature, max_tokens, prompt, 
         save_to_db=save_to_db,
         web_search_mode=web_search_mode,
         byok=byok,
+        api_model=api_model,
     ):
         yield chunk
 

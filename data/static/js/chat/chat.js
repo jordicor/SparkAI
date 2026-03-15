@@ -590,6 +590,20 @@ function addMessage(author, message, timestampInfo = null, isTemporary = false, 
             }
             
             messageContent.appendChild(videoElement);
+        } else if (messageObj.type === 'document_url') {
+            var pdfEl = document.createElement('a');
+            pdfEl.href = messageObj.url;
+            pdfEl.target = '_blank';
+            pdfEl.rel = 'noopener noreferrer';
+            pdfEl.className = 'chat-pdf-attachment';
+            var badge = document.createElement('span');
+            badge.className = 'pdf-badge';
+            badge.textContent = 'PDF';
+            var label = document.createElement('span');
+            label.textContent = ' ' + messageObj.filename + ' (' + messageObj.pages + ' pages)';
+            pdfEl.appendChild(badge);
+            pdfEl.appendChild(label);
+            messageContent.appendChild(pdfEl);
         }
     } else {
         messageText = String(message);
@@ -1018,7 +1032,7 @@ function sendMessage(messageText) {
 
     addLoadingIndicator(multiAiLoadingText);
 
-    var files = document.getElementById('image-files').files;
+    var files = document.getElementById('chat-files').files;
     var formData = new FormData();
 
     // Compress message with pako (maximum compression level)
@@ -2769,6 +2783,15 @@ function processMessage(message, container, prepend = false) {
                         is_bookmarked: message.is_bookmarked,
                         conversation_id: message.conversation_id
                     };
+                } else if (item.type === 'document_url') {
+                    messageObj = {
+                        type: 'document_url',
+                        url: item.document_url.url,
+                        filename: item.document_url.filename || 'document.pdf',
+                        pages: item.document_url.pages || 0,
+                        is_bookmarked: message.is_bookmarked,
+                        conversation_id: message.conversation_id
+                    };
                 } else if (item.type === 'image' && item.source.type === 'base64') {
                     messageObj = {
                         type: 'image_url',
@@ -3016,7 +3039,7 @@ function enableInputControls() {
 
     document.getElementById('message-text').disabled = false;
     document.querySelector('#form-message button[type="submit"]').disabled = false;
-    document.getElementById('image-files').disabled = false;
+    document.getElementById('chat-files').disabled = false;
     const plusBtn = document.getElementById('plus-menu-btn');
     if (plusBtn) plusBtn.disabled = false;
     document.getElementById('loading-indicator').style.display = 'none';
@@ -3024,7 +3047,7 @@ function enableInputControls() {
 
 function disableInputControls() {
     document.querySelector('#form-message button[type="submit"]').disabled = true;
-    document.getElementById('image-files').disabled = true;
+    document.getElementById('chat-files').disabled = true;
     const plusBtn = document.getElementById('plus-menu-btn');
     if (plusBtn) plusBtn.disabled = true;
     closePlusMenu();
@@ -4301,7 +4324,7 @@ function initPlusMenu() {
     if (attachBtn) {
         attachBtn.addEventListener('click', () => {
             closePlusMenu();
-            document.getElementById('image-files').click();
+            document.getElementById('chat-files').click();
         });
     }
 

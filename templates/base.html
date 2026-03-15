@@ -31,6 +31,7 @@
 
     <!-- CDN Base URL (must be defined before theme-loader.js) -->
     <script>window.CDN_BASE_URL = "{{ get_static_url('/static/').rstrip('/') }}";</script>
+    <script>window.STATIC_HASHES = {{ get_static_theme_hashes()|tojson }};</script>
 
     <!-- Theme Loader AFTER Bootstrap and common.css so theme styles have priority -->
     <script src="{{ get_static_url('/static/js/theme-loader.js') }}"></script>

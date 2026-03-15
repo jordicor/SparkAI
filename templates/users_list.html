@@ -221,7 +221,7 @@
                                 <i class="fas fa-user me-1"></i>{{ user.username }}
                             </span>
                             {% if user.auth_provider in ('google', 'google_linked') %}
-                            <img src="/static/img/providers/google.svg" width="14" height="14" alt="Google" title="Google OAuth{% if user.auth_provider == 'google_linked' %} (linked){% endif %}" style="vertical-align: -1px; margin-left: 4px; opacity: 0.7;">
+                            <img src="{{ get_static_url('/static/img/providers/google.svg') }}" width="14" height="14" alt="Google" title="Google OAuth{% if user.auth_provider == 'google_linked' %} (linked){% endif %}" style="vertical-align: -1px; margin-left: 4px; opacity: 0.7;">
                             {% endif %}
                         </td>
                         <td class="role-cell" title="{{ user.role|capitalize }}">

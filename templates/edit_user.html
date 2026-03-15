@@ -116,7 +116,7 @@
                             <div class="mt-1">
                                 {% if user_data.auth_provider in ('google', 'google_linked') %}
                                 <span class="badge bg-light text-dark border" style="font-size: 0.85rem;">
-                                    <img src="/static/img/providers/google.svg" width="14" height="14" alt="" class="me-1" style="vertical-align: -1px;">
+                                    <img src="{{ get_static_url('/static/img/providers/google.svg') }}" width="14" height="14" alt="" class="me-1" style="vertical-align: -1px;">
                                     {% if user_data.auth_provider == 'google' %}Google{% else %}Google (linked){% endif %}
                                 </span>
                                 {% else %}

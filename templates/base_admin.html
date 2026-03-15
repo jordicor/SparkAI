@@ -26,6 +26,7 @@
     <link rel="stylesheet" href="{{ get_static_url('/static/css/common.css') }}">
 
     <!-- Theme Loader AFTER Bootstrap and common.css so theme styles have priority -->
+    <script>window.STATIC_HASHES = {{ get_static_theme_hashes()|tojson }};</script>
     <script src="{{ get_static_url('/static/js/theme-loader.js') }}"></script>
 
     <!-- Page-specific styles -->

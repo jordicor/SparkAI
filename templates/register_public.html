@@ -126,7 +126,7 @@
         <!-- User registration from prompt landing -->
         <div class="prompt-header text-center mb-4">
             {% if prompt.image %}
-            <img src="/static/img/prompts/{{ prompt.image }}" alt="{{ prompt.name }}" class="prompt-avatar mb-3">
+            <img src="{{ get_static_url('/static/img/prompts/' ~ prompt.image) }}" alt="{{ prompt.name }}" class="prompt-avatar mb-3">
             {% endif %}
             <h2 class="prompt-name">{{ prompt.name }}</h2>
             {% if prompt.description %}
@@ -237,7 +237,7 @@
                     <div class="d-grid gap-2 mt-3">
                         <a href="/auth/google{% if prompt %}?prompt_id={{ prompt.id }}{% endif %}"
                            class="btn btn-outline-secondary btn-lg d-flex align-items-center justify-content-center">
-                            <img src="/static/img/providers/google.svg" width="20" height="20" class="me-2" alt="">
+                            <img src="{{ get_static_url('/static/img/providers/google.svg') }}" width="20" height="20" class="me-2" alt="">
                             Sign in with Google
                         </a>
                     </div>

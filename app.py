@@ -118,12 +118,14 @@ from common import encrypt_api_key, decrypt_api_key, mask_api_key
 from common import CDN_FILES_URL, ENABLE_CDN
 from common import SECURE_COOKIES
 from common import READONLY_MODE
+from common import compute_static_hashes
 import nh3
 from elevenlabs_service import service as elevenlabs_service
 from message_search import build_fts_query, execute_search
 from elevenlabs_sdk_proxy import ElevenLabsSDKProxy
 from welcome_service import build_world, user_has_pack_access, user_has_prompt_access, serve_welcome_world
 from tools.tts import process_plain_text, insert_tts_break, process_text_for_tts, get_voice_code_from_prompt, get_voice_code_from_conversation, get_tts_generator, send_cached_audio, get_file_path, handle_tts_request
+from tools.tts_config import get_tts_config, invalidate_tts_config_cache, VALID_MODELS, VALID_FORMATS, WS_INCOMPATIBLE_MODELS
 from tools.tts_load_balancer import get_elevenlabs_key
 
 from ai_calls import router as ai_router
@@ -201,6 +203,9 @@ async def lifespan(app: FastAPI):
     # Set WAL journal mode once (persistent across connections)
     from database import ensure_wal_mode
     await ensure_wal_mode()
+
+    # Compute static asset hashes for cache-busting
+    compute_static_hashes()
 
     # Initialize IP Reputation system
     from middleware.ip_reputation import reputation_manager
@@ -1019,7 +1024,7 @@ async def get_app_metrics(current_user: User = Depends(get_current_user)):
 @app.get("/change-password")
 async def show_change_password_form(request: Request, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     # Fetch auth_provider and password status for Google OAuth users
     async with get_db_connection(readonly=True) as conn:
@@ -1121,7 +1126,7 @@ async def set_initial_password(
 @app.get("/edit-profile")
 async def show_edit_profile_form(request: Request, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
     
     async with get_db_connection(readonly=True) as conn:
         cursor = await conn.cursor()
@@ -1206,7 +1211,7 @@ async def show_edit_profile_form(request: Request, current_user: User = Depends(
 async def settings_page(request: Request, current_user: User = Depends(get_current_user)):
     """Unified settings page with Profile, Usage & Billing, and API Keys tabs."""
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     from common import get_user_api_key_mode, user_requires_own_keys
 
@@ -1303,7 +1308,7 @@ async def settings_page(request: Request, current_user: User = Depends(get_curre
 async def api_credentials_page(request: Request, current_user: User = Depends(get_current_user)):
     """Render the API credentials management page."""
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     from common import get_user_api_key_mode, user_requires_own_keys
 
@@ -1766,7 +1771,7 @@ async def update_curation_settings(
 async def curation_settings_page(request: Request, current_user: User = Depends(get_current_user)):
     """Page for managers to configure their curation markup settings."""
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     # Only managers and admins can access
     if not await current_user.is_manager and not await current_user.is_admin:
@@ -1798,7 +1803,7 @@ async def curation_settings_page(request: Request, current_user: User = Depends(
 async def manager_team_billing_page(request: Request, current_user: User = Depends(get_current_user)):
     """Render the team billing dashboard page for managers."""
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     if not await current_user.is_manager and not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Only managers can access the team billing dashboard")
@@ -1978,7 +1983,7 @@ async def get_manager_team_billing(request: Request, current_user: User = Depend
 async def my_branding_page(request: Request, current_user: User = Depends(get_current_user)):
     """Render the manager branding configuration page."""
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     if not await current_user.is_manager and not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Only managers can access branding settings")
@@ -2108,7 +2113,7 @@ async def update_my_branding(request: Request, current_user: User = Depends(get_
 async def my_storefront_page(request: Request, current_user: User = Depends(get_current_user)):
     """Render the creator storefront management page."""
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
     if not await current_user.is_manager and not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Only managers can manage storefronts")
 
@@ -2513,7 +2518,7 @@ async def get_user_theme_config(request: Request, current_user: User = Depends(g
 async def manager_landing_analytics_page(request: Request, current_user: User = Depends(get_current_user)):
     """Render the landing page analytics dashboard."""
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     if not await current_user.is_manager and not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Only managers can access analytics")
@@ -3022,7 +3027,7 @@ async def get_pack_analytics_detail(pack_id: int, current_user: User = Depends(g
 async def my_earnings_page(request: Request, current_user: User = Depends(get_current_user)):
     """Render the creator earnings dashboard page."""
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     # Only managers and admins can access (they are the ones who can create prompts)
     if not await current_user.is_manager and not await current_user.is_admin:
@@ -3988,7 +3993,7 @@ async def edit_profile(
     current_user: User = Depends(get_current_user)
 ):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
     
     user_id = current_user.id
     is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
@@ -4954,7 +4959,7 @@ async def dashboard(request: Request, current_user: User = Depends(get_current_u
 @app.get("/api/get-ip-info")
 async def get_ip_info(current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
     
     async with httpx.AsyncClient() as client:
         response = await client.get("https://ipinfo.io/json")
@@ -5002,7 +5007,6 @@ async def _handle_login_request(
         "prompt": prompt_context,
         "login_url": login_url,
         "register_url": register_url,
-        "get_static_url": lambda x: x,
         "captcha": get_captcha_config(),
         "google_oauth_available": bool(GOOGLE_CLIENT_ID)
     }
@@ -5225,7 +5229,6 @@ def logout(request: Request):
         "request": request,
         "message": "You have successfully logged out.",
         "captcha": get_captcha_config(),
-        "get_static_url": lambda x: x,
         "google_oauth_available": bool(GOOGLE_CLIENT_ID)
     })
     response.delete_cookie(key="session", path="/", samesite="lax", secure=SECURE_COOKIES)
@@ -5235,7 +5238,7 @@ def logout(request: Request):
 @app.get("/create-user", response_class=HTMLResponse)
 async def create_user(request: Request, current_user: User = Depends(get_current_user), selected_prompt_id: int = None, selected_machine: str = None):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     if not await current_user.is_admin and not await current_user.is_manager:
         return handle_error(request, 403, "You do not have permission to access this page.")
@@ -5302,7 +5305,7 @@ async def create_user_post(
     billing_max_limit: float = Form(default=None)
 ):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     if not await current_user.is_admin and not await current_user.is_manager:
         raise HTTPException(status_code=403, detail="You do not have permission to access this page.")
@@ -5487,7 +5490,7 @@ async def edit_user_form(
     current_user: User = Depends(get_current_user)
 ):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     if not await current_user.is_admin and not await current_user.is_manager:
         raise HTTPException(status_code=403, detail="You do not have permission to access this page.")
@@ -5604,7 +5607,7 @@ async def update_user(
     authentication_mode: str = Form(default="magic_link_only")
 ):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     if not await current_user.is_admin and not await current_user.is_manager:
         raise HTTPException(status_code=403, detail="You do not have permission to access this page.")
@@ -5810,7 +5813,7 @@ async def update_user(
 @app.get("/users-list", response_class=HTMLResponse)
 async def users_list(request: Request, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
         
     if not (await current_user.is_admin or await current_user.is_manager):
         raise HTTPException(status_code=403, detail="You do not have permission to access this page.")
@@ -5943,7 +5946,7 @@ async def users_list(request: Request, current_user: User = Depends(get_current_
 @app.post("/admin/renew-token/{username}")
 async def renew_token(request: Request, username: str, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
         
     if not (await current_user.is_admin or await current_user.is_manager):
         return JSONResponse(content={"error": "You do not have permission to access this action."}, status_code=403)
@@ -6332,7 +6335,7 @@ async def ultra_admin_status(request: Request, current_user: User = Depends(get_
 @app.post("/admin/delete-users")
 async def delete_users(request: Request, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
         
     if not (await current_user.is_admin or await current_user.is_manager):
         raise HTTPException(status_code=403, detail="You do not have permission to access this page.")
@@ -6395,7 +6398,7 @@ async def chat(request: Request, current_user: Optional[User] = Depends(get_curr
 @app.post("/chat")
 async def chat_post(request: Request, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
     
     data = await request.json()
     form_type = data.get('form_type')
@@ -6834,7 +6837,7 @@ async def handle_get_request(request, user_id, current_user, conn, admin_view=Fa
 @app.get("/admin/chat", response_class=HTMLResponse)
 async def admin_conversations(request: Request, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     if not await current_user.is_admin:
         return JSONResponse(content={"error": "Access denied"}, status_code=403)
@@ -6869,7 +6872,7 @@ async def serve_elevenlabs_alias_map():
 @app.get("/admin/elevenlabs-agents", response_class=HTMLResponse)
 async def admin_elevenlabs_agents(request: Request, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
     if not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Access denied")
 
@@ -6912,7 +6915,7 @@ async def create_or_update_elevenlabs_agent(
     make_default: Optional[str] = Form(None),
 ):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
     if not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Access denied")
 
@@ -6971,7 +6974,7 @@ async def create_or_update_elevenlabs_agent(
 @app.post("/admin/elevenlabs-agents/{agent_id}/set-default")
 async def set_default_elevenlabs_agent(request: Request, agent_id: str, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
     if not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Access denied")
 
@@ -7003,7 +7006,7 @@ async def set_default_elevenlabs_agent(request: Request, agent_id: str, current_
 @app.post("/admin/elevenlabs-agents/{agent_id}/delete")
 async def delete_elevenlabs_agent(request: Request, agent_id: str, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
     if not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Access denied")
 
@@ -7041,7 +7044,7 @@ async def update_elevenlabs_mapping(
     voice_id: str = Form(""),
 ):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
     if not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Access denied")
 
@@ -7340,7 +7343,7 @@ async def _repair_orphan_llm_references(conn: aiosqlite.Connection, fallback_mod
 @app.get("/admin/llms", response_class=HTMLResponse)
 async def llm_list(request: Request, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     if not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -7371,7 +7374,7 @@ async def api_llms_list(current_user: User = Depends(get_current_user)):
 @app.get("/admin/llm/new", response_class=HTMLResponse)
 async def create_llm(request: Request, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
         
     if not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -7389,7 +7392,7 @@ async def create_llm_post(
     vision: bool = Form(False)
 ):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
         
     if not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -7406,7 +7409,7 @@ async def create_llm_post(
 @app.get("/admin/llm/edit/{llm_id}", response_class=HTMLResponse)
 async def edit_llm(request: Request, llm_id: int, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
         
     if not await current_user.is_admin:
         return JSONResponse(content={"error": "Access denied"}, status_code=403)
@@ -7433,7 +7436,7 @@ async def edit_llm(request: Request, llm_id: int, current_user: User = Depends(g
 @app.post("/admin/llm/update/{llm_id}")
 async def update_llm(request: Request, llm_id: int, current_user: User = Depends(get_current_user), machine: str = Form(...), model: str = Form(...), input_token_cost: float = Form(...), output_token_cost: float = Form(...), vision: bool = Form(False)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
         
     if not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -7551,7 +7554,7 @@ async def bulk_delete_llms(request: Request, current_user: User = Depends(get_cu
 async def admin_security_guard(request: Request, current_user: User = Depends(get_current_user)):
     """Admin page for configuring Security Guard LLM."""
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     if not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -7658,7 +7661,7 @@ async def get_security_guard_status(current_user: User = Depends(get_current_use
 async def admin_openrouter(request: Request, current_user: User = Depends(get_current_user)):
     """Admin page for managing OpenRouter models."""
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     if not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -7858,7 +7861,7 @@ async def sync_openrouter_models(request: Request, current_user: User = Depends(
 async def admin_elevenlabs_voices(request: Request, current_user: User = Depends(get_current_user)):
     """Admin page for managing ElevenLabs voices."""
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     if not await current_user.is_admin:
         return JSONResponse(content={"error": "Access denied"}, status_code=403)
@@ -7876,6 +7879,146 @@ async def admin_elevenlabs_voices(request: Request, current_user: User = Depends
         "enabled_count": len(enabled_voices)
     })
     return templates.TemplateResponse("admin_elevenlabs_voices.html", context)
+
+
+# --- ElevenLabs TTS Settings admin ---
+
+@app.get("/admin/elevenlabs-tts", response_class=HTMLResponse)
+async def admin_elevenlabs_tts(request: Request, current_user: User = Depends(get_current_user)):
+    if current_user is None:
+        return templates.TemplateResponse("login.html", {
+            "request": request, "captcha": get_captcha_config(),
+            "google_oauth_available": bool(GOOGLE_CLIENT_ID)
+        })
+    if not await current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    config = await get_tts_config()
+    context = await get_template_context(request, current_user)
+    context.update({
+        "config": config,
+        "valid_models": VALID_MODELS,
+        "valid_formats": VALID_FORMATS,
+        "ws_incompatible_models": list(WS_INCOMPATIBLE_MODELS),
+        "message": request.query_params.get("message"),
+        "error": request.query_params.get("error"),
+    })
+    return templates.TemplateResponse("admin_elevenlabs_tts.html", context)
+
+
+@app.post("/admin/elevenlabs-tts", response_class=HTMLResponse)
+async def admin_elevenlabs_tts_save(request: Request, current_user: User = Depends(get_current_user)):
+    if current_user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not await current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    form = await request.form()
+    action = form.get("action")
+
+    if action != "save_config":
+        return RedirectResponse(url="/admin/elevenlabs-tts", status_code=303)
+
+    valid_model_ids = {m[0] for m in VALID_MODELS}
+    valid_format_ids = {f[0] for f in VALID_FORMATS}
+
+    # Block eleven_v3 + WS enabled (v3 does not support WebSocket TTS)
+    webchat_model = form.get("tts_webchat_model", "")
+    webchat_ws = form.get("tts_webchat_ws_enabled")
+    if webchat_model in WS_INCOMPATIBLE_MODELS and webchat_ws:
+        return RedirectResponse(
+            url="/admin/elevenlabs-tts?error="
+                + quote(f"{webchat_model} does not support WebSocket TTS. "
+                        "Disable WebSocket or choose a different model for webchat."),
+            status_code=303,
+        )
+
+    # Block non-MP3 format for webchat when WS enabled
+    webchat_format = form.get("tts_webchat_format", "")
+    if webchat_ws and webchat_format and not webchat_format.startswith("mp3"):
+        return RedirectResponse(
+            url="/admin/elevenlabs-tts?error="
+                + quote("WebSocket streaming requires MP3 format. "
+                        "Disable WebSocket or select an MP3 format for webchat."),
+            status_code=303,
+        )
+
+    try:
+        async with get_db_connection() as conn:
+            for profile_name in ("webchat", "external", "mp3"):
+                prefix = f"tts_{profile_name}_"
+
+                for field in ("model", "format"):
+                    val = form.get(f"{prefix}{field}", "")
+                    valid_set = valid_model_ids if field == "model" else valid_format_ids
+                    if not val:
+                        continue
+                    if val not in valid_set:
+                        return RedirectResponse(
+                            url="/admin/elevenlabs-tts?error="
+                                + quote(f"Invalid {field} value for {profile_name}"),
+                            status_code=303,
+                        )
+                    await conn.execute('''
+                        INSERT INTO SYSTEM_CONFIG (key, value, updated_at)
+                        VALUES (?, ?, CURRENT_TIMESTAMP)
+                        ON CONFLICT(key) DO UPDATE SET
+                            value = excluded.value,
+                            updated_at = CURRENT_TIMESTAMP
+                    ''', (f"{prefix}{field}", val))
+
+                for field in ("stability", "similarity"):
+                    val = form.get(f"{prefix}{field}", "")
+                    if val:
+                        try:
+                            clamped = max(0.0, min(1.0, float(val)))
+                        except (ValueError, TypeError):
+                            continue
+                        await conn.execute('''
+                            INSERT INTO SYSTEM_CONFIG (key, value, updated_at)
+                            VALUES (?, ?, CURRENT_TIMESTAMP)
+                            ON CONFLICT(key) DO UPDATE SET
+                                value = excluded.value,
+                                updated_at = CURRENT_TIMESTAMP
+                        ''', (f"{prefix}{field}", str(clamped)))
+
+            # Webchat-specific fields
+            ws_enabled = "1" if form.get("tts_webchat_ws_enabled") else "0"
+            await conn.execute('''
+                INSERT INTO SYSTEM_CONFIG (key, value, updated_at)
+                VALUES ('tts_webchat_ws_enabled', ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(key) DO UPDATE SET
+                    value = excluded.value, updated_at = CURRENT_TIMESTAMP
+            ''', (ws_enabled,))
+
+            chunk_schedule = form.get("tts_webchat_chunk_schedule", "").strip()
+            if chunk_schedule:
+                try:
+                    parsed = orjson.loads(chunk_schedule)
+                    if (isinstance(parsed, list) and len(parsed) > 0
+                            and all(isinstance(x, int) and x > 0 for x in parsed)):
+                        await conn.execute('''
+                            INSERT INTO SYSTEM_CONFIG (key, value, updated_at)
+                            VALUES ('tts_webchat_chunk_schedule', ?, CURRENT_TIMESTAMP)
+                            ON CONFLICT(key) DO UPDATE SET
+                                value = excluded.value, updated_at = CURRENT_TIMESTAMP
+                        ''', (chunk_schedule,))
+                except Exception:
+                    pass
+
+            await conn.commit()
+
+        invalidate_tts_config_cache()
+        return RedirectResponse(
+            url="/admin/elevenlabs-tts?message=Configuration saved successfully",
+            status_code=303,
+        )
+    except Exception as e:
+        logger.error("Error saving TTS config: %s", e)
+        return RedirectResponse(
+            url="/admin/elevenlabs-tts?error=" + quote(f"Error saving: {type(e).__name__}"),
+            status_code=303,
+        )
 
 
 @app.get("/api/elevenlabs/voices")
@@ -7970,6 +8113,8 @@ async def sync_elevenlabs_voices(request: Request, current_user: User = Depends(
     try:
         body = await request.json()
         voices_to_save = body.get("voices", [])
+        # api_voice_ids: all voice IDs the API returned (what the user actually saw)
+        api_voice_ids = set(body.get("api_voice_ids", []))
 
         async with get_db_connection() as conn:
             # Get current ElevenLabs voices (tts_service = 1)
@@ -7981,16 +8126,46 @@ async def sync_elevenlabs_voices(request: Request, current_user: User = Depends(
             # Voices to add/update
             new_voice_codes = {v["voice_id"] for v in voices_to_save}
 
-            # Delete voices that are no longer selected
-            voices_to_delete = [code for code in existing.keys() if code not in new_voice_codes]
+            # Only remove voices the user explicitly unchecked (were in API but not selected).
+            # Voices not in the API response are left untouched (user never saw them).
+            voices_to_remove = [
+                code for code in existing.keys()
+                if code not in new_voice_codes and code in api_voice_ids
+            ]
             removed_count = 0
-            if voices_to_delete:
-                placeholders = ",".join("?" * len(voices_to_delete))
-                await conn.execute(
-                    f"DELETE FROM VOICES WHERE tts_service = 1 AND voice_code IN ({placeholders})",
-                    voices_to_delete
-                )
-                removed_count = len(voices_to_delete)
+            deprecated_count = 0
+            if voices_to_remove:
+                remove_ids = [existing[code] for code in voices_to_remove]
+                placeholders = ",".join("?" * len(remove_ids))
+
+                # Find which voice IDs are referenced by PROMPTS or USER_DETAILS
+                referenced_ids = set()
+                async with conn.execute(
+                    f"SELECT DISTINCT voice_id FROM PROMPTS WHERE voice_id IN ({placeholders})",
+                    remove_ids
+                ) as cursor:
+                    referenced_ids.update(row[0] for row in await cursor.fetchall())
+                async with conn.execute(
+                    f"SELECT DISTINCT voice_id FROM USER_DETAILS WHERE voice_id IN ({placeholders})",
+                    remove_ids
+                ) as cursor:
+                    referenced_ids.update(row[0] for row in await cursor.fetchall())
+
+                # Deprecate referenced voices, delete unreferenced ones
+                for code in voices_to_remove:
+                    voice_id = existing[code]
+                    if voice_id in referenced_ids:
+                        await conn.execute(
+                            "UPDATE VOICES SET deprecated = 1 WHERE id = ?",
+                            (voice_id,)
+                        )
+                        deprecated_count += 1
+                    else:
+                        await conn.execute(
+                            "DELETE FROM VOICES WHERE id = ?",
+                            (voice_id,)
+                        )
+                        removed_count += 1
 
             # Add/update voices
             added_count = 0
@@ -8000,9 +8175,9 @@ async def sync_elevenlabs_voices(request: Request, current_user: User = Depends(
                 voice_name = voice["name"]
 
                 if voice_code in existing:
-                    # Update existing voice name
+                    # Update existing voice name and un-deprecate if re-selected
                     await conn.execute(
-                        "UPDATE VOICES SET name = ? WHERE id = ?",
+                        "UPDATE VOICES SET name = ?, deprecated = 0 WHERE id = ?",
                         (voice_name, existing[voice_code])
                     )
                     updated_count += 1
@@ -8020,7 +8195,8 @@ async def sync_elevenlabs_voices(request: Request, current_user: User = Depends(
             "success": True,
             "added": added_count,
             "updated": updated_count,
-            "removed": removed_count
+            "removed": removed_count,
+            "deprecated": deprecated_count
         })
 
     except Exception as e:
@@ -8031,7 +8207,7 @@ async def sync_elevenlabs_voices(request: Request, current_user: User = Depends(
 @app.get("/admin/services", response_class=HTMLResponse)
 async def service_list(request: Request, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
         
     if not await current_user.is_admin:
         return JSONResponse(content={"error": "Access denied"}, status_code=403)
@@ -8049,7 +8225,7 @@ async def service_list(request: Request, current_user: User = Depends(get_curren
 @app.get("/admin/services/new", response_class=HTMLResponse)
 async def create_service(request: Request, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
         
     if not await current_user.is_admin:
         return JSONResponse(content={"error": "Access denied"}, status_code=403)
@@ -8061,7 +8237,7 @@ async def create_service(request: Request, current_user: User = Depends(get_curr
 @app.post("/admin/services/new")
 async def create_service_post(request: Request, current_user: User = Depends(get_current_user), name: str = Form(...), unit: str = Form(...), cost_per_unit: float = Form(...), type: str = Form(...)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
         
     if not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -8076,7 +8252,7 @@ async def create_service_post(request: Request, current_user: User = Depends(get
 @app.get("/admin/services/edit/{service_id}", response_class=HTMLResponse)
 async def edit_service(request: Request, service_id: int, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
         
     if not await current_user.is_admin:
         return JSONResponse(content={"error": "Access denied"}, status_code=403)
@@ -8103,7 +8279,7 @@ async def edit_service(request: Request, service_id: int, current_user: User = D
 @app.post("/admin/services/update/{service_id}")
 async def update_service(request: Request, service_id: int, current_user: User = Depends(get_current_user), name: str = Form(...), unit: str = Form(...), cost_per_unit: float = Form(...), type: str = Form(...)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
         
     if not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -8152,7 +8328,7 @@ async def get_voices(current_user: User = Depends(get_current_user)):
 @app.get("/admin/voices", response_class=HTMLResponse)
 async def list_voices(request: Request, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
         
     if not await current_user.is_admin:
         return JSONResponse(content={"error": "Access denied"}, status_code=403)
@@ -8173,7 +8349,7 @@ async def list_voices(request: Request, current_user: User = Depends(get_current
 @app.get("/admin/voices/new", response_class=HTMLResponse)
 async def create_voice(request: Request, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     if not await current_user.is_admin:
         return JSONResponse(content={"error": "Access denied"}, status_code=403)
@@ -8184,7 +8360,7 @@ async def create_voice(request: Request, current_user: User = Depends(get_curren
 @app.post("/admin/voices/new")
 async def create_voice_post(request: Request, current_user: User = Depends(get_current_user), name: str = Form(...), voice_code: str = Form(...), tts_service: str = Form(...)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
         
     if not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -8198,7 +8374,7 @@ async def create_voice_post(request: Request, current_user: User = Depends(get_c
 @app.get("/admin/voices/edit/{voice_id}", response_class=HTMLResponse)
 async def edit_voice(request: Request, voice_id: int, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     if not await current_user.is_admin:
         return JSONResponse(content={"error": "Access denied"}, status_code=403)
@@ -8222,7 +8398,7 @@ async def edit_voice(request: Request, voice_id: int, current_user: User = Depen
 @app.post("/admin/voices/update/{voice_id}")
 async def update_voice(request: Request, voice_id: int, current_user: User = Depends(get_current_user), name: str = Form(...), voice_code: str = Form(...), tts_service: str = Form(...)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
         
     if not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -8382,7 +8558,7 @@ async def get_conversations(
         return JSONResponse(content={"error": "before_activity and before_id must both be provided or both omitted"}, status_code=400)
 
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     if user_id is None:
         return JSONResponse(content={"error": "user_id is required"}, status_code=400)
@@ -8510,7 +8686,7 @@ async def get_conversations(
 @app.get("/api/admin/conversations")
 async def get_all_conversations(request: Request, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     if not await current_user.is_admin:
         return JSONResponse(content={"error": "Access denied"}, status_code=403)
@@ -9071,7 +9247,7 @@ async def update_external_platform(
     current_user: User = Depends(get_current_user)
 ):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
     
     platform = data.get('platform')
     action = data.get('action')
@@ -9319,7 +9495,7 @@ async def start_new_conversation(
     current_user: User = Depends(get_current_user)
 ):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     logger.info(f"[NEW] CREATING NEW CONVERSATION - User: {current_user.username}, folder_id: {request.folder_id}, prompt_id: {request.prompt_id}")
     
@@ -9619,7 +9795,7 @@ async def get_bookmarked_messages(
     current_user: User = Depends(get_current_user)
 ):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
     
     async with get_db_connection(readonly=True) as conn:
         cursor = await conn.cursor()
@@ -10053,7 +10229,7 @@ async def download_pdf(
 
     if current_user is None:
         logger.warning("User not authenticated attempted to access /download-pdf")
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     # Wait for async is_admin property
     try:
@@ -10554,14 +10730,14 @@ async def websocket_endpoint(websocket: WebSocket):
                 if manager.active_connections[websocket]["task"]:
                     manager.active_connections[websocket]["task"].cancel()
 
-                task = asyncio.create_task(handle_tts_request(websocket, data, current_user))
+                task = asyncio.create_task(handle_tts_request(websocket, data, current_user, tts_context="webchat"))
                 manager.active_connections[websocket]["task"] = task
 
             elif action == 'start_tts_ws':
                 if manager.active_connections[websocket]["task"]:
                     manager.active_connections[websocket]["task"].cancel()
                 task = asyncio.create_task(
-                    handle_tts_request(websocket, data, current_user, ws_mode=True)
+                    handle_tts_request(websocket, data, current_user, ws_mode=True, tts_context="webchat")
                 )
                 manager.active_connections[websocket]["task"] = task
 
@@ -10914,7 +11090,7 @@ async def get_voice_sample(
     current_user: User = Depends(get_current_user)
 ):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     logger.info(f"Entering get_voice_sample, sample_voice_id: {sample_voice_id}, category: {category}")
 
@@ -10956,7 +11132,7 @@ async def get_voice_sample(
             "author": "bot",
             "conversationId": "sample"
         }
-        audio_path, error = await handle_tts_request(None, data, current_user, is_whatsapp=True, sample_voice_id=sample_voice_id)
+        audio_path, error = await handle_tts_request(None, data, current_user, is_whatsapp=True, sample_voice_id=sample_voice_id, tts_context="external")
         
         if error:
             raise HTTPException(status_code=500, detail=f"Error generating voice sample: {error}")
@@ -12852,7 +13028,7 @@ async def free_credit_payment(request: Request, current_user: dict = Depends(get
 @app.get("/admin/create-discount", response_class=HTMLResponse)
 async def create_discount(request: Request, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     if not await current_user.is_admin:
         return JSONResponse(content={"error": "Access denied"}, status_code=403)
@@ -12934,7 +13110,7 @@ async def apply_discount(
 @app.get("/admin/discount-list", response_class=HTMLResponse)
 async def discount_list(request: Request, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     if not await current_user.is_admin:
         return JSONResponse(content={"error": "Access denied"}, status_code=403)
@@ -13224,7 +13400,7 @@ async def clear_dramatiq(current_user: User = Depends(get_current_user)):
 async def admin_security_page(request: Request, current_user: User = Depends(get_current_user)):
     """Admin security operations panel."""
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     if not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Only administrators can access this function")
@@ -13461,7 +13637,7 @@ async def admin_security_reputation_reset_score(
 async def admin_watchdog_events(request: Request, current_user: User = Depends(get_current_user)):
     """Admin panel to inspect watchdog evaluation events."""
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
     if not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Access denied")
 
@@ -13589,7 +13765,7 @@ async def admin_watchdog_events(request: Request, current_user: User = Depends(g
 @app.get("/admin/whatsapp", response_class=HTMLResponse)
 async def admin_whatsapp(request: Request, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
     if not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Access denied")
 
@@ -13794,7 +13970,7 @@ async def admin_whatsapp_save(request: Request, current_user: User = Depends(get
 async def admin_telegram(request: Request, current_user: User = Depends(get_current_user)):
     """Admin dashboard for Telegram configuration."""
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
     if not await current_user.is_admin:
         raise HTTPException(status_code=403, detail="Access denied")
 
@@ -14467,8 +14643,8 @@ async def whatsapp_webhook(request: Request):
                         if answer_mode == "voice":
                             logger.debug("WhatsApp voice response mode")
                             logger.debug(f"WhatsApp conversation id: {conversation_id}")
-                            audio_path, error = await handle_tts_request(None, {"text": chunk, "author": "bot", "conversationId": conversation_id}, current_user, is_whatsapp=True)                        
-                            
+                            audio_path, error = await handle_tts_request(None, {"text": chunk, "author": "bot", "conversationId": conversation_id}, current_user, is_whatsapp=True, tts_context="external")
+
                             if error:
                                 error_message = "Sorry, there was a problem generating the voice message. I will send you the message as text."
                                 message = await async_twilio.send_message(
@@ -14498,8 +14674,8 @@ async def whatsapp_webhook(request: Request):
                 except orjson.JSONDecodeError:
                     if answer_mode == "voice":
                         logger.debug("WhatsApp voice mode - processing plain text response")
-                        audio_path, error = await handle_tts_request(None, {"text": chunk, "author": "bot", "conversationId": conversation_id}, current_user, is_whatsapp=True)                        
-                        
+                        audio_path, error = await handle_tts_request(None, {"text": chunk, "author": "bot", "conversationId": conversation_id}, current_user, is_whatsapp=True, tts_context="external")
+
                         if error:
                             error_message = "Sorry, there was a problem generating the voice message. I will send you the message as text."
                             message = await async_twilio.send_message(
@@ -15167,7 +15343,8 @@ async def telegram_webhook(request: Request):
                             None,
                             {"text": accumulated_text, "author": "bot", "conversationId": conversation_id},
                             current_user,
-                            is_whatsapp=True
+                            is_whatsapp=True,
+                            tts_context="external"
                         )
                         if error:
                             # Fallback to text
@@ -15355,7 +15532,7 @@ async def select_prompt(
     current_user: User = Depends(get_current_user)
 ):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
 
     async with get_db_connection() as conn:
@@ -15759,7 +15936,6 @@ async def register_page_user(
         "target_role": "user",
         "prompt": prompt,
         "login_url": f"{base_url}/login",
-        "get_static_url": lambda x: x,
         "captcha": get_captcha_config(),
         "google_oauth_available": bool(GOOGLE_CLIENT_ID)
     })
@@ -16092,7 +16268,6 @@ async def custom_domain_register(request: Request):
             "target_role": "manager",
             "prompt": None,
             "login_url": "/login",
-            "get_static_url": lambda x: x,
             "captcha": get_captcha_config(),
             "google_oauth_available": bool(GOOGLE_CLIENT_ID)
         })
@@ -16114,7 +16289,6 @@ async def custom_domain_register(request: Request):
             "target_role": "user",
             "prompt": prompt,
             "login_url": "/login",
-            "get_static_url": lambda x: x,
             "captcha": get_captcha_config(),
             "google_oauth_available": bool(GOOGLE_CLIENT_ID)
         })
@@ -16753,8 +16927,7 @@ async def verify_email(request: Request, token: str):
         return templates.TemplateResponse("verify_email.html", {
             "request": request,
             "success": False,
-            "error": rate_error["message"],
-            "get_static_url": lambda x: x
+            "error": rate_error["message"]
         })
 
     # Check failure limit
@@ -16763,8 +16936,7 @@ async def verify_email(request: Request, token: str):
         return templates.TemplateResponse("verify_email.html", {
             "request": request,
             "success": False,
-            "error": fail_error["message"],
-            "get_static_url": lambda x: x
+            "error": fail_error["message"]
         })
 
     # Get pending registration
@@ -16775,8 +16947,7 @@ async def verify_email(request: Request, token: str):
         return templates.TemplateResponse("verify_email.html", {
             "request": request,
             "success": False,
-            "error": "Invalid or expired verification link.",
-            "get_static_url": lambda x: x
+            "error": "Invalid or expired verification link."
         })
 
     # Check if expired
@@ -16786,8 +16957,7 @@ async def verify_email(request: Request, token: str):
         return templates.TemplateResponse("verify_email.html", {
             "request": request,
             "success": False,
-            "error": "This verification link has expired. Please register again.",
-            "get_static_url": lambda x: x
+            "error": "This verification link has expired. Please register again."
         })
 
     # Check again if email was registered in the meantime
@@ -16797,8 +16967,7 @@ async def verify_email(request: Request, token: str):
         return templates.TemplateResponse("verify_email.html", {
             "request": request,
             "success": False,
-            "error": "This email is already registered. Please log in.",
-            "get_static_url": lambda x: x
+            "error": "This email is already registered. Please log in."
         })
 
     # Create the user
@@ -17077,8 +17246,7 @@ async def verify_email(request: Request, token: str):
             "request": request,
             "success": True,
             "error": None,
-            "message": "Your account has been created successfully! You can now log in.",
-            "get_static_url": lambda x: x
+            "message": "Your account has been created successfully! You can now log in."
         })
 
     except Exception as e:
@@ -17086,8 +17254,7 @@ async def verify_email(request: Request, token: str):
         return templates.TemplateResponse("verify_email.html", {
             "request": request,
             "success": False,
-            "error": "An error occurred while creating your account. Please try again.",
-            "get_static_url": lambda x: x
+            "error": "An error occurred while creating your account. Please try again."
         })
 
 
@@ -17285,7 +17452,7 @@ async def landing_config(
             (original creator IF no explicit owner assigned)
     """
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     try:
         # Verify user can manage this prompt
@@ -18873,7 +19040,7 @@ async def edit_landing_page(
     current_user: User = Depends(get_current_user)
 ):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     try:
         # Validate section name (alphanumeric, underscores, hyphens only)
@@ -18954,7 +19121,7 @@ async def save_landing_page(
     current_user: User = Depends(get_current_user)
 ):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     try:
         # Validate section name (alphanumeric, underscores, hyphens only)
@@ -19026,7 +19193,7 @@ async def save_landing_page(
 @app.get("/api/public-prompts")
 async def get_public_prompts(current_user: User = Depends(get_current_user)) -> List[dict]:
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
     
     async with get_db_connection(readonly=True) as conn:
         async with conn.cursor() as cursor:
@@ -19075,7 +19242,7 @@ async def creator_storefront(request: Request, slug: str, current_user: User = D
 async def explore_page(request: Request, current_user: User = Depends(get_current_user)):
     """Render the Prompt Explorer page."""
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     context = await get_template_context(request, current_user)
     return templates.TemplateResponse("explore.html", context)
@@ -19369,7 +19536,7 @@ async def edit_component(
 ):
     # Require authentication
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     if component_type not in ALLOWED_COMPONENT_TYPES:
         raise HTTPException(status_code=400, detail="Invalid component type")
@@ -20045,8 +20212,7 @@ async def claim_entitlement(request: Request, token: str):
         return templates.TemplateResponse("verify_email.html", {
             "request": request,
             "success": False,
-            "error": "This claim link is invalid or has already been used.",
-            "get_static_url": lambda x: x
+            "error": "This claim link is invalid or has already been used."
         })
 
     target_user_id, prompt_id, pack_id, expires_at = row[0], row[1], row[2], row[3]
@@ -20056,8 +20222,7 @@ async def claim_entitlement(request: Request, token: str):
         return templates.TemplateResponse("verify_email.html", {
             "request": request,
             "success": False,
-            "error": "This claim link has expired. Please try registering again.",
-            "get_static_url": lambda x: x
+            "error": "This claim link has expired. Please try registering again."
         })
 
     # Security: logged-in user must match the target user
@@ -20065,8 +20230,7 @@ async def claim_entitlement(request: Request, token: str):
         return templates.TemplateResponse("verify_email.html", {
             "request": request,
             "success": False,
-            "error": "This claim link belongs to a different account. Please log in with the correct account.",
-            "get_static_url": lambda x: x
+            "error": "This claim link belongs to a different account. Please log in with the correct account."
         })
 
     # Grant entitlement using the same logic as OAuth
@@ -20611,7 +20775,7 @@ async def scan_audio_directory(base_path: Path, conversation_id: int) -> List[Di
 @app.get("/media-gallery", response_class=HTMLResponse)
 async def media_gallery(request: Request, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
 
     images = []
     conversations = []
@@ -20912,7 +21076,7 @@ async def download_mp3(path: str, current_user: User = Depends(get_current_user)
 @app.get("/list-files")
 async def list_files(request: Request, current_user: User = Depends(get_current_user)):
     if current_user is None:
-        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "get_static_url": lambda x: x, "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
+        return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
     
     user_base_path = Path(get_user_directory(current_user.username))
     files_path = user_base_path / "files"

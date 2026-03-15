@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 
 # Import necessary functions from tts.py
 from tools.tts import process_text_for_tts, insert_tts_break, get_tts_generator
+from tools.tts_config import get_tts_profile, format_to_pydub
 from common import Cost, generate_user_hash, has_sufficient_balance, cost_tts, cache_directory, users_directory, elevenlabs_key, openai_key, tts_engine, get_balance, deduct_balance, load_service_costs
 
 # Logging Configuration
@@ -70,13 +71,16 @@ async def generate_and_save_mp3(conversation_id: int, user_id: int, is_admin: bo
     bot_voice_id = conversation['voice_code']
     user_voice_id = "nMPrFLO7QElx9wTR0JGo"  # Default voice for user
 
+    # Load TTS profile for MP3 export context
+    profile = await get_tts_profile("mp3")
+
     for message in messages:
         text = process_text_for_tts(message['message'])
         chunks = await insert_tts_break(text)
         voice_id = bot_voice_id if message['type'] == 'bot' else user_voice_id
 
-        audio_generator = get_tts_generator(tts_engine, voice_id, chunks)
-        audio_input_format = 'ogg' if tts_engine == 'elevenlabs' else 'mp3'
+        audio_generator = get_tts_generator(tts_engine, voice_id, chunks, profile=profile)
+        audio_input_format = format_to_pydub(profile.output_format) if tts_engine == 'elevenlabs' else 'mp3'
         async for audio_chunk in audio_generator:
             audio_segment = AudioSegment.from_file(BytesIO(audio_chunk), format=audio_input_format)
             audio_segments.append(audio_segment)

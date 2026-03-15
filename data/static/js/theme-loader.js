@@ -58,6 +58,15 @@
         cssUrl = cssPath + theme + '.css';
     }
 
+    // Cache-busting: append version hash if available
+    if (window.STATIC_HASHES) {
+        var hashKey = cssPath + theme + '.css';
+        var hash = window.STATIC_HASHES[hashKey];
+        if (hash) {
+            cssUrl += (cssUrl.indexOf('?') !== -1 ? '&' : '?') + 'v=' + hash;
+        }
+    }
+
     // Write the CSS link tag - this blocks rendering until CSS loads
     document.write('<link rel="stylesheet" href="' + cssUrl + '" id="theme-css">');
 

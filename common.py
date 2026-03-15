@@ -151,6 +151,24 @@ MAX_MESSAGE_SIZE = int(os.getenv('MAX_MESSAGE_SIZE', 5120))
 MAX_IMAGE_UPLOAD_SIZE = int(os.getenv('MAX_IMAGE_UPLOAD_SIZE', 10 * 1024 * 1024))  # 10MB default
 MAX_IMAGE_PIXELS = int(os.getenv('MAX_IMAGE_PIXELS', 50_000_000))  # 50 megapixels (e.g., 7000x7000)
 
+# PDF upload limits
+MAX_PDF_SIZE_MB = int(os.getenv('MAX_PDF_SIZE_MB', 25))        # Under Claude's 32MB request limit
+MAX_PDF_PAGES = int(os.getenv('MAX_PDF_PAGES', 100))           # Claude's limit; Gemini supports 1000
+MAX_PDFS_PER_MESSAGE = int(os.getenv('MAX_PDFS_PER_MESSAGE', 3))
+
+# OpenRouter model ID mapping for GPT/xAI redirect (used when PDF files are present)
+OPENROUTER_MODEL_MAP = {
+    # GPT models
+    "gpt-4o": "openai/gpt-4o",
+    "gpt-4o-mini": "openai/gpt-4o-mini",
+    "gpt-4.1": "openai/gpt-4.1",
+    "gpt-4.1-mini": "openai/gpt-4.1-mini",
+    "gpt-4.5-preview": "openai/gpt-4.5-preview",
+    # xAI models
+    "grok-3": "x-ai/grok-3",
+    "grok-3-mini": "x-ai/grok-3-mini",
+}
+
 # Image token expiration (hours)
 # AVATAR: User profile pictures and bot/prompt avatars (change rarely, can be longer)
 # MEDIA: Conversation images, videos, generated content (more sensitive, shorter)
@@ -181,33 +199,93 @@ AUTH_IMAGE_ALLOWED_PREFIXES = [p.strip() for p in os.getenv("AUTH_IMAGE_ALLOWED_
 CDN_BASE_URL = os.getenv("CDN_BASE_URL", "")  # For static files (/static/)
 CDN_FILES_URL = os.getenv("CDN_FILES_URL", "")  # For user files (/users/)
 ENABLE_CDN = os.getenv("ENABLE_CDN", "false").lower() == "true"
+CACHE_BUSTING = os.getenv("CACHE_BUSTING", "true").lower() == "true"
+
+# Static asset version hashes: {"/static/css/common.css": "e4f2a1b9", ...}
+_static_hashes: dict[str, str] = {}
+
+# Only hash web asset extensions
+_HASHABLE_EXTENSIONS = {
+    ".css", ".js", ".svg", ".png", ".jpg", ".jpeg", ".webp", ".gif",
+    ".ico", ".woff", ".woff2", ".ttf", ".map",
+}
+
+def compute_static_hashes():
+    """Walk data/static/ and compute SHA-256 hash (first 8 hex chars) for each web asset."""
+    global _static_hashes
+    if not CACHE_BUSTING:
+        _static_hashes = {}
+        return
+
+    static_dir = Path("data/static")
+    if not static_dir.is_dir():
+        _static_hashes = {}
+        return
+
+    hashes = {}
+    skip_dirs = {"files", "video", "audio"}
+
+    for file_path in static_dir.rglob("*"):
+        if not file_path.is_file():
+            continue
+        relative = file_path.relative_to(static_dir)
+        if relative.parts and relative.parts[0] in skip_dirs:
+            continue
+        if file_path.suffix.lower() not in _HASHABLE_EXTENSIONS:
+            continue
+
+        content = file_path.read_bytes()
+        digest = hashlib.sha256(content).hexdigest()[:8]
+        url_path = "/static/" + relative.as_posix()
+        hashes[url_path] = digest
+
+    _static_hashes = hashes
+
+
+def get_asset_version(path: str) -> str:
+    """Get the version hash for a static asset path. Returns empty string if not found."""
+    return _static_hashes.get(path, "")
+
+
+def get_static_theme_hashes() -> dict:
+    """Return dict of theme CSS hashes for JS theme loaders."""
+    if not _static_hashes:
+        return {}
+    return {k: v for k, v in _static_hashes.items()
+            if "/css/themes/" in k or "/css/chat/" in k}
+
 
 def get_static_url(path: str) -> str:
     """
     Generate URL for static content (CSS, JS, images)
     If CDN is enabled, returns CDN URL, otherwise returns local FastAPI URL
+    Appends ?v=<content-hash> for cache-busting when CACHE_BUSTING is enabled
     """
+    # Normalize path once
+    if not path.startswith('/'):
+        path = '/' + path
+    lookup_path = path  # Preserve original for hash lookup BEFORE CDN mutation
+
     if ENABLE_CDN and CDN_BASE_URL:
-        # Ensure path starts with /
-        if not path.startswith('/'):
-            path = '/' + path
-        
-        # Remove /static from path if present since CDN_BASE_URL already includes it
-        if path.startswith('/static/'):
-            path = path[7:]  # Remove '/static' (7 characters)
-        elif path.startswith('/static'):
-            path = path[7:]  # Remove '/static' (7 characters)
-        
-        # Ensure path starts with / 
-        if not path.startswith('/'):
-            path = '/' + path
-            
-        return f"{CDN_BASE_URL.rstrip('/')}{path}"
+        # Strip /static prefix for CDN (CDN_BASE_URL already maps to static root)
+        cdn_path = path
+        if cdn_path.startswith('/static/'):
+            cdn_path = cdn_path[7:]
+        elif cdn_path.startswith('/static'):
+            cdn_path = cdn_path[7:]
+        if not cdn_path.startswith('/'):
+            cdn_path = '/' + cdn_path
+        url = f"{CDN_BASE_URL.rstrip('/')}{cdn_path}"
     else:
-        # Return local FastAPI static URL
-        if not path.startswith('/'):
-            path = '/' + path
-        return path
+        url = path
+
+    # Append cache-busting hash if available
+    version = get_asset_version(lookup_path)
+    if version:
+        separator = "&" if "?" in url else "?"
+        url = f"{url}{separator}v={version}"
+
+    return url
 
 JWT_CACHE_SIZE = int(os.getenv('JWT_CACHE_SIZE', '100000'))
 
@@ -222,6 +300,7 @@ templates = Jinja2Templates(directory="templates")
 
 # Add helper functions to template context
 templates.env.globals['get_static_url'] = get_static_url
+templates.env.globals['get_static_theme_hashes'] = get_static_theme_hashes
 
 
 async def get_template_context(request, current_user, branding_context=None):
@@ -273,7 +352,6 @@ async def get_template_context(request, current_user, branding_context=None):
         "username": current_user.username if current_user else "",
         "is_manager": is_manager,
         "is_admin": is_admin,
-        "get_static_url": get_static_url,
         "navbar_avatar_url": navbar_avatar_url,
         "navbar_initials": navbar_initials,
         "branding": branding,

@@ -34,6 +34,7 @@
 
     <!-- CDN Base URL (must be defined before theme-loader.js) -->
     <script>window.CDN_BASE_URL = "{{ get_static_url('/static/').rstrip('/') }}";</script>
+    <script>window.STATIC_HASHES = {{ get_static_theme_hashes()|tojson }};</script>
 
     <!-- Theme loader AFTER Bootstrap and common.css so theme styles have priority -->
     <script src="{{ get_static_url('/static/js/theme-loader.js') }}"></script>
@@ -555,7 +556,7 @@
                         </button>
                     </div>
                 </div>
-                <input id="image-files" type="file" class="hidden" accept="image/*" multiple disabled>
+                <input id="chat-files" type="file" class="hidden" accept="image/*,application/pdf" multiple disabled>
                 <audio id="audioPlayer" style="display: none;"></audio>
             </form>
             <div id="audio-recording-controls" class="hidden">

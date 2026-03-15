@@ -115,7 +115,16 @@ const ThemeManager = {
         return new Promise((resolve, reject) => {
             const cssPath = this.getCSSPath();
             const cssPattern = this.getCSSPattern();
-            const fullPath = this.getStaticUrl(`${cssPath}${theme}.css`);
+            let fullPath = this.getStaticUrl(`${cssPath}${theme}.css`);
+
+            // Cache-busting
+            if (window.STATIC_HASHES) {
+                const hashKey = `${cssPath}${theme}.css`;
+                const hash = window.STATIC_HASHES[hashKey];
+                if (hash) {
+                    fullPath += (fullPath.includes('?') ? '&' : '?') + 'v=' + hash;
+                }
+            }
 
             // Disable ALL existing theme CSS files for this page type
             this.disableAllThemeCSS(cssPattern);

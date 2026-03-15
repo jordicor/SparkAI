@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', function() {
         localStorage.removeItem('restoreConversationId');
     }
 
-    var fileInput = document.getElementById('image-files');
+    var fileInput = document.getElementById('chat-files');
     var previewsContainer = document.getElementById('image-previews');
     const dropZone = document.body; // Use whole body as drop zone
     const dropZoneOverlay = document.getElementById('drop-zone-overlay');
@@ -307,12 +307,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 stopReceivingStream();
             } else {
                 const imagePreviews = document.getElementById('image-previews');
-                const previewImages = imagePreviews.querySelectorAll('img');
-                if (previewImages.length > 0) {
-                    const lastImage = previewImages[previewImages.length - 1];
-                    imagePreviews.removeChild(lastImage);
+                const previewItems = imagePreviews.querySelectorAll('img, .pdf-preview-item');
+                if (previewItems.length > 0) {
+                    const lastItem = previewItems[previewItems.length - 1];
+                    imagePreviews.removeChild(lastItem);
                     attachedFiles.pop();
-                    if (previewImages.length === 1) {
+                    if (previewItems.length === 1) {
                         imagePreviews.classList.add('hidden');
                     }
                 }
@@ -365,7 +365,21 @@ document.addEventListener('DOMContentLoaded', function() {
     function handleDroppedFiles(files) {
         const imagePreviews = document.getElementById('image-previews');
         for (const file of files) {
-            if (file.type.startsWith('image/')) {
+            if (!isAcceptedFileType(file) || !validateFileSize(file)) continue;
+
+            if (file.type === 'application/pdf') {
+                const pdfPreview = document.createElement('div');
+                pdfPreview.className = 'pdf-preview-item';
+                const iconSpan = document.createElement('span');
+                iconSpan.className = 'pdf-icon';
+                iconSpan.textContent = 'PDF';
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'pdf-name';
+                nameSpan.textContent = file.name;
+                pdfPreview.appendChild(iconSpan);
+                pdfPreview.appendChild(nameSpan);
+                imagePreviews.appendChild(pdfPreview);
+            } else if (file.type.startsWith('image/')) {
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     const img = document.createElement('img');
@@ -374,10 +388,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     imagePreviews.appendChild(img);
                 };
                 reader.readAsDataURL(file);
-                attachedFiles.push(file);
             }
+            attachedFiles.push(file);
         }
-    
+
         if (attachedFiles.length > 0) {
             imagePreviews.classList.remove('hidden');
         }
@@ -453,23 +467,9 @@ class TextareaImagePreviewManager {
             justifyContent: 'flex-end'
         });
 
-        // Styles for previews container
+        // Previews container: only set transition for JS-controlled bottom positioning.
+        // All visual styles (background, border, sizing, layout) come from each theme's CSS.
         Object.assign(this.previewsContainer.style, {
-            position: 'absolute',
-            left: '0',
-            right: '0',
-            height: 'auto',
-            minHeight: '100px',
-            maxHeight: '150px',
-            overflowY: 'auto',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            flexWrap: 'wrap',
-            gap: '10px',
-            padding: '10px',
-            backgroundColor: 'rgba(47, 49, 54, 0.95)',
-            zIndex: '10',
             transition: 'bottom 0.2s ease'
         });
 
@@ -531,10 +531,12 @@ class TextareaImagePreviewManager {
         if (this.previewsContainer.classList.contains('hidden')) {
             return;
         }
-        
-        const textareaRect = this.textarea.getBoundingClientRect();
-        const textareaHeight = this.textarea.offsetHeight;
-        const bottomPosition = textareaHeight + 20; // 20px padding
+
+        // Position preview just above the entire message-input area.
+        // #image-previews is a sibling of .message-input inside #window-chat (position: relative),
+        // so bottom must account for the full height of .message-input, not just the textarea.
+        const messageInputHeight = this.messageInput.offsetHeight;
+        const bottomPosition = messageInputHeight + 4;
 
         this.previewsContainer.style.bottom = `${bottomPosition}px`;
     }

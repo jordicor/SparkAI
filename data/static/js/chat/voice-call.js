@@ -56,7 +56,7 @@
 
         const messageText = document.getElementById('message-text');
         const sendButton = document.getElementById('send-button');
-        const fileInput = document.getElementById('image-files');
+        const fileInput = document.getElementById('chat-files');
 
         const trackedInputs = [messageText, sendButton, fileInput];
         const previousStates = new Map();

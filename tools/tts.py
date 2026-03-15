@@ -19,6 +19,7 @@ from database import get_db_connection
 # Own libraries
 from models import User, ConnectionManager
 from tools.tts_load_balancer import get_elevenlabs_key
+from tools.tts_config import get_tts_profile, TTSProfile, format_to_pydub
 from tools.voice_sync import get_default_voice_code, mark_voice_deprecated
 from common import Cost, has_sufficient_balance, cost_tts, refund_tts, cache_directory, elevenlabs_key, openai_key, tts_engine
 from log_config import logger
@@ -234,10 +235,18 @@ async def get_voice_code_from_conversation(conversation_id: int, current_user: U
     return await get_default_voice_code()
 
 
-def get_tts_generator(engine: str, voice_id: str, chunks: list):
+def get_tts_generator(engine: str, voice_id: str, chunks: list, profile: TTSProfile | None = None):
     logger.info("entra en get_tts_generator")
     if engine == 'elevenlabs':
         logger.info("devuelve elevenlabs")
+        if profile:
+            return _elevenlabs_http_generator(
+                voice_id, chunks,
+                output_format=profile.output_format,
+                model_id=profile.model_id,
+                stability=profile.stability,
+                similarity_boost=profile.similarity_boost,
+            )
         return _elevenlabs_http_generator(voice_id, chunks)
     elif engine == 'openai':
         return openai_generator(voice_id, chunks)
@@ -262,11 +271,14 @@ async def _elevenlabs_http_generator(
     voice_id: str,
     chunks: list,
     output_format: str = "opus_48000_128",
+    model_id: str = "eleven_turbo_v2_5",
+    stability: float = 0.45,
+    similarity_boost: float = 0.89,
 ):
     """Generate TTS via per-chunk HTTP POST requests.
     Used as primary path for existing TTS button, and as fallback for WS path.
     """
-    logger.info("Entering elevenlabs HTTP generator (format=%s)", output_format)
+    logger.info("Entering elevenlabs HTTP generator (model=%s, format=%s)", model_id, output_format)
     url = (
         f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
         f"/stream?output_format={output_format}"
@@ -289,10 +301,10 @@ async def _elevenlabs_http_generator(
                 next_text = None if i == len(chunks) - 1 else " ".join(chunks[i + 1:])
                 payload = {
                     "text": chunk_text,
-                    "model_id": "eleven_turbo_v2_5",
+                    "model_id": model_id,
                     "voice_settings": {
-                        "stability": 0.45,
-                        "similarity_boost": 0.89
+                        "stability": stability,
+                        "similarity_boost": similarity_boost
                     }
                 }
                 if previous_text:
@@ -316,14 +328,22 @@ async def _elevenlabs_http_generator(
                 raise ValueError(f"Unexpected error in TTS generation: {str(e)}")
 
 
-async def elevenlabs_ws_generator(voice_id: str, chunks: list):
-    """Generate TTS audio via ElevenLabs WebSocket API using MP3 format.
+async def elevenlabs_ws_generator(
+    voice_id: str,
+    chunks: list,
+    model_id: str = "eleven_turbo_v2_5",
+    output_format: str = "mp3_44100_128",
+    stability: float = 0.45,
+    similarity_boost: float = 0.89,
+    chunk_schedule: list | None = None,
+):
+    """Generate TTS audio via ElevenLabs WebSocket API.
 
     Sends all text over a single WebSocket connection.
-    Yields MP3 audio bytes as they arrive -- each frame is independently
+    Yields audio bytes as they arrive -- MP3 frames are independently
     decodable by the browser's AudioContext.decodeAudioData().
 
-    Falls back to HTTP generator (also MP3 format) if WebSocket fails.
+    Falls back to HTTP generator if WebSocket fails.
     """
     if not chunks:
         return
@@ -333,8 +353,6 @@ async def elevenlabs_ws_generator(voice_id: str, chunks: list):
         raise ValueError("No valid ElevenLabs API key available")
 
     full_text = " ".join(chunks)
-    model_id = "eleven_turbo_v2_5"
-    output_format = "mp3_44100_128"
     url = ELEVENLABS_WS_ENDPOINT.format(voice_id=voice_id)
 
     # --- Attempt WebSocket connection ---
@@ -382,11 +400,11 @@ async def elevenlabs_ws_generator(voice_id: str, chunks: list):
                 await ws.send_json({
                     "text": " ",
                     "voice_settings": {
-                        "stability": 0.45,
-                        "similarity_boost": 0.89,
+                        "stability": stability,
+                        "similarity_boost": similarity_boost,
                     },
                     "generation_config": {
-                        "chunk_length_schedule": [120, 160, 250, 290],
+                        "chunk_length_schedule": chunk_schedule or [120, 160, 250, 290],
                     },
                 })
 
@@ -453,7 +471,11 @@ async def elevenlabs_ws_generator(voice_id: str, chunks: list):
     # --- HTTP fallback (outside WS session) ---
     if use_fallback:
         async for chunk in _elevenlabs_http_generator(
-            voice_id, chunks, output_format="mp3_44100_128"
+            voice_id, chunks,
+            output_format=output_format,
+            model_id=model_id,
+            stability=stability,
+            similarity_boost=similarity_boost,
         ):
             yield chunk
 
@@ -556,7 +578,7 @@ def _cleanup_sync() -> int:
     return deleted
 
 
-async def handle_tts_request(websocket: WebSocket, data: dict, current_user: User, is_whatsapp=False, sample_voice_id=None, ws_mode=False):
+async def handle_tts_request(websocket: WebSocket, data: dict, current_user: User, is_whatsapp=False, sample_voice_id=None, ws_mode=False, tts_context: str = "webchat"):
     _cancelled = False
     try:
         text = data.get('text', '')
@@ -607,7 +629,19 @@ async def handle_tts_request(websocket: WebSocket, data: dict, current_user: Use
 
         logger.debug(f"Before hash_digest, voice_id: {voice_id}")
 
-        hash_input = f"{text}_{voice_id}"
+        # Load TTS profile for this context
+        profile = await get_tts_profile(tts_context)
+
+        # ws_mode override: admin can only DOWNGRADE WS->HTTP, never upgrade HTTP->WS
+        if tts_context == "webchat" and ws_mode and not profile.ws_enabled:
+            ws_mode = False
+
+        # Runtime guard: if format is non-MP3, force HTTP (browser can't decode non-MP3 WS frames)
+        if ws_mode and not profile.output_format.startswith("mp3"):
+            logger.warning("WS mode requested but format %s is not MP3, forcing HTTP", profile.output_format)
+            ws_mode = False
+
+        hash_input = f"{text}_{voice_id}_{profile.model_id}_{profile.output_format}"
         hash_digest = hashlib.sha256(hash_input.encode('utf-8')).hexdigest()
         file_path, full_path_opus = get_file_path(hash_digest)
 
@@ -656,11 +690,18 @@ async def handle_tts_request(websocket: WebSocket, data: dict, current_user: Use
 
             # --- Generator selection ---
             if ws_mode:
-                audio_generator = elevenlabs_ws_generator(voice_id, chunks)
-                audio_input_format = 'mp3'
+                audio_generator = elevenlabs_ws_generator(
+                    voice_id, chunks,
+                    model_id=profile.model_id,
+                    output_format=profile.output_format,
+                    stability=profile.stability,
+                    similarity_boost=profile.similarity_boost,
+                    chunk_schedule=profile.chunk_schedule,
+                )
+                audio_input_format = format_to_pydub(profile.output_format)
             else:
-                audio_generator = get_tts_generator(tts_engine, voice_id, chunks)
-                audio_input_format = 'ogg' if tts_engine == 'elevenlabs' else 'mp3'
+                audio_generator = get_tts_generator(tts_engine, voice_id, chunks, profile=profile)
+                audio_input_format = format_to_pydub(profile.output_format) if tts_engine == 'elevenlabs' else 'mp3'
             audio_segments = []
 
             async for audio_chunk in audio_generator:

@@ -11,7 +11,7 @@ amqp==5.2.0
 annotated-types==0.6.0
 anthropic==0.25.6
 anyascii==0.3.2
-anyio==3.7.1
+anyio>=4.8.0,<5.0.0
 APScheduler==3.10.4
 asttokens==2.4.1
 async-lru==2.0.4
@@ -71,7 +71,7 @@ emoji==2.9.0
 encodec==0.1.1
 eventlet==0.35.2
 executing==2.0.1
-fastapi==0.104.1
+fastapi>=0.115.0
 fastavro==1.9.5
 ffmpeg-python==0.2.0
 file-io==0.5.0
@@ -92,7 +92,7 @@ gevent-websocket==0.10.1
 google==3.0.0
 google-api-core==2.14.0
 google-api-python-client==2.147.0
-google-auth==2.35.0
+google-auth>=2.47.0,<3.0.0
 google-auth-httplib2==0.2.0
 google-auth-oauthlib==1.1.0
 google-cloud==0.34.0
@@ -160,7 +160,7 @@ num2words==0.5.13
 numba==0.58.1
 numpy==1.26.2
 oauthlib==3.2.2
-openai==1.40.0
+openai>=2.26.0
 orjson==3.11.6
 packaging==23.2
 pandas==1.5.3
@@ -180,13 +180,14 @@ pure-eval==0.2.2
 pyasn1==0.5.1
 pyasn1-modules==0.3.0
 pycparser==2.21
-pydantic==2.8.2
+pydantic>=2.9.0,<3.0.0
 pydantic-settings==2.1.0
-pydantic_core==2.20.1
+# pydantic_core version determined by pydantic
 pydub==0.25.1
 pygame==2.5.2
 Pygments==2.17.2
 PyJWT==2.8.0
+pymupdf>=1.24.0
 pynndescent==0.5.11
 PyOpenGL==3.1.7
 pyparsing==3.1.1
@@ -230,7 +231,7 @@ SQLAlchemy==2.0.31
 srsly==2.4.8
 sse-starlette==1.8.2
 stack-data==0.6.3
-starlette==0.27.0
+# starlette version determined by fastapi
 starlette-session==0.4.3
 SudachiDict-core==20230927
 SudachiPy==0.6.7
@@ -267,7 +268,7 @@ watchfiles==0.22.0
 Wave==0.0.2
 wcwidth==0.2.12
 weasel==0.3.4
-websockets==12.0
+websockets>=13.0.0,<16.0.0
 Werkzeug==3.0.1
 wfastcgi==3.0.0
 win32-setctime==1.1.0 ; sys_platform == 'win32'
