@@ -568,9 +568,17 @@ def handle_error(request: Request, error_code: int, error_message: str):
     }
     return templates.TemplateResponse("error.html", context, status_code=error_code)
 
-        
-        
-        
+def parse_optional_float(value, default=None):
+    """Parse optional float from form input. Returns default for None/empty strings."""
+    if value is None or (isinstance(value, str) and value.strip() == ""):
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid numeric value provided.")
+
+
+
 async def is_admin(user_id):
     async with get_db_connection(readonly=True) as conn:
         query = """
@@ -5299,10 +5307,10 @@ async def create_user_post(
     api_key_mode: str = Form(default="both_prefer_own"),
     category_ids: List[int] = Form(default=None),
     billing_mode: str = Form(default="user_pays"),
-    billing_limit: float = Form(default=None),
+    billing_limit: Optional[str] = Form(default=None),
     billing_limit_action: str = Form(default="block"),
-    billing_auto_refill_amount: float = Form(default=10.0),
-    billing_max_limit: float = Form(default=None)
+    billing_auto_refill_amount: Optional[str] = Form(default=None),
+    billing_max_limit: Optional[str] = Form(default=None)
 ):
     if current_user is None:
         return templates.TemplateResponse("login.html", {"request": request, "captcha": get_captcha_config(), "google_oauth_available": bool(GOOGLE_CLIENT_ID)})
@@ -5384,6 +5392,11 @@ async def create_user_post(
     category_access = None
     if public_prompts_access and category_ids is not None and len(category_ids) > 0:
         category_access = orjson.dumps(category_ids).decode('utf-8')
+
+    # Parse optional billing floats (HTML forms send "" for empty inputs)
+    billing_limit = parse_optional_float(billing_limit)
+    billing_auto_refill_amount = parse_optional_float(billing_auto_refill_amount, default=10.0)
+    billing_max_limit = parse_optional_float(billing_max_limit)
 
     # Process enterprise billing mode
     # billing_mode: "user_pays" (default) or "manager_pays"
@@ -5633,9 +5646,9 @@ async def update_user(
             raise HTTPException(status_code=403, detail="Managers cannot edit admin accounts.")
 
         # Parse optional numeric fields (HTML forms send empty string instead of null)
-        billing_limit = float(billing_limit) if billing_limit and billing_limit.strip() else None
-        billing_auto_refill_amount = float(billing_auto_refill_amount) if billing_auto_refill_amount and billing_auto_refill_amount.strip() else 10.0
-        billing_max_limit = float(billing_max_limit) if billing_max_limit and billing_max_limit.strip() else None
+        billing_limit = parse_optional_float(billing_limit)
+        billing_auto_refill_amount = parse_optional_float(billing_auto_refill_amount, default=10.0)
+        billing_max_limit = parse_optional_float(billing_max_limit)
         user_role_id = int(user_role_id) if user_role_id and user_role_id.strip() else None
 
         # Validate authentication mode
@@ -5902,8 +5915,6 @@ async def users_list(request: Request, current_user: User = Depends(get_current_
                 is_expired = 'N/A'
             conversation_count = row[6]
             balance = row[9]
-            total_cost_formatted = f"${total_cost:.2f}"
-            balance_formatted = f"${balance:.4f}"
             phone = row[10]
             role_name = row[11]
             auth_provider = row[12]
@@ -5911,14 +5922,14 @@ async def users_list(request: Request, current_user: User = Depends(get_current_
                 'user_id': user_id,
                 'username': username,
                 'tokens': tokens,
-                'total_cost': total_cost_formatted,
+                'total_cost': total_cost,
                 'magic_link': magic_link,
                 'is_expired': is_expired,
                 'expires_at': expires_at,
                 'conversation_count': conversation_count,
                 'prompt_name': row[7],
                 'llm_model': row[8],
-                'balance': balance_formatted,
+                'balance': balance,
                 'phone': phone,
                 'role': role_name,
                 'auth_provider': auth_provider,

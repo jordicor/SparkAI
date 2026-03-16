@@ -287,7 +287,7 @@
                     <label class="form-label small">Increment amount:</label>
                     <div class="input-group" style="max-width: 200px;">
                         <span class="input-group-text">$</span>
-                        <input type="number" class="form-control" name="billing_auto_refill_amount" value="10.00" step="0.01" min="1">
+                        <input type="number" class="form-control" name="billing_auto_refill_amount" value="10.00" step="0.01" min="1" disabled>
                     </div>
                     <small class="text-muted">How much to increase the limit each time</small>
                 </div>
@@ -295,7 +295,7 @@
                     <label class="form-label small">Maximum limit (optional):</label>
                     <div class="input-group" style="max-width: 200px;">
                         <span class="input-group-text">$</span>
-                        <input type="number" class="form-control" name="billing_max_limit" placeholder="No cap" step="0.01" min="0">
+                        <input type="number" class="form-control" name="billing_max_limit" placeholder="No cap" step="0.01" min="0" disabled>
                     </div>
                     <small class="text-muted">Leave empty for unlimited auto-refills</small>
                 </div>
@@ -477,6 +477,8 @@
             initPhoneInput();
             toggleAllowFileUpload();
             toggleUsernameInput();
+            toggleBillingOptions();
+            toggleAutoRefillSettings();
         }
 
         async function sendVerificationCode() {
@@ -637,6 +639,8 @@
             document.getElementById('billingLimitInput').disabled = true;
             document.getElementById('billingLimitInput').value = '';
             document.getElementById('actionBlock').checked = true;
+            document.getElementById('autoRefillSettings').style.display = 'none';
+            setAutoRefillInputsDisabled(true);
         }
     }
 
@@ -649,10 +653,16 @@
         }
     }
 
+    function setAutoRefillInputsDisabled(disabled) {
+        const container = document.getElementById('autoRefillSettings');
+        const inputs = container.querySelectorAll('input[name]');
+        inputs.forEach(input => input.disabled = disabled);
+    }
+
     function toggleAutoRefillSettings() {
         const autoRefillSelected = document.getElementById('actionAutoRefill').checked;
-        const autoRefillSettings = document.getElementById('autoRefillSettings');
-        autoRefillSettings.style.display = autoRefillSelected ? 'block' : 'none';
+        document.getElementById('autoRefillSettings').style.display = autoRefillSelected ? 'block' : 'none';
+        setAutoRefillInputsDisabled(!autoRefillSelected);
     }
 </script>
 {% endblock %}
